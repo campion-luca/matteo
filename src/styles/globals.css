@@ -1,0 +1,854 @@
+/* I font (Inter + Fraunces) sono caricati via <link> in index.html
+   con preconnect: evita il doppio download e il render-blocking dell'@import. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Office / Paper design tokens ──────────────────────────────── */
+:root {
+  /* Fa adattare i controlli nativi (calendario di input[type=date], orologio di
+     input[type=time], scrollbar) al tema. Senza, in dark mode il calendario del
+     browser resta bianco. */
+  color-scheme: light;
+
+  /* Backgrounds — tema "Journal" (light = copertina aperta, carta) */
+  --bg:        #e9e3d4;   /* carta di fondo pagina */
+  --surface:   #f7f3e8;   /* carta chiara delle card */
+  --surface-2: #efe8d8;
+  --input-bg:  #fcfaf3;
+
+  /* Paper grain texture */
+  --paper-grain:
+    radial-gradient(120% 80% at 80% -10%, rgba(255,255,255,.5), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(42,36,24,.045) 27px 28px);
+
+  /* Foreground */
+  --fg:      #26221b;
+  --fg-soft: #4a4436;
+  --fg-mute: #675e4a;   /* micro-label ≥AA anche sullo sfondo pagina #e9e3d4 (5.01:1); lo spec #6e6754 dava 4.40 su bg */
+
+  /* Metallo ottone — SOLO decorativo (bordi premium, badge, divisori).
+     --brass-ink usabile come testo solo bold ≥12px (contrasto al limite su carta). */
+  --brass:      #b08a47;
+  --brass-ink:  #8a6930;
+  --kraft:      #b69b78;
+
+  /* Seconda serie dei grafici. Esiste come token proprio perché nessuno di quelli
+     già in casa reggeva: `--brass` in dark, notte-dark e nero è ridefinito come
+     `var(--j-accent)`, quindi le due linee sarebbero diventate lo stesso colore
+     proprio nei temi scuri; `--kraft` sulla carta chiara sta a 2.3:1 e sparisce.
+     Qui il valore è scelto per distinguersi dall'accent in OGNI tema e per stare
+     sopra 3:1 sul fondo (la soglia dei contenuti non testuali). */
+  --chart-2:    #8a5a6e;
+
+  /* Stato (readiness, avvisi). Anche questi hanno override in `.dark`. */
+  --ok:            #35674c;
+  --ok-soft:       #47775f;
+  --warn:          #8a5e1e;
+  --danger:        #ae3f25;
+  --danger-strong: #8e2e18;
+  --danger-rgb:    174,63,37;   /* tinte danger inline: rgba(var(--danger-rgb), α) */
+  --warn-rgb:      138,94,30;   /* tinte warn inline: rgba(var(--warn-rgb), α) */
+
+  /* Pomello dei toggle: disco chiaro che resta chiaro anche in dark. */
+  --knob: #faf7ef;
+
+  /* Bordeaux — i prossimi impegni nella panoramica di home. Non è un accent
+     alternativo: colora un'informazione ("questo deve ancora arrivare"), quindi
+     resta fuori dal picker dei temi. In dark un bordeaux vero sparirebbe sulla
+     copertina verde, perciò lì schiarisce a rosé mantenendo la stessa tinta.
+     Contrasti sul caso peggiore (--surface-2): 6.82 in light, 4.72 in dark. */
+
+  /* Binario delle barre di avanzamento. Token e non rgba fisso: era caldo in entrambi
+     i temi e restava tale in monocromatico, dove nessun CSS di `.mono` lo raggiungeva. */
+  --track:      rgba(60,42,20,0.12);
+  /* Velo dietro ai modali (JModal) — stessa storia: era un rgba(44,36,24,.36) fisso. */
+  --scrim:      rgba(44,36,24,0.36);
+
+  /* Palette categorica calda (muscoli, picker colore).
+     Mid-tone: ogni tinta resta visibile sia su carta (#f7f3e8) sia su copertina (#1b3a2f). */
+  --cat-1:  #3f7357; --cat-2:  #2f7a6b; --cat-3:  #6e7a38; --cat-4:  #557a3a;
+  --cat-5:  #b0873f; --cat-6:  #c08a2e; --cat-7:  #b0562f; --cat-8:  #9e4a2c;
+  --cat-9:  #a2687a; --cat-10: #8a5a6e; --cat-11: #b07a5e; --cat-12: #5f7e86;
+  --cat-13: #8a7440; --cat-14: #a5442a;
+
+  /* Borders — inchiostro carta */
+  --hairline:      rgba(42,36,24,.20);
+  --hairline-soft: rgba(42,36,24,.10);
+
+  /* Misc */
+  --radius:      0px;
+  /* Elevazione unica, calda e quasi invisibile (l'inchiostro carta, non il nero freddo). */
+  --shadow-card: 0 1px 2px rgba(42,36,24,.06), 0 4px 12px rgba(42,36,24,.05);
+  --shadow-pop:  0 8px 18px -8px rgba(42,36,24,.5);
+
+  /* Rilievo delle icone della barra in basso, che non ha più uno sfondo
+     proprio: senza un'ombra resterebbero appiccicate alla carta. */
+  --nav-lift: rgba(42,36,24,.30);
+
+  /* Ombra offsettata (vedi .j-hard). Netta: nessuna sfocatura e tinta densa, che è
+     ciò che le dà il carattere da stampa a caratteri mobili. Una versione
+     precedente l'aveva velata e sfocata per non farla leggere come "un blocco nero
+     incollato dietro il tasto": il prezzo era che a metà degli elementi non si
+     vedeva più se fossero premibili. Con lo spigolo vivo il rilievo si legge, e a
+     tenerla lontana dal blocco nero è la tinta — il bruno dell'inchiostro, non il
+     nero — e la profondità corta.
+     Deve comunque stare più scura del fondo su cui cade: in `.dark` un nero puro
+     sulla copertina verde non si vedrebbe, quindi lì diventa un verde-nero, e con
+     l'alpha più alta perché su fondo scuro una velatura sparisce. */
+  --shadow-hard-col: rgba(42,36,24,.55);
+
+  /* Motion — ritmo unico in tutta l'app: una curva, due durate.
+     fast = tap/hover · smooth = cambi di vista, pill scorrevoli, reveal */
+  --ease:          cubic-bezier(.2,.8,.2,1);
+  --motion-fast:   160ms;
+  --motion-smooth: 280ms;
+
+  /* Typography — due caratteri e basta: Fraunces per i titoli, Inter per tutto
+     il resto. Erano Space Grotesk e DM Sans, due grotesque che a metà pagina si
+     confondevano: la gerarchia la faceva solo il corpo del testo, non il carattere.
+     Fraunces è un serif variabile con asse ottico (opsz): a corpo grande stringe e
+     mostra le grazie, a corpo piccolo si apre e resta leggibile — è quello che
+     serve a un titolo che vive a 24px in una pagina e a 12px in una card.
+     `--font-serif` e `--font-display` restano due nomi per la stessa cosa: sono
+     usati in mezza app a testa e unificarli sarebbe un rinomina senza guadagno. */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-serif:   'Fraunces', Georgia, serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+  --font-label:   'Inter', system-ui, sans-serif;
+
+  /* Tailwind/shadcn compatibility tokens (HSL) — solo quelli referenziati in tailwind.config.ts. */
+  --background:         43 32% 87%;
+  --foreground:         38 17% 13%;
+  --card:               44 48% 94%;
+  --card-foreground:    38 17% 13%;
+  --primary:            157 33% 26%;
+  --primary-foreground: 103 30% 95%;
+  --border:             42 27% 78%;
+
+  /* Accent Journal (light = verde copertina). I valori reali sono iniettati inline
+     da App.tsx sul contenitore dell'app (dipendono dalla palette scelta + dark
+     mode); questi sono i fallback usati fuori da quel contenitore (es. ErrorBoundary). */
+  --j-accent:      #2c5847;
+  --j-accent-soft: #47775f;
+  --j-accent-deep: #1c3e31;
+  /* Inchiostro SOPRA un fondo accent (crema o scuro, secondo la luminanza). */
+  --j-accent-fg:   #f2f7f0;
+  /* Accent leggibile COME TESTO sulla superficie corrente. */
+  --j-accent-ink:  #27503f;
+  --j-rgb:         44,88,71;
+  --j-deep-rgb:    28,62,49;
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    background-image: var(--paper-grain);
+    color: var(--fg);
+  }
+
+  /* App shell: usa la viewport dinamica così la navbar fissa in basso resta sempre
+     a filo dell'area visibile (niente vuoto quando la chrome del browser mobile
+     compare/scompare). 100vh statico risolve alla viewport "grande" → lascia il gap. */
+  .app-shell {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 100vh;   /* fallback browser senza dvh */
+    height: 100dvh;  /* viewport dinamica = area realmente visibile */
+  }
+
+  *::-webkit-scrollbar { width: 0; height: 0; }
+  button {
+    font-family: inherit; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  input, select { font-family: inherit; }
+  select option { background: var(--surface); color: var(--fg); }
+
+  /* iOS Safari zooma la pagina al focus di un campo con font effettivo < 16px.
+     Su touch forziamo 16px su tutti i campi di testo — vincendo anche sugli stili
+     inline più piccoli (12–14px in login, profilo, schede) — così
+     il focus non fa più "saltare" il layout. Su desktop (pointer: fine) nulla cambia:
+     resta la densità compatta di progetto. Esclusi i controlli che non zoomano. */
+  @media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* ── Entry animation (gentle fade, no hacker effects) ───────────── */
+@keyframes j-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes j-page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes j-rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes undo-bar {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Shimmer per gli skeleton di caricamento */
+@keyframes j-shimmer {
+  from { background-position-x: 200%; }
+  to   { background-position-x: -200%; }
+}
+
+/* Pulse morbido per indicatori di attesa (dot del loader) */
+@keyframes j-pulse {
+  0%, 100% { opacity: .35; transform: scale(1); }
+  50%      { opacity: .9;  transform: scale(1.35); }
+}
+
+.jarvis-boot {
+  animation: j-enter 400ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+/* ── Component utilities ─────────────────────────────────────────── */
+@layer components {
+
+  /* Standard form input */
+  .j-field {
+    height: 44px; box-sizing: border-box;
+    background: var(--input-bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius); padding: 0 12px;
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px; width: 100%; min-width: 0; outline: none;
+  }
+  /* Su touch: 16px evita lo zoom automatico di iOS al focus (che fa "saltare" il form) */
+  @media (pointer: coarse) {
+    .j-field { font-size: 16px; }
+  }
+  .j-field:focus {
+    border-color: var(--j-accent);
+    box-shadow: 0 0 0 2px rgba(var(--j-rgb), .12);
+  }
+  .j-field::placeholder { color: var(--fg-mute); }
+
+  /* I picker nativi data/ora hanno un min-width intrinseco largo: vanno tenuti
+     comprimibili così non sforano mai il modale nelle righe flex affiancate.
+     Padding orizzontale ridotto per non far tagliare l'anno dall'icona calendario. */
+  input[type="date"], input[type="time"], input[type="datetime-local"],
+  input[type="month"], input[type="week"] {
+    min-width: 0; max-width: 100%;
+  }
+  .j-field[type="date"], .j-field[type="time"],
+  .j-field[type="datetime-local"], .j-field[type="month"], .j-field[type="week"] {
+    padding-left: 8px; padding-right: 6px;
+  }
+
+  /* Segmented control: pill scorrevole accelerata su GPU (transform, non left).
+     Il movimento si disattiva per chi preferisce meno animazioni. */
+  .nuc-seg-pill {
+    transition: transform var(--motion-smooth) var(--ease);
+  }
+
+  /* Premium motion — solo transform/opacity (GPU), disattivate con reduced-motion */
+  .j-page-in { animation: j-page-in 280ms cubic-bezier(.2,.8,.2,1) both; }
+  .j-rise-in { animation: j-rise-in 360ms cubic-bezier(.2,.8,.2,1) both; }
+
+  
+  /* Skeleton shimmer — placeholder durante i caricamenti */
+  .j-skeleton {
+    background: linear-gradient(
+      100deg,
+      var(--surface) 30%,
+      var(--surface-2) 50%,
+      var(--surface) 70%
+    );
+    background-size: 200% 100%;
+    animation: j-shimmer 1.4s linear infinite;
+    border-radius: var(--radius);
+  }
+
+  /* Dot del loader cloud con pulse morbido */
+  .j-loader-dot { animation: j-pulse 1.2s ease-in-out infinite; }
+
+  /* FAB "+" : l'icona ruota dolcemente all'hover (coerente con lo scale all'active) */
+  .j-btn-add svg { transition: transform 260ms cubic-bezier(.2,.9,.3,1); }
+  .j-btn-add:hover svg { transform: rotate(90deg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nuc-seg-pill { transition: none; }
+    .j-page-in, .j-rise-in { animation: none; }
+    .j-skeleton { animation: none; }
+    .j-loader-dot { animation: none; }
+    .j-btn-add svg, .j-btn-add:hover svg { transition: none; transform: none; }
+  }
+
+  /* Larger form input (profile) */
+  .j-field-lg {
+    height: 52px; box-sizing: border-box;
+    background: var(--input-bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius); padding: 0 16px;
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 16px; width: 100%; outline: none;
+  }
+  .j-field-lg:focus {
+    border-color: var(--j-accent);
+    box-shadow: 0 0 0 2px rgba(var(--j-rgb), .12);
+  }
+  .j-field-lg::placeholder { color: var(--fg-mute); }
+
+  /* Micro-label / eyebrow — Inter in maiuscoletto spaziato */
+  .j-eyebrow {
+    font-family: var(--font-label);
+    font-size: clamp(11px, 1.4vw, 12px); font-weight: 600;
+    line-height: 1.2; letter-spacing: .16em;
+    color: var(--fg-mute); text-transform: uppercase;
+  }
+
+  /* ── Focus da tastiera ─────────────────────────────────────────
+     `:focus-visible`, non `:focus`: il contorno deve comparire per chi naviga da
+     tastiera e restare invisibile a chi tocca o clicca. Squadrato come il resto.
+     `.j-focus-in` è la variante per gli elementi a filo (le celle del calendario,
+     che non hanno margine attorno): lì l'outline va disegnato DENTRO, altrimenti
+     lo tagliano le celle vicine. */
+  .j-focus:focus-visible {
+    outline: 2px solid var(--j-accent);
+    outline-offset: 2px;
+  }
+  .j-focus-in:focus-visible {
+    outline: 2px solid var(--j-accent);
+    outline-offset: -3px;
+  }
+
+  /* Sezioni del profilo: il separatore è un border-top sul fratello, non un <div>
+     piazzato a mano. Così le sezioni condizionali (la nav, solo su mobile) non
+     lasciano più divider orfani o doppi, e lo spazio fra i blocchi è uno solo. */
+  .j-profile-sec + .j-profile-sec {
+    border-top: 1px solid var(--hairline);
+    padding-top: 20px;
+  }
+
+  /* ── Ombra "hard" ──────────────────────────────────────────────
+     Ombra offsettata: con borderRadius 0 e la carta legge come stampa a caratteri
+     mobili. A riposo l'elemento è sollevato; premendolo scende.
+     La sfocatura (`--j-hard-b`) segue la profondità: senza, il blocco di tinta
+     piena pesava più dell'elemento che stava sollevando.
+
+     Il movimento è MONOTONO verso il basso — riposo → hover a metà → active a
+     fondo. Il verso conta: se l'hover alzasse, il tap dovrebbe prima recuperare
+     il rialzo e il tasto rimbalzerebbe invece di premersi.
+
+     L'ingombro (elemento + ombra) non cambia mai: a ogni stato l'elemento avanza
+     di quanto l'ombra si accorcia, così l'angolo in basso a destra resta inchiodato
+     e l'elemento scivola DENTRO la propria ombra invece di trascinarsela dietro.
+     È anche il motivo per cui nessun vicino si sposta al passaggio del mouse.
+
+     La profondità è una variabile, non un numero fisso: `.j-hard-sm` la dimezza per
+     i controlli da 30px, dove 4px peserebbero quanto il bottone.
+
+     CHI LA PRENDE: tutto ciò che si preme e ha una superficie sotto — i CTA, il
+     "+", il back, gli icon-button, e le card che portano da qualche parte (gruppi
+     muscolari, esercizi, schede), che la prendono via `NucCard hard`.
+     NON la prendono i controlli TRASPARENTI: le celle inattive di un segmented, i
+     chip dei filtri, i toggle senza fondo. Un'ombra sotto un elemento che non ha
+     una superficie non solleva niente, disegna un rettangolo dove non c'è nulla.
+
+     I `.j-btn-*` qui elencati NON devono ridichiarare box-shadow/transform: sono
+     definiti più sotto e, a parità di specificità, vincerebbero per ordine. */
+  .j-hard,
+  .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log {
+    --j-hard-d: 3px;
+    /* Zero sfocatura: è il punto dell'ombra "hard". La variabile resta perché la
+       usano hover e active, che la dimezzano insieme alla profondità. */
+    --j-hard-b: 0px;
+    box-shadow: var(--j-hard-d) var(--j-hard-d) var(--j-hard-b) 0 var(--shadow-hard-col);
+    /* `background` sta qui, non nelle classi bottone: se una di loro ridichiarasse
+       `transition` sovrascriverebbe questa e l'ombra smetterebbe di animarsi. Sugli
+       elementi che non cambiano fondo è un no-op. */
+    transition:
+      box-shadow var(--motion-fast) var(--ease),
+      transform  var(--motion-fast) var(--ease),
+      background var(--motion-fast) var(--ease);
+  }
+  .j-hard-sm { --j-hard-d: 2px; --j-hard-b: 0px; }
+  @media (hover: hover) {
+    .j-hard:hover,
+    .j-btn-accent:hover, .j-btn-accent-sm:hover, .j-btn-add:hover, .j-btn-back:hover, .j-btn-log:hover {
+      --j-hard-h: calc(var(--j-hard-d) / 2);
+      box-shadow: var(--j-hard-h) var(--j-hard-h) calc(var(--j-hard-b) / 2) 0 var(--shadow-hard-col);
+      transform: translate(var(--j-hard-h), var(--j-hard-h));
+    }
+  }
+  /* `:active` copre anche il tap: su mobile l'hover non esiste e, quando il browser
+     lo simula, resta appiccicato dopo il tocco. */
+  .j-hard:active,
+  .j-btn-accent:active, .j-btn-accent-sm:active, .j-btn-add:active, .j-btn-back:active, .j-btn-log:active {
+    box-shadow: 0 0 0 0 var(--shadow-hard-col);
+    transform: translate(var(--j-hard-d), var(--j-hard-d));
+  }
+  /* Un elemento disabilitato non si preme: resta piatto, senza ombra da sollevare. */
+  .j-hard:disabled,
+  .j-btn-accent:disabled, .j-btn-accent-sm:disabled, .j-btn-add:disabled, .j-btn-back:disabled, .j-btn-log:disabled {
+    box-shadow: none;
+    transform: none;
+  }
+  /* I modali non si premono: l'ombra è statica, il "foglio appoggiato sul tavolo". */
+  .j-hard-static { box-shadow: 5px 5px 0 0 var(--shadow-hard-col); }
+
+  /* Come .j-hard ma inerte, alla profondità delle card. Per le superfici che portano
+     l'ombra senza essere tasti (le card della home che non si premono): `:hover` e
+     `:active` risalgono agli antenati, quindi con .j-hard un tap su un bottone dentro
+     la card farebbe affondare la card intera. */
+  .j-hard-flat { box-shadow: 3px 3px 0 0 var(--shadow-hard-col); }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Resta il salto di ombra, sparisce lo scorrimento. */
+    .j-hard, .j-hard:hover, .j-hard:active,
+    .j-btn-accent, .j-btn-accent:hover, .j-btn-accent:active,
+    .j-btn-accent-sm, .j-btn-accent-sm:hover, .j-btn-accent-sm:active,
+    .j-btn-add, .j-btn-add:hover, .j-btn-add:active,
+    .j-btn-back, .j-btn-back:hover, .j-btn-back:active,
+    .j-btn-log, .j-btn-log:hover, .j-btn-log:active { transform: none; }
+  }
+
+  /* Primary CTA button (48px) — ombra, pressione e transizione arrivano dal blocco
+     .j-hard: qui restano solo forma e colore. Niente `opacity` all'hover, era la
+     vecchia risposta al passaggio del mouse e ora la dà la pressione. */
+  .j-btn-accent {
+    height: 48px; border-radius: var(--radius);
+    background: var(--j-accent);
+    border: none;
+    color: var(--j-accent-fg);
+    font-family: var(--font-body);
+    font-size: clamp(13px, 1.8vw, 14px); font-weight: 500; letter-spacing: .01em; line-height: 1.2; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; margin-top: 4px;
+  }
+
+  /* Smaller CTA (44px) */
+  .j-btn-accent-sm {
+    height: 44px; border-radius: var(--radius);
+    background: var(--j-accent);
+    border: none;
+    color: var(--j-accent-fg);
+    font-family: var(--font-body);
+    font-size: clamp(13px, 1.8vw, 14px); font-weight: 500; letter-spacing: .01em; line-height: 1.2; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%;
+  }
+
+  /* Ghost/outline icon button */
+  .j-btn-ghost {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    color: var(--fg-soft);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--motion-fast) var(--ease), transform var(--motion-fast) var(--ease);
+    border-radius: var(--radius);
+  }
+  .j-btn-ghost:hover { background: var(--surface-2); }
+  .j-btn-ghost:active {
+    background: var(--surface-2);
+    transform: translateY(1px) scale(0.92);
+    transition: transform 55ms ease-out, background 55ms;
+  }
+
+  /* Add-plus button (44px) — vedi .j-btn-accent: ombra, pressione e transizione dal
+     blocco .j-hard. Il riempimento all'hover resta: un tasto vero si scurisce e si
+     abbassa insieme. */
+  .j-btn-add {
+    width: 44px; height: 44px; border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    color: var(--j-accent-ink);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .j-btn-add:hover, .j-btn-add:active { background: var(--surface-2); }
+
+  /* Back arrow button (40px) */
+  .j-btn-back {
+    width: 44px; height: 44px; border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    color: var(--fg-soft);
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .j-btn-back:hover, .j-btn-back:active { background: var(--surface-2); }
+
+  /* Log/new-lift button */
+  .j-btn-log {
+    width: 100%; height: 44px; border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    color: var(--j-accent-ink);
+    font-family: var(--font-body);
+    font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .j-btn-log:hover, .j-btn-log:active { background: var(--surface-2); }
+
+  /* Delete button — rosso con cestino */
+  .j-btn-del {
+    position: relative;
+    width: 34px; height: 34px; border-radius: var(--radius);
+    background: rgba(var(--danger-rgb),0.06);
+    border: 1px solid rgba(var(--danger-rgb),0.25);
+    color: var(--danger); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease);
+  }
+  /* Area di tocco invisibile estesa oltre la grafica: porta il bersaglio verso i 44px
+     senza cambiare l'aspetto del bottone. Vale anche per gli icon-button minori inline. */
+  .j-btn-del::after, .j-hit::after {
+    content: ''; position: absolute; inset: -7px -3px;
+  }
+  .j-hit { position: relative; }
+  .j-btn-del:hover { background: rgba(var(--danger-rgb),0.12); }
+  .j-btn-del:active {
+    transform: scale(0.84);
+    background: rgba(var(--danger-rgb),0.16);
+    transition: transform 55ms ease-out, background 55ms;
+  }
+
+  /* Page title */
+  .j-page-title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 4vw, 32px); font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.005em; color: var(--fg);
+  }
+
+  /* Centered empty-state label (body role) */
+  .j-empty {
+    text-align: center; padding: 40px 0;
+    color: var(--fg-mute);
+    font-family: var(--font-body);
+    font-size: clamp(14px, 1.9vw, 15px); font-weight: 400;
+    line-height: 1.5; letter-spacing: 0; text-transform: none;
+  }
+  /* Lo stesso vuoto, ma dentro una sezione: i 40px di respiro servono a una
+     PAGINA vuota, dove la frase è l'unica cosa che c'è. Sotto un campo appena
+     compilato sono ottanta pixel di niente per sei parole, e allontanano dal
+     form la riga che ne commenta il risultato. */
+  .j-empty-sm { padding: 10px 0 2px; font-size: 13px; }
+
+  /* Stat tile */
+  .j-stat-tile {
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius); padding: 10px 6px;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Chart wrapper */
+  .j-chart-box {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius); padding: 10px;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Progress track (5px, paper style) */
+  .j-progress-track {
+    height: 5px; border-radius: 0;
+    background: var(--track);
+    overflow: hidden;
+  }
+
+  /* Page scroll container — bottom padding clears the docked bottom nav + iOS safe area.
+     `--nav-clear` lo decide App in base allo stile di nav: con la barra "riga" il
+     contenuto si ferma già sopra la barra e resta solo il respiro di fine lista. */
+  .j-scroll-area {
+    flex: 1; overflow-y: auto;
+    padding: 0 20px calc(var(--nav-clear, calc(96px + env(safe-area-inset-bottom))) + 24px);
+  }
+
+  /* CTA ancorato in fondo a una pagina a colonna (il "Inizia allenamento" di una
+     scheda, il "Termina Allenamento" di una sessione).
+     Serve la stessa clearance di .j-scroll-area ma per un motivo diverso: lì il
+     padding scorre col contenuto ed è solo respiro di fine lista, qui il blocco
+     è ancorato in basso, dove sul telefono galleggia il tasto di navigazione. Con
+     i soli 20px di prima la nav cadeva sul CENTRO del bottone — cioè sul punto in
+     cui lo si preme — e, essendo dello stesso accent, ne tagliava a metà la
+     scritta invece di sembrarci sopra. Su desktop --nav-clear è 0 e resta il
+     margine di prima. */
+  .j-page-cta {
+    flex-shrink: 0;
+    padding: 12px 20px calc(var(--nav-clear, calc(96px + env(safe-area-inset-bottom))) + 20px);
+  }
+
+  /* Riga dell'elenco gruppi muscolari. Dentro una scheda già sollevata il tocco
+     non può dirlo l'ombra — sarebbe un rilievo dentro un rilievo — quindi lo dice
+     il fondo. */
+  .j-riga-gruppo { transition: background var(--motion-fast) var(--ease); }
+  @media (hover: hover) { .j-riga-gruppo:hover { background: var(--surface-2) !important; } }
+  .j-riga-gruppo:active { background: var(--surface-2) !important; }
+
+  /* Page header */
+  .j-page-header {
+    padding: 24px 20px 16px; flex-shrink: 0;
+  }
+}
+
+/* ── Dark mode ───────────────────────────────────────────────────── */
+.dark {
+  /* La barra in basso poggia sul fondo pagina, che qui è nero: un'ombra scura non
+     si vedrebbe. Il rilievo lo dà un alone chiaro, appena accennato. */
+  --nav-lift: rgba(255,255,255,.22);
+  color-scheme: dark;
+
+  /* Dark vero: fondo nero, non più la copertina verde del "Journal chiuso".
+     Le tre superfici salgono a scalini — su un nero unico le card sparirebbero
+     e resterebbe solo il bordo a dire dove finisce una e comincia l'altra. */
+  --bg:        #000000;
+  --surface:   #121212;
+  --surface-2: #1c1c1c;
+  --input-bg:  #1c1c1c;
+
+  /* Testo bianco, con due gradini sotto per la gerarchia. */
+  --fg:      #ffffff;
+  --fg-soft: #d4d4d4;
+  /* Il fondo che conta NON è --surface ma --surface-2: le micro-label vivono dentro
+     le tile del riepilogo e i chip dei filtri, che sono i più chiari. Qui dà 6.36:1
+     sul peggiore — sul nero il margine è ampio, era la copertina verde a stringerlo. */
+  --fg-mute: #9e9e9e;
+
+  /* Borders — bianco velato: sul nero è l'unica cosa che disegna i contorni,
+     visto che nessuna ombra scura si vede. */
+  --hairline:      rgba(255,255,255,0.16);
+  --hairline-soft: rgba(255,255,255,0.09);
+
+  --paper-grain: none;
+
+  /* In dark --brass coincide con l'accent oro: non si duplica lo slot,
+     si ripunta ai token accent iniettati inline. */
+  --brass:     var(--j-accent);
+  --brass-ink: var(--j-accent-ink);
+  --chart-2:   #d99aae;
+
+  --ok:            #7fc98d;
+  --ok-soft:       #8fd39a;
+  --warn:          #e2a85e;
+  --danger:        #ec8168;
+  --danger-strong: #f59b82;
+  --danger-rgb:    236,129,104;
+  --warn-rgb:      226,168,94;
+
+  --knob: #f0f0f0;
+
+  --track:      rgba(255,255,255,0.10);
+  /* Più fitto che altrove: su fondo nero un velo leggero non separa il modale da niente. */
+  --scrim:      rgba(0,0,0,0.72);
+
+  --shadow-card: 0 1px 0 rgba(0,0,0,.28), 0 10px 24px -18px rgba(0,0,0,.55);
+  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.85);
+
+  /* Sul fondo pagina nero un'ombra scura è invisibile per definizione, e va bene
+     così: lì a delimitare gli elementi è il bordo. Serve invece sulle superfici
+     sollevate (--surface, --surface-2), dove un tasto ci cade sopra. */
+  --shadow-hard-col: rgba(0,0,0,.85);
+
+  --background:         0 0% 0%;
+  --foreground:         0 0% 100%;
+  --card:               0 0% 7%;
+  --card-foreground:    0 0% 100%;
+  --border:             0 0% 18%;
+}
+
+/* ── Layout "Notte" (monocromatico) ──────────────────────────────
+   Gemello di `.dark`, applicato da App.tsx su documentElement. Si combina con essa:
+   `.mono` = bianco/nero su carta chiara, `.mono.dark` = bianco/nero su fondo nero.
+   Vince sempre su `.dark` perché dichiarato dopo, a parità di specificità.
+
+   Copre tutto ciò che è token. Restano fuori i colori che sono DATI utente (i
+   gruppi muscolari): quelli passano da `toMono()` (jarvis-tokens.ts), non da qui. Anche i token accent (--j-accent*) arrivano da JS, iniettati inline da App.tsx.
+
+   NB: i selettori dei picker colore sono volutamente esclusi — vedi `.mono .j-swatch`
+   in fondo: un picker in scala di grigi è un picker inutilizzabile. */
+.mono {
+  --nav-lift: rgba(0,0,0,.25);
+  --bg:        #ececec;
+  --surface:   #fafafa;
+  --surface-2: #f0f0f0;
+  --input-bg:  #ffffff;
+
+  /* Grana neutra: quella di default è inchiostro caldo (rgba(42,36,24,…)). */
+  --paper-grain:
+    radial-gradient(120% 80% at 80% -10%, rgba(255,255,255,.5), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(0,0,0,.045) 27px 28px);
+
+  --fg:      #141414;
+  --fg-soft: #3d3d3d;
+  --fg-mute: #5f5f5f;
+
+  --hairline:      rgba(0,0,0,.20);
+  --hairline-soft: rgba(0,0,0,.10);
+
+  --brass:     #808080;
+  --brass-ink: #4d4d4d;
+  --kraft:     #999999;
+  --chart-2:   #6b6b6b;
+
+  --ok:            #5c5c5c;
+  --ok-soft:       #757575;
+  --warn:          #383838;
+  --danger:        #141414;
+  --danger-strong: #000000;
+  --danger-rgb:    20,20,20;
+  --warn-rgb:      56,56,56;
+
+  --knob: #ffffff;
+
+  --track:      rgba(0,0,0,0.12);
+  --scrim:      rgba(0,0,0,0.4);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.06);
+  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.5);
+  --shadow-hard-col: rgba(20,20,20,.32);
+
+  --background:         0 0% 93%;
+  --foreground:         0 0% 8%;
+  --card:               0 0% 98%;
+  --card-foreground:    0 0% 8%;
+  --primary:            0 0% 12%;
+  --primary-foreground: 0 0% 98%;
+  --border:             0 0% 78%;
+}
+
+.mono.dark {
+  --nav-lift: rgba(0,0,0,.65);
+  --bg:        #0d0d0d;
+  --surface:   #171717;
+  --surface-2: #212121;
+  --input-bg:  #212121;
+
+  --paper-grain: none;
+
+  --fg:      #f2f2f2;
+  --fg-soft: #c9c9c9;
+  --fg-mute: #9e9e9e;
+
+  --hairline:      rgba(255,255,255,.18);
+  --hairline-soft: rgba(255,255,255,.10);
+
+  --brass:     var(--j-accent);
+  --brass-ink: var(--j-accent-ink);
+  --kraft:     #8a8a8a;
+  --chart-2:   #999999;
+
+  /* Su fondo nero la scala si ribalta: "grida" il chiaro, non lo scuro. */
+
+  --ok:            #b0b0b0;
+  --ok-soft:       #9a9a9a;
+  --warn:          #d6d6d6;
+  --danger:        #f2f2f2;
+  --danger-strong: #ffffff;
+  --danger-rgb:    242,242,242;
+  --warn-rgb:      214,214,214;
+
+  --knob: #f2f2f2;
+
+  --track:      rgba(255,255,255,0.10);
+  --scrim:      rgba(0,0,0,0.6);
+
+  /* L'accent qui è near-white: un anello bianco attorno al bollino sparirebbe. */
+
+  --shadow-card: 0 1px 0 rgba(0,0,0,.5), 0 10px 24px -18px rgba(0,0,0,.8);
+  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.9);
+  /* Su fondo #0d0d0d il nero non stacca: qui l'ombra è più CHIARA del fondo. */
+  --shadow-hard-col: rgba(74,74,74,.50);
+
+  --background:         0 0% 5%;
+  --foreground:         0 0% 95%;
+  --card:               0 0% 9%;
+  --card-foreground:    0 0% 95%;
+  --border:             0 0% 22%;
+}
+
+/* ── Layout "Nero" ───────────────────────────────────────────────
+   Nero pieno, testo e dettagli bianchi. A differenza di `.mono`, NON si combina
+   con `.dark`: lo scavalca. Ha la stessa specificità (una classe sola), quindi a
+   vincere è l'ordine — per questo il blocco sta in fondo al foglio. Spostarlo più
+   su lo farebbe perdere contro `.dark` con l'interruttore acceso.
+   L'accent bianco lo inietta App.tsx (MONO_DARK), non serve dichiararlo qui. */
+.nero {
+  color-scheme: dark;
+
+  /* Le superfici salgono appena: bastano a separare una card dal fondo, ma il
+     lavoro grosso lo fa il bordo bianco velato. */
+  --bg:        #000000;
+  --surface:   #0a0a0a;
+  --surface-2: #141414;
+  --input-bg:  #141414;
+
+  --paper-grain: none;
+
+  --fg:      #ffffff;
+  --fg-soft: #d4d4d4;
+  --fg-mute: #a0a0a0;
+
+  --hairline:      rgba(255,255,255,.20);
+  --hairline-soft: rgba(255,255,255,.11);
+
+  --brass:     var(--j-accent);
+  --brass-ink: var(--j-accent-ink);
+  --kraft:     #8a8a8a;
+  --chart-2:   #999999;
+
+  /* Su fondo nero la scala si ribalta: "grida" il chiaro, non lo scuro. */
+
+  --ok:            #b5b5b5;
+  --ok-soft:       #9e9e9e;
+  --warn:          #dedede;
+  --danger:        #ffffff;
+  --danger-strong: #ffffff;
+  --danger-rgb:    255,255,255;
+  --warn-rgb:      222,222,222;
+
+  --knob: #ffffff;
+
+  --track:      rgba(255,255,255,0.11);
+  --scrim:      rgba(0,0,0,0.75);
+
+  --shadow-card: 0 1px 0 rgba(0,0,0,.6), 0 10px 24px -18px rgba(0,0,0,.9);
+  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.95);
+  /* Sul nero pieno un'ombra scura non esiste: qui è più CHIARA del fondo. */
+  --shadow-hard-col: rgba(90,90,90,.45);
+  /* La barra in basso poggia sul nero: il rilievo lo dà un alone chiaro. */
+  --nav-lift: rgba(255,255,255,.24);
+
+  --background:         0 0% 0%;
+  --foreground:         0 0% 100%;
+  --card:               0 0% 4%;
+  --card-foreground:    0 0% 100%;
+  --border:             0 0% 20%;
+}
+
+.mono body { background: var(--bg); }
+.mono.dark body { background-image: none; }
+
+.dark body {
+  background: var(--bg);
+  background-image: none;
+}
+

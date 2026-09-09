@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # `npm run build` esegue già `tsc` prima di Vite: il type-check di
+      # produzione non è un passo a parte.
+      - name: Build
+        run: npm run build
+        env:
+          # Il client Supabase fallisce l'import senza queste due (vedi
+          # src/lib/supabase.ts). In CI si compila soltanto: sono segnaposto,
+          # non credenziali.
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder

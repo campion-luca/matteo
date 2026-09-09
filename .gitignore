@@ -1,0 +1,44 @@
+node_modules
+dist
+.DS_Store
+*.local
+desktop.ini
+
+webapp.zip
+*.zip
+*.pdf
+
+# Variabili d'ambiente, in tutte le varianti che i tool sanno creare
+# (.env.production, .env.development.local…). L'esempio è l'unico che resta:
+# non contiene valori, solo i nomi delle due chiavi da riempire.
+.env
+.env.*
+!.env.example
+
+# Segreti e materiale crittografico. Le chiavi VAPID e il CRON_SECRET vivono
+# solo nei secret di Supabase (`npx supabase secrets set …`) e negli appunti
+# locali fuori dal repo.
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.crt
+*.cer
+*VAPID*
+secrets.json
+
+# Credenziali dei registry: `npm login` scrive qui un token che dà accesso in
+# scrittura ai pacchetti.
+.npmrc
+.netrc
+
+# Stato locale degli strumenti di deploy e piattaforma. Non è configurazione del
+# progetto: contiene identificativi di QUESTO account e cambia a ogni `link`.
+supabase/.temp/
+.supabase/
+.vercel/
+
+# Preferenze dell'editor: sono di questa macchina, non del progetto.
+.vscode/
+.idea/
