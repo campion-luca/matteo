@@ -23,8 +23,12 @@ export const DE_DATA: Record<string, string> = {
   'Glutei': 'Gesäß',
   'Altro': 'Sonstige',
 
-  // Catalogo di partenza. Dove la sala tedesca usa l'inglese (Hip Thrust, Crunches)
-  // l'inglese resta: tradurlo darebbe un nome che nessuno pronuncia in palestra.
+  // Il catalogo di partenza precedente. Non è più quello che si installa a chi si
+  // registra oggi, ma resta qui: quei nomi sono nello store di chi usa l'app da
+  // prima, e toglierli glieli farebbe tornare in italiano da un giorno all'altro.
+  //
+  // Dove la sala tedesca usa l'inglese (Hip Thrust, Crunches) l'inglese resta:
+  // tradurlo darebbe un nome che nessuno pronuncia in palestra.
   'Panca piana': 'Bankdrücken',
   'Panca inclinata': 'Schrägbankdrücken',
   'Croci ai cavi': 'Kabelzug-Fliegende',
@@ -69,6 +73,50 @@ export const DE_DATA: Record<string, string> = {
   'Stacco rumeno': 'Rumänisches Kreuzheben',
   'Glute bridge': 'Beckenheben',
   'Abduzioni ai cavi': 'Abduktionen am Kabelzug',
+
+  // Catalogo di partenza di oggi (vedi catalogo.ts). "MPW" è la marca del
+  // macchinario e non si traduce: è un nome proprio, come Hip Thrust.
+  'Panca piana al MPW': 'Bankdrücken am MPW',
+  'Panca inclinata al MPW': 'Schrägbankdrücken am MPW',
+  'Panca declinata al MPW': 'Negativbankdrücken am MPW',
+  'Croci ai cavi bassi': 'Kabelzug-Fliegende von unten',
+  'Croci ai cavi alti': 'Kabelzug-Fliegende von oben',
+  'Croci alla peck deck': 'Butterfly',
+
+  'Trazioni': 'Klimmzüge',
+  'Stacco': 'Kreuzheben',
+  'Lat machine presa larga': 'Latzug weiter Griff',
+  'Rematore T-Bar presa larga': 'T-Bar-Rudern weiter Griff',
+  'Rematore con manubri su panca inclinata': 'Kurzhantelrudern auf der Schrägbank',
+  'Pulley basso presa stretta': 'Rudern am Kabelzug enger Griff',
+  'Pullover al cavo alto': 'Überzüge am Kabelzug',
+  'Scrollate con manubri': 'Kurzhantel-Shrugs',
+
+  'Military press al MPW': 'Schulterdrücken am MPW',
+  'Alzate laterali con manubri': 'Seitheben mit Kurzhanteln',
+  'Alzate laterali al cavo': 'Seitheben am Kabelzug',
+  'Peck deck inversa': 'Reverse Butterfly',
+  'Face pull': 'Face Pull',
+
+  'Curl manubri su panca inclinata': 'Schrägbank-Curls',
+  'Curl bilanciere Z': 'SZ-Curls',
+  'Curl panca Scott': 'Scott-Curls',
+
+  'Push down al cavo': 'Trizepsdrücken am Kabel',
+  'Estensioni overhead al cavo': 'Überkopf-Trizepsdrücken am Kabel',
+
+  'Sollevamenti gambe alla sbarra': 'Hängendes Beinheben',
+  'Ab wheel': 'Bauchroller',
+  'Woodchopper ai cavi': 'Holzhacker am Kabelzug',
+  'Pallof press al cavo': 'Pallof Press am Kabelzug',
+  'Landmine press rotation': 'Landmine Press mit Rotation',
+  'Suitcase carry': 'Koffertragen',
+
+  'Leg curl seduto': 'Beinbeuger sitzend',
+  'Polpacci in piedi': 'Wadenheben stehend',
+  'Polpacci seduto': 'Wadenheben sitzend',
+
+  "Abduzione dell'anca al cavo": 'Hüftabduktion am Kabelzug',
 
   // Stazioni Hyrox: i nomi di gara sono gli stessi in Germania — SkiErg, Sled Push,
   // Wall Balls stanno scritti così anche sul percorso di Hyrox Berlin. Si traduce

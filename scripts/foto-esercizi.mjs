@@ -33,8 +33,13 @@ if (!existsSync(CARTELLA)) {
 
 // I nomi del catalogo, letti dal sorgente: importare catalogo.ts da node
 // vorrebbe dire risolvere l'alias "@" e i tipi, per una lista di stringhe.
+//
+// Le virgolette possono essere singole o doppie — "Abduzione dell'anca al cavo"
+// fra apici non ci sta. Prenderne un tipo solo vorrebbe dire perdere per strada
+// proprio l'esercizio col nome più insidioso, e darlo per coperto quando non lo è.
 const sorgente = readFileSync('src/features/gym/catalogo.ts', 'utf8')
-const catalogo = [...sorgente.matchAll(/\{\s*n:\s*'([^']+)'/g)].map(m => m[1])
+const catalogo = [...sorgente.matchAll(/[{][ ]*n:[ ]*(?:'([^']*)'|"([^"]*)")/g)]
+  .map(m => m[1] ?? m[2])
 
 const rinominate = []
 for (const file of readdirSync(CARTELLA)) {

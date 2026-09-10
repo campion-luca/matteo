@@ -8,11 +8,22 @@ import { uid } from '@/lib/uid'
 // alzata. Sono nomi e gruppo muscolare, niente di più: nessuno storico, nessun
 // carico: quelli arrivano allenandosi.
 //
-// L'elenco è scritto a mano: due o tre fondamentali per gruppo più le varianti che
-// si trovano davvero in sala. Chi ne vuole altri usa il "+", che è dove è sempre
-// stato. Il primo dataset che avevamo guardato (hasaneyldrm/exercises-dataset) ne
-// ha 1.324: un catalogo di partenza che ne propone mille non è un aiuto, è la
-// stessa lista vuota con più rumore.
+// L'elenco è scritto a mano, ed è una lista di allenamento vera: quello che si fa
+// davvero, sui macchinari che ci sono davvero. Chi ne vuole altri usa il "+", che
+// è dove è sempre stato. Il primo dataset che avevamo guardato
+// (hasaneyldrm/exercises-dataset) ne ha 1.324: un catalogo di partenza che ne
+// propone mille non è un aiuto, è la stessa lista vuota con più rumore.
+//
+// I nomi con "al MPW" tengono dentro la marca del macchinario, e non è una svista.
+// Una panca piana e una panca piana su un'altra macchina non si caricano uguale:
+// chiamarle con lo stesso nome vorrebbe dire sommare in un unico storico due serie
+// di numeri che non si possono confrontare, e leggere un progresso dove c'è solo un
+// cambio di attrezzo. Il nome è anche ciò a cui si aggancia la foto (eserciziFoto.ts):
+// una foto è la foto DI QUELLA macchina, non del gesto in generale.
+//
+// I massimali continuano a funzionare perché non cercano nomi esatti ma pezzi di
+// nome (vedi BIG_LIFTS in gymMaxLifts.ts): "Panca piana al MPW" prende /panca/, e
+// l'inclinata e la declinata restano fuori come prima.
 //
 // ── Dove sono finite le immagini ────────────────────────────────
 // Le foto non stanno in questa lista: stanno in src/assets/esercizi, un file per
@@ -35,57 +46,57 @@ interface Voce { n: string; muscle: string }
 
 export const CATALOGO: Voce[] = [
   // Petto
-  { n: 'Panca piana',            muscle: 'Petto' },
-  { n: 'Panca inclinata',        muscle: 'Petto' },
-  { n: 'Croci ai cavi',          muscle: 'Petto' },
-  { n: 'Chest press',            muscle: 'Petto' },
-  { n: 'Piegamenti',             muscle: 'Petto' },
+  { n: 'Panca piana al MPW',                      muscle: 'Petto' },
+  { n: 'Panca inclinata al MPW',                  muscle: 'Petto' },
+  { n: 'Panca declinata al MPW',                  muscle: 'Petto' },
+  { n: 'Croci ai cavi bassi',                     muscle: 'Petto' },
+  { n: 'Croci ai cavi alti',                      muscle: 'Petto' },
+  { n: 'Croci alla peck deck',                    muscle: 'Petto' },
+  { n: 'Piegamenti',                              muscle: 'Petto' },
 
   // Dorso
-  { n: 'Trazioni alla sbarra',   muscle: 'Dorso' },
-  { n: 'Lat machine',            muscle: 'Dorso' },
-  { n: 'Rematore con bilanciere', muscle: 'Dorso' },
-  { n: 'Pulley basso',           muscle: 'Dorso' },
-  { n: 'Stacco da terra',        muscle: 'Dorso' },
+  { n: 'Trazioni',                                muscle: 'Dorso' },
+  { n: 'Stacco',                                  muscle: 'Dorso' },
+  { n: 'Lat machine presa larga',                 muscle: 'Dorso' },
+  { n: 'Rematore T-Bar presa larga',              muscle: 'Dorso' },
+  { n: 'Rematore con manubri su panca inclinata', muscle: 'Dorso' },
+  { n: 'Pulley basso presa stretta',              muscle: 'Dorso' },
+  { n: 'Pullover al cavo alto',                   muscle: 'Dorso' },
+  { n: 'Scrollate con manubri',                   muscle: 'Dorso' },
 
   // Spalle
-  { n: 'Lento avanti',           muscle: 'Spalle' },
-  { n: 'Alzate laterali',        muscle: 'Spalle' },
-  { n: 'Alzate posteriori',      muscle: 'Spalle' },
-  { n: 'Tirate al mento',        muscle: 'Spalle' },
+  { n: 'Military press al MPW',                   muscle: 'Spalle' },
+  { n: 'Alzate laterali con manubri',             muscle: 'Spalle' },
+  { n: 'Alzate laterali al cavo',                 muscle: 'Spalle' },
+  { n: 'Peck deck inversa',                       muscle: 'Spalle' },
+  { n: 'Face pull',                               muscle: 'Spalle' },
 
   // Bicipiti
-  { n: 'Curl con bilanciere',    muscle: 'Bicipiti' },
-  { n: 'Curl con manubri',       muscle: 'Bicipiti' },
-  { n: 'Curl a martello',        muscle: 'Bicipiti' },
-  { n: 'Panca Scott',            muscle: 'Bicipiti' },
+  { n: 'Curl manubri su panca inclinata',         muscle: 'Bicipiti' },
+  { n: 'Curl bilanciere Z',                       muscle: 'Bicipiti' },
+  { n: 'Curl panca Scott',                        muscle: 'Bicipiti' },
+  { n: 'Curl a martello',                         muscle: 'Bicipiti' },
 
   // Tricipiti
-  { n: 'French press',           muscle: 'Tricipiti' },
-  { n: 'Push down ai cavi',      muscle: 'Tricipiti' },
-  { n: 'Dip alle parallele',     muscle: 'Tricipiti' },
-  { n: 'Panca stretta',          muscle: 'Tricipiti' },
+  { n: 'Push down al cavo',                       muscle: 'Tricipiti' },
+  { n: 'Estensioni overhead al cavo',             muscle: 'Tricipiti' },
 
   // Core
-  { n: 'Crunch',                 muscle: 'Core' },
-  { n: 'Plank',                  muscle: 'Core' },
-  { n: 'Leg raise',              muscle: 'Core' },
-  { n: 'Russian twist',          muscle: 'Core' },
+  { n: 'Sollevamenti gambe alla sbarra',          muscle: 'Core' },
+  { n: 'Ab wheel',                                muscle: 'Core' },
+  { n: 'Woodchopper ai cavi',                     muscle: 'Core' },
+  { n: 'Pallof press al cavo',                    muscle: 'Core' },
+  { n: 'Landmine press rotation',                 muscle: 'Core' },
+  { n: 'Suitcase carry',                          muscle: 'Core' },
 
   // Gambe
-  { n: 'Squat',                  muscle: 'Gambe' },
-  { n: 'Pressa',                 muscle: 'Gambe' },
-  { n: 'Affondi',                muscle: 'Gambe' },
-  { n: 'Leg extension',          muscle: 'Gambe' },
-  { n: 'Leg curl',               muscle: 'Gambe' },
-  { n: 'Calf raise',             muscle: 'Gambe' },
-  { n: 'Front squat',            muscle: 'Gambe' },
+  { n: 'Squat',                                   muscle: 'Gambe' },
+  { n: 'Leg curl seduto',                         muscle: 'Gambe' },
+  { n: 'Polpacci in piedi',                       muscle: 'Gambe' },
+  { n: 'Polpacci seduto',                         muscle: 'Gambe' },
 
   // Glutei
-  { n: 'Hip thrust',             muscle: 'Glutei' },
-  { n: 'Stacco rumeno',          muscle: 'Glutei' },
-  { n: 'Glute bridge',           muscle: 'Glutei' },
-  { n: 'Abduzioni ai cavi',      muscle: 'Glutei' },
+  { n: "Abduzione dell'anca al cavo",             muscle: 'Glutei' },
 ]
 
 /** Il catalogo come esercizi veri, pronti da mettere nello store.

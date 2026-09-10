@@ -42,10 +42,10 @@ describe('catalogo di partenza', () => {
   })
 
   it('non ricrea quello che c’è già, comunque sia stato scritto', () => {
-    // Chi aveva scritto "panca piana" a mano non deve ritrovarsene due.
-    const nuovi = esercizidaCatalogo([ex('  Panca Piana '), ex('Squat')])
+    // Chi aveva scritto "panca piana al mpw" a mano non deve ritrovarsene due.
+    const nuovi = esercizidaCatalogo([ex('  Panca Piana AL MPW '), ex('Squat')])
     const nomi = nuovi.map(e => e.n)
-    expect(nomi).not.toContain('Panca piana')
+    expect(nomi).not.toContain('Panca piana al MPW')
     expect(nomi).not.toContain('Squat')
     expect(nuovi).toHaveLength(CATALOGO.length - 2)
   })
