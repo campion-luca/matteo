@@ -29,6 +29,7 @@ import { GymSchede } from './GymSchede'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
+import { fotoEsercizio } from './eserciziFoto'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { BookmarkRibbon, LineChart } from './gymShared'
@@ -975,13 +976,19 @@ function ElencoEsercizi({ esercizi, color, onApri }: {
 // Griglia: una card per esercizio, con una fascia illustrata in cima e il testo
 // sotto sulla carta — la forma della scheda di un catalogo.
 //
-// La fascia è il posto dell'immagine, e per un giro ci sono state davvero delle
-// foto (vedi la nota in catalogo.ts sul perché sono state tolte). Oggi la riempie
-// il disegno del gruppo muscolare: non è un ripiego provvisorio in attesa di
-// meglio, è l'unica figura che l'app può garantire per OGNI esercizio, compreso
-// quello che uno si inventa stasera. Quando le immagini torneranno basta
-// sostituire ciò che sta dentro la fascia: la card, la griglia e l'interruttore
-// elenco/griglia restano questi.
+// Nella fascia va la foto dell'esercizio, quando ce l'ha (vedi eserciziFoto.ts:
+// il file si chiama come l'esercizio, la cartella è src/assets/esercizi). Chi non
+// ce l'ha tiene il disegno del gruppo muscolare, ed è per questo che il disegno
+// non se ne va: è l'unica figura che l'app può garantire per OGNI esercizio,
+// compreso quello che uno si inventa stasera e che nessuna fotografia può
+// coprire in anticipo.
+//
+// Il giro precedente di foto era stato tolto proprio qui (la nota è in
+// catalogo.ts): venivano da un dataset che copriva trentasette esercizi su una
+// lista che cresce, e la griglia restava metà fotografica e metà disegnata senza
+// una regola visibile. Foto scattate nella palestra di chi usa l'app cambiano il
+// conto: coprono TUTTO il catalogo di partenza, e il disegno resta solo dove
+// significa qualcosa — "questo esercizio te lo sei aggiunto tu".
 function GrigliaEsercizi({ esercizi, color, onApri }: {
   esercizi: PalestraExercise[]; color: string; onApri: (ex: PalestraExercise) => void
 }) {
@@ -992,6 +999,7 @@ function GrigliaEsercizi({ esercizi, color, onApri }: {
       {esercizi.map((ex, i) => {
         const hist = sortedHistory(ex.history)
         const last = hist[hist.length - 1]
+        const foto = fotoEsercizio(ex.n)
         return (
           <button
             key={ex.id}
@@ -1011,7 +1019,13 @@ function GrigliaEsercizi({ esercizi, color, onApri }: {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color, flexShrink: 0,
             }}>
-              <MuscleIcon muscle={ex.muscle} size={52} stroke={1.5}/>
+              {foto
+                // alt vuoto di proposito: il nome dell'esercizio è scritto qui
+                // sotto: con l'alt pieno chi usa il lettore di schermo se lo
+                // sentirebbe due volte di fila.
+                ? <img src={foto} alt="" loading="lazy" decoding="async"
+                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+                : <MuscleIcon muscle={ex.muscle} size={52} stroke={1.5}/>}
             </div>
             <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
               <div style={{

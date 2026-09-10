@@ -14,19 +14,22 @@ import { uid } from '@/lib/uid'
 // ha 1.324: un catalogo di partenza che ne propone mille non è un aiuto, è la
 // stessa lista vuota con più rumore.
 //
-// ── Perché qui non ci sono immagini ─────────────────────────────
-// C'è stato un giro in cui ognuno di questi esercizi aveva la sua foto, presa da
-// yuhonas/free-exercise-db (Unlicense, quindi utilizzabile: quella parte non era
-// il problema). È stato tolto per una ragione che si vede solo a lavoro fatto:
-// trentasette foto coprono trentasette esercizi, e la lista di chi usa l'app
-// cresce oltre. Il risultato è una griglia metà fotografica e metà disegnata, e
-// ogni esercizio nuovo obbliga a cercare una foto nello stesso stile — un lavoro
-// che non finisce e che intanto lascia la schermata sbilenca.
+// ── Dove sono finite le immagini ────────────────────────────────
+// Le foto non stanno in questa lista: stanno in src/assets/esercizi, un file per
+// esercizio chiamato come l'esercizio, e a cercarle è eserciziFoto.ts. Qui restano
+// nomi e gruppo muscolare, come è sempre stato.
 //
-// La griglia è rimasta pronta: la card ha già la fascia in alto dove l'immagine
-// andrebbe, e oggi la riempie il disegno del gruppo muscolare. Se un domani si
-// trova una fonte che copre TUTTO (o si generano illustrazioni proprie, coerenti
-// per costruzione), si riempie quella fascia e il resto non si tocca.
+// Non sono un campo di `Voce` perché la stessa foto deve arrivare anche a chi il
+// nome se l'è scritto a mano: legandola alla voce del catalogo coprirebbe solo
+// quelli di partenza, e sarebbe un'informazione in più da tenere allineata.
+//
+// Il primo giro di foto — yuhonas/free-exercise-db, Unlicense, la licenza non era
+// il problema — era stato tolto per una ragione che si vede solo a lavoro fatto:
+// trentasette foto coprivano trentasette esercizi mentre la lista di chi usa l'app
+// cresce oltre, e la griglia restava metà fotografica e metà disegnata senza una
+// regola visibile. Foto scattate nella palestra vera cambiano il conto: coprono
+// TUTTO il catalogo di partenza, e il disegno del gruppo muscolare resta solo
+// dove vuol dire qualcosa — "questo esercizio te lo sei aggiunto tu".
 
 interface Voce { n: string; muscle: string }
 

@@ -31,12 +31,12 @@ export default defineConfig({
         // Niente skipWaiting/clientsClaim: col pattern 'prompt' il nuovo SW resta in
         // attesa finché l'utente non conferma l'aggiornamento (updateSW(true)).
         cleanupOutdatedCaches: true,
-        // `webp` non ha ancora file da prendere — le foto degli esercizi sono
-        // state tolte (vedi catalogo.ts) — ma resta nell'elenco: se torneranno,
-        // dimenticarlo qui vorrebbe dire immagini rotte al primo uso offline,
-        // cioè in palestra, dove il telefono spesso non prende. Un'estensione in
-        // più non costa nulla; scoprire perché manca costa un pomeriggio.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
+        // Le estensioni delle foto degli esercizi (src/assets/esercizi) vanno
+        // tutte tenute qui dentro: dimenticarne una vuol dire immagini rotte al
+        // primo uso offline, cioè in palestra, dove il telefono spesso non
+        // prende. Un'estensione in più non costa nulla; scoprire perché manca
+        // costa un pomeriggio.
+        globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
