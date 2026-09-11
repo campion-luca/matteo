@@ -272,6 +272,13 @@ Note storiche, per non ripercorrere strade già battute:
 | `npm test` | Test Vitest (single run) |
 | `npm run foto` | Normalizza i nomi in `src/assets/esercizi/` e dice quali esercizi sono senza immagine |
 
+C'è anche [scripts/confronta-catalogo.js](scripts/confronta-catalogo.js), che non è un
+comando npm: si incolla nella console del browser con l'app aperta. Confronta gli
+esercizi salvati su QUEL dispositivo col catalogo di partenza e dice quali sono la
+stessa cosa chiamata in un altro modo — cioè quali vanno rinominati invece che
+duplicati. Sola lettura, e gira in locale: serve proprio a non dover guardare i dati
+di qualcun altro per rispondere alla domanda.
+
 CI su ogni push e PR: [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ---
