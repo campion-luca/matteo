@@ -30,6 +30,7 @@ import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
 import { fotoEsercizio } from './eserciziFoto'
+import { vistaIniziale, VISTA_KEY, type VistaEsercizi } from './vistaEsercizi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { BookmarkRibbon, LineChart } from './gymShared'
@@ -890,22 +891,19 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
   )
 }
 
-// ── Come si guardano gli esercizi di un gruppo ─────────────────
-type VistaEsercizi = 'elenco' | 'griglia'
-const VISTA_KEY = 'jarvis-vista-esercizi'
-
+// La vista (elenco o griglia) e il suo default vivono in vistaEsercizi.ts: qui
+// resta solo il gancio che la tiene in memoria.
+//
 // In localStorage e non nello store: è una preferenza del dispositivo, come
 // l'ordine dei widget della home. Su un telefono si scorre un elenco, su un
 // desktop si abbraccia una griglia, e portarsi la scelta dall'uno all'altro
-// sarebbe un dispetto invece che una comodità.
+// sarebbe un dispetto invece che una comodità. Il logout non la tocca — porta
+// via solo il blob dei dati — quindi la scelta sopravvive al prossimo accesso.
 function useVistaEsercizi(): [VistaEsercizi, (v: VistaEsercizi) => void] {
-  const [vista, setVista] = useState<VistaEsercizi>(
-    () => readStorage('local', VISTA_KEY) === 'griglia' ? 'griglia' : 'elenco',
-  )
+  const [vista, setVista] = useState<VistaEsercizi>(() => vistaIniziale(readStorage('local', VISTA_KEY)))
   const cambia = (v: VistaEsercizi) => { setVista(v); writeStorage('local', VISTA_KEY, v) }
   return [vista, cambia]
 }
-
 // L'interruttore fra le due viste: due icone, non due parole. Sta nell'occhiello
 // di sezione, dove ci sono già gli altri interruttori dell'app.
 function VistaSwitch({ valore, onChange }: { valore: VistaEsercizi; onChange: (v: VistaEsercizi) => void }) {
