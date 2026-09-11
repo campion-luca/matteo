@@ -11,6 +11,7 @@ import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { InstallBanner } from '@/components/InstallBanner'
 import { useStore, useJarvisStore, EMPTY_STATE, JARVIS_STORE_KEY, applyRemoteState } from '@/store/useJarvisStore'
+import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
 import { CoachMarkHost, fireCoach } from '@/components/CoachMark'
 import { supabase } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoteUpdatedAt } from '@/lib/cloudSync'
@@ -285,6 +286,29 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // L'azzeramento del catalogo, una volta per account (vedi resetCatalogo.ts).
+  //
+  // Va chiamato DOPO che il cloud ha parlato, mai prima: il blob remoto è un
+  // unico oggetto e vince il più recente, quindi azzerare sullo stato locale e
+  // poi ricevere il remoto significherebbe vedere tornare dentro tutto quello
+  // che si è appena tolto — e, peggio, ripetere l'azzeramento a ogni avvio.
+  //
+  // Restituisce `true` se ha fatto qualcosa, e allora chi chiama deve spingere:
+  // un azzeramento che resta sul telefono e non sale è un account che si azzera
+  // di nuovo domani, sull'altro dispositivo.
+  const azzeraSeServe = (): boolean => {
+    const st = useJarvisStore.getState()
+    if (!serveAzzerare(st)) return false
+    const scorta = salvaScorta(st)
+    useJarvisStore.setState(azzeramento())
+    // Detto, non fatto di nascosto: chi apre l'app e non trova più le sue schede
+    // ha diritto di sapere che è successo adesso e non per un guasto.
+    useSyncStatus.getState().setNotice(
+      scorta ? t('Catalogo esercizi rinnovato') : t('Catalogo esercizi rinnovato (senza copia di scorta)')
+    )
+    return true
+  }
+
   useEffect(() => {
     if (!session?.user) return
     setCloudLoading(true)
@@ -300,6 +324,7 @@ export default function App() {
           const decision = decideInitialSync(res.updatedAt, meta)
           setInitialUpdatedAt(res.updatedAt)
           if (decision === 'keepLocalAndPush') {
+            azzeraSeServe()
             setPushOnMount(true)
           } else {
             if (decision === 'applyRemoteConflict') {
@@ -307,12 +332,12 @@ export default function App() {
             }
             applyRemoteState(res.data)
             setSynced(res.updatedAt)
-            setPushOnMount(false)
+            setPushOnMount(azzeraSeServe())
           }
         } else {
           // Utente nuovo: nessuna riga remota. Se ho roba locale mai inviata, la spingo.
           setInitialUpdatedAt(null)
-          setPushOnMount(meta.dirty)
+          setPushOnMount(azzeraSeServe() || meta.dirty)
         }
         setCloudLoading(false)
       })
@@ -321,6 +346,12 @@ export default function App() {
         // senza, un allenamento registrato offline non verrebbe MAI inviato. Parte da
         // `lastSyncedAt` persistito e non da null, così il pre-check di `performSave`
         // riconosce un remoto davvero più recente invece di trattarlo sempre per tale.
+        //
+        // Qui NON si azzera, ed è la decisione più importante del blocco: il
+        // load è fallito, quindi non sappiamo cosa c'è davvero nel cloud.
+        // Azzerare sullo stato locale e poi spingerlo cancellerebbe dati remoti
+        // che nessuno ha mai letto. Si riprova al prossimo avvio con rete: un
+        // azzeramento rimandato non costa niente, uno fatto al buio è definitivo.
         setInitialUpdatedAt(getSyncMeta().lastSyncedAt)
         setPushOnMount(false)
         setLoadFailed(true)

@@ -130,6 +130,9 @@ export const DE_DATA: Record<string, string> = {
 export const DE_UI: Record<string, string> = {
   // ── Sincronizzazione (App) ───────────────────────────────────
   'Aggiornato da un altro dispositivo': 'Von einem anderen Gerät aktualisiert',
+  'Catalogo esercizi rinnovato': 'Übungskatalog erneuert',
+  'Catalogo esercizi rinnovato (senza copia di scorta)':
+    'Übungskatalog erneuert (ohne Sicherungskopie)',
   'Dati cloud non caricati — tocca per riprovare': 'Cloud-Daten nicht geladen — zum Wiederholen tippen',
   'Non sincronizzato — tocca per riprovare': 'Nicht synchronisiert — zum Wiederholen tippen',
 

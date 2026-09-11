@@ -260,6 +260,29 @@ Note storiche, per non ripercorrere strade già battute:
 - Le figure di `hasaneyldrm/exercises-dataset` **non** sono utilizzabili: i dati
   testuali sono MIT, le immagini restano di Gym visual e vanno licenziate da loro.
 
+### Azzeramento del catalogo
+
+Il catalogo è cambiato per intero — nomi nuovi, con la marca del macchinario, e
+una foto per ognuno — e i nomi vecchi a quelle foto non si agganciano. Invece di
+far convivere i due insiemi in una lista doppia mezza illustrata,
+[resetCatalogo.ts](src/features/gym/resetCatalogo.ts) rimette **una volta per
+account** gli esercizi del catalogo e svuota le schede.
+
+Cancella `palestraExercises` (quindi tutte le alzate, e con esse massimali, record
+e grafici, che da quelle sono derivati) e `gymSchede`. Non tocca dati personali,
+pesate, budget, Hyrox, colori e tema.
+
+Due cose lo tengono in piedi. Scatta **dopo** il caricamento dal cloud e mai prima:
+il blob remoto è un oggetto unico e vince il più recente, quindi azzerare sul
+locale e poi ricevere il remoto rimetterebbe dentro tutto. E **non scatta affatto**
+se quel caricamento fallisce: non sapendo cosa c'è davvero nel cloud, un
+azzeramento spinto al buio cancellerebbe dati che nessuno ha letto.
+
+Prima di sostituire, lo stato di prima finisce in `localStorage` sotto
+`jarvis-scorta-pre-<id>`: resta sul dispositivo dov'è successo, non va nel cloud,
+non scade. Un azzeramento che parte da solo all'avvio deve poter essere disfatto
+da chi se lo trova fatto.
+
 ### Script
 
 | Comando | Descrizione |

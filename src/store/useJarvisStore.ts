@@ -138,6 +138,10 @@ export interface JarvisState {
   budget: BudgetState
   weightLog: WeightLogEntry[]
   onboardingSeen?: string[]  // id delle schede di cui l'intro è già stata mostrata
+  /** Quale azzeramento del catalogo è già stato applicato a questo account.
+   *  Vive nello stato perché viaggia col blob: il telefono che lo fa lo dice al
+   *  portatile, e il portatile non lo rifà. Vedi resetCatalogo.ts. */
+  catalogoReset?: string
 }
 
 export const EMPTY_STATE: JarvisState = {
@@ -160,7 +164,7 @@ const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
   'darkMode', 'layout', 'navPos', 'accentColor', 'customAccentHex',
   'hyroxExercises', 'palestraExercises', 'muscleColors', 'gymSchede',
-  'budget', 'weightLog', 'onboardingSeen',
+  'budget', 'weightLog', 'onboardingSeen', 'catalogoReset',
 ]
 
 // Il filtro a lista chiusa lavora sul PRIMO livello. Quello che vive più in basso
@@ -257,6 +261,17 @@ export function applyRemoteState(data: Partial<JarvisState>): void {
   useJarvisStoreBase.setState({
     ...known,
     ...(known.budget ? { budget: { ...EMPTY_STATE.budget, ...known.budget } } : {}),
+    // `setState` fonde: una chiave che il blob remoto non ha si terrebbe il
+    // valore locale. Per quasi tutto va bene — è quello che salva un campo
+    // nuovo quando arriva un blob salvato da una versione vecchia.
+    //
+    // Per `catalogoReset` no, e va scritta anche quando è assente. Quel campo
+    // non è un dato dell'utente: dice che cosa è già stato FATTO a questo
+    // account, e adesso l'account è quello che dice il cloud. Tenendo il
+    // valore locale sopra un blob pre-azzeramento si ottiene il caso peggiore:
+    // gli esercizi vecchi tornano dentro e il marcatore giura che l'operazione
+    // è già stata fatta, quindi non si ripete mai più e nessuno se ne accorge.
+    catalogoReset: known.catalogoReset,
   })
 }
 
