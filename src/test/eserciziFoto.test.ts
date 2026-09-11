@@ -1,4 +1,9 @@
 import { describe, it, expect } from 'vitest'
+// I sorgenti come testo: `?raw` è di Vite, quindi funziona qui senza tirare
+// dentro i tipi di Node solo per leggere tre file.
+import profiloSrc from '@/features/profile/JarvisProfile.tsx?raw'
+import readmeSrc from '../../README.md?raw'
+import licenseSrc from '../../LICENSE?raw'
 import { slugEsercizio, fotoEsercizio, SLUG_CON_FOTO } from '@/features/gym/eserciziFoto'
 import { CATALOGO } from '@/features/gym/catalogo'
 
@@ -44,5 +49,23 @@ describe('le foto presenti in src/assets/esercizi', () => {
         expect(url, `"${v.n}" trova una foto che non c'è`).toBeUndefined()
       }
     }
+  })
+})
+
+// ── L'attribuzione ─────────────────────────────────────────────
+// Le illustrazioni di RepDB sono concesse a una condizione sola: che il credito
+// resti visibile. È un obbligo che non lascia traccia nel codice che lo usa —
+// nessuno, cancellando quella riga dalle Impostazioni per fare ordine, vedrebbe
+// rompersi qualcosa. Si romperebbe qui, ed è il punto.
+describe('credito a RepDB', () => {
+  const CREDITO = 'RepDB'
+
+  it('è nelle Impostazioni, nel README e in LICENSE finché ci sono immagini', () => {
+    if (SLUG_CON_FOTO.length === 0) return   // cartella vuota: niente da attribuire
+
+    expect(profiloSrc, 'credito sparito dalle Impostazioni').toContain('Exercise data by RepDB (repdb.co)')
+    expect(profiloSrc, 'il credito deve essere un link a repdb.co').toContain('https://repdb.co')
+    expect(readmeSrc, 'credito sparito dal README').toContain(CREDITO)
+    expect(licenseSrc, 'MIT non è più delimitato agli asset di terzi').toContain(CREDITO)
   })
 })

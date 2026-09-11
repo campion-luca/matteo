@@ -19,3 +19,21 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+-------------------------------------------------------------------------------
+SCOPE — third-party assets
+
+The MIT license above covers the SOURCE CODE of this repository. It does NOT
+cover the exercise illustrations in src/assets/esercizi/.
+
+Those images are (c) RepDB (https://repdb.co) and are used under the RepDB free
+dataset license: in-app use, including commercial, with visible attribution;
+no redistribution as a dataset, image pack or API. Redistributing them under
+the MIT terms above is NOT permitted, and no such permission is granted here.
+
+Full terms:
+https://github.com/RepDB/exercise-dataset/blob/main/LICENSE-DATA.md
+
+The required attribution is shown in the app (Settings, bottom of the screen)
+and in the README. Removing it means removing the images too.
+-------------------------------------------------------------------------------

@@ -225,26 +225,40 @@ allievo — va ridato in pasto all'SQL Editor, altrimenti la funzione nuova rest
 spenta nell'app (che se ne accorge e non si rompe: la sezione resta vuota). Per gli allegati su Storage vedi
 [docs/SETUP-STORAGE.md](docs/SETUP-STORAGE.md).
 
-### Immagini degli esercizi — perché non ci sono
+### Immagini degli esercizi
 
-C'è stato un giro in cui i 37 esercizi del catalogo avevano una foto ciascuno,
-presa da [free-exercise-db](https://github.com/yuhonas/free-exercise-db)
-(**Unlicense**, dominio pubblico: la licenza non era il problema).
+Le illustrazioni stanno in `src/assets/esercizi/`, un file per esercizio, e si
+vedono nella fascia in cima alla card nella **vista a griglia**. Vengono dal
+dataset gratuito di **[RepDB](https://repdb.co)** — 512×512 WebP, stile flat,
+stesso personaggio e stesso sfondo per tutte.
 
-Sono state tolte per una ragione che si vede solo a lavoro fatto: **37 foto
-coprono 37 esercizi**, e la lista di chi usa l'app cresce oltre. Il risultato è
-una griglia metà fotografica e metà disegnata, e ogni esercizio nuovo obbliga a
-cercare una foto nello stesso stile — un lavoro che non finisce e che intanto
-lascia la schermata sbilenca.
+> **Exercise data by [RepDB](https://repdb.co)**
 
-La griglia è rimasta pronta: la card ha già la fascia in cima dove l'immagine
-andrebbe, e oggi la riempie il disegno del gruppo muscolare. Per riprendere il
-filo servono una fonte che copra **tutti** gli esercizi (o illustrazioni proprie,
-coerenti per costruzione) e la fascia da riempire in `GrigliaEsercizi`.
+La licenza le concede per uso in-app anche commerciale a una condizione:
+**attribuzione visibile**. Quella riga qui sopra e la riga in fondo alle
+Impostazioni dell'app sono l'adempimento, non un ringraziamento — se saltano,
+vanno tolte anche le immagini. Vietata invece la ridistribuzione come dataset o
+raccolta di immagini: per questo [LICENSE](LICENSE) dice a chiare lettere che
+MIT copre il codice e non `src/assets/esercizi/`, e per questo la cartella non
+va mai esposta come archivio scaricabile.
 
-Nota per il futuro: le figure di `hasaneyldrm/exercises-dataset` **non** sono
-utilizzabili. I dati testuali di quel repo sono MIT, ma le immagini restano di
-Gym visual e vanno licenziate direttamente da loro.
+Vietato anche darle in pasto a modelli generativi — restyling, style transfer,
+fine-tuning. Chi disegna i pezzi mancanti **non deve usare queste come
+riferimento**: si parte dalla descrizione dell'esercizio, non dall'immagine.
+
+La copertura è **parziale e resta parziale**: gli esercizi senza illustrazione
+tengono il disegno del gruppo muscolare, che è l'unica figura garantita per
+ognuno — compreso quello che uno si inventa stasera. `npm run foto` normalizza
+i nomi dei file e dice quali mancano.
+
+Note storiche, per non ripercorrere strade già battute:
+
+- Il primo giro usava [free-exercise-db](https://github.com/yuhonas/free-exercise-db)
+  (**Unlicense**, dominio pubblico: la licenza non era il problema). Tolto perché
+  37 foto coprivano 37 esercizi su una lista che cresce, e la griglia restava
+  metà fotografica e metà disegnata senza una regola visibile.
+- Le figure di `hasaneyldrm/exercises-dataset` **non** sono utilizzabili: i dati
+  testuali sono MIT, le immagini restano di Gym visual e vanno licenziate da loro.
 
 ### Script
 
@@ -256,6 +270,7 @@ Gym visual e vanno licenziate direttamente da loro.
 | `npm run lint` | ESLint su TS/TSX (`--max-warnings 0`) |
 | `npm run format` | Prettier su `src/` |
 | `npm test` | Test Vitest (single run) |
+| `npm run foto` | Normalizza i nomi in `src/assets/esercizi/` e dice quali esercizi sono senza immagine |
 
 CI su ogni push e PR: [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
@@ -316,4 +331,11 @@ documentazione dello stato attuale.
 
 ## Licenza
 
-[MIT](LICENSE).
+[MIT](LICENSE) per il codice.
+
+Le illustrazioni in `src/assets/esercizi/` **no**: sono di
+[RepDB](https://repdb.co), usate sotto la loro licenza gratuita (uso in-app con
+attribuzione, niente ridistribuzione come dataset). Chi riusa questo repo riusa
+il codice; per le immagini si rivolge a RepDB.
+
+> Exercise data by [RepDB](https://repdb.co)

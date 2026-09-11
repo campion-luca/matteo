@@ -657,6 +657,31 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
             {t('Logout')}
           </button>
         </div>
+
+        {/* Crediti — l'ultima riga della schermata, sbiadita.
+            Non è una gentilezza: le illustrazioni degli esercizi vengono dal
+            dataset gratuito di RepDB, la cui licenza le concede anche per uso
+            commerciale a UNA condizione, cioè che questa riga sia visibile. Se
+            sparisce, le immagini in src/assets/esercizi vanno tolte lo stesso
+            giorno.
+
+            Il testo resta in inglese in tutte le lingue, e fuori da `t()`: è la
+            formula che la licenza chiede alla lettera, non una frase
+            dell'interfaccia. Tradurla sarebbe riscriverla. */}
+        <div style={{ marginTop: 4, textAlign: 'center' }}>
+          <a
+            href="https://repdb.co" target="_blank" rel="noopener noreferrer"
+            style={{
+              fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em',
+              color: 'var(--fg-mute)', opacity: 0.55, textDecoration: 'none',
+              transition: 'opacity 200ms',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '0.55')}
+          >
+            Exercise data by RepDB (repdb.co)
+          </a>
+        </div>
         </>
       )}
       </div>

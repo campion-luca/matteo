@@ -1,4 +1,17 @@
-# Le foto degli esercizi
+# Le immagini degli esercizi
+
+> **Exercise data by [RepDB](https://repdb.co)**
+
+Le immagini già qui dentro vengono dal dataset gratuito di RepDB e **non sono
+MIT come il resto del repo**: la licenza le concede per l'uso dentro l'app,
+anche commerciale, purché quella riga resti visibile (è in fondo alle
+Impostazioni e nel README). Vietato ridistribuirle come dataset o raccolta, e
+vietato darle in pasto a modelli generativi — quindi **chi disegna le mancanti
+non deve usarle come riferimento di stile**: si parte dalla descrizione del
+gesto. Il testo completo è in [LICENSE](../../../LICENSE) e sul repo di RepDB.
+
+Le immagini tue, disegnate o fotografate da te, non hanno nessuno di questi
+vincoli: convivono qui dentro senza problemi.
 
 Una foto per esercizio. Finisce nella fascia quadrata in cima alla card, nella
 vista a griglia della palestra. Chi non ce l'ha tiene il disegno del gruppo
