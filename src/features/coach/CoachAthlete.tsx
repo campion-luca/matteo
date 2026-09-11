@@ -195,29 +195,21 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
 
       {slotSchede}
 
-      {/* Due pagine dietro due bottoni. Erano due sezioni lunghe in mezzo alla
-          pagina — una tabella e l'elenco di TUTTI gli esercizi — e spingevano
-          sotto la piega i grafici e la forza, che sono il colpo d'occhio. Dietro
-          un bottone ci si va quando servono, e la pagina resta leggibile. */}
-      {(onApriUltimo || onApriNote) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {onApriUltimo && (
-            <BottonePagina
-              icon={<Icons.chart size={20} stroke={1.6}/>}
-              label={t('Ultimo allenamento')}
-              sotto={t('Confronto col solito')}
-              onClick={onApriUltimo}
-            />
-          )}
-          {onApriNote && (
-            <BottonePagina
-              icon={<Icons.pencil size={20} stroke={1.6}/>}
-              label={t('Note sugli esercizi')}
-              sotto={note === 0 ? t('Nessuna scritta') : note === 1 ? t('1 scritta') : t('{n} scritte', { n: note })}
-              onClick={onApriNote}
-            />
-          )}
-        </div>
+      {/* Le note dietro un bottone. Erano una sezione lunga in mezzo alla pagina
+          — l'elenco di TUTTI gli esercizi — e spingeva sotto la piega i grafici e
+          la forza, che sono il colpo d'occhio. Dietro un bottone ci si va quando
+          serve, e la pagina resta leggibile.
+
+          Qui accanto c'era anche "Ultimo allenamento", ed è sceso in fondo, di
+          fianco a Sessioni: è una lettura del diario, non una scheda a parte, e
+          in cima competeva per lo sguardo con le note, che sono una scrittura. */}
+      {onApriNote && (
+        <BottonePagina
+          icon={<Icons.pencil size={20} stroke={1.6}/>}
+          label={t('Note sugli esercizi')}
+          sotto={note === 0 ? t('Nessuna scritta') : note === 1 ? t('1 scritta') : t('{n} scritte', { n: note })}
+          onClick={onApriNote}
+        />
       )}
 
       {/* ── Volume nel tempo ───────────────────────────────── */}
@@ -285,9 +277,38 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
           sempre UNA giornata — "cosa ha fatto giovedì" — non otto insieme. */}
       {sessioni.length > 0 && (
         <div>
-          <NucEyebrow right={<span style={{ textTransform: 'none' }}>{t('{n} in tutto', { n: sessioni.length })}</span>}>{t('Sessioni')}</NucEyebrow>
+          <NucEyebrow right={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, textTransform: 'none' }}>
+              <span>{t('{n} in tutto', { n: sessioni.length })}</span>
+              {onApriUltimo && (
+                <button
+                  onClick={onApriUltimo}
+                  className="j-hard-sm"
+                  style={{
+                    padding: '4px 9px', borderRadius: 0, cursor: 'pointer',
+                    background: 'var(--surface)', border: '1px solid var(--hairline)',
+                    fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
+                    textTransform: 'uppercase', color: 'var(--j-accent-ink)',
+                  }}
+                >
+                  {/* Non "Ultimo": quella parola è già sulla tile dei giorni
+                      dall'ultima volta, in cima alla stessa schermata. Qui si apre
+                      il confronto con le medie, ed è quello il nome della cosa. */}
+                  {t('Confronto')}
+                </button>
+              )}
+            </span>
+          }>{t('Sessioni')}</NucEyebrow>
+          {/* `value` segue la sessione MOSTRATA, non `giornoScelto`.
+
+              Sono due cose diverse finché nessuno ha scelto: `giornoScelto` parte
+              vuoto e la card sotto ripiega sulla più recente, quindi il menù non
+              corrispondeva a nulla e si disegnava vuoto. Con la lista piena sotto
+              e il menù in bianco sopra, la lettura ovvia è che non ci sia niente
+              finché non si apre la tendina — che è esattamente quello che
+              succedeva. Legandolo a `sessione` i due non possono più discordare. */}
           <select
-            value={giornoScelto}
+            value={sessione?.date ?? ''}
             onChange={e => setGiornoScelto(e.target.value)}
             aria-label={t('Scegli la sessione')}
             className="j-field"
@@ -295,7 +316,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
           >
             {sessioni.map(x => (
               <option key={x.date} value={x.date}>
-                {fmtShortDate(x.date)} — {x.alzate.length === 1 ? t('1 alzata') : t('{n} alzate', { n: x.alzate.length })} · {fmtVol(x.volume)} kg
+                {fmtShortDate(x.date)} · {fmtVol(x.volume)} kg
               </option>
             ))}
           </select>
@@ -371,8 +392,21 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
     [esercizi, note],
   )
 
-  const chiudi = (id: string) => {
-    if (bozza !== testoDi(id)) onSalva(id, bozza)
+  // Si salva con un tasto, e solo con quello.
+  //
+  // Prima il salvataggio partiva dall'uscita dal campo (onBlur) e dal tocco
+  // sulla riga. Sembra comodo e invece le note sparivano: toccando "Chiudi" il
+  // blur salva e chiude, poi il click arriva sulla riga ormai chiusa e la
+  // RIAPRE — e ci rimette dentro la nota di PRIMA, perché quella appena salvata
+  // sta ancora viaggiando verso il server e `note` non si è ancora ricaricato.
+  // Alla chiusura seguente quel testo vecchio viene riscritto sopra il nuovo.
+  // Il risultato, visto da chi scrive, è che la nota non si salva mai, e niente
+  // segnala che sia successo qualcosa.
+  //
+  // Un tasto esplicito toglie l'ambiguità: finché non lo tocchi non parte
+  // niente, e uscire dal campo non è più una decisione presa per conto tuo.
+  const salva = (id: string) => {
+    onSalva(id, bozza.trim())
     setAperto(null)
   }
 
@@ -385,9 +419,18 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
           const attivo = aperto === ex.id
           return (
             <div key={ex.id} style={{ padding: '10px 14px', borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)' }}>
+              {/* Da aperta la riga non è più un bottone: i comandi stanno sotto,
+                  uno per azione. Prima l'intestazione diceva "Annulla" e sotto
+                  c'era un altro "Annulla" — due modi di fare la stessa cosa a tre
+                  centimetri di distanza, che è un modo di troppo. */}
               <button
-                onClick={() => { if (attivo) chiudi(ex.id); else { setBozza(nota); setAperto(ex.id) } }}
-                style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 8 }}
+                onClick={() => { if (!attivo) { setBozza(nota); setAperto(ex.id) } }}
+                disabled={attivo}
+                style={{
+                  width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                  cursor: attivo ? 'default' : 'pointer', padding: 0,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
               >
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 13.5, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</span>
@@ -400,25 +443,60 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
                 <span style={{
                   flexShrink: 0, fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
                   textTransform: 'uppercase', color: 'var(--fg-mute)',
-                }}>{attivo ? t('Chiudi') : nota ? t('Modifica') : t('Scrivi')}</span>
+                }}>{attivo ? '' : nota ? t('Modifica') : t('Scrivi')}</span>
               </button>
 
-              {attivo && (
-                <textarea
-                  autoFocus
-                  value={bozza}
-                  onChange={e => setBozza(e.target.value)}
-                  onBlur={() => chiudi(ex.id)}
-                  placeholder={t('Cosa deve ricordarsi su {esercizio}', { esercizio: tData(ex.n) })}
-                  aria-label={t('Nota su {esercizio}', { esercizio: tData(ex.n) })}
-                  rows={3}
-                  className="j-field"
-                  style={{
-                    width: '100%', height: 'auto', minHeight: 72, marginTop: 8,
-                    padding: '9px 11px', resize: 'vertical', lineHeight: 1.5, fontSize: 14,
-                  }}
-                />
-              )}
+              {attivo && (() => {
+                const pulita = bozza.trim()
+                const invariata = pulita === nota
+                return (
+                  <>
+                    <textarea
+                      autoFocus
+                      value={bozza}
+                      onChange={e => setBozza(e.target.value)}
+                      placeholder={t('Cosa deve ricordarsi su {esercizio}', { esercizio: tData(ex.n) })}
+                      aria-label={t('Nota su {esercizio}', { esercizio: tData(ex.n) })}
+                      rows={3}
+                      className="j-field"
+                      style={{
+                        width: '100%', height: 'auto', minHeight: 72, marginTop: 8,
+                        padding: '9px 11px', resize: 'vertical', lineHeight: 1.5, fontSize: 14,
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                      <button
+                        onClick={() => setAperto(null)}
+                        style={{
+                          padding: '7px 13px', borderRadius: 0, cursor: 'pointer',
+                          background: 'none', border: '1px solid var(--hairline)',
+                          fontFamily: NUC.label, fontSize: 10, letterSpacing: '.12em',
+                          textTransform: 'uppercase', color: 'var(--fg-mute)',
+                        }}
+                      >
+                        {t('Annulla')}
+                      </button>
+                      <button
+                        onClick={() => salva(ex.id)}
+                        disabled={invariata}
+                        style={{
+                          padding: '7px 15px', borderRadius: 0,
+                          cursor: invariata ? 'default' : 'pointer',
+                          background: invariata ? 'var(--surface-2)' : 'var(--j-accent)',
+                          border: 'none',
+                          color: invariata ? 'var(--fg-mute)' : 'var(--j-accent-fg)',
+                          fontFamily: NUC.label, fontSize: 10, letterSpacing: '.12em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {/* Svuotare una nota e salvare la cancella: il tasto lo dice,
+                            invece di far scoprire dopo che "salva" voleva dire togliere. */}
+                        {!pulita && nota ? t('Elimina') : t('Salva')}
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           )
         })}

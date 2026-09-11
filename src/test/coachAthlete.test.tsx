@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { CoachAthlete, UltimoAllenamento } from '@/features/coach/CoachAthlete'
-import type { AthleteData } from '@/lib/coach'
+import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from '@/features/coach/CoachAthlete'
+import type { AthleteData, NotaCoach } from '@/lib/coach'
 import type { PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 // La scheda di un allievo serve a rispondere a "sta calando?". Il volume
@@ -34,7 +34,7 @@ describe('CoachAthlete — il riepilogo dell’allievo', () => {
     expect(screen.getByText('Ultimo')).toBeInTheDocument()
   })
 
-  it('le due sezioni lunghe stanno dietro due bottoni, non in pagina', async () => {
+  it('le sezioni lunghe stanno dietro un bottone, non in pagina', async () => {
     const user = userEvent.setup()
     const onUltimo = vi.fn()
     const onNote = vi.fn()
@@ -50,7 +50,11 @@ describe('CoachAthlete — il riepilogo dell’allievo', () => {
     expect(screen.queryByText(/di solito/)).not.toBeInTheDocument()
     expect(screen.getByText('2 scritte')).toBeInTheDocument()
 
-    await user.click(screen.getByText('Ultimo allenamento'))
+    // Il confronto è sceso di fianco a Sessioni e si chiama "Confronto", non
+    // "Ultimo": quella parola è già sulla tile dei giorni dall'ultima volta, e
+    // due cose diverse con lo stesso nome sulla stessa schermata sono una sola
+    // cosa letta male. `getByText` fallirebbe da solo se tornassero a coincidere.
+    await user.click(screen.getByText('Confronto'))
     expect(onUltimo).toHaveBeenCalledOnce()
     await user.click(screen.getByText('Note sugli esercizi'))
     expect(onNote).toHaveBeenCalledOnce()
@@ -137,5 +141,79 @@ describe('UltimoAllenamento — il confronto col solito', () => {
   it('senza due allenamenti sullo stesso esercizio non c’è confronto', () => {
     render(<UltimoAllenamento palestra={[ex('Panca piana', [h({ date: '2026-08-27' })])]}/>)
     expect(screen.getByText(/Servono almeno due allenamenti/)).toBeInTheDocument()
+  })
+})
+
+// ── Le note dell'allenatore ────────────────────────────────────
+// Si salvavano uscendo dal campo, e il risultato è che non si salvavano: il
+// blur salvava e chiudeva, il click che seguiva riapriva la riga rimettendoci
+// dentro il testo di prima (quello nuovo stava ancora andando sul server), e
+// alla chiusura dopo quel testo vecchio tornava sopra il nuovo. Adesso parte
+// solo dal tasto, e questi test stanno qui perché non ci si torni.
+describe('NoteEsercizi — il salvataggio è un gesto, non un effetto', () => {
+  const esercizi = [ex('Panca piana al MPW', [h({ date: '2026-09-01' })])]
+  const nota = (testo: string): NotaCoach => ({
+    coach_id: 'c1', athlete_id: 'a1', exercise_id: 'px-Panca piana al MPW',
+    nota: testo, coach_name: 'Coach', updated_at: '2026-09-01T10:00:00Z',
+  })
+
+  it('salva quello che è stato scritto, quando si tocca Salva', async () => {
+    const user = userEvent.setup()
+    const onSalva = vi.fn()
+    render(<NoteEsercizi esercizi={esercizi} note={[]} onSalva={onSalva}/>)
+
+    await user.click(screen.getByText('Scrivi'))
+    await user.type(screen.getByRole('textbox'), 'Scendi più lento')
+    await user.click(screen.getByText('Salva'))
+
+    expect(onSalva).toHaveBeenCalledWith('px-Panca piana al MPW', 'Scendi più lento')
+  })
+
+  it('non salva niente solo perché il campo ha perso il fuoco', async () => {
+    // Il cuore della regressione: uscire dal campo non deve decidere nulla.
+    const user = userEvent.setup()
+    const onSalva = vi.fn()
+    render(<NoteEsercizi esercizi={esercizi} note={[]} onSalva={onSalva}/>)
+
+    await user.click(screen.getByText('Scrivi'))
+    await user.type(screen.getByRole('textbox'), 'Mezzo pensiero')
+    await user.tab()
+
+    expect(onSalva).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox')).toBeInTheDocument()   // resta aperto
+  })
+
+  it('Annulla butta via la modifica senza scriverla', async () => {
+    const user = userEvent.setup()
+    const onSalva = vi.fn()
+    render(<NoteEsercizi esercizi={esercizi} note={[nota('Presa larga')]} onSalva={onSalva}/>)
+
+    await user.click(screen.getByText('Modifica'))
+    await user.clear(screen.getByRole('textbox'))
+    await user.type(screen.getByRole('textbox'), 'Ripensamento')
+    await user.click(screen.getByText('Annulla'))
+
+    expect(onSalva).not.toHaveBeenCalled()
+    expect(screen.getByText('Presa larga')).toBeInTheDocument()
+  })
+
+  it('dice Elimina, non Salva, quando svuotare significa cancellare', async () => {
+    const user = userEvent.setup()
+    const onSalva = vi.fn()
+    render(<NoteEsercizi esercizi={esercizi} note={[nota('Presa larga')]} onSalva={onSalva}/>)
+
+    await user.click(screen.getByText('Modifica'))
+    await user.clear(screen.getByRole('textbox'))
+
+    await user.click(screen.getByText('Elimina'))
+    expect(onSalva).toHaveBeenCalledWith('px-Panca piana al MPW', '')
+  })
+
+  it('non lascia salvare quando non è cambiato niente', async () => {
+    const user = userEvent.setup()
+    render(<NoteEsercizi esercizi={esercizi} note={[nota('Presa larga')]} onSalva={vi.fn()}/>)
+
+    await user.click(screen.getByText('Modifica'))
+    expect(screen.getByText('Salva')).toBeDisabled()
   })
 })
