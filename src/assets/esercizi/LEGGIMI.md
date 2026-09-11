@@ -43,9 +43,14 @@ Se un esercizio viene rinominato nel catalogo, il suo file va rinominato uguale.
 
 - **Quadrate.** La fascia è 1:1 e ritaglia con `object-fit: cover`: una foto
   verticale ci perde la testa e i piedi.
-- **~400×400**, il doppio della misura a cui si vede sui telefoni densi. Più
-  grandi non si vedono meglio, si scaricano più lentamente — e chi le scarica di
-  solito è in palestra, con una tacca di rete.
+- **512×512**, come quelle già qui dentro. È il doppio abbondante della misura a
+  cui si vedono sui telefoni densi: più grandi non si vedono meglio, si scaricano
+  solo più lentamente — e chi le scarica di solito è in palestra, con una tacca
+  di rete.
+- **Rettangolari va bene lo stesso**: vengono riquadrate aggiungendo sfondo, non
+  tagliando. Quello che NON va bene è il bordo bianco di antialiasing che certi
+  generatori lasciano sul perimetro: riquadrato diventa una riga chiara in mezzo
+  all'azzurro. Si toglie ritagliando un paio di pixel per lato prima di scalare.
 - **`.webp`** di preferenza (`.jpg`, `.jpeg`, `.png` funzionano lo stesso).
   Punta ai 20-40 KB per foto.
 
