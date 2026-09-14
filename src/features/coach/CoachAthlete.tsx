@@ -647,7 +647,7 @@ function Tile({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 3 }}>{k}</div>
-      <div style={{ fontFamily: NUC.serif, fontSize: 19, fontWeight: 500, letterSpacing: -0.4, color: 'var(--fg)' }}>{v}</div>
+      <div style={{ fontFamily: NUC.font, fontSize: 19, fontWeight: 500, letterSpacing: -0.4, color: 'var(--fg)' }}>{v}</div>
     </div>
   )
 }

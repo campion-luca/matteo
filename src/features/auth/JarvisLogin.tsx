@@ -125,7 +125,7 @@ export function JarvisLogin({ onAuth, recovery = false, onRecoveryDone }: Jarvis
           {tr('Fatto in Italia')}
         </div>
         <div style={{
-          fontFamily: 'var(--font-display)',
+          fontFamily: 'var(--font-body)',
           fontSize: 44, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1,
           color: 'var(--fg)',
         }}>

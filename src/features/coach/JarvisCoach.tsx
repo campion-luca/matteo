@@ -206,7 +206,7 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
             <button onClick={copia} className="j-focus" style={{
               width: '100%', padding: '14px 12px', cursor: 'pointer',
               background: 'var(--surface-2)', border: '1px solid var(--fg)', borderRadius: 0,
-              fontFamily: NUC.serif, fontSize: 32, fontWeight: 500,
+              fontFamily: NUC.font, fontSize: 32, fontWeight: 500,
               letterSpacing: '.22em', textIndent: '.22em',
               color: 'var(--fg)',
             }}>
@@ -298,7 +298,7 @@ function LatoAllenatore({ userName, atleti, onCollegato, onApri, onRimuovi }: {
             width: '100%', boxSizing: 'border-box', minHeight: 52, padding: '0 14px',
             background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 0,
             outline: 'none', textAlign: 'center',
-            fontFamily: NUC.serif, fontSize: 24, fontWeight: 500,
+            fontFamily: NUC.font, fontSize: 24, fontWeight: 500,
             letterSpacing: '.2em', textIndent: '.2em', color: 'var(--fg)',
           }}
         />

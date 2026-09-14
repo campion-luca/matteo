@@ -208,35 +208,38 @@ export function NucNav({ active, onChange, pos = 'centro' }: NucNavProps & { pos
       paddingLeft: 18, paddingRight: 18,
       display: 'flex', flexDirection: 'column', alignItems: ALLINEAMENTO[pos] ?? 'center', gap: 5,
     }}>
-      {/* La freccia e il quadrato stanno in riga; l'etichetta resta sotto al
-          quadrato e non sotto la coppia, perché parla solo di lui.
+      {/* Il quadrato (con la sua etichetta) è l'unico elemento in flusso: la
+          freccia gli sta accanto in posizione assoluta, così quando compare o
+          sparisce il quadrato resta esattamente dov'era.
 
-          Quando la freccia compare il quadrato scorre di lato: sta in flusso, non
-          sovrapposto. Sovrapporlo lo terrebbe fermo ma con la nav a sinistra la
-          freccia finirebbe fuori dallo schermo, e un tasto tagliato è peggio di un
-          tasto che si sposta — tanto più che si sposta solo cambiando schermata,
-          cioè quando si sta già guardando altro. */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        {indietro && (
-          <button
-            onClick={indietro}
-            aria-label={t('Indietro')}
-            className="j-hard j-focus"
-            style={{
-              // Stessa misura del quadrato accanto ma senza accento: la
-              // destinazione è l'azione principale e resta l'unica colorata.
-              width: 44, height: 44, borderRadius: 0,
-              background: 'var(--surface)', border: '1px solid var(--hairline)',
-              color: 'var(--fg)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              pointerEvents: 'auto', flexShrink: 0,
-            }}
-          >
-            <Icons.chevL size={20} stroke={2}/>
-          </button>
-        )}
+          Di norma sta a sinistra del quadrato. Con la nav allineata a sinistra lì
+          ci sono solo i 18px di margine e la freccia uscirebbe dallo schermo:
+          in quel caso passa a destra. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+        {/* L'ancora è il quadrato e non la colonna: l'etichetta "Allenamento" è
+            più larga di 44px e allargherebbe la distanza dalla freccia. */}
+        <div style={{ position: 'relative' }}>
+          {indietro && (
+            <button
+              onClick={indietro}
+              aria-label={t('Indietro')}
+              className="j-hard j-focus"
+              style={{
+                position: 'absolute', top: 0,
+                ...(pos === 'sinistra' ? { left: 'calc(100% + 8px)' } : { right: 'calc(100% + 8px)' }),
+                // Stessa misura del quadrato accanto ma senza accento: la
+                // destinazione è l'azione principale e resta l'unica colorata.
+                width: 44, height: 44, borderRadius: 0,
+                background: 'var(--surface)', border: '1px solid var(--hairline)',
+                color: 'var(--fg)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'auto',
+              }}
+            >
+              <Icons.chevL size={20} stroke={2}/>
+            </button>
+          )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
           {/* Quadrato, non più una palla: parla la stessa lingua di tutto il resto
               — angoli vivi e ombra "stampa" (.j-hard), che è anche l'unica cosa
               che deve dire "si preme". Niente box-shadow/transform inline qui: uno
@@ -258,15 +261,15 @@ export function NucNav({ active, onChange, pos = 'centro' }: NucNavProps & { pos
           >
             <Ico size={22} stroke={1.9}/>
           </button>
-          {/* L'icona da sola non dice dove porta: il tasto cambia glifo a ogni
-              schermata, e senza etichetta il manubrio si confonde con la
-              scorciatoia Personal Coach della home. */}
-          <span style={{
-            fontFamily: NUC.label, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em',
-            textTransform: 'uppercase', color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-          }}>{onHome ? t('Allenamento') : t('Home')}</span>
         </div>
+        {/* L'icona da sola non dice dove porta: il tasto cambia glifo a ogni
+            schermata, e senza etichetta il manubrio si confonde con la
+            scorciatoia Personal Coach della home. */}
+        <span style={{
+          fontFamily: NUC.label, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em',
+          textTransform: 'uppercase', color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+        }}>{onHome ? t('Allenamento') : t('Home')}</span>
       </div>
     </div>
   )
@@ -349,7 +352,7 @@ export function NucSidebarNav({ active, onChange, onOpenBudget, onOpenCoach, onO
           color: 'var(--fg-mute)', textTransform: 'uppercase', marginBottom: 5,
         }}>{t('Personal OS')}</div>
         <div style={{
-          fontFamily: NUC.serif, fontSize: 20, fontWeight: 500,
+          fontFamily: NUC.font, fontSize: 20, fontWeight: 500,
           letterSpacing: 0, color: 'var(--fg)',
         }}>{userName || 'Matteo'}</div>
       </div>

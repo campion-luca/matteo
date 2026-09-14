@@ -12,11 +12,10 @@ export const NUC = {
   accent:     'var(--j-accent)',
   accentSoft: 'var(--j-accent-soft)',
   accentDeep: 'var(--j-accent-deep)',
-  // Typography roles (tema "Journal"):
-  //  serif  → Fraunces (titoli, titoli card/evento, nomi cliente & muscolo, mese calendario)
-  //  font   → Inter (corpo / sans di default)
-  //  label  → Inter (label, metadati, numeri, bottoni, chip, nav; eyebrow in maiuscoletto spaziato)
-  serif:      "'Fraunces', Georgia, serif",
+  // Typography roles — un carattere solo, Inter (il saluto in home è l'unica
+  // eccezione e usa `--font-saluto` direttamente, non passa da qui):
+  //  font   → corpo, titoli, nomi cliente & muscolo
+  //  label  → label, metadati, numeri, bottoni, chip, nav; eyebrow in maiuscoletto spaziato
   font:       "'Inter', system-ui, sans-serif",
   label:      "'Inter', system-ui, sans-serif",
 } as const

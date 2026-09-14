@@ -74,7 +74,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
           </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.serif, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
+            <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5">{ex.target} {ex.unit} · {isRace ? t('Gara Hyrox') : t('Hyrox')}</div>
           </div>
           {!isRace && onDelete && (
@@ -270,7 +270,7 @@ export function RaceSummary({ raceStations, runStation }: {
           <div key={ex.id} className="flex justify-between items-center py-3"
             style={{ borderBottom: idx < stationStats.length - 1 ? '1px solid var(--hairline-soft)' : 'none' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: NUC.serif, fontSize: 15, fontWeight: 500, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
+              <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>
                 {ex.target} {ex.unit} · {t('{n} sess.', { n: sessions })}
               </div>
@@ -312,7 +312,7 @@ export function HyroxCard({ ex, onLog, onDelete }: {
     <NucCard pad={16} style={{ marginBottom: 10 }}>
       <div className="flex justify-between items-start mb-2.5">
         <div>
-          <div style={{ fontFamily: NUC.serif, fontSize: 18, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, marginBottom: 3 }}>{tData(ex.n)}</div>
+          <div style={{ fontFamily: NUC.font, fontSize: 18, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, marginBottom: 3 }}>{tData(ex.n)}</div>
           <div className="j-eyebrow">{ex.target} {ex.unit}</div>
         </div>
         <div className="flex items-center gap-2">

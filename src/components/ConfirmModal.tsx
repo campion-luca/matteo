@@ -63,7 +63,7 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
         <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.18em', color: danger ? 'var(--danger)' : 'var(--j-accent-ink)', textTransform: 'uppercase', marginBottom: 10 }}>
           {copy?.eyebrow ?? t('Eliminazione')}
         </div>
-        <div id={titleId} style={{ fontFamily: NUC.serif, fontSize: 16, fontWeight: 500, color: NUC.ink, marginBottom: 8, letterSpacing: 0, lineHeight: 1.3 }}>
+        <div id={titleId} style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, color: NUC.ink, marginBottom: 8, letterSpacing: 0, lineHeight: 1.3 }}>
           {copy?.title ?? t('Sicuro di voler eliminare?')}
         </div>
         <div style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.faint, marginBottom: 22, lineHeight: 1.55 }}>

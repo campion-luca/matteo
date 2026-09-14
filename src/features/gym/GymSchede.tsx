@@ -403,7 +403,7 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
               <div className="flex items-center justify-between gap-3">
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: NUC.serif, fontSize: 18, fontWeight: 500, lineHeight: 1.2, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+                    <div style={{ fontFamily: NUC.font, fontSize: 18, fontWeight: 500, lineHeight: 1.2, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
                     {s.draft && (
                       <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn)', background: 'rgba(var(--warn-rgb),0.12)', border: '1px solid rgba(var(--warn-rgb),0.35)', padding: '1px 5px' }}>{t('Bozza')}</span>
                     )}
@@ -567,7 +567,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
           onChange={e => { clearFeedback(); setTitle(e.target.value) }}
           placeholder={t('Nome scheda (es. Upper A)')}
           className="j-field"
-          style={{ marginBottom: 14, fontFamily: NUC.serif, fontSize: 16 }}
+          style={{ marginBottom: 14, fontFamily: NUC.font, fontSize: 16 }}
         />
 
         {rows.map((r, idx) => {
@@ -872,7 +872,7 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
                   <div className="flex items-center justify-between gap-3">
                     <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={44}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: NUC.serif, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
+                      <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
                       <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
                         {e.muscle ? tData(displayMuscle(e.muscle)) : t('Senza gruppo')}{e.linkedExerciseId ? ` · ${t('collegato')}` : ''}
                       </div>
@@ -1206,7 +1206,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="flex items-center gap-2">
                     {exDone && <Icons.check size={15} stroke={2.6} color={color}/>}
-                    <div style={{ fontFamily: NUC.serif, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
+                    <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
                   </div>
                   <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
                     {t('obiettivo')} {e.sets} × {e.reps}
@@ -1398,7 +1398,7 @@ function SchedaReportPage({ schede, muscleColors, onBack }: {
                 <div key={r.muscle} className="mb-2.5 j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}>
                   <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
                     <div className="flex items-center justify-between gap-3" style={{ marginBottom: 8 }}>
-                      <div style={{ fontFamily: NUC.serif, fontSize: 16, fontWeight: 500, color: muscleTextColor(color, dark) }}>{tData(r.muscle)}</div>
+                      <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, color: muscleTextColor(color, dark) }}>{tData(r.muscle)}</div>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
                         <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em' }}>
                           {r.count === 1 ? t('1 volta') : t('{n} volte', { n: r.count })}

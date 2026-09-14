@@ -1,4 +1,4 @@
-/* I font (Inter + Fraunces) sono caricati via <link> in index.html
+/* I font (Inter + Fraunces, quest'ultimo solo per il saluto in home) sono caricati via <link> in index.html
    con preconnect: evita il doppio download e il render-blocking dell'@import. */
 @tailwind base;
 @tailwind components;
@@ -104,16 +104,14 @@
   --motion-fast:   160ms;
   --motion-smooth: 280ms;
 
-  /* Typography — due caratteri e basta: Fraunces per i titoli, Inter per tutto
-     il resto. Erano Space Grotesk e DM Sans, due grotesque che a metà pagina si
-     confondevano: la gerarchia la faceva solo il corpo del testo, non il carattere.
-     Fraunces è un serif variabile con asse ottico (opsz): a corpo grande stringe e
-     mostra le grazie, a corpo piccolo si apre e resta leggibile — è quello che
-     serve a un titolo che vive a 24px in una pagina e a 12px in una card.
-     `--font-serif` e `--font-display` restano due nomi per la stessa cosa: sono
-     usati in mezza app a testa e unificarli sarebbe un rinomina senza guadagno. */
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-serif:   'Fraunces', Georgia, serif;
+  /* Typography — Inter per tutto. Fraunces resta per una cosa sola, il saluto
+     col nome in cima alla home: è la voce dell'app, non un titolo tra i tanti, e
+     se lo condividesse con le card smetterebbe di distinguersi. Titoli e corpo
+     prima usavano due caratteri (Fraunces/Inter): la gerarchia ora la fanno
+     corpo e peso, e l'app parla con una voce sola.
+     Se un titolo ti sembra chiedere il serif, non riaprire un token "display":
+     `--font-saluto` è riservato al saluto. */
+  --font-saluto:  'Fraunces', Georgia, serif;
   --font-body:    'Inter', system-ui, sans-serif;
   --font-label:   'Inter', system-ui, sans-serif;
 
@@ -531,7 +529,7 @@
 
   /* Page title */
   .j-page-title {
-    font-family: var(--font-display);
+    font-family: var(--font-body);
     font-size: clamp(26px, 4vw, 32px); font-weight: 500;
     line-height: 1.1;
     letter-spacing: -0.005em; color: var(--fg);

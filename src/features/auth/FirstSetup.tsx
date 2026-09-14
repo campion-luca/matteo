@@ -137,7 +137,7 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
           apparirebbe già ferma al suo posto. */}
       <div key={step} className="j-rise-in" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div style={{
-          fontFamily: NUC.serif, fontSize: 28, fontWeight: 500,
+          fontFamily: NUC.font, fontSize: 28, fontWeight: 500,
           letterSpacing: -0.6, lineHeight: 1.15, marginBottom: 8,
         }}>{t(TITLES[step].q)}</div>
         <div style={{
@@ -252,6 +252,6 @@ const inputStyle: React.CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid var(--hairline)',
   borderRadius: 0, outline: 'none',
-  fontFamily: NUC.serif, fontSize: 22, fontWeight: 500,
+  fontFamily: NUC.font, fontSize: 22, fontWeight: 500,
   letterSpacing: -0.3, color: 'var(--fg)',
 }

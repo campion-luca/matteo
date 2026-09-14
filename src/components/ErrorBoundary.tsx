@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
           overflowY: 'auto',
         }}>
           <div style={{
-            fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 26, fontWeight: 500,
             letterSpacing: '-0.01em', color: 'var(--fg)',
           }}>
             {t('Qualcosa è andato storto')}

@@ -67,7 +67,7 @@ export function JarvisBoot({ onDone }: JarvisBootProps) {
         <div style={{ fontFamily: 'var(--font-body)', fontSize: 10, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 16 }}>
           {t('Fatto in Italia')}
         </div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1, color: 'var(--fg)' }}>
+        <div style={{ fontFamily: 'var(--font-body)', fontSize: 52, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1, color: 'var(--fg)' }}>
           Matteo
         </div>
         <div style={{ width: 32, height: 1, background: 'var(--j-accent)', margin: '14px auto' }}/>

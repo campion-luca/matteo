@@ -136,7 +136,7 @@ export function JModal({ open, onClose, children, title, leading, headerRight, w
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
               {leading}
-              <div id={titleId} style={{ fontFamily: NUC.serif, fontSize: 16, fontWeight: 500, letterSpacing: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--fg)' }}>{title}</div>
+              <div id={titleId} style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, letterSpacing: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--fg)' }}>{title}</div>
             </div>
             {headerRight && <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{headerRight}</div>}
             <button onClick={onClose} aria-label={t('Chiudi')} style={{

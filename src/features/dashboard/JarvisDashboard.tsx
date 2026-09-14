@@ -269,9 +269,10 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile, onOpenBudget, onOpen
           targhetta che diceva a chi è già dentro dove si trova. Su desktop lo porta
           comunque la sidebar. */}
       <div className="jarvis-boot" style={{ marginBottom: isDesktop ? 32 : 24 }}>
-        {/* Greeting — display (Fraunces 500), nome enfatizzato con peso + sottolineatura accent */}
+        {/* Il saluto è l'unica cosa in Fraunces di tutta l'app (--font-saluto): nome
+            enfatizzato con peso + sottolineatura accent */}
         <div style={{
-          fontFamily: 'var(--font-display)',
+          fontFamily: 'var(--font-saluto)',
           fontSize: 'clamp(32px, 5.2vw, 42px)', fontWeight: 500, letterSpacing: '-0.01em',
           lineHeight: 1.05, color: 'var(--fg)',
         }}>
@@ -312,7 +313,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile, onOpenBudget, onOpen
       >
         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <span style={{
-            fontFamily: 'var(--font-display)', fontWeight: 600,
+            fontFamily: 'var(--font-body)', fontWeight: 600,
             fontSize: 'clamp(17px, 4.2vw, 23px)', lineHeight: 1,
             letterSpacing: '-0.01em', textTransform: 'uppercase',
           }}>{t('Alleniamoci')}</span>

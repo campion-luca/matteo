@@ -256,7 +256,7 @@ export function CoachMarkHost() {
               textTransform: 'uppercase', color: 'var(--fg-mute)',
             }}>{t('Come funziona')}</div>
             <div style={{
-              fontFamily: NUC.serif, fontSize: 17, fontWeight: 500,
+              fontFamily: NUC.font, fontSize: 17, fontWeight: 500,
               letterSpacing: -0.2, color: 'var(--fg)',
             }}>{t(hint.title)}</div>
           </div>

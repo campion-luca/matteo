@@ -450,7 +450,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
             border: `2px solid var(--hairline)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             // accentSoft è la tinta CHIARA della palette: la crema fissa vi spariva sopra.
-            fontFamily: NUC.serif, fontSize: 30, fontWeight: 500, color: accentFgFor(pal.accentSoft),
+            fontFamily: NUC.font, fontSize: 30, fontWeight: 500, color: accentFgFor(pal.accentSoft),
             transition: 'background 400ms',
           }}>
             {initial}
@@ -868,7 +868,7 @@ function PesoSection() {
             display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
             gap: 8, marginBottom: 8,
           }}>
-            <span style={{ fontFamily: NUC.serif, fontSize: 20, fontWeight: 500, letterSpacing: -0.4, color: 'var(--fg)' }}>
+            <span style={{ fontFamily: NUC.font, fontSize: 20, fontWeight: 500, letterSpacing: -0.4, color: 'var(--fg)' }}>
               {ultime[ultime.length - 1].kg} kg
             </span>
             {delta !== null && (

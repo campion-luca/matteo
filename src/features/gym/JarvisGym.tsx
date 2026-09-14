@@ -405,7 +405,7 @@ function PalestraCard({ ex, onNavigate, muscleColors, compact = false }: {
         <NucCard pad={11} style={{ borderLeft: `3px solid ${color}` }}>
           <div className="flex justify-between items-center gap-2.5">
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: NUC.serif, fontSize: 14, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
+              <div style={{ fontFamily: NUC.font, fontSize: 14, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 0.4, color: NUC.faint, marginTop: 2 }}>
                 {last ? `${last.sets_n}×${fmtReps(last)} · ${fmtKg(last)}` : t('Nessuna alzata')}
               </div>
@@ -422,7 +422,7 @@ function PalestraCard({ ex, onNavigate, muscleColors, compact = false }: {
       <NucCard pad={14} style={{ borderLeft: `3px solid ${color}` }}>
         <div className="flex justify-between items-center gap-3">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.serif, fontSize: 17, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, marginBottom: 3 }}>{tData(ex.n)}</div>
+            <div style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, marginBottom: 3 }}>{tData(ex.n)}</div>
             <div className="j-eyebrow" style={{ color: accentInkFor(color, dark) }}>{muscleLabel}</div>
             {ex.note && (
               <div style={{
@@ -560,7 +560,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
               fondo non esiste — c'è la sidebar — quindi qui resta. */}
           {isDesktop && <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.serif, fontSize: 22, fontWeight: 500, lineHeight: 1.15, color: NUC.ink }}>{tData(ex.n)}</div>
+            <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{t('Scopri di più')} · {t('{n} sessioni', { n: hist.length })}</div>
           </div>
         </div>
@@ -678,7 +678,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.serif, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
+            <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{ex.muscle2 ? `${tData(displayMuscle(ex.muscle))} · ${tData(displayMuscle(ex.muscle2))}` : tData(displayMuscle(ex.muscle))}</div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
@@ -972,7 +972,7 @@ function ElencoEsercizi({ esercizi, color, onApri }: {
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: NUC.serif, fontSize: 15, fontWeight: 500, color: NUC.ink, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
+              <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, marginTop: 2 }}>
                 {last ? `${last.sets_n}×${fmtReps(last)} · ${fmtKg(last)}` : t('Nessuna alzata')}
               </div>
@@ -1041,7 +1041,7 @@ function GrigliaEsercizi({ esercizi, color, onApri }: {
             </div>
             <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
               <div style={{
-                fontFamily: NUC.serif, fontSize: 12.5, fontWeight: 500, color: NUC.ink,
+                fontFamily: NUC.font, fontSize: 12.5, fontWeight: 500, color: NUC.ink,
                 lineHeight: 1.15,
                 display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
               }}>{tData(ex.n)}</div>
@@ -1101,7 +1101,7 @@ function ElencoGruppi({ gruppi, muscleColors, onApri }: {
               <MuscleIcon muscle={muscle} size={36} stroke={1.5}/>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: NUC.serif, fontSize: 15, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.01em', lineHeight: 1.1 }}>{tData(muscle)}</div>
+              <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.01em', lineHeight: 1.1 }}>{tData(muscle)}</div>
               <div style={{ fontFamily: NUC.label, fontSize: 8.5, letterSpacing: '.08em', color: NUC.faint, marginTop: 2, textTransform: 'uppercase' }}>
                 {items.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: items.length })}
               </div>
@@ -1143,7 +1143,7 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
             <MuscleIcon muscle={muscle} size={34} stroke={1.6}/>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.serif, fontSize: 24, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.1 }}>{tData(muscle)}</div>
+            <div style={{ fontFamily: NUC.font, fontSize: 24, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.1 }}>{tData(muscle)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: exercises.length })}</div>
           </div>
           <button onClick={onAddExercise} className="j-btn-add">
