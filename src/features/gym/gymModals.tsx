@@ -318,7 +318,11 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
           </div>
         ) : (
           <>
-            <div className="j-eyebrow mt-1">{t('Serie × Colpi')}</div>
+        {/* Niente etichetta sopra i campi: 'serie', 'colpi' e 'kg' sono già
+            scritti dentro. Erano due righe di maiuscoletto per ripetere tre
+            parole che c'erano un centimetro più sotto, e in un modale che si apre
+            per scrivere tre numeri quello spazio conta. Il segnaposto sparisce
+            quando scrivi, ed è il momento in cui non serve più. */}
             <div className="flex gap-2">
               <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
               <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
@@ -367,7 +371,6 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
           </>
         ) : (
           <>
-            <div className="j-eyebrow mt-1">{t('Kg')}</div>
             <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
           </>
         )}

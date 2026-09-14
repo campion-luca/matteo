@@ -23,6 +23,8 @@ import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { RecordModal, type RecordItem } from './gymModals'
 import { useBodyWeight } from './gymHooks'
 import { useMuscleColors } from './useMuscleColors'
+import { fotoEsercizio } from './eserciziFoto'
+import { MuscleIcon } from './MuscleIcons'
 import { todayISO } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
@@ -641,7 +643,42 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                 </label>
                 <label style={{ flex: 1 }}>
                   <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 3 }}>{t('Colpi')}</div>
-                  <input value={r.reps} onChange={e => patch(r.id, { reps: e.target.value })} placeholder="8" className="j-field"/>
+                  <div className="flex gap-1.5">
+                    <input
+                      value={r.reps}
+                      onChange={e => patch(r.id, { reps: e.target.value })}
+                      placeholder="8"
+                      className="j-field"
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    {/* "max" è un obiettivo che un numero non sa dire: le serie a
+                        cedimento non hanno un bersaglio da centrare, si va finché
+                        si va. Il campo è testo libero e la parola si potrebbe
+                        scrivere a mano, ma andava scritta uguale ogni volta —
+                        `obiettivoColpi` legge un numero e su "max" cade su 0, cioè
+                        "nessun obiettivo", che è esattamente il comportamento
+                        giusto: in allenamento non compare nessun avviso di serie
+                        sotto il bersaglio. Con un tasto la parola è sempre quella.
+
+                        Si ripreme per tornare a un numero: un interruttore che si
+                        accende e non si spegne obbligherebbe a cancellare a mano
+                        quello che un tocco ha scritto. */}
+                    <button
+                      type="button"
+                      onClick={() => patch(r.id, { reps: r.reps.trim().toLowerCase() === 'max' ? '' : 'max' })}
+                      aria-pressed={r.reps.trim().toLowerCase() === 'max'}
+                      style={{
+                        flexShrink: 0, padding: '0 10px', borderRadius: 0, cursor: 'pointer',
+                        background: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : 'var(--surface-2)',
+                        border: `1px solid ${r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : NUC.hairline}`,
+                        color: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent-fg)' : NUC.dim,
+                        fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase',
+                        transition: 'background 160ms, color 160ms, border-color 160ms',
+                      }}
+                    >
+                      max
+                    </button>
+                  </div>
                 </label>
               </div>
 
@@ -731,6 +768,36 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
 }
 
 // ── Dettaglio scheda ───────────────────────────────────────────
+// ── La faccia di un esercizio dentro una scheda ────────────────
+// L'illustrazione se ce l'ha, il disegno del gruppo muscolare se no: la stessa
+// regola della griglia della palestra, e per la stessa ragione — il disegno è
+// l'unica figura garantita per OGNI esercizio, compreso quello che uno scrive a
+// mano nella scheda e che nessuna fotografia può coprire in anticipo.
+//
+// Non torna mai `null`: un quadrato vuoto è meglio di righe che si allineano in
+// due modi diversi a seconda che la foto ci sia.
+//
+// L'aggancio è per NOME, che nella scheda è l'unica cosa che si ha: la riga
+// porta `name`, e `linkedExerciseId` può mancare (scheda arrivata da un
+// allenatore, esercizio digitato e non ancora collegato). È lo stesso nome su
+// cui si aggancia la griglia, quindi le due schermate mostrano la stessa figura.
+function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo?: string; lato: number }) {
+  const foto = fotoEsercizio(nome)
+  const cornice = {
+    width: lato, height: lato, flexShrink: 0, borderRadius: 0,
+    border: '1px solid var(--hairline)', background: 'var(--surface-2)',
+  } as const
+  if (foto) {
+    return <img src={foto} alt="" loading="lazy" decoding="async"
+      style={{ ...cornice, objectFit: 'cover', display: 'block' }}/>
+  }
+  return (
+    <div style={{ ...cornice, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-mute)' }}>
+      <MuscleIcon muscle={muscolo || 'Altro'} size={Math.round(lato * 0.7)} stroke={1.5}/>
+    </div>
+  )
+}
+
 function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi, onBack, onEdit, onDelete, onStart }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
@@ -803,6 +870,7 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
                 )}
                 <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
                   <div className="flex items-center justify-between gap-3">
+                    <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={44}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: NUC.serif, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
                       <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
@@ -1134,6 +1202,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             )}
             <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
               <div className="flex items-start justify-between gap-3" style={{ marginBottom: 10 }}>
+                <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="flex items-center gap-2">
                     {exDone && <Icons.check size={15} stroke={2.6} color={color}/>}

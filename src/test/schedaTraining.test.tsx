@@ -87,3 +87,54 @@ describe('esecuzione di una scheda', () => {
     expect(h[0].setReps).toBeUndefined()
   })
 })
+
+// ── L'obiettivo "max" ──────────────────────────────────────────
+// Le serie a cedimento non hanno un bersaglio: si va finché si va. Nella scheda
+// si scrivono "max" (c'è un tasto apposta nel form), e da lì in poi tutto deve
+// comportarsi come se un obiettivo non ci fosse — perché non c'è.
+describe('una scheda con obiettivo «max»', () => {
+  beforeEach(() => {
+    useJarvisStore.setState({
+      ...EMPTY_STATE,
+      userName: 'Luca',
+      gymSchede: [{
+        ...scheda,
+        exercises: [{ id: 'se1', name: 'Piegamenti', sets: 2, reps: 'max', muscle: 'Petto' }],
+      }],
+    }, true)
+  })
+
+  it('non precompila i colpi con un numero inventato', async () => {
+    // Il rischio è che "max" venga letto come 0 e finisca scritto nel campo: uno
+    // zero da cancellare a mano prima di poter scrivere quanto se n'è fatti.
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    expect(screen.getByLabelText('Piegamenti · serie 1 · colpi')).toHaveValue('')
+  })
+
+  it('non segna in rosso nessuna serie, per quanto corta', async () => {
+    // Senza bersaglio non si può stare sotto. Se "max" tornasse un numero — un
+    // default a 8, poniamo — ogni serie a cedimento sotto quella soglia si
+    // colorerebbe di rosso, e il rosso smetterebbe di voler dire qualcosa.
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    const colpi = screen.getByLabelText('Piegamenti · serie 1 · colpi')
+    await user.type(colpi, '3')
+    expect(screen.getByLabelText('Piegamenti · serie 1 · colpi')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('salva i colpi davvero fatti', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.type(screen.getByLabelText('Piegamenti · serie 1 · colpi'), '14')
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    const h = useJarvisStore.getState().palestraExercises.find(e => e.n === 'Piegamenti')?.history ?? []
+    expect(h).toHaveLength(1)
+    expect(h[0].reps).toBe(14)
+  })
+})

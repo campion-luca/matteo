@@ -719,7 +719,6 @@ export const DE_UI: Record<string, string> = {
     'Eine einzelne Wiederholung mit Maximalgewicht. Sätze und Wiederholungen zählen 1 × 1.',
   'Una singola al carico massimo: serie e colpi diventano 1 × 1.':
     'Eine einzelne Wiederholung mit Maximalgewicht: Sätze und Wiederholungen werden 1 × 1.',
-  'Serie × Colpi': 'Sätze × Wdh.',
   'Kg': 'Kg',
   'Zavorra': 'Zusatzgewicht',
   'Zavorra extra': 'Extra-Zusatzgewicht',
