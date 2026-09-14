@@ -27,7 +27,7 @@ import { todayISO } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
 import { supabase } from '@/lib/supabase'
-import { schedeRicevute, eliminaSchedaAssegnata, type CoachScheda } from '@/lib/coach'
+import { schedeRicevute, eliminaSchedaAssegnata, myAthletes, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
 
 // Colore del gruppo muscolare. `muscleColors` arriva risolto da `useMuscleColors()`
 // (default + override utente, desaturato in layout "Notte"): 'Altro' fa da fallback,
@@ -97,9 +97,10 @@ const iconBtn = (danger = false, size = 36): CSSProperties => ({
 // ── Container: gestisce la navigazione interna della sezione Schede ──
 export function GymSchede({ onBack }: { onBack: () => void }) {
   const t = useT()
-  const { gymSchede, palestraExercises } = useJarvisStore(useShallow(st => ({
+  const { gymSchede, palestraExercises, userName } = useJarvisStore(useShallow(st => ({
     gymSchede: st.gymSchede,
     palestraExercises: st.palestraExercises,
+    userName: st.userName,
   })))
   const muscleColors = useMuscleColors()
   const set = useJarvisStore.setState
@@ -111,18 +112,30 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
   // e qui si leggono e basta. Se la tabella non c'è ancora (schema non eseguito)
   // o la rete non risponde, la lista resta quella locale e l'app non se ne accorge.
   const [assegnate, setAssegnate] = useState<CoachScheda[]>([])
+  const [allievi, setAllievi] = useState<CoachLink[]>([])
+  const [ioId, setIoId] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
     // `getSession` e non `getUser`: la sessione è già in locale, mentre `getUser`
     // interroga il server di autenticazione ad ogni apertura delle schede. Qui
     // l'id serve solo come filtro — a decidere cosa si può leggere è la RLS, non
     // il client — e per un filtro la copia locale basta.
-    supabase.auth.getSession()
-      .then(({ data }) => data.session ? schedeRicevute(data.session.user.id) : [])
+    supabase.auth.getSession().then(({ data }) => {
+      const io = data.session?.user.id
+      if (!io || !vivo) return
+      setIoId(io)
       // Le bozze dell'allenatore restano sue: sono schede che ha salvato
       // incomplete per non perdere il lavoro, non cose da allenarci.
-      .then(righe => { if (vivo) setAssegnate(righe.filter(r => !r.scheda.draft)) })
-      .catch(() => { /* nessuna scheda assegnata: è il caso normale, non un errore */ })
+      schedeRicevute(io)
+        .then(righe => { if (vivo) setAssegnate(righe.filter(r => !r.scheda.draft)) })
+        .catch(() => { /* nessuna scheda assegnata: è il caso normale, non un errore */ })
+      // Chi alleno. Serve solo a decidere se il tasto "condividi" ha senso:
+      // senza nessuno da seguire non c'è niente da condividere, e un tasto che
+      // apre un elenco vuoto è una promessa non mantenuta.
+      myAthletes(io)
+        .then(righe => { if (vivo) setAllievi(righe) })
+        .catch(() => { /* non allena nessuno, o la tabella non c'è: nessun tasto */ })
+    })
     return () => { vivo = false }
   }, [])
 
@@ -317,6 +330,10 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         scheda={current}
         muscleColors={muscleColors}
         daCoach={daCoach.get(current.id)}
+        allievi={allievi}
+        onCondividi={ioId
+          ? (athleteId: string) => condividiScheda(ioId, athleteId, userName ?? '', current)
+          : undefined}
         onBack={() => { setActive(null); setView('list') }}
         onEdit={() => { setEditing(current); setView('form') }}
         onDelete={() => { removeScheda(current.id); setActive(null); setView('list') }}
@@ -714,11 +731,15 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
 }
 
 // ── Dettaglio scheda ───────────────────────────────────────────
-function SchedaDetailPage({ scheda, muscleColors, daCoach, onBack, onEdit, onDelete, onStart }: {
+function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi, onBack, onEdit, onDelete, onStart }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
   /** Nome dell'allenatore, se è lui ad aver assegnato questa scheda. */
   daCoach?: string
+  /** Chi alleno. Vuoto = non seguo nessuno, e il tasto condividi non compare. */
+  allievi?: CoachLink[]
+  /** Manca finché non si sa chi sono: senza sessione non si condivide niente. */
+  onCondividi?: (athleteId: string) => Promise<void>
   onBack: () => void
   onEdit: () => void
   onDelete: () => void
@@ -727,6 +748,13 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, onBack, onEdit, onDel
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
+  const [condividiAperto, setCondividiAperto] = useState(false)
+
+  // Il tasto c'è solo se c'è davvero qualcosa da fare: la scheda è mia (una
+  // assegnata è il lavoro di un altro), è finita (una bozza chi la riceve non la
+  // vedrebbe nemmeno, l'elenco delle assegnate le filtra), e qualcuno da seguire
+  // c'è.
+  const puoiCondividere = !daCoach && !scheda.draft && !!onCondividi && (allievi?.length ?? 0) > 0
   return (
     <SchedaPage
       onBack={onBack} tronca
@@ -735,6 +763,15 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, onBack, onEdit, onDel
         ? t('da {chi}', { chi: daCoach })
         : scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: scheda.exercises.length })}
       azioni={<>
+        {puoiCondividere && (
+          <button
+            onClick={() => setCondividiAperto(true)}
+            aria-label={t('Condividi la scheda')}
+            className="flex items-center justify-center" style={iconBtn()}
+          >
+            <Icons.share size={15} stroke={1.8}/>
+          </button>
+        )}
         {/* La matita non c'è sulle schede assegnate: sono il lavoro dell'allenatore,
             e lasciarle riscrivere qui vorrebbe dire che i due si allenano su due
             versioni diverse senza saperlo. Il cestino resta — rifiutarla si può. */}
@@ -799,7 +836,93 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, onBack, onEdit, onDel
           </button>
         </div>
       )}
+
+      {onCondividi && (
+        <ModaleCondividi
+          open={condividiAperto}
+          onClose={() => setCondividiAperto(false)}
+          titolo={scheda.title}
+          allievi={allievi ?? []}
+          onCondividi={onCondividi}
+        />
+      )}
     </SchedaPage>
+  )
+}
+
+// ── Con chi condividere una scheda ─────────────────────────────
+// Un elenco di nomi, si tocca quello giusto.
+//
+// Anche con un allievo solo si passa di qui invece di condividere al primo
+// tocco: mandare una scheda a un'altra persona è un gesto verso fuori, e un
+// tocco per sbaglio su un'icona da 15px non deve bastare a compierlo. Il nome
+// da toccare È la conferma, e in più dice a chi sta andando.
+//
+// Ricondividere non duplica: la copia ha un id derivato dalla coppia
+// scheda-allievo (vedi `idSchedaCondivisa`), quindi la seconda volta aggiorna
+// quella che ha già. Per questo dopo il primo invio il tasto dice "Aggiorna".
+function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
+  open: boolean
+  onClose: () => void
+  titolo: string
+  allievi: CoachLink[]
+  onCondividi: (athleteId: string) => Promise<void>
+}) {
+  const t = useT()
+  const [inCorso, setInCorso] = useState<string | null>(null)
+  const [fatti, setFatti] = useState<string[]>([])
+  const [errore, setErrore] = useState<string | null>(null)
+
+  const manda = (a: CoachLink) => {
+    setInCorso(a.athlete_id)
+    setErrore(null)
+    onCondividi(a.athlete_id)
+      .then(() => setFatti(f => f.includes(a.athlete_id) ? f : [...f, a.athlete_id]))
+      .catch(e => setErrore(e instanceof Error ? e.message : String(e)))
+      .finally(() => setInCorso(null))
+  }
+
+  return (
+    <JModal open={open} onClose={onClose} title={t('Condividi la scheda')} width={320}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)', lineHeight: 1.5 }}>
+          {t('«{scheda}» finisce nelle sue schede, pronta da avviare.', { scheda: titolo })}
+        </div>
+
+        {errore && (
+          <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: 'var(--danger)', lineHeight: 1.5 }}>{errore}</div>
+        )}
+
+        {allievi.map(a => {
+          const fatto = fatti.includes(a.athlete_id)
+          const attesa = inCorso === a.athlete_id
+          return (
+            <button
+              key={a.athlete_id}
+              onClick={() => manda(a)}
+              disabled={attesa}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                width: '100%', padding: '11px 13px', borderRadius: 0,
+                background: 'var(--surface)', border: '1px solid var(--hairline)',
+                cursor: attesa ? 'default' : 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontFamily: NUC.font, fontSize: 14, color: 'var(--fg)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {a.athlete_name?.trim() || t('Senza nome')}
+              </span>
+              <span style={{
+                flexShrink: 0, fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
+                textTransform: 'uppercase',
+                color: fatto ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
+              }}>
+                {attesa ? t('Invio…') : fatto ? t('Inviata ✓') : t('Condividi')}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </JModal>
   )
 }
 

@@ -282,3 +282,58 @@ export function translateCoachError(message: string): string {
   }
   return message
 }
+
+// ── Condividere una propria scheda con chi si allena ───────────
+// Chi allena qualcuno scrive spesso la stessa scheda due volte: una per sé nelle
+// "Schede d'allenamento", una per l'allievo dalla sua scheda personale. Questo
+// la copia di là.
+//
+// ── Perché una COPIA e non la stessa riga ──────────────────────
+// La scheda condivisa vive in `coach_schede`, dove la chiave primaria è l'id
+// della GymScheda. Riusare l'id della mia scheda funzionerebbe per il primo
+// allievo e romperebbe al secondo: stessa chiave, riga sovrascritta, e il primo
+// si ritroverebbe la scheda sparita senza che nessuno l'abbia toccata.
+//
+// L'id della copia è derivato e non casuale, così ricondividere la stessa scheda
+// alla stessa persona AGGIORNA la sua invece di affiancargliene una seconda —
+// che è quello che ci si aspetta dopo aver corretto un carico.
+
+/** L'id della copia che riceve questo allievo. Deterministico di proposito. */
+export function idSchedaCondivisa(schedaId: string, athleteId: string): string {
+  return `${schedaId}~${athleteId.slice(0, 8)}`
+}
+
+/** La scheda come la riceverà questo allievo. Pura: costruisce e basta. */
+export function copiaPerAllievo(
+  scheda: import('@/store/useJarvisStore').GymScheda,
+  athleteId: string,
+  ora = new Date().toISOString(),
+): import('@/store/useJarvisStore').GymScheda {
+  const copia = {
+    ...scheda,
+    id: idSchedaCondivisa(scheda.id, athleteId),
+    createdAt: ora,
+    updatedAt: ora,
+    // I collegamenti agli esercizi puntano a id del MIO archivio, che nel suo non
+    // esistono. Portarseli dietro non romperebbe niente — l'app ricade sul nome —
+    // ma sarebbero riferimenti a cose che non ci sono, e prima o poi qualcuno li
+    // leggerebbe come veri. Il nome è l'unica cosa che i due archivi condividono.
+    exercises: scheda.exercises.map(e => {
+      const riga = { ...e }
+      delete riga.linkedExerciseId
+      return riga
+    }),
+  }
+  // Una bozza è una scheda lasciata a metà per non perdere il lavoro: chi la
+  // riceve non la vedrebbe nemmeno (l'elenco delle assegnate le filtra via).
+  delete copia.draft
+  return copia
+}
+
+/** Copia una propria scheda nell'elenco di chi si allena con noi. */
+export async function condividiScheda(
+  coachId: string, athleteId: string, coachName: string,
+  scheda: import('@/store/useJarvisStore').GymScheda,
+): Promise<void> {
+  await salvaSchedaAssegnata(coachId, athleteId, coachName, copiaPerAllievo(scheda, athleteId))
+}

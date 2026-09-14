@@ -444,6 +444,12 @@ export const DE_UI: Record<string, string> = {
   'questo allievo': 'diesen Sportler',
   'Questa persona non ha ancora salvato nulla.': 'Diese Person hat noch nichts gespeichert.',
   'Schede assegnate': 'Zugewiesene Pläne',
+  'Condividi la scheda': 'Trainingsplan teilen',
+  'Condividi': 'Teilen',
+  '«{scheda}» finisce nelle sue schede, pronta da avviare.':
+    '«{scheda}» landet in seinen Plänen, bereit zum Starten.',
+  'Invio…': 'Wird gesendet…',
+  'Inviata ✓': 'Gesendet ✓',
   'Nuova': 'Neu',
   'Nessuna scheda assegnata. Quelle che scrivi qui compaiono nelle sue «Schede d’allenamento», pronte da avviare.':
     'Keine Pläne zugewiesen. Was du hier schreibst, erscheint bei ihr unter „Trainingspläne“, startbereit.',

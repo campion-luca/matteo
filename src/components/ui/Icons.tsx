@@ -50,5 +50,9 @@ export const Icons = {
   clock:     (p: IconProps = {}) => ic(<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></>, p),
   search:    (p: IconProps = {}) => ic(<><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></>, p),
   x:         (p: IconProps = {}) => ic(<><path d="M18 6L6 18M6 6l12 12"/></>, p),
+  // Tre nodi e due archi: la forma che tutti riconoscono come "condividi".
+  // I pallini sono pieni perché a 15px un cerchio vuoto di 2 unità di raggio
+  // diventa un anello grigio, e tre anelli grigi non sono più tre nodi.
+  share:     (p: IconProps = {}) => ic(<><circle cx="18" cy="5" r="2.6" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="2.6" fill="currentColor" stroke="none"/><circle cx="18" cy="19" r="2.6" fill="currentColor" stroke="none"/><path d="M8.4 10.8 15.6 6.4M8.4 13.2l7.2 4.4"/></>, p),
   wallet:    (p: IconProps = {}) => ic(<><path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1"/><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="13" r="1.2" fill="currentColor" stroke="none"/></>, p),
 }
