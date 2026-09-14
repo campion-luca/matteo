@@ -8,6 +8,7 @@
 // log separati invece di uno generico pieno di if.
 import { useState, useMemo, useEffect } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
+import { selezionaAlFocus, preCompila } from '@/lib/campi'
 import { useT, useTData } from '@/lib/i18n'
 import { NucEyebrow } from '@/components/ui/NucComponents'
 import { JModal } from '@/components/ui/Primitives'
@@ -79,19 +80,19 @@ export function LogHyroxModal({ open, onClose, ex, onSave }: LogHyroxModalProps)
 
         <div className="j-eyebrow mt-1">{t('Tempo')}</div>
         <div className="flex gap-2">
-          <input value={min} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" className="j-field"/>
-          <input value={sec} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" className="j-field"/>
+          <input value={min} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
+          <input value={sec} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
         </div>
 
         <div className="j-eyebrow mt-1">{t('Distanza / Ripetizioni')} ({ex.unit})</div>
-        <input value={units} onChange={e => setUnits(e.target.value)} placeholder={String(ex.target)} type="number" className="j-field"/>
+        <input value={units} onChange={e => setUnits(e.target.value)} placeholder={String(ex.target)} type="number" onFocus={selezionaAlFocus} className="j-field"/>
 
         {ex.unit !== 'rep' && (
           <>
             <div className="j-eyebrow mt-1">{t('Kg (opzionale)')}</div>
             <div className="flex gap-2">
-              <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" inputMode="decimal" className="j-field"/>
-              <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} type="number" className="j-field"/>
+              <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
+              <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
             </div>
           </>
         )}
@@ -131,11 +132,11 @@ export function EditHyroxHistModal({ entry, unit, onClose, onSave }: {
       <div className="flex flex-col gap-2.5">
         <div className="j-eyebrow">{t('Tempo')}</div>
         <div className="flex gap-2">
-          <input value={minV} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" className="j-field"/>
-          <input value={secV} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" className="j-field"/>
+          <input value={minV} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
+          <input value={secV} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
         </div>
         <div className="j-eyebrow mt-1">{t('Quantità')} ({unit})</div>
-        <input value={units} onChange={e => setUnits(e.target.value)} type="number" className="j-field"/>
+        <input value={units} onChange={e => setUnits(e.target.value)} type="number" onFocus={selezionaAlFocus} className="j-field"/>
         <button onClick={save} className="j-btn-accent">{t('Salva')}</button>
       </div>
     </JModal>
@@ -200,9 +201,9 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   useEffect(() => {
     if (!open || !ex) return
     setDate(todayISO())
-    setKg(String(ex.current.kg ?? ''))
-    setReps(String(ex.current.reps ?? ''))
-    setSets(String(ex.current.sets_n ?? ''))
+    setKg(preCompila(ex.current.kg))
+    setReps(preCompila(ex.current.reps))
+    setSets(preCompila(ex.current.sets_n))
     setTechniques([]); setIsBodyweight(false); setZavorra(''); setTechOpen(false)
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
   }, [open, ex])
@@ -319,8 +320,8 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
           <>
             <div className="j-eyebrow mt-1">{t('Serie × Colpi')}</div>
             <div className="flex gap-2">
-              <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" className="j-field"/>
-              <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" className="j-field"/>
+              <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
+              <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" onFocus={selezionaAlFocus} className="j-field"/>
             </div>
           </>
         )}
@@ -341,6 +342,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
                     placeholder={isBodyweight ? t('kg agg.') : 'kg'}
                     aria-label={t('Serie {n} · kg', { n: i + 1 })}
                     inputMode="decimal"
+                    onFocus={selezionaAlFocus}
                     className="j-field"
                     style={{ flex: 1, minWidth: 0 }}
                   />
@@ -350,6 +352,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
                     placeholder={t('colpi')}
                     aria-label={t('Serie {n} · colpi', { n: i + 1 })}
                     inputMode="numeric"
+                    onFocus={selezionaAlFocus}
                     className="j-field"
                     style={{ flex: 1, minWidth: 0 }}
                   />
@@ -360,12 +363,12 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
         ) : isBodyweight ? (
           <>
             <div className="j-eyebrow mt-1">{t('Zavorra extra')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
-            <input value={zavorra} onChange={e => setZavorra(normalizzaDecimale(e.target.value))} placeholder={t('kg aggiunti')} aria-label={t('Zavorra')} inputMode="decimal" className="j-field"/>
+            <input value={zavorra} onChange={e => setZavorra(normalizzaDecimale(e.target.value))} placeholder={t('kg aggiunti')} aria-label={t('Zavorra')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
           </>
         ) : (
           <>
             <div className="j-eyebrow mt-1">{t('Kg')}</div>
-            <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" className="j-field"/>
+            <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
           </>
         )}
 

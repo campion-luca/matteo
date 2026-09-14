@@ -485,10 +485,15 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
   return (
     <div>
       <NucEyebrow right={
-        <button onClick={onNuova} style={{
-          fontFamily: NUC.label, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase',
-          color: 'var(--j-accent-ink)', background: 'transparent', border: 'none',
-          cursor: 'pointer', padding: 0,
+        // Riquadrato, come il "Confronto" di fianco a Sessioni: senza bordo era
+        // testo colorato appoggiato all'occhiello di sezione, e non si distingueva
+        // da un titolo finché non ci si passava sopra. Un comando che crea qualcosa
+        // deve avere un contorno che dice dove finisce il bersaglio.
+        <button onClick={onNuova} className="j-hard-sm" style={{
+          fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase',
+          color: 'var(--j-accent-ink)', background: 'var(--surface)',
+          border: '1px solid var(--hairline)', borderRadius: 0,
+          cursor: 'pointer', padding: '4px 9px',
         }}>+ {t('Nuova')}</button>
       }>{t('Schede assegnate')}</NucEyebrow>
 
