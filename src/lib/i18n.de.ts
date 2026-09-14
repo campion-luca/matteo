@@ -405,6 +405,7 @@ export const DE_UI: Record<string, string> = {
   'Caricamento…': 'Wird geladen…',
   'Attendi…': 'Bitte warten…',
   'Annulla': 'Abbrechen',
+  'Indietro': 'Zurück',
   'Elimina': 'Löschen',
   'Confronto': 'Vergleich',
   'Il tuo codice': 'Dein Code',

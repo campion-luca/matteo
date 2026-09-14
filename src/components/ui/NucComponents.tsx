@@ -1,6 +1,7 @@
 import { useState, type ReactNode, type CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
+import { useAzioneIndietro } from '@/lib/indietro'
 import type { MetricId } from '@/lib/metricInfo'
 import { Icons } from './Icons'
 import { InfoDot } from './InfoDot'
@@ -189,6 +190,11 @@ export function NucNav({ active, onChange, pos = 'centro' }: NucNavProps & { pos
   const Ico = onHome ? Icons.weight : Icons.home
   const etichetta = onHome ? t('Vai all’allenamento') : t('Vai alla Home')
 
+  // Chi è aperto sopra la tab dichiara come si torna indietro (vedi lib/indietro).
+  // Dalla home e dalla palestra non torna niente, e il tasto non si disegna: una
+  // freccia che non porta da nessuna parte è peggio di una freccia assente.
+  const indietro = useAzioneIndietro()
+
   return (
     <div style={{
       position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40,
@@ -202,36 +208,66 @@ export function NucNav({ active, onChange, pos = 'centro' }: NucNavProps & { pos
       paddingLeft: 18, paddingRight: 18,
       display: 'flex', flexDirection: 'column', alignItems: ALLINEAMENTO[pos] ?? 'center', gap: 5,
     }}>
-      {/* Quadrato, non più una palla: è l'unico controllo di navigazione rimasto e
-          parla la stessa lingua di tutto il resto — angoli vivi e ombra "stampa"
-          (.j-hard), che è anche l'unica cosa che deve dire "si preme". Niente
-          box-shadow/transform inline qui: uno stile inline batte il foglio e
-          spegnerebbe l'ombra in silenzio. */}
-      <button
-        onClick={() => onChange(destinazione)}
-        aria-label={etichetta}
-        className="j-hard j-focus"
-        style={{
-          // 44 e non 54: il quadrato è un bersaglio da dito, e 44px è già la
-          // misura minima buona. L'icona resta a 22 — è lei a dire dove porta,
-          // e rimpicciolirla avrebbe reso il tasto più piccolo E più muto.
-          width: 44, height: 44, borderRadius: 0,
-          background: 'var(--j-accent)', border: 'none', cursor: 'pointer',
-          color: 'var(--j-accent-fg)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          pointerEvents: 'auto',
-        }}
-      >
-        <Ico size={22} stroke={1.9}/>
-      </button>
-      {/* L'icona da sola non dice dove porta: il tasto cambia glifo a ogni
-          schermata, e senza etichetta il manubrio si confonde con la scorciatoia
-          Personal Coach della home. */}
-      <span style={{
-        fontFamily: NUC.label, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em',
-        textTransform: 'uppercase', color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
-        pointerEvents: 'none',
-      }}>{onHome ? t('Allenamento') : t('Home')}</span>
+      {/* La freccia e il quadrato stanno in riga; l'etichetta resta sotto al
+          quadrato e non sotto la coppia, perché parla solo di lui.
+
+          Quando la freccia compare il quadrato scorre di lato: sta in flusso, non
+          sovrapposto. Sovrapporlo lo terrebbe fermo ma con la nav a sinistra la
+          freccia finirebbe fuori dallo schermo, e un tasto tagliato è peggio di un
+          tasto che si sposta — tanto più che si sposta solo cambiando schermata,
+          cioè quando si sta già guardando altro. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        {indietro && (
+          <button
+            onClick={indietro}
+            aria-label={t('Indietro')}
+            className="j-hard j-focus"
+            style={{
+              // Stessa misura del quadrato accanto ma senza accento: la
+              // destinazione è l'azione principale e resta l'unica colorata.
+              width: 44, height: 44, borderRadius: 0,
+              background: 'var(--surface)', border: '1px solid var(--hairline)',
+              color: 'var(--fg)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'auto', flexShrink: 0,
+            }}
+          >
+            <Icons.chevL size={20} stroke={2}/>
+          </button>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+          {/* Quadrato, non più una palla: parla la stessa lingua di tutto il resto
+              — angoli vivi e ombra "stampa" (.j-hard), che è anche l'unica cosa
+              che deve dire "si preme". Niente box-shadow/transform inline qui: uno
+              stile inline batte il foglio e spegnerebbe l'ombra in silenzio. */}
+          <button
+            onClick={() => onChange(destinazione)}
+            aria-label={etichetta}
+            className="j-hard j-focus"
+            style={{
+              // 44 e non 54: il quadrato è un bersaglio da dito, e 44px è già la
+              // misura minima buona. L'icona resta a 22 — è lei a dire dove porta,
+              // e rimpicciolirla avrebbe reso il tasto più piccolo E più muto.
+              width: 44, height: 44, borderRadius: 0,
+              background: 'var(--j-accent)', border: 'none', cursor: 'pointer',
+              color: 'var(--j-accent-fg)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'auto',
+            }}
+          >
+            <Ico size={22} stroke={1.9}/>
+          </button>
+          {/* L'icona da sola non dice dove porta: il tasto cambia glifo a ogni
+              schermata, e senza etichetta il manubrio si confonde con la
+              scorciatoia Personal Coach della home. */}
+          <span style={{
+            fontFamily: NUC.label, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em',
+            textTransform: 'uppercase', color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}>{onHome ? t('Allenamento') : t('Home')}</span>
+        </div>
+      </div>
     </div>
   )
 }

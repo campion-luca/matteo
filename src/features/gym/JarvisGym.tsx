@@ -37,6 +37,8 @@ import { BookmarkRibbon, LineChart } from './gymShared'
 import { useBodyWeight } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
+import { useIndietro } from '@/lib/indietro'
+import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, LogHyroxModal, LogPalestraModal, RecordModal } from './gymModals'
 import type { RecordItem } from './gymModals'
@@ -505,6 +507,8 @@ function AchievementsSection({ exercises, bodyWeight }: { exercises: PalestraExe
 function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   ex: PalestraExercise; onBack: () => void; muscleColors: Record<string, string>
 }) {
+  const isDesktop = useIsDesktop()
+  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   const bodyWeight = useBodyWeight()
@@ -551,7 +555,10 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
+          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
+              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
+              fondo non esiste — c'è la sidebar — quindi qui resta. */}
+          {isDesktop && <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.serif, fontSize: 22, fontWeight: 500, lineHeight: 1.15, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{t('Scopri di più')} · {t('{n} sessioni', { n: hist.length })}</div>
@@ -607,6 +614,8 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   muscleColors: Record<string, string>
   onSaveMuscleColor: (muscle: string, color: string | undefined) => void
 }) {
+  const isDesktop = useIsDesktop()
+  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   const bodyWeight = useBodyWeight()
@@ -660,9 +669,14 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
+          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
+              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
+              fondo non esiste — c'è la sidebar — quindi qui resta. */}
+          {isDesktop && (
           <button onClick={onBack} className="j-btn-back">
             <Icons.chevL size={16} stroke={2}/>
           </button>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.serif, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{ex.muscle2 ? `${tData(displayMuscle(ex.muscle))} · ${tData(displayMuscle(ex.muscle2))}` : tData(displayMuscle(ex.muscle))}</div>
@@ -1107,6 +1121,8 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
   onSelectExercise: (ex: PalestraExercise) => void
   onAddExercise: () => void
 }) {
+  const isDesktop = useIsDesktop()
+  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
@@ -1119,7 +1135,10 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
+          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
+              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
+              fondo non esiste — c'è la sidebar — quindi qui resta. */}
+          {isDesktop && <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>}
           <div style={{ color, display: 'flex', flexShrink: 0 }}>
             <MuscleIcon muscle={muscle} size={34} stroke={1.6}/>
           </div>

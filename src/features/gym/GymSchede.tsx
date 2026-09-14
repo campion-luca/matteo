@@ -18,6 +18,8 @@ import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEnt
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { MUSCLE_OPTIONS, MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum } from './gymModel'
 import { useT, useTData } from '@/lib/i18n'
+import { useIndietro } from '@/lib/indietro'
+import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { RecordModal, type RecordItem } from './gymModals'
 import { useBodyWeight } from './gymHooks'
 import { useMuscleColors } from './useMuscleColors'
@@ -58,11 +60,16 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
   extra?: ReactNode
   children: ReactNode
 }) {
+  const isDesktop = useIsDesktop()
+  useIndietro(onBack)
   return (
     <div className="flex flex-col h-full overflow-hidden j-page-in">
       <div className="j-page-header">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
+          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
+              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
+              fondo non esiste — c'è la sidebar — quindi qui resta. */}
+          {isDesktop && <button onClick={onBack} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="j-page-title" style={tronca ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}>{title}</div>
             <div className="j-eyebrow mt-0.5">{sub}</div>
