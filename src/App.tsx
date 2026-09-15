@@ -15,7 +15,8 @@ import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCat
 import { supabase } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoteUpdatedAt } from '@/lib/cloudSync'
 import { useSyncStatus } from '@/lib/syncStatus'
-import { getSyncMeta, setSynced, markDirty, decideInitialSync } from '@/lib/syncMeta'
+import { getSyncMeta, setSynced, markDirty, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
+import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
 import { readStorage, writeStorage, removeStorage } from '@/lib/safeStorage'
@@ -73,6 +74,10 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
   // Un save alla volta: se parte durante un altro, si rimanda al termine.
   const inFlight = useRef(false)
   const dirty = useRef(false)
+  // Contatore delle modifiche locali. Serve a sapere se ne è arrivata una MENTRE
+  // un salvataggio era in viaggio: lo stato inviato è quello di prima, e segnare
+  // il locale come "sincronizzato" la farebbe dimenticare.
+  const modifiche = useRef(0)
 
   useEffect(() => {
     lastKnownUpdatedAt.current = initialUpdatedAt
@@ -80,11 +85,13 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
 
   useEffect(() => {
     const { setStatus, setRetry } = useSyncStatus.getState()
-    const isNewer = (a: string | null, b: string | null) =>
-      !!a && (!b || new Date(a).getTime() > new Date(b).getTime())
-
     const performSave = async () => {
       if (inFlight.current) { dirty.current = true; return }
+      // Niente da mandare, niente da salvare. Prima si salvava a ogni uscita
+      // dall'app anche senza modifiche, con un orario nuovo: un dispositivo con i
+      // dati vecchi diventava così "il più recente", e l'altro — trovandolo tale —
+      // buttava le proprie modifiche. È così che spariva una scheda appena creata.
+      if (!getSyncMeta().dirty) return
       inFlight.current = true
       dirty.current = false
       clearTimeout(retryTimer.current)
@@ -93,22 +100,32 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
         // Un altro dispositivo ha salvato dopo di noi? Allora scarica e applica
         // il suo dato invece di sovrascriverlo (politica: vince il più recente).
         const remote = await fetchRemoteUpdatedAt(userId)
-        if (isNewer(remote, lastKnownUpdatedAt.current)) {
+        if (remotoCambiato(remote, lastKnownUpdatedAt.current)) {
           const res = await loadUserData(userId)
           if (res) {
+            const locale = useJarvisStore.getState()
+            const base = getSyncMeta().noti
             applyRemoteState(res.data)
             lastKnownUpdatedAt.current = res.updatedAt
-            // Qui il locale pendente viene scartato: l'utente deve vederlo.
-            setSynced(res.updatedAt)
+            setSynced(res.updatedAt, idsNoti(useJarvisStore.getState()))
             useSyncStatus.getState().setNotice(t('Aggiornato da un altro dispositivo'))
+            // Le modifiche fatte qui su una scheda che esiste anche là cedono al
+            // remoto; quello che è stato CREATO qui no (vedi syncMerge). Rimetterlo
+            // nello store lo segna come modifica e lo fa ripartire verso il cloud.
+            const recupero = recuperaCreatiInLocale(locale, useJarvisStore.getState(), base)
+            if (recupero) useJarvisStore.setState(recupero)
           }
           setStatus('idle')
           setRetry(null)
           return
         }
+        const inviate = modifiche.current
         const savedAt = await saveUserData(userId, useJarvisStore.getState())
         lastKnownUpdatedAt.current = savedAt
-        setSynced(savedAt)
+        setSynced(savedAt, idsNoti(useJarvisStore.getState()))
+        // Una modifica arrivata durante il viaggio non era nello stato inviato:
+        // resta da mandare, e il prossimo giro deve trovarla segnata.
+        if (modifiche.current !== inviate) markDirty()
         setStatus('idle')
         setRetry(null)
       } catch {
@@ -140,6 +157,7 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
     const unsub = useJarvisStore.subscribe(() => {
       // Prima di tutto il resto: da qui in poi esistono modifiche locali che il
       // server non ha ancora confermato, e deve saperlo anche il prossimo avvio.
+      modifiche.current++
       markDirty()
       scheduleSave()
       // Se eravamo in errore, ogni nuovo cambiamento riprova subito.
@@ -314,20 +332,33 @@ export default function App() {
           const decision = decideInitialSync(res.updatedAt, meta)
           setInitialUpdatedAt(res.updatedAt)
           if (decision === 'keepLocalAndPush') {
-            azzeraSeServe()
+            if (azzeraSeServe()) markDirty()
             setPushOnMount(true)
           } else {
             if (decision === 'applyRemoteConflict') {
               useSyncStatus.getState().setNotice('Aggiornato da un altro dispositivo')
             }
+            const locale = useJarvisStore.getState()
             applyRemoteState(res.data)
-            setSynced(res.updatedAt)
-            setPushOnMount(azzeraSeServe())
+            setSynced(res.updatedAt, idsNoti(useJarvisStore.getState()))
+            // Anche all'avvio: schede ed esercizi creati qui e mai arrivati al
+            // cloud non si perdono perché un altro dispositivo ha scritto dopo.
+            const recupero = decision === 'applyRemoteConflict'
+              ? recuperaCreatiInLocale(locale, useJarvisStore.getState(), meta.noti)
+              : null
+            if (recupero) useJarvisStore.setState(recupero)
+            // Il bridge non è ancora montato e non ascolta lo store: quello che va
+            // spinto va segnato qui, o il suo primo giro lo troverebbe "pulito".
+            const daSpingere = azzeraSeServe() || !!recupero
+            if (daSpingere) markDirty()
+            setPushOnMount(daSpingere)
           }
         } else {
           // Utente nuovo: nessuna riga remota. Se ho roba locale mai inviata, la spingo.
           setInitialUpdatedAt(null)
-          setPushOnMount(azzeraSeServe() || meta.dirty)
+          const azzerato = azzeraSeServe()
+          if (azzerato) markDirty()
+          setPushOnMount(azzerato || meta.dirty)
         }
         setCloudLoading(false)
       })

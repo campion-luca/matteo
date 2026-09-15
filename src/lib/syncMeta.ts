@@ -10,6 +10,8 @@
 // viene salvato in cloud, e mettere qui dentro dei metadati di sync farebbe
 // scattare un nuovo save a ogni loro variazione (loop).
 
+import type { NotiAlSync } from './syncMerge'
+
 const KEY = 'jarvis-sync-meta-v1'
 
 export interface SyncMeta {
@@ -17,9 +19,13 @@ export interface SyncMeta {
   lastSyncedAt: string | null
   /** true = ci sono modifiche locali non ancora confermate dal server. */
   dirty: boolean
+  /** Gli id di schede ed esercizi presenti all'ultimo sync: servono a capire,
+   *  in un conflitto, cosa è nato qui e cosa è stato cancellato altrove (vedi
+   *  syncMerge). `null` per le meta scritte da versioni precedenti. */
+  noti: NotiAlSync | null
 }
 
-const EMPTY: SyncMeta = { lastSyncedAt: null, dirty: false }
+const EMPTY: SyncMeta = { lastSyncedAt: null, dirty: false, noti: null }
 
 // Tutte le funzioni sono tolleranti a localStorage rotto, pieno o assente
 // (Safari privato): la sincronizzazione degrada, non esplode.
@@ -28,9 +34,11 @@ export function getSyncMeta(): SyncMeta {
     const raw = localStorage.getItem(KEY)
     if (!raw) return { ...EMPTY }
     const parsed = JSON.parse(raw) as Partial<SyncMeta>
+    const noti = parsed.noti
     return {
       lastSyncedAt: typeof parsed.lastSyncedAt === 'string' ? parsed.lastSyncedAt : null,
       dirty: parsed.dirty === true,
+      noti: noti && Array.isArray(noti.schede) && Array.isArray(noti.esercizi) ? noti : null,
     }
   } catch {
     return { ...EMPTY }
@@ -48,22 +56,27 @@ export function markDirty(): void {
   write({ ...meta, dirty: true })
 }
 
-/** Da chiamare quando il locale e il remoto coincidono (save riuscito, pull, load). */
-export function setSynced(updatedAt: string | null): void {
-  write({ lastSyncedAt: updatedAt, dirty: false })
+/** Da chiamare quando il locale e il remoto coincidono (save riuscito, pull, load).
+ *  `noti` = gli id dello stato che in quel momento è uguale al remoto; senza, si
+ *  tengono quelli di prima. */
+export function setSynced(updatedAt: string | null, noti?: NotiAlSync): void {
+  write({ lastSyncedAt: updatedAt, dirty: false, noti: noti ?? getSyncMeta().noti })
 }
 
 export type InitialSyncDecision = 'applyRemote' | 'keepLocalAndPush' | 'applyRemoteConflict'
 
-// Stessa semantica di `isNewer` nel bridge: parità di timestamp = NON più recente.
-function isNewer(a: string | null, b: string | null): boolean {
-  if (!a) return false
-  const ta = new Date(a).getTime()
-  if (Number.isNaN(ta)) return false
-  if (!b) return true
-  const tb = new Date(b).getTime()
-  if (Number.isNaN(tb)) return true
-  return ta > tb
+/** Il remoto è stato scritto da qualcun altro dopo l'ultimo sync noto?
+ *
+ *  Si confronta per DIFFERENZA e non per "più recente": `updated_at` lo scrive
+ *  l'orologio di chi salva, e l'orologio di un telefono e quello di un computer
+ *  non coincidono. Con "più recente", un dispositivo indietro di un minuto
+ *  scriveva un orario più vecchio di quello noto all'altro, che lo leggeva come
+ *  "nessuno ha scritto" e lo sovrascriveva in silenzio. I due valori confrontati
+ *  vengono entrambi dal server, nello stesso formato: se sono uguali è la stessa
+ *  scrittura, se no ne è arrivata un'altra. */
+export function remotoCambiato(remoto: string | null, noto: string | null): boolean {
+  if (!remoto) return false
+  return remoto !== noto
 }
 
 /**
@@ -79,5 +92,5 @@ function isNewer(a: string | null, b: string | null): boolean {
  */
 export function decideInitialSync(remoteUpdatedAt: string | null, meta: SyncMeta): InitialSyncDecision {
   if (!meta.dirty) return 'applyRemote'
-  return isNewer(remoteUpdatedAt, meta.lastSyncedAt) ? 'applyRemoteConflict' : 'keepLocalAndPush'
+  return remotoCambiato(remoteUpdatedAt, meta.lastSyncedAt) ? 'applyRemoteConflict' : 'keepLocalAndPush'
 }

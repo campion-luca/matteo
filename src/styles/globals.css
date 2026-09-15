@@ -84,6 +84,10 @@
      toast): sulla carta coincide con --surface, nei temi a vetro resta più piena
      perché sotto non c'è il fondo ma testo da non far trasparire. */
   --surface-pop:   #f7f3e8;
+  /* Menù a tendina che si aprono SOPRA altri campi (i suggerimenti degli
+     esercizi): pieno in ogni tema. Il vetro qui non basta — dentro una card già
+     di vetro la sfocatura non si applica, e i campi sotto si leggono attraverso. */
+  --surface-menu:  #f7f3e8;
   /* Riflesso del vetro sopra le card: sulla carta non esiste. */
   --glass-sheen:   none;
   /* Contorno dei tasti pieni d'accent: sulla carta nessuno (trasparente, così
@@ -174,14 +178,16 @@
     color: var(--fg);
   }
 
-  /* App shell: usa la viewport dinamica così la navbar fissa in basso resta sempre
-     a filo dell'area visibile (niente vuoto quando la chrome del browser mobile
-     compare/scompare). 100vh statico risolve alla viewport "grande" → lascia il gap. */
+  /* App shell: ancorata ai quattro lati invece che alta `100dvh`.
+     Nell'app installata su iPhone (standalone, barra di stato traslucida) iOS
+     calcola 100vh e 100dvh più corti dello schermo esattamente dell'area della
+     Dynamic Island: l'app finiva ~59pt sopra il bordo, con una striscia nera
+     sotto che tagliava la home. `top: 0; bottom: 0` su un elemento fisso segue
+     il bordo vero dello schermo, e in Safari segue anche la barra degli
+     indirizzi che compare e scompare — che era il motivo per cui c'era `dvh`. */
   .app-shell {
     position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 100vh;   /* fallback browser senza dvh */
-    height: 100dvh;  /* viewport dinamica = area realmente visibile */
+    top: 0; left: 0; right: 0; bottom: 0;
   }
 
   *::-webkit-scrollbar { width: 0; height: 0; }
@@ -781,6 +787,7 @@
   --surface-2:   rgba(255,255,255,.085);
   --input-bg:    rgba(255,255,255,.055);
   --surface-pop: rgba(14,14,14,.78);
+  --surface-menu: #111111;
   --glass-sheen: linear-gradient(155deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,.015) 38%, transparent 62%, rgba(255,255,255,.035) 100%);
   --glass-blur:  16px;
 

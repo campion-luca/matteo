@@ -7,7 +7,7 @@
 // fine sessione trasforma le spunte in vere alzate nello storico degli esercizi
 // collegati (`linkedExerciseId`), così la scheda alimenta le statistiche invece
 // di restare una lista a parte.
-import { useState, useMemo, useEffect, type ReactNode, type CSSProperties } from 'react'
+import { useState, useMemo, useEffect, useRef, type ReactNode, type CSSProperties } from 'react'
 import { NUC, accentFgFor, accentInkFor } from '@/lib/jarvis-tokens'
 import { NucCard } from '@/components/ui/NucComponents'
 import { JModal } from '@/components/ui/Primitives'
@@ -456,6 +456,11 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const [focused, setFocused] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [draftSaved, setDraftSaved] = useState(false)
+  // La scheda esiste già da quando è stata salvata la prima volta, anche come
+  // bozza: da lì in poi il tasto salva delle MODIFICHE, non crea una scheda.
+  const [giaSalvata, setGiaSalvata] = useState(!!scheda)
+  const erroriRef = useRef<HTMLDivElement>(null)
+  const etichettaSalva = giaSalvata ? t('Salva modifiche') : t('Salva scheda')
 
   // Ogni modifica azzera il feedback di validazione precedente.
   const clearFeedback = () => { if (errors.length || draftSaved) { setErrors([]); setDraftSaved(false) } }
@@ -538,6 +543,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   // salva comunque la BOZZA (niente lavoro perso) ed elenca cosa manca (#2).
   const handleSave = () => {
     const errs = validate()
+    setGiaSalvata(true)
     if (errs.length === 0) {
       setErrors([]); setDraftSaved(false)
       onSave(buildScheda())
@@ -545,6 +551,9 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
       setErrors(errs)
       setDraftSaved(true)
       onSaveDraft(buildScheda())
+      // L'elenco di cosa manca sta in fondo: salvando dal tasto in alto non si
+      // vedrebbe, e la bozza sembrerebbe un salvataggio riuscito.
+      requestAnimationFrame(() => erroriRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
     }
   }
 
@@ -553,6 +562,14 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
       onBack={onCancel}
       title={scheda ? t('Modifica scheda') : t('Nuova scheda')}
       sub={t('{n} esercizi', { n: rows.filter(r => r.name.trim()).length })}
+      // Il salvataggio anche in alto, fuori dalla parte che scorre: una scheda
+      // di otto esercizi è lunga, e scendere fino in fondo per salvare una
+      // correzione al primo era il gesto più ripetuto del form.
+      extra={
+        <button onClick={handleSave} className="j-btn-accent-sm" style={{ marginTop: 12 }}>
+          <Icons.check size={16} stroke={2.2}/> {etichettaSalva}
+        </button>
+      }
     >
 
       <div className="j-scroll-area">
@@ -608,17 +625,22 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   className="j-field"
                 />
                 {suggestions.length > 0 && (
+                  // Il menù galleggia SOPRA i campi sotto: con `--surface`, che nei
+                  // temi a vetro è bianco quasi trasparente, i campi si leggevano
+                  // attraverso e i nomi degli esercizi ci si confondevano sopra.
+                  // Fondo pieno (`--surface-menu`): anche la sfocatura del vetro qui
+                  // non funziona, perché la card intorno è già di vetro.
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4,
-                    background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, borderRadius: 0,
-                    boxShadow: 'var(--shadow-card)', overflow: 'hidden',
+                    background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 0,
+                    boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
                   }}>
-                    {suggestions.map(ex => (
+                    {suggestions.map((ex, i) => (
                       <button
                         key={ex.id}
                         onMouseDown={e => { e.preventDefault(); pickSuggestion(r.id, ex) }}
                         className="flex items-center gap-2 w-full"
-                        style={{ padding: '9px 12px', background: 'transparent', border: 'none', borderBottom: `1px solid ${NUC.hairline}`, cursor: 'pointer', textAlign: 'left' }}
+                        style={{ padding: '11px 12px', background: 'transparent', border: 'none', borderTop: i === 0 ? 'none' : '1px solid var(--divider)', cursor: 'pointer', textAlign: 'left' }}
                       >
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: muscleColor(ex.muscle, muscleColors), flexShrink: 0 }}/>
                         <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 13, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</span>
@@ -735,7 +757,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         </button>
 
         {errors.length > 0 && (
-          <div style={{
+          <div ref={erroriRef} style={{
             marginBottom: 12, padding: '12px 14px',
             background: 'rgba(var(--warn-rgb),0.08)', border: '1px solid rgba(var(--warn-rgb),0.3)',
           }}>
@@ -751,7 +773,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         )}
 
         <button onClick={handleSave} className="j-btn-accent">
-          {scheda ? t('Salva modifiche') : t('Salva scheda')}
+          {etichettaSalva}
         </button>
         <div style={{ fontFamily: NUC.label, fontSize: 9.5, color: NUC.faint, letterSpacing: '.03em', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
           {t('Se manca qualcosa la scheda viene comunque salvata come bozza, senza perdere il lavoro.')}

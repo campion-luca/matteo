@@ -75,7 +75,11 @@ export function BodyMap({ districts, side, onPick, picked }: {
   const reg = (m: string) => ({ d: by(m), onPick: () => onPick(m), active: picked === m })
 
   return (
-    <svg viewBox={VIEWBOX_CORPO} strokeLinejoin="round" style={{ width: '100%', maxWidth: 168, height: 'auto', display: 'block' }}>
+    // Alta quanto lo schermo concede, larga di conseguenza: la figura è la parte
+    // più alta della home, ed è lei a decidere se il riepilogo sta tutto in una
+    // schermata. A 24dvh su un iPhone normale è ~190px; su uno schermo basso
+    // scende fino a 150, su un tablet si ferma a 230.
+    <svg viewBox={VIEWBOX_CORPO} strokeLinejoin="round" style={{ height: 'clamp(150px, 24dvh, 230px)', width: 'auto', maxWidth: '100%', display: 'block' }}>
       {/* Parti neutre, sotto tutto: il filo è più tenue, così i distretti — che
           sono ciò che si legge — si staccano dal resto del corpo. */}
       <g {...NEUTRAL}>{paths(neutri(side))}</g>
@@ -144,7 +148,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
   return (
     <>
       {/* Interruttore fronte/retro */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 12, border: '1px solid var(--hairline)', width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 0, marginBottom: 'clamp(8px, 1.3dvh, 12px)', border: '1px solid var(--hairline)', width: 'fit-content' }}>
         {(['front', 'back'] as const).map(v => (
           <button key={v} onClick={() => { setSide(v); setPicked(null) }} style={{
             padding: '5px 12px', borderRadius: 0, border: 'none', cursor: 'pointer',
@@ -159,7 +163,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
       </div>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flexShrink: 0, width: '38%', maxWidth: 168 }}>
+        <div style={{ flexShrink: 0, maxWidth: '40%' }}>
           <BodyMap districts={districts} side={side} onPick={m => setPicked(p => p === m ? null : m)} picked={picked}/>
         </div>
 

@@ -33,6 +33,10 @@ interface DashboardProps {
   onOpenProfile: () => void
 }
 
+// Il respiro sopra e sotto ogni sezione del riepilogo: 12px su un iPhone di
+// misura normale, meno su uno schermo basso.
+const SEZ = 'clamp(8px, 1.4dvh, 12px)'
+
 export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
   const t = useT()
   const lang = useLang()
@@ -118,7 +122,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
             aria-label={t('Apri il calendario degli allenamenti')}
             className="j-focus j-riga-gruppo"
             style={{
-              display: 'block', width: 'calc(100% + 16px)', margin: '0 -8px', padding: '12px 8px',
+              display: 'block', width: 'calc(100% + 16px)', margin: '0 -8px', padding: `${SEZ} 8px`,
               background: 'transparent', border: 'none',
               borderRadius: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit',
             }}
@@ -170,7 +174,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
       }
 
       case 'bodyMap': return (
-        <div style={{ padding: '12px 0' }}>
+        <div style={{ padding: `${SEZ} 0` }}>
           <NucEyebrow>{t('Mappa della forza')}</NucEyebrow>
           <BodyMapPanel districts={distretti} noWeight={!s.userWeight} onOpenProfile={onOpenProfile}/>
         </div>
@@ -179,7 +183,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
       case 'maxLifts': {
         const qualcosa = massimali.some(l => l.kg !== null)
         return (
-          <div style={{ padding: '12px 0' }}>
+          <div style={{ padding: `${SEZ} 0` }}>
             {/* Una tendina: chiusa dice il total, aperta le tre alzate che lo
                 compongono. "Ipotetici" perché quasi sempre sono stime da serie a
                 ripetizioni, non singole provate. */}
@@ -305,22 +309,26 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
       // Su mobile la tacca/status bar la scansa già l'app shell con
       // `env(safe-area-inset-top)` (App.tsx): questo padding è solo respiro.
       position: 'relative', minHeight: '100%',
-      padding: isDesktop ? '24px 28px 48px' : '26px 20px calc(var(--nav-clear) + 24px)',
+      // Su telefono i vuoti verticali seguono l'altezza dello schermo (vedi SEZ):
+      // la home deve stare in una schermata di iPhone senza tagliare il riepilogo.
+      padding: isDesktop ? '24px 28px 48px' : 'clamp(12px, 2.6dvh, 26px) 20px calc(var(--nav-clear) + 16px)',
       fontFamily: NUC.font, color: 'var(--fg)',
     }}>
 
       {/* Header — la data di oggi, il saluto, e sulla stessa riga i due comandi. */}
-      <div className="jarvis-boot" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: isDesktop ? 28 : 22 }}>
+      <div className="jarvis-boot" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: isDesktop ? 28 : 'clamp(12px, 2.2dvh, 22px)' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{
             fontFamily: NUC.label, fontSize: 12, fontWeight: 600, letterSpacing: '.04em',
-            color: 'var(--tertiary-ink)', marginBottom: 6,
+            color: 'var(--tertiary-ink)', marginBottom: 4,
           }}>{fmtGiornoLungo(new Date(), lang)}</div>
           {/* Il saluto è l'unica cosa in Fraunces di tutta l'app (--font-saluto): nome
               enfatizzato con peso + sottolineatura accent */}
           <div style={{
             fontFamily: 'var(--font-saluto)',
-            fontSize: 'clamp(30px, 5.2vw, 42px)', fontWeight: 500, letterSpacing: '-0.01em',
+            // Il minore fra larghezza e altezza: su un telefono basso il saluto
+            // su due righe è la cosa che spinge giù tutto il resto.
+            fontSize: isDesktop ? 'clamp(30px, 5.2vw, 42px)' : 'clamp(26px, 3.6dvh, 34px)', fontWeight: 500, letterSpacing: '-0.01em',
             lineHeight: 1.05, color: 'var(--fg)',
           }}>
             {greetBefore}
@@ -352,8 +360,8 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
         className="j-hard j-accent-key j-focus"
         style={{
           width: '100%', display: 'block',
-          marginBottom: isDesktop ? 20 : 18,
-          padding: isDesktop ? '13px 18px' : '11px 16px',
+          marginBottom: isDesktop ? 20 : 'clamp(10px, 1.8dvh, 18px)',
+          padding: isDesktop ? '13px 18px' : 'clamp(8px, 1.3dvh, 11px) 16px',
           borderRadius: 0, cursor: 'pointer',
           backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', color: 'var(--j-accent-fg)',
         }}
@@ -371,7 +379,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
       </button>
 
       {/* Riepilogo complessivo: un riquadro solo, con i moduli come sezioni. */}
-      <NucCard pad={16} style={{ maxWidth: isDesktop ? 720 : undefined }}>
+      <NucCard pad={14} style={{ maxWidth: isDesktop ? 720 : undefined }}>
         <div style={{
           fontFamily: NUC.label, fontSize: 12, fontWeight: 700, letterSpacing: '.18em',
           textTransform: 'uppercase', color: 'var(--fg)', paddingBottom: 4,
