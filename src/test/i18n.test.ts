@@ -114,7 +114,7 @@ describe('dizionario tedesco', () => {
     const uguali = Object.entries(DE_UI).filter(([it, de]) => it === de).map(([it]) => it)
     expect(uguali.sort()).toEqual([
       'Budget', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
-      'Personal Coach', 'Personal OS', 'Standard', 'Total', 'Trend',
+      'Personal Coach', 'Personal OS', 'Premium', 'Standard', 'Total', 'Trend',
     ])
   })
 })

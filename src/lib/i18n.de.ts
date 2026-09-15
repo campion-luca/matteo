@@ -819,12 +819,9 @@ export const DE_UI: Record<string, string> = {
   'Cambio layout': 'Layout ändern',
   'Standard': 'Standard',
   'I colori del tema scelto sopra.': 'Die Farben des oben gewählten Themas.',
-  'Notte': 'Nacht',
-  'Niente colori, ma segue chiaro/scuro: di giorno resta grigio su bianco.':
-    'Keine Farben, folgt aber hell/dunkel: tagsüber bleibt es grau auf weiß.',
-  'Nero': 'Schwarz',
-  'Sempre nero pieno, testo e dettagli bianchi. Ignora l’interruttore chiaro/scuro.':
-    'Immer tiefschwarz, Text und Details weiß. Ignoriert den Hell-/Dunkel-Schalter.',
+  'Premium': 'Premium',
+  'Sempre nero, vetro e contorni bianchi. Ignora l’interruttore chiaro/scuro.':
+    'Immer schwarz, Glas und weiße Konturen. Ignoriert den Hell-/Dunkel-Schalter.',
   'Tasto di navigazione': 'Navigationstaste',
   'Da che parte lo trovi in fondo allo schermo.': 'Auf welcher Seite du sie unten am Bildschirm findest.',
   'Sinistra': 'Links',

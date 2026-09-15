@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
-import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, MONO_LIGHT, MONO_DARK } from '@/lib/jarvis-tokens'
+import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, MONO_DARK } from '@/lib/jarvis-tokens'
 import { NucGrain, NucNav, NucSidebarNav } from '@/components/ui/NucComponents'
 import type { TabId } from '@/components/ui/NucComponents'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -257,20 +257,13 @@ export default function App() {
     document.documentElement.lang = LANG_TAGS[s.lang ?? 'it']
   }, [s.lang])
 
-  // Layout "Notte": classe gemella di `.dark`, si combinano (`.mono` = b/n su carta,
-  // `.mono.dark` = b/n su fondo nero). I token grigi stanno in globals.css.
-  const mono = s.layout === 'notte'
-  useEffect(() => {
-    document.documentElement.classList.toggle('mono', mono)
-  }, [mono])
-
-  // Layout "Nero": nero pieno, testo e dettagli bianchi. NON si combina con `.dark` —
-  // lo scavalca. In globals.css `.nero` sta dopo `.dark` e a parità di specificità
+  // Layout "Premium": nero pieno, vetro, dettagli bianchi. NON si combina con `.dark` —
+  // lo scavalca. In globals.css `.premium` sta dopo `.dark` e a parità di specificità
   // vince l'ultimo, quindi il tema è lo stesso con l'interruttore acceso o spento.
-  const nero = s.layout === 'nero'
+  const premium = s.layout === 'premium'
   useEffect(() => {
-    document.documentElement.classList.toggle('nero', nero)
-  }, [nero])
+    document.documentElement.classList.toggle('premium', premium)
+  }, [premium])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -367,11 +360,9 @@ export default function App() {
   // che il layout monocromatico non vuole. `accentColor` resta intatto nello store e
   // torna in vigore appena si rimette il layout standard.
   const basePalette = paletteFor(s.accentColor, s.customAccentHex)
-  const palette = nero
+  const palette = premium
     ? MONO_DARK                                        // accent bianco, sempre
-    : mono
-      ? (s.darkMode ? MONO_DARK : MONO_LIGHT)
-      : (s.darkMode ? adjustPaletteForDark(basePalette) : basePalette)
+    : (s.darkMode ? adjustPaletteForDark(basePalette) : basePalette)
 
   const handleBoot = () => {
     writeStorage('session', 'jarvis-booted', '1')
@@ -387,10 +378,10 @@ export default function App() {
     setShowProfile(false)
   }
 
-  // "Nero" ha il fondo scuro anche con l'interruttore chiaro/scuro spento: chi
+  // "Premium" ha il fondo scuro anche con l'interruttore chiaro/scuro spento: chi
   // calcola la leggibilità deve saperlo, o spingerebbe l'accent verso la carta
   // chiara mentre sta su nero pieno.
-  const fondoScuro = nero || !!s.darkMode
+  const fondoScuro = premium || !!s.darkMode
 
   // Account appena creato: nessun dato anagrafico, da nessuna parte. Non basta
   // che manchi UN campo — chi ha già usato l'app e non ha mai messo l'altezza non
@@ -407,10 +398,10 @@ export default function App() {
     // Accent come TESTO: spinto lontano dalla superficie corrente fino ad AA (≥4.5:1).
     '--j-accent-ink': accentInkFor(palette.accent, fondoScuro),
     // Inchiostro SOPRA l'accent: crema sugli accent scuri, scuro su quelli chiari.
-    // Nei layout monocromatici va forzato neutro: `accentFgFor` sceglie fra una crema
-    // calda e un inchiostro caldo, e su un accent bianco/near-black restituiva tinte
-    // appena verdi o brune — poco, ma non è bianco/nero.
-    '--j-accent-fg': (mono || nero) ? (fondoScuro ? '#0a0a0a' : '#fafafa') : accentFgFor(palette.accent),
+    // In Premium va forzato neutro: `accentFgFor` sceglie fra una crema calda e un
+    // inchiostro caldo, e su un accent bianco restituiva tinte appena brune — poco,
+    // ma non è bianco/nero.
+    '--j-accent-fg': premium ? '#0a0a0a' : accentFgFor(palette.accent),
     '--j-accent-soft': palette.accentSoft,
     '--j-accent-deep': palette.accentDeep,
     '--j-rgb': palette.rgb,

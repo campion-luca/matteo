@@ -18,7 +18,7 @@ describe('filtro delle chiavi di stato', () => {
     // qui manca e il test dice esattamente quale.
     const remote = {
       userName: 'Luca', lang: 'de', userAge: 31, userSex: 'F', userWeight: 78, userHeight: 168, userDob: '1995-03-02',
-      darkMode: true, layout: 'notte', navPos: 'destra', accentColor: 'rose', customAccentHex: '#abcdef',
+      darkMode: true, layout: 'premium', navPos: 'destra', accentColor: 'rose', customAccentHex: '#abcdef',
       hyroxExercises: [], palestraExercises: [], muscleColors: { Petto: '#111111' },
       gymSchede: [], budget: { salary: 2000, fixed: [], variable: [], big: [] },
       weightLog: [{ date: '2026-08-01', kg: 78 }],
@@ -31,7 +31,7 @@ describe('filtro delle chiavi di stato', () => {
     expect(persi).toEqual([])
     expect(get().userName).toBe('Luca')
     expect(get().darkMode).toBe(true)
-    expect(get().layout).toBe('notte')
+    expect(get().layout).toBe('premium')
     // La lingua è una preferenza dell'utente, non del dispositivo: se il filtro
     // la scartasse, chi ha scelto il tedesco se lo ritroverebbe in italiano al
     // primo accesso da un altro telefono.
@@ -112,6 +112,16 @@ describe('filtro delle chiavi di stato', () => {
     } as unknown as Partial<JarvisState>)
 
     expect(get().weightLog).toEqual([{ date: '2026-09-01', kg: 78 }])
+  })
+
+  // 'nero' è diventato 'premium' e 'notte' non esiste più: un blob salvato prima
+  // deve atterrare su un layout che esiste, non restare un valore orfano risalvato
+  // per sempre.
+  it('converte i layout rinominati o rimossi', () => {
+    applyRemoteState({ layout: 'nero' } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('premium')
+    applyRemoteState({ layout: 'notte' } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('standard')
   })
 
   it('la chiave di persistenza è quella attesa', () => {

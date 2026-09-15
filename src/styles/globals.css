@@ -34,7 +34,7 @@
   --kraft:      #b69b78;
 
   /* Seconda serie dei grafici. Esiste come token proprio perché nessuno di quelli
-     già in casa reggeva: `--brass` in dark, notte-dark e nero è ridefinito come
+     già in casa reggeva: `--brass` in dark e premium è ridefinito come
      `var(--j-accent)`, quindi le due linee sarebbero diventate lo stesso colore
      proprio nei temi scuri; `--kraft` sulla carta chiara sta a 2.3:1 e sparisce.
      Qui il valore è scelto per distinguersi dall'accent in OGNI tema e per stare
@@ -60,7 +60,7 @@
      Contrasti sul caso peggiore (--surface-2): 6.82 in light, 4.72 in dark. */
 
   /* Binario delle barre di avanzamento. Token e non rgba fisso: era caldo in entrambi
-     i temi e restava tale in monocromatico, dove nessun CSS di `.mono` lo raggiungeva. */
+     i temi e restava tale in monocromatico, dove nessun override lo raggiungeva. */
   --track:      rgba(60,42,20,0.12);
   /* Velo dietro ai modali (JModal) — stessa storia: era un rgba(44,36,24,.36) fisso. */
   --scrim:      rgba(44,36,24,0.36);
@@ -687,123 +687,13 @@
   --border:             0 0% 18%;
 }
 
-/* ── Layout "Notte" (monocromatico) ──────────────────────────────
-   Gemello di `.dark`, applicato da App.tsx su documentElement. Si combina con essa:
-   `.mono` = bianco/nero su carta chiara, `.mono.dark` = bianco/nero su fondo nero.
-   Vince sempre su `.dark` perché dichiarato dopo, a parità di specificità.
-
-   Copre tutto ciò che è token. Restano fuori i colori che sono DATI utente (i
-   gruppi muscolari): quelli passano da `toMono()` (jarvis-tokens.ts), non da qui. Anche i token accent (--j-accent*) arrivano da JS, iniettati inline da App.tsx.
-
-   NB: i selettori dei picker colore sono volutamente esclusi — vedi `.mono .j-swatch`
-   in fondo: un picker in scala di grigi è un picker inutilizzabile. */
-.mono {
-  --nav-lift: rgba(0,0,0,.25);
-  --bg:        #ececec;
-  --surface:   #fafafa;
-  --surface-2: #f0f0f0;
-  --input-bg:  #ffffff;
-
-  /* Grana neutra: quella di default è inchiostro caldo (rgba(42,36,24,…)). */
-  --paper-grain:
-    radial-gradient(120% 80% at 80% -10%, rgba(255,255,255,.5), transparent 60%),
-    repeating-linear-gradient(0deg, transparent 0 27px, rgba(0,0,0,.045) 27px 28px);
-
-  --fg:      #141414;
-  --fg-soft: #3d3d3d;
-  --fg-mute: #5f5f5f;
-
-  --hairline:      rgba(0,0,0,.20);
-  --hairline-soft: rgba(0,0,0,.10);
-
-  --brass:     #808080;
-  --brass-ink: #4d4d4d;
-  --kraft:     #999999;
-  --chart-2:   #6b6b6b;
-
-  --ok:            #5c5c5c;
-  --ok-soft:       #757575;
-  --warn:          #383838;
-  --danger:        #141414;
-  --danger-strong: #000000;
-  --danger-rgb:    20,20,20;
-  --warn-rgb:      56,56,56;
-
-  --knob: #ffffff;
-
-  --track:      rgba(0,0,0,0.12);
-  --scrim:      rgba(0,0,0,0.4);
-
-  --shadow-card: 0 1px 2px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.06);
-  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.5);
-  --shadow-hard-col: rgba(20,20,20,.32);
-
-  --background:         0 0% 93%;
-  --foreground:         0 0% 8%;
-  --card:               0 0% 98%;
-  --card-foreground:    0 0% 8%;
-  --primary:            0 0% 12%;
-  --primary-foreground: 0 0% 98%;
-  --border:             0 0% 78%;
-}
-
-.mono.dark {
-  --nav-lift: rgba(0,0,0,.65);
-  --bg:        #0d0d0d;
-  --surface:   #171717;
-  --surface-2: #212121;
-  --input-bg:  #212121;
-
-  --paper-grain: none;
-
-  --fg:      #f2f2f2;
-  --fg-soft: #c9c9c9;
-  --fg-mute: #9e9e9e;
-
-  --hairline:      rgba(255,255,255,.18);
-  --hairline-soft: rgba(255,255,255,.10);
-
-  --brass:     var(--j-accent);
-  --brass-ink: var(--j-accent-ink);
-  --kraft:     #8a8a8a;
-  --chart-2:   #999999;
-
-  /* Su fondo nero la scala si ribalta: "grida" il chiaro, non lo scuro. */
-
-  --ok:            #b0b0b0;
-  --ok-soft:       #9a9a9a;
-  --warn:          #d6d6d6;
-  --danger:        #f2f2f2;
-  --danger-strong: #ffffff;
-  --danger-rgb:    242,242,242;
-  --warn-rgb:      214,214,214;
-
-  --knob: #f2f2f2;
-
-  --track:      rgba(255,255,255,0.10);
-  --scrim:      rgba(0,0,0,0.6);
-
-  /* L'accent qui è near-white: un anello bianco attorno al bollino sparirebbe. */
-
-  --shadow-card: 0 1px 0 rgba(0,0,0,.5), 0 10px 24px -18px rgba(0,0,0,.8);
-  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.9);
-  /* Su fondo #0d0d0d il nero non stacca: qui l'ombra è più CHIARA del fondo. */
-  --shadow-hard-col: rgba(74,74,74,.50);
-
-  --background:         0 0% 5%;
-  --foreground:         0 0% 95%;
-  --card:               0 0% 9%;
-  --card-foreground:    0 0% 95%;
-  --border:             0 0% 22%;
-}
-
-/* ── Layout "Nero" ───────────────────────────────────────────────
-   Nero pieno, testo e dettagli bianchi. A differenza di `.mono`, NON si combina
+/* ── Layout "Premium" ────────────────────────────────────────────
+   Nero pieno, vetro, testo e dettagli bianchi, nessuna ombra. NON si combina
    con `.dark`: lo scavalca. Ha la stessa specificità (una classe sola), quindi a
    vincere è l'ordine — per questo il blocco sta in fondo al foglio. Spostarlo più
    su lo farebbe perdere contro `.dark` con l'interruttore acceso.
    L'accent bianco lo inietta App.tsx (MONO_DARK), non serve dichiararlo qui. */
-.nero {
+.premium {
   color-scheme: dark;
 
   /* Le superfici salgono appena: bastano a separare una card dal fondo, ma il
@@ -860,16 +750,15 @@
    Il restyle dei temi scuri (set 2026): nero pieno con aloni bianchi sul fondo,
    superfici di vetro smerigliato, contorni bianchi, angoli vivi.
 
-   Vale per tutti i fondi neri — `.dark`, `.nero` e `.mono.dark` — e scavalca i
-   loro token di superficie, bordo e ombra. `.mono.dark` è nella lista perché ha
-   specificità doppia: senza, i suoi grigi opachi vincerebbero su questo blocco.
-   Colori di stato e accent restano quelli di ciascun tema.
+   Vale per tutti i fondi neri — `.dark` e `.premium` — e scavalca i loro token di
+   superficie, bordo e ombra. Colori di stato e accent restano quelli di ciascun
+   tema. Premium in più toglie ogni ombra: vedi il blocco subito sotto.
 
    Come si regge il vetro: le superfici sono BIANCO velato, non grigi. Su un fondo
    uniforme non ci sarebbe niente da smerigliare, per questo il fondo porta gli
    aloni (`--paper-grain`, che nei contenitori di pagina è già agganciato): la card
    che ci scorre sopra ne raccoglie la luce e cambia tono. */
-.dark, .nero, .mono.dark {
+.dark, .premium {
   --bg:          #000000;
   --paper-grain:
     radial-gradient(70% 38% at 50% -4%, rgba(255,255,255,.17), transparent 72%),
@@ -908,27 +797,27 @@
 
 /* Le option dei <select> le disegna il sistema su un foglio proprio: un fondo
    velato lì non ha niente sotto e diventa trasparente sul bianco del menù. */
-:is(.dark, .nero) select option { background: #111; color: #fff; }
+:is(.dark, .premium) select option { background: #111; color: #fff; }
 
 /* Smerigliatura. Classe e non token perché `backdrop-filter` non si può spegnere
    con un valore neutro senza costare comunque un layer GPU a elemento. */
-:is(.dark, .nero) .j-glass {
+:is(.dark, .premium) .j-glass {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
           backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
-:is(.dark, .nero) .j-glass-pop {
+:is(.dark, .premium) .j-glass-pop {
   -webkit-backdrop-filter: blur(22px) saturate(160%);
           backdrop-filter: blur(22px) saturate(160%);
 }
 
 /* I campi sono vetro anche loro, con la luce sullo spigolo alto. */
-:is(.dark, .nero) .j-field, :is(.dark, .nero) .j-field-lg {
+:is(.dark, .premium) .j-field, :is(.dark, .premium) .j-field-lg {
   border-color: var(--hairline);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
   -webkit-backdrop-filter: blur(10px);
           backdrop-filter: blur(10px);
 }
-:is(.dark, .nero) .j-field:focus, :is(.dark, .nero) .j-field-lg:focus {
+:is(.dark, .premium) .j-field:focus, :is(.dark, .premium) .j-field-lg:focus {
   border-color: #fff;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 3px rgba(255,255,255,.12);
 }
@@ -941,7 +830,7 @@
    A riposo: luce sullo spigolo alto, spessore `--key-edge` sotto, ombra lunga.
    Premuto: il tasto scende di tutto lo spessore, lo spessore sparisce e al suo
    posto compare un'ombra INTERNA — la superficie sembra affondare, non spostarsi. */
-:is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
+:is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
   --j-hard-d: 4px;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.22),
@@ -951,9 +840,9 @@
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
           backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
-:is(.dark, .nero) .j-hard-sm { --j-hard-d: 2px; }
+:is(.dark, .premium) .j-hard-sm { --j-hard-d: 2px; }
 @media (hover: hover) {
-  :is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
+  :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
     --j-hard-h: calc(var(--j-hard-d) / 2);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.26),
@@ -963,45 +852,84 @@
     transform: translateY(var(--j-hard-h));
   }
 }
-:is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):active {
+:is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):active {
   box-shadow:
     inset 0 3px 10px rgba(0,0,0,.6),
     inset 0 1px 2px rgba(0,0,0,.5),
     0 0 0 0 var(--key-edge);
   transform: translateY(var(--j-hard-d));
 }
-:is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
+:is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
   box-shadow: none;
   transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):is(:hover, :active) { transform: none; }
+  :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):is(:hover, :active) { transform: none; }
 }
 
 /* Tasti pieni d'accent: lo spessore è l'accent profondo, e sopra al colore passa
    un riflesso che scende dallo spigolo — è ciò che lo fa leggere come vetro
    colorato invece che come un rettangolo di tinta. `.j-accent-key` è per i tasti
    accent scritti inline (Alleniamoci, la nav, Inizia allenamento). */
-:is(.dark, .nero) :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
+:is(.dark, .premium) :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
   --key-edge: color-mix(in srgb, var(--j-accent-deep) 55%, #000);
   border: 1px solid var(--accent-edge);
   background-image: linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.1) 100%);
 }
 
 /* Card inerti con l'ombra e modali: luce sullo spigolo e ombra lunga, niente spessore. */
-:is(.dark, .nero) .j-hard-flat { box-shadow: var(--shadow-card); }
-:is(.dark, .nero) .j-hard-static { box-shadow: var(--shadow-pop); }
+:is(.dark, .premium) .j-hard-flat { box-shadow: var(--shadow-card); }
+:is(.dark, .premium) .j-hard-static { box-shadow: var(--shadow-pop); }
 
 /* Il ghost e il cestino si premevano con uno `scale`: sul vetro affondano come gli altri. */
-:is(.dark, .nero) .j-btn-ghost { box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
-:is(.dark, .nero) .j-btn-ghost:active,
-:is(.dark, .nero) .j-btn-del:active {
+:is(.dark, .premium) .j-btn-ghost { box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+:is(.dark, .premium) .j-btn-ghost:active,
+:is(.dark, .premium) .j-btn-del:active {
   transform: translateY(1px);
   box-shadow: inset 0 2px 8px rgba(0,0,0,.6);
 }
 
-.mono body { background: var(--bg); }
-.mono.dark body { background-image: none; }
+/* ── Premium: nessuna ombra ──────────────────────────────────────
+   Il vetro senza ombre: a staccare i blocchi dal fondo restano il contorno bianco e
+   la smerigliatura. Le ombre del tema sono quasi tutte token, ma diverse sono
+   scritte inline (pill, toast, pomello degli interruttori, bagliore dei grafici) e
+   nessun token le raggiunge: da qui la regola a tappeto con !important, l'unica
+   che batte uno stile inline.
+
+   Senza lo spessore sotto, la pressione dei tasti la dice il movimento: il tasto
+   non scende all'hover (non c'è più un'ombra in cui scivolare, sembrerebbe solo
+   tremare) e premuto si abbassa e si stringe appena, schiarendosi. */
+.premium {
+  --shadow-card: none;
+  --shadow-pop:  none;
+  --shadow-hard-col: transparent;
+  --key-edge:    transparent;
+  --nav-lift:    transparent;
+}
+.premium *, .premium *::before, .premium *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+/* Il bagliore delle linee dei grafici e l'ombra del segnalibro sono `drop-shadow`
+   inline. Selettore sull'attributo e non `filter: none` a tappeto: la grana di
+   NucGrain è un filtro SVG vero e sparirebbe insieme alle ombre. */
+.premium [style*="drop-shadow"] { filter: none !important; }
+@media (hover: hover) {
+  .premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
+    transform: none;
+  }
+}
+.premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del):active {
+  transform: translateY(1px) scale(.97);
+  filter: brightness(1.25);
+}
+.premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
+  transform: none;
+  filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del):active { transform: none; }
+}
 
 .dark body {
   background: var(--bg);

@@ -7,7 +7,7 @@
 // Le anteprime (LayoutSwatch) sono disegnate a mano invece che con screenshot:
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
-import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, MONO_LIGHT, MONO_DARK } from '@/lib/jarvis-tokens'
+import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, MONO_DARK } from '@/lib/jarvis-tokens'
 import { useStore, useJarvisStore, type LayoutMode, type NavPos } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
@@ -22,7 +22,7 @@ import { Flag } from '@/components/ui/Flags'
 
 interface JarvisProfileProps { open: boolean; onClose: () => void }
 
-// "Notte" non è più qui: è diventato un layout (vedi LAYOUTS). Restano 3 palette,
+// Restano 3 palette,
 // che è anche il numero di colonne della griglia — prima erano 4 su 3 colonne, con
 // un orfano sulla seconda riga.
 const PALETTE_LABELS: Record<string, string> = {
@@ -37,8 +37,7 @@ const PALETTE_KEYS = ['green', 'rose', 'malva'] as const
 // questo punto la bloccherebbe sulla lingua che c'era in quel momento.
 const LAYOUTS: Array<{ id: LayoutMode; label: string; hint: string }> = [
   { id: 'standard', label: 'Standard', hint: 'I colori del tema scelto sopra.' },
-  { id: 'notte',    label: 'Notte',    hint: 'Niente colori, ma segue chiaro/scuro: di giorno resta grigio su bianco.' },
-  { id: 'nero',     label: 'Nero',     hint: 'Sempre nero pieno, testo e dettagli bianchi. Ignora l’interruttore chiaro/scuro.' },
+  { id: 'premium',  label: 'Premium',  hint: 'Sempre nero, vetro e contorni bianchi. Ignora l’interruttore chiaro/scuro.' },
 ]
 
 // Sezione: una sola struttura per tutte. Prima ogni blocco aveva il suo gap
@@ -104,12 +103,11 @@ function EditToggle({ editing, onToggle }: { editing: boolean; onToggle: () => v
 }
 
 // Pastiglia bicolore: mostra cosa fa il layout invece di dirlo. "Standard" campiona
-// l'accent vivo, "Notte" il taglio bianco/nero, "Nero" il fondo pieno con il segno
-// bianco sopra — che è esattamente il suo contrasto.
+// l'accent vivo, "Premium" il fondo nero con il segno bianco sopra — che è
+// esattamente il suo contrasto.
 const SWATCH: Record<LayoutMode, [string, string]> = {
   standard: ['var(--j-accent)', 'var(--j-accent-soft)'],
-  notte:    ['#ffffff', '#141414'],
-  nero:     ['#000000', '#ffffff'],
+  premium:  ['#000000', '#ffffff'],
 }
 
 function LayoutSwatch({ mode }: { mode: LayoutMode }) {
@@ -252,15 +250,13 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
   }
 
   const current = s.accentColor ?? 'green'
-  const monoOn  = s.layout === 'notte' || s.layout === 'nero'
+  const monoOn  = s.layout === 'premium'
   const initial = (name.trim() || '?')[0].toUpperCase()
 
   // Stessa risoluzione di App.tsx, altrimenti l'avatar mente: leggeva ACCENT_PALETTES
   // diretto, senza `paletteFor` né `adjustPaletteForDark`, e restava verde in dark mode
   // mentre tutta l'app passava all'oro (e cadeva sul verde con accentColor 'custom').
-  const base = s.layout === 'nero' ? MONO_DARK
-    : monoOn ? (s.darkMode ? MONO_DARK : MONO_LIGHT)
-    : paletteFor(current, s.customAccentHex)
+  const base = monoOn ? MONO_DARK : paletteFor(current, s.customAccentHex)
   const pal  = (!monoOn && s.darkMode) ? adjustPaletteForDark(base) : base
 
   if (!mount) return null
@@ -325,7 +321,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
         />
 
         {/* Tema colore */}
-        <Section title={t('Tema colore')} hint={monoOn ? t('Sospeso dal layout {layout} — torna attivo con Standard.', { layout: t(s.layout === 'nero' ? 'Nero' : 'Notte') }) : undefined}>
+        <Section title={t('Tema colore')} hint={monoOn ? t('Sospeso dal layout {layout} — torna attivo con Standard.', { layout: t('Premium') }) : undefined}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, opacity: monoOn ? 0.5 : 1, transition: 'opacity 220ms' }}>
             {PALETTE_KEYS.map(c => {
               const p = ACCENT_PALETTES[c]
@@ -567,7 +563,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
           <CardImpostazione
             icon={<Icons.book size={20} stroke={1.6}/>}
             label={t('Cambio tema')}
-            sotto={monoOn ? t(s.layout === 'nero' ? 'Nero' : 'Notte') : `${t(PALETTE_LABELS[current] ?? current)}${s.darkMode ? ` · ${t('scuro')}` : ''}`}
+            sotto={monoOn ? t('Premium') : `${t(PALETTE_LABELS[current] ?? current)}${s.darkMode ? ` · ${t('scuro')}` : ''}`}
             onClick={() => setPannello('tema')}
           />
           <CardImpostazione

@@ -174,19 +174,13 @@ export function accentFgFor(hex: string): string {
   return contrast(light, hex) >= contrast(dark, hex) ? light : dark
 }
 
-// ── Layout "Notte" ─────────────────────────────────────────────
+// ── Layout "Premium" ───────────────────────────────────────────
 // Non è una palette accent fra le altre: spegne il colore in tutta l'app, e per
-// questo vive in "Cambio layout" e non in "Tema colore". Il resto dei token grigi
-// sta nei blocchi `.mono` / `.mono.dark` di globals.css.
+// questo vive in "Cambio layout" e non in "Tema colore". Il resto dei token sta nel
+// blocco `.premium` di globals.css.
 //
-// Attenzione: queste due palette NON vanno passate ad `adjustPaletteForDark` — su un
-// accent near-black quella funzione schiarisce fino a un grigio-talpa (era il destino
-// della vecchia palette "Notte": #211C18 → #726d69). Qui si sceglie la variante a
-// monte, in App.tsx.
-export const MONO_LIGHT: AccentPalette = {
-  accent:     '#1f1f1f', accentSoft: '#4a4a4a', accentDeep: '#000000',
-  rgb:        '31,31,31', softRgb: '74,74,74', deepRgb: '0,0,0',
-}
+// Attenzione: questa palette NON va passata ad `adjustPaletteForDark` — la si sceglie
+// a monte, in App.tsx.
 export const MONO_DARK: AccentPalette = {
   accent:     '#ededed', accentSoft: '#bdbdbd', accentDeep: '#ffffff',
   rgb:        '237,237,237', softRgb: '189,189,189', deepRgb: '255,255,255',

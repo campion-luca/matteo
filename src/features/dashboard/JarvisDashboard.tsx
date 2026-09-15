@@ -130,7 +130,10 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile, onOpenBudget, onOpen
                     fontWeight: d.trained ? 600 : 400,
                     // Il giorno di oggi si riconosce dall'anello attorno, non da un
                     // colore in più: i colori qui dicono già "allenato o no".
-                    boxShadow: d.oggi ? '0 0 0 2px var(--surface), 0 0 0 3px var(--j-accent)' : undefined,
+                    // Outline e non box-shadow: Premium spegne ogni ombra, e l'anello
+                    // sparirebbe con loro.
+                    outline: d.oggi ? '1px solid var(--j-accent)' : undefined,
+                    outlineOffset: d.oggi ? 2 : undefined,
                     transition: 'background 300ms var(--ease)',
                   }}>{d.num}</div>
                 </div>

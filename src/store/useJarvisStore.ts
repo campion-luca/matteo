@@ -104,15 +104,15 @@ export interface WeightLogEntry {
 // viceversa, e il tasto è l'unico comando fisso dell'app.
 export type NavPos = 'sinistra' | 'centro' | 'destra'
 
-// Layout dell'app. Trasversale al "tema colore": 'notte' e 'nero' spengono il colore
-// ovunque (accent, gruppi muscolari) lasciando bianco/nero.
-// Perciò non sono AccentColor: convivono con `accentColor`, che resta memorizzato e
+// Layout dell'app. Trasversale al "tema colore": 'premium' spegne il colore ovunque
+// (accent, gruppi muscolari) e resta sempre nero — vetro, contorni bianchi, niente
+// ombre — ignorando l'interruttore chiaro/scuro.
+// Perciò non è un AccentColor: convive con `accentColor`, che resta memorizzato e
 // torna buono appena si rimette 'standard'.
 //
-// La differenza fra i due: 'notte' segue l'interruttore chiaro/scuro (di giorno è
-// grigio su bianco), 'nero' è sempre nero pieno con testo bianco e ignora quello
-// stesso interruttore.
-export type LayoutMode = 'standard' | 'notte' | 'nero'
+// Prima c'erano 'notte' (bianco/nero che seguiva chiaro/scuro) e 'nero', che è
+// diventato 'premium'. Il valore salvato si converte in `migrateNested`.
+export type LayoutMode = 'standard' | 'premium'
 
 export interface JarvisState {
   userName: string
@@ -174,6 +174,14 @@ const STATE_KEYS: (keyof JarvisState)[] = [
 // per sempre finché qualcuno non li tocca.
 function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   const out: Partial<JarvisState> = { ...data }
+
+  // Layout rinominati/rimossi (set 2026): 'nero' è diventato 'premium', 'notte' non
+  // esiste più e torna a 'standard'. Senza, un valore vecchio non combacerebbe con
+  // nessun layout: il profilo non ne evidenzierebbe nessuno e App lo tratterebbe
+  // come standard, ma il blob in cloud se lo porterebbe dietro per sempre.
+  const layout = out.layout as string | undefined
+  if (layout === 'nero') out.layout = 'premium'
+  else if (layout !== undefined && layout !== 'standard' && layout !== 'premium') out.layout = 'standard'
 
   // `rir` (ripetizioni in riserva) non è più chiesto né usato: senza questa
   // potatura resterebbe negli oggetti storici e verrebbe risalvato per sempre.
