@@ -32,7 +32,7 @@ import { fotoEsercizio } from './eserciziFoto'
 import { vistaIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi } from './vistaEsercizi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
-import { BookmarkRibbon, LineChart } from './gymShared'
+import { LineChart } from './gymShared'
 import { useBodyWeight } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
@@ -551,7 +551,6 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   return (
     <div className="flex flex-col h-full overflow-hidden j-page-in">
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -660,7 +659,6 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
     <>
     <div className="flex flex-col h-full overflow-hidden j-page-in">
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
                     <button onClick={onBack} className="j-btn-back">
             <Icons.chevL size={16} stroke={2}/>
@@ -1170,7 +1168,6 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
   return (
     <div className="flex flex-col h-full overflow-hidden j-page-in">
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
           <div style={{ color, display: 'flex', flexShrink: 0 }}>

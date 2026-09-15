@@ -192,14 +192,3 @@ export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, l
     </div>
   )
 }
-
-// ── Segnalibro del gruppo muscolare (nastro in alto a sinistra) ─
-export function BookmarkRibbon({ color, width = 14, height = 30 }: { color: string; width?: number; height?: number }) {
-  const notch = width * 0.42
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
-      style={{ display: 'block', filter: 'drop-shadow(0 2px 3px rgba(42,36,24,0.28))' }}>
-      <path d={`M0 0 H${width} V${height} L${width / 2} ${height - notch} L0 ${height} Z`} fill={color}/>
-    </svg>
-  )
-}
