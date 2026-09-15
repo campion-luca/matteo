@@ -37,6 +37,11 @@ export interface PalestraHistoryEntry {
   // provata davvero. Non è un'etichetta estetica — cambia il numero: su un massimale
   // il 1RM è il carico, non la stima di Epley (vedi `entry1RM`).
   maxLift?: true
+  // La scheda da cui viene l'alzata, se è stata registrata eseguendone una. Il
+  // nome è copiato e non letto dalla scheda: rinominarla o cancellarla non deve
+  // riscrivere com'era chiamato l'allenamento di quel giorno. Serve al calendario
+  // degli allenamenti, che raggruppa il giorno per scheda.
+  scheda?: { id: string; nome: string }
 }
 export interface PalestraExercise {
   // Il colore non è per esercizio: deriva dal gruppo muscolare (vedi `muscleColors`).

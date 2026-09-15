@@ -1,8 +1,10 @@
 // Il calendario degli allenamenti: si apre toccando "La tua settimana" in home.
 //
 // Un mese alla volta, sfogliabile all'indietro fino al primo allenamento
-// registrato. I giorni allenati sono pieni; toccandone uno, sotto compare cosa si
-// è fatto. In cima la fiamma con le settimane di fila (vedi `settimaneDiFila`).
+// registrato. I giorni allenati sono pieni. Toccando un giorno, sotto compare cosa
+// si è fatto: le schede eseguite come righe che si aprono sui loro esercizi, poi
+// le alzate registrate a parte — oppure "Non ti sei allenato". In cima la fiamma
+// con le settimane di fila (vedi `settimaneDiFila`).
 import { useMemo, useState, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
@@ -13,7 +15,7 @@ import { localISO } from '@/lib/isoDate'
 import { daysShort, fmtDayMonthFull, fmtMeseAnno } from '@/lib/dateFormat'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import { fmtKg, fmtReps, fmtTime } from '@/features/gym/gymModel'
-import { giorniAllenati, settimaneDiFila } from './allenamenti'
+import { giorniAllenati, settimaneDiFila, raggruppaGiorno, type VoceAllenamento } from './allenamenti'
 
 export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT()
@@ -30,6 +32,8 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
 
   const [mese, setMese] = useState({ y: oggi.getFullYear(), m: oggi.getMonth() })
   const [scelto, setScelto] = useState<string | null>(null)
+  const [schedaAperta, setSchedaAperta] = useState<string | null>(null)
+  const scegli = (iso: string | null) => { setScelto(iso); setSchedaAperta(null) }
 
   // A ogni apertura si riparte dal mese corrente e dall'ultimo giorno allenato:
   // è la domanda più probabile ("cosa ho fatto l'ultima volta?").
@@ -38,7 +42,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
     const n = new Date()
     setMese({ y: n.getFullYear(), m: n.getMonth() })
     const ultimo = [...giorni.keys()].sort().pop() ?? null
-    setScelto(ultimo && ultimo.slice(0, 7) === localISO(n).slice(0, 7) ? ultimo : null)
+    scegli(ultimo && ultimo.slice(0, 7) === localISO(n).slice(0, 7) ? ultimo : null)
     // Solo all'apertura: `giorni` cambia mentre il modale è aperto solo se si
     // registra qualcosa altrove, e riportare indietro la selezione sarebbe un dispetto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,10 +64,33 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
   const sposta = (delta: number) => {
     const d = new Date(mese.y, mese.m + delta, 1)
     setMese({ y: d.getFullYear(), m: d.getMonth() })
-    setScelto(null)
+    scegli(null)
   }
 
   const voci = scelto ? giorni.get(scelto) ?? [] : []
+  const giorno = raggruppaGiorno(voci)
+
+  // Una riga dello storico: nome dell'esercizio e com'è andata. Rientrata quando
+  // sta dentro una scheda aperta.
+  const riga = (v: VoceAllenamento, rientro = false) => {
+    const ex = v.tipo === 'pesi' ? s.palestra.find(e => e.id === v.id) : undefined
+    const hx = v.tipo === 'hyrox' ? s.hyrox.find(e => e.id === v.id) : undefined
+    const h = ex?.history[v.indice]
+    const hh = hx?.history[v.indice]
+    const dettaglio = h
+      ? `${h.sets_n}×${fmtReps(h)} · ${fmtKg(h)}`
+      : hh && hx ? `${fmtTime(hh.sec)} · ${hh.units} ${hx.unit}` : ''
+    return (
+      <div key={`${v.id}-${v.indice}`} style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+        padding: rientro ? '7px 0 7px 26px' : '8px 0', borderTop: '1px solid var(--hairline-soft)',
+      }}>
+        <span style={{ fontFamily: NUC.font, fontSize: rientro ? 13 : 14, color: 'var(--fg)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(v.nome)}</span>
+        <span style={{ fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)', flexShrink: 0 }}>{dettaglio}</span>
+      </div>
+    )
+  }
+
   const frecce = (dir: -1 | 1, attiva: boolean) => (
     <button
       onClick={() => attiva && sposta(dir)}
@@ -116,9 +143,11 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
           return (
             <button
               key={iso}
-              onClick={() => fatto && setScelto(sel ? null : iso)}
-              disabled={!fatto}
-              aria-pressed={fatto ? sel : undefined}
+              // Si tocca anche un giorno vuoto: la risposta "non ti sei allenato"
+              // è un'informazione anch'essa. Solo il futuro resta inerte.
+              onClick={() => !futuro && scegli(sel ? null : iso)}
+              disabled={futuro}
+              aria-pressed={futuro ? undefined : sel}
               aria-label={fmtDayMonthFull(iso)}
               style={{
                 aspectRatio: '1 / 1', minWidth: 0, padding: 0, borderRadius: 0,
@@ -131,7 +160,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
                 outlineOffset: eOggi ? 2 : undefined,
                 color: fatto ? 'var(--j-accent-fg)' : futuro ? 'var(--fg-mute)' : 'var(--fg-soft)',
                 fontFamily: NUC.label, fontSize: 12, fontWeight: fatto ? 600 : 400,
-                cursor: fatto ? 'pointer' : 'default',
+                cursor: futuro ? 'default' : 'pointer',
                 opacity: futuro ? 0.5 : 1,
               }}
             >{Number(iso.slice(8))}</button>
@@ -142,31 +171,62 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
       <div style={{ marginTop: 16, borderTop: '1px solid var(--divider)', paddingTop: 12 }}>
         {!scelto ? (
           <div style={{ fontFamily: NUC.font, fontSize: 13, color: 'var(--fg-mute)', lineHeight: 1.5 }}>
-            {giorni.size === 0 ? t('Nessun allenamento registrato.') : t('Tocca un giorno allenato per vedere cosa hai fatto.')}
+            {giorni.size === 0 ? t('Nessun allenamento registrato.') : t('Tocca un giorno per vedere cosa hai fatto.')}
           </div>
         ) : (
           <>
             <div style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--tertiary-ink)', marginBottom: 8 }}>
               {fmtDayMonthFull(scelto)}
             </div>
-            {voci.map(v => {
-              const ex = v.tipo === 'pesi' ? s.palestra.find(e => e.id === v.id) : undefined
-              const hx = v.tipo === 'hyrox' ? s.hyrox.find(e => e.id === v.id) : undefined
-              const h = ex?.history[v.indice]
-              const hh = hx?.history[v.indice]
-              const dettaglio = h
-                ? `${h.sets_n}×${fmtReps(h)} · ${fmtKg(h)}`
-                : hh ? `${fmtTime(hh.sec)}${hx ? ` · ${hh.units} ${hx.unit}` : ''}` : ''
+
+            {voci.length === 0 && (
+              <div style={{ fontFamily: NUC.font, fontSize: 14, color: 'var(--fg-mute)', padding: '9px 0', borderTop: '1px solid var(--hairline-soft)' }}>
+                {t('Non ti sei allenato')}
+              </div>
+            )}
+
+            {/* Una scheda eseguita è UNA riga col suo nome: gli esercizi compaiono
+                solo aprendola. Chi ha fatto "Spinta A" ricorda quel giorno come
+                "Spinta A", non come sei alzate in fila. */}
+            {giorno.schede.map(sc => {
+              const aperta = schedaAperta === sc.id
               return (
-                <div key={`${v.id}-${v.indice}`} style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
-                  padding: '8px 0', borderTop: '1px solid var(--hairline-soft)',
-                }}>
-                  <span style={{ fontFamily: NUC.font, fontSize: 14, color: 'var(--fg)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(v.nome)}</span>
-                  <span style={{ fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)', flexShrink: 0 }}>{dettaglio}</span>
+                <div key={sc.id}>
+                  <button
+                    onClick={() => setSchedaAperta(aperta ? null : sc.id)}
+                    aria-expanded={aperta}
+                    className="j-focus"
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 0', background: 'transparent', border: 'none',
+                      borderTop: '1px solid var(--hairline-soft)', borderRadius: 0,
+                      cursor: 'pointer', textAlign: 'left', color: 'var(--fg)',
+                    }}
+                  >
+                    <span style={{ display: 'flex', color: 'var(--j-accent-ink)', flexShrink: 0 }}>
+                      <Icons.bookOpen size={16} stroke={1.7}/>
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 14.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.nome}</span>
+                      <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginTop: 2 }}>
+                        {sc.voci.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: sc.voci.length })}
+                      </span>
+                    </span>
+                    <span style={{ display: 'flex', color: 'var(--fg-mute)', transform: aperta ? 'rotate(90deg)' : 'none', transition: 'transform var(--motion-fast) var(--ease)' }}>
+                      <Icons.chev size={15} stroke={1.8}/>
+                    </span>
+                  </button>
+                  {aperta && <div className="j-rise-in">{sc.voci.map(v => riga(v, true))}</div>}
                 </div>
               )
             })}
+
+            {giorno.alzate.length > 0 && giorno.schede.length > 0 && (
+              <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg-mute)', padding: '14px 0 6px' }}>
+                {t('Alzate registrate')}
+              </div>
+            )}
+            {giorno.alzate.map(v => riga(v))}
           </>
         )}
       </div>

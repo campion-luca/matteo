@@ -239,6 +239,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
       const variesReps = new Set(doneReps).size > 1
       const entry: PalestraHistoryEntry = {
         d: wl, date: today, kg, reps: doneReps[top] || 0, sets_n: doneIdx.length,
+        scheda: { id: scheda.id, nome: scheda.title },
         ...(variesKg ? { setWeights: doneWeights } : {}),
         ...(variesReps ? { setReps: doneReps } : {}),
       }

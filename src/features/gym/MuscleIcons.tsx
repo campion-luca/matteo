@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { displayMuscle } from './gymModel'
 import {
-  BOUNDS, figura, SPALLE, PETTO, CORE, DORSO, BACINO, BRACCIA, GAMBE, type Blocco,
+  BOUNDS, figura, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, type Forma,
 } from './bodyBlocks'
 
 // Icone dei gruppi muscolari: una figura in miniatura con il distretto acceso.
@@ -20,19 +20,18 @@ import {
 // di una sagoma: anche quando i blocchi diventano tre pixel, "la macchia sta in
 // alto" e "la macchia sta in fondo" restano distinguibili.
 //
-// La figura è la stessa di BodyMap, blocchi geometrici e non silhouette anatomica,
-// per la ragione che quel file già argomenta — a questa misura una sagoma
-// realistica diventa una macchia — e perché così le icone e la Mappa della forza
-// parlano la stessa lingua invece di essere due modi diversi di disegnare un corpo.
+// La figura è la stessa di BodyMap (vedi bodyBlocks): così le icone e la Mappa
+// della forza parlano la stessa lingua invece di essere due modi diversi di
+// disegnare un corpo.
 //
 // Il colore resta uno solo, quello passato da chi la usa: il distretto è pieno, il
 // resto del corpo è lo stesso colore appena accennato. È ciò che permette all'icona
 // di seguire il colore del gruppo muscolare e di spegnersi nei temi monocromatici
-// (Notte, Nero) — cosa che una PNG non potrebbe fare.
+// (Premium) — cosa che una PNG non potrebbe fare.
 
 interface MuscleIconProps { size?: number; stroke?: number; color?: string; style?: CSSProperties }
 
-interface Gruppo { corpo: Blocco[]; acceso: Blocco[] }
+interface Gruppo { corpo: Forma[]; acceso: Forma[] }
 
 const FRONTE = figura('front')
 const RETRO  = figura('back')
@@ -47,7 +46,7 @@ const GRUPPI: Record<string, Gruppo> = {
   // anteriore vorrebbe dire accendere un blocco dove quel muscolo non c'è.
   'Dorso':     { corpo: RETRO,  acceso: DORSO },
   'Tricipiti': { corpo: RETRO,  acceso: BRACCIA },
-  'Glutei':    { corpo: RETRO,  acceso: BACINO },
+  'Glutei':    { corpo: RETRO,  acceso: GLUTEI },
 }
 
 // Quanto resta visibile il corpo che non è il distretto. Abbastanza da dare la
@@ -64,8 +63,8 @@ const CORPO_OPACITY = 0.2
 const VIEWBOX = `${BOUNDS.x} ${BOUNDS.y} ${BOUNDS.w} ${BOUNDS.h}`
 const RAPPORTO = BOUNDS.w / BOUNDS.h
 
-function rects(bs: Blocco[], key: string) {
-  return bs.map(([x, y, w, h, r], i) => <rect key={`${key}${i}`} x={x} y={y} width={w} height={h} rx={r}/>)
+function paths(fs: Forma[], key: string) {
+  return fs.map((d, i) => <path key={`${key}${i}`} d={d}/>)
 }
 
 export function MuscleIcon({ muscle, size = 28, color = 'currentColor', style }: { muscle: string } & MuscleIconProps) {
@@ -84,8 +83,8 @@ export function MuscleIcon({ muscle, size = 28, color = 'currentColor', style }:
 
   return (
     <svg width={Math.round(size * RAPPORTO)} height={size} viewBox={VIEWBOX} fill={color} style={style} aria-hidden>
-      <g fillOpacity={CORPO_OPACITY}>{rects(g.corpo, 'c')}</g>
-      <g>{rects(g.acceso, 'a')}</g>
+      <g fillOpacity={CORPO_OPACITY}>{paths(g.corpo, 'c')}</g>
+      <g>{paths(g.acceso, 'a')}</g>
     </svg>
   )
 }

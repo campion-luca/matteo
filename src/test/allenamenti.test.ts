@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { settimaneDiFila, lunediDi, giorniAllenati } from '@/features/dashboard/allenamenti'
+import { settimaneDiFila, lunediDi, giorniAllenati, raggruppaGiorno } from '@/features/dashboard/allenamenti'
 import type { PalestraExercise } from '@/store/useJarvisStore'
 
 // La fiamma del calendario: quante settimane di fila ci si è allenati.
@@ -47,5 +47,18 @@ describe('giorni allenati', () => {
     const giorni = giorniAllenati(palestra, [])
     expect([...giorni.keys()]).toEqual(['2026-09-14'])
     expect(giorni.get('2026-09-14')?.[0]).toMatchObject({ nome: 'Panca', tipo: 'pesi', indice: 0 })
+  })
+
+  it('divide il giorno fra schede eseguite e alzate registrate a parte', () => {
+    const spinta = { id: 'sc1', nome: 'Spinta A' }
+    const g = raggruppaGiorno([
+      { id: 'p1', nome: 'Panca', tipo: 'pesi', indice: 0, scheda: spinta },
+      { id: 'p2', nome: 'Curl', tipo: 'pesi', indice: 3 },
+      { id: 'p3', nome: 'Dip', tipo: 'pesi', indice: 1, scheda: spinta },
+    ])
+    expect(g.schede).toHaveLength(1)
+    expect(g.schede[0].nome).toBe('Spinta A')
+    expect(g.schede[0].voci.map(v => v.nome)).toEqual(['Panca', 'Dip'])
+    expect(g.alzate.map(v => v.nome)).toEqual(['Curl'])
   })
 })

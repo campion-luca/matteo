@@ -58,6 +58,8 @@ describe('esecuzione di una scheda', () => {
     expect(h).toHaveLength(1)
     expect(h[0].sets_n).toBe(2)          // due serie spuntate su tre previste
     expect(h[0].setReps).toEqual([10, 6]) // i colpi reali, non l'obiettivo replicato
+    // Il calendario raggruppa il giorno per scheda: l'alzata deve dire da quale viene.
+    expect(h[0].scheda?.nome).toBe('Spinta A')
   })
 
   it('la serie corta si segna in rosso mentre la si scrive', async () => {

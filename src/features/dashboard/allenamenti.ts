@@ -12,6 +12,8 @@ export interface VoceAllenamento {
   tipo: 'pesi' | 'hyrox'
   /** Indice della voce nello storico del suo esercizio: identifica la sessione. */
   indice: number
+  /** La scheda eseguita, se l'alzata viene da una scheda. */
+  scheda?: { id: string; nome: string }
 }
 
 /** Ogni giorno con almeno un'alzata o una sessione hyrox, con cosa si è fatto. */
@@ -23,9 +25,30 @@ export function giorniAllenati(palestra: PalestraExercise[], hyrox: HyroxExercis
     if (lista) lista.push(voce)
     else out.set(date, [voce])
   }
-  palestra.forEach(ex => ex.history.forEach((h, i) => aggiungi(h.date, { id: ex.id, nome: ex.n, tipo: 'pesi', indice: i })))
+  palestra.forEach(ex => ex.history.forEach((h, i) => aggiungi(h.date, { id: ex.id, nome: ex.n, tipo: 'pesi', indice: i, ...(h.scheda ? { scheda: h.scheda } : {}) })))
   hyrox.forEach(ex => ex.history.forEach((h, i) => aggiungi(h.date, { id: ex.id, nome: ex.n, tipo: 'hyrox', indice: i })))
   return out
+}
+
+export interface GiornoRaggruppato {
+  /** Le schede eseguite quel giorno, ciascuna con i suoi esercizi. */
+  schede: Array<{ id: string; nome: string; voci: VoceAllenamento[] }>
+  /** Tutto quello registrato fuori da una scheda: alzate singole e hyrox. */
+  alzate: VoceAllenamento[]
+}
+
+/** Divide le voci di un giorno fra schede eseguite e alzate registrate a parte.
+ *  La stessa scheda eseguita due volte nello stesso giorno resta una riga sola. */
+export function raggruppaGiorno(voci: VoceAllenamento[]): GiornoRaggruppato {
+  const schede: GiornoRaggruppato['schede'] = []
+  const alzate: VoceAllenamento[] = []
+  for (const v of voci) {
+    if (!v.scheda) { alzate.push(v); continue }
+    const gia = schede.find(s => s.id === v.scheda?.id)
+    if (gia) gia.voci.push(v)
+    else schede.push({ id: v.scheda.id, nome: v.scheda.nome, voci: [v] })
+  }
+  return { schede, alzate }
 }
 
 /** Il lunedì della settimana di una data ISO, anch'esso in ISO. */

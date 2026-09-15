@@ -3,7 +3,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { LEVEL_LABELS, type DistrictStrength, type StrengthLevel } from './gymStrength'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import {
-  VIEWBOX_CORPO, neutri, SPALLE, PETTO, CORE, DORSO, BACINO, BRACCIA, GAMBE, type Blocco,
+  VIEWBOX_CORPO, neutri, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, GAMBE_RETRO, type Forma,
 } from './bodyBlocks'
 
 // Mappa del corpo: la sagoma con i distretti colorati per quanto sei forte.
@@ -40,15 +40,15 @@ function useFill(d: DistrictStrength | undefined) {
   }
 }
 
-// I rettangoli di un gruppo di blocchi. Un solo posto in cui tradurre una
-// `Blocco` in un <rect>, per la sagoma neutra come per i distretti.
-function rects(bs: Blocco[]) {
-  return bs.map(([x, y, w, h, r], i) => <rect key={i} x={x} y={y} width={w} height={h} rx={r}/>)
+// Le sagome di un gruppo di forme. Un solo posto in cui tradurre una `Forma` in
+// un <path>, per la figura neutra come per i distretti.
+function paths(fs: Forma[]) {
+  return fs.map((d, i) => <path key={i} d={d}/>)
 }
 
-// Una regione è un gruppo di rettangoli (le braccia sono due): stanno insieme in
-// un <g> così condividono colore, click ed evidenziazione.
-function Region({ d, onPick, active, blocchi }: RegionProps & { blocchi: Blocco[] }) {
+// Una regione è un gruppo di sagome (le braccia sono due, l'addome dieci pezzi):
+// stanno insieme in un <g> così condividono colore, click ed evidenziazione.
+function Region({ d, onPick, active, blocchi }: RegionProps & { blocchi: Forma[] }) {
   const f = useFill(d)
   return (
     <g
@@ -58,12 +58,12 @@ function Region({ d, onPick, active, blocchi }: RegionProps & { blocchi: Blocco[
       stroke={active ? 'var(--j-accent-ink)' : f.stroke}
       strokeWidth={active ? 1.6 : f.strokeWidth}
     >
-      {rects(blocchi)}
+      {paths(blocchi)}
     </g>
   )
 }
 
-const NEUTRAL = { fill: 'var(--surface-2)', stroke: 'var(--hairline)', strokeWidth: 0.8 }
+const NEUTRAL = { fill: 'var(--surface-2)', stroke: 'var(--hairline)', strokeWidth: 0.8, strokeOpacity: 0.6 }
 
 export function BodyMap({ districts, side, onPick, picked }: {
   districts: DistrictStrength[]
@@ -75,12 +75,14 @@ export function BodyMap({ districts, side, onPick, picked }: {
   const reg = (m: string) => ({ d: by(m), onPick: () => onPick(m), active: picked === m })
 
   return (
-    <svg viewBox={VIEWBOX_CORPO} style={{ width: '100%', maxWidth: 168, height: 'auto', display: 'block' }}>
-      {/* Parti neutre, sotto tutto */}
-      <g {...NEUTRAL}>{rects(neutri(side))}</g>
+    <svg viewBox={VIEWBOX_CORPO} strokeLinejoin="round" style={{ width: '100%', maxWidth: 168, height: 'auto', display: 'block' }}>
+      {/* Parti neutre, sotto tutto: il filo è più tenue, così i distretti — che
+          sono ciò che si legge — si staccano dal resto del corpo. */}
+      <g {...NEUTRAL}>{paths(neutri(side))}</g>
 
-      {/* Spalle — su entrambi i lati, nella stessa posizione */}
-      <Region {...reg('Spalle')} blocchi={SPALLE}/>
+      {/* Gambe — coscia e polpaccio, su entrambi i lati. Da dietro la coscia
+          comincia sotto i glutei (vedi FEMORALI). */}
+      <Region {...reg('Gambe')} blocchi={side === 'front' ? GAMBE : GAMBE_RETRO}/>
 
       {side === 'front' ? (
         <>
@@ -91,13 +93,14 @@ export function BodyMap({ districts, side, onPick, picked }: {
       ) : (
         <>
           <Region {...reg('Dorso')}  blocchi={DORSO}/>
-          <Region {...reg('Glutei')} blocchi={BACINO}/>
+          <Region {...reg('Glutei')} blocchi={GLUTEI}/>
           <Region {...reg('Tricipiti')} blocchi={BRACCIA}/>
         </>
       )}
 
-      {/* Gambe — coscia e polpaccio, su entrambi i lati */}
-      <Region {...reg('Gambe')} blocchi={GAMBE}/>
+      {/* Spalle — su entrambi i lati. Dopo il dorso: il deltoide copre l'attacco
+          del trapezio, com'è davvero. */}
+      <Region {...reg('Spalle')} blocchi={SPALLE}/>
     </svg>
   )
 }
