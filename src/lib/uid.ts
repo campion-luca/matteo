@@ -1,5 +1,5 @@
 // Identificatori locali per le entità create dall'utente (eventi, esercizi,
-// categorie, voci di budget, righe di scheda).
+// categorie, righe di scheda).
 //
 // `Date.now()` da solo NON basta: creare due voci nello stesso millisecondo —
 // cosa che succede tenendo premuto "+", o quando `reconcileAndPersist` genera

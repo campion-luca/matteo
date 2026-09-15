@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { t, tData, translate, getLang } from '@/lib/i18n'
 import { DE_UI, DE_DATA } from '@/lib/i18n.de'
-import { fmtDayMon, fmtDayMonthFull, fmtShortDate, fmtDayMonth, fmtMonthYear, daysShort } from '@/lib/dateFormat'
+import { fmtDayMon, fmtDayMonthFull, fmtShortDate, fmtDayMonth, daysShort } from '@/lib/dateFormat'
 import { isoWeekLabel } from '@/lib/isoDate'
 
 const setLang = (lang: 'it' | 'de') => useJarvisStore.setState({ lang })
@@ -34,14 +34,12 @@ const QUALSIASI = /'([^'\n]*)'/g
 // disegnarle (`t(m.what)`, `t(hint.title)`, `t(opt.label)`…). Lì la chiave non è
 // visibile nella chiamata: sta nella costante, e va raccolta da quella.
 const COSTANTI = [
-  '/src/components/CoachMark.tsx',
   '/src/features/auth/FirstSetup.tsx',
   '/src/features/dashboard/homeModules.ts',
   '/src/features/gym/gymMaxLifts.ts',
   '/src/features/gym/gymModel.ts',
   '/src/features/gym/gymStrength.ts',
   '/src/features/profile/JarvisProfile.tsx',
-  '/src/lib/metricInfo.ts',
 ]
 
 // Via i commenti: dentro ce ne sono che citano `t('…')` come esempio.
@@ -113,7 +111,7 @@ describe('dizionario tedesco', () => {
     // una nuova coincidenza va guardata invece di passare in silenzio.
     const uguali = Object.entries(DE_UI).filter(([it, de]) => it === de).map(([it]) => it)
     expect(uguali.sort()).toEqual([
-      'Budget', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
+      'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
       'Personal Coach', 'Personal OS', 'Premium', 'Standard', 'Total', 'Trend',
     ])
   })
@@ -209,7 +207,6 @@ describe('date nella lingua scelta', () => {
     expect(fmtDayMonthFull('2026-08-19')).toBe('19. August')
     expect(fmtShortDate('2026-08-19')).toBe('19.08.26')
     expect(fmtDayMonth('2026-08-19')).toBe('19.08.')
-    expect(fmtMonthYear('2027-03-01')).toBe('März 2027')
     expect(daysShort()[0]).toBe('Mo')
     // "KW" è la sigla che in Germania sta sui calendari: "W34" lì non si legge
     // come una settimana.

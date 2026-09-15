@@ -595,7 +595,7 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
 
         {oneRMs.length >= 2 && (
           <div>
-            <NucEyebrow info="oneRM" right={rmTrend !== 0 ? (
+            <NucEyebrow right={rmTrend !== 0 ? (
               <span style={{ color: rmTrend > 0 ? 'var(--j-accent-ink)' : 'var(--danger)' }}>
                 {rmTrend > 0 ? '+' : ''}{rmTrend} kg
               </span>

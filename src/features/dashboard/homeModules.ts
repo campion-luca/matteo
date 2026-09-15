@@ -16,13 +16,12 @@ export interface HomeModule { id: string; on: boolean }
 // L'ordine di questo array È l'ordine di default della home (non c'è un campo
 // `order`).
 export const ALL_MODULES = [
-  { id: 'weekDots', label: 'La tua settimana',  defaultOn: true },
-  // La ricerca sta in alto perché è un COMANDO, non un dato: sotto due schede di
-  // numeri diventava la cosa che si scorre per raggiungere, mentre è quella con
-  // cui si comincia quando si sa già dove si vuole andare.
-  { id: 'search',   label: 'Ricerca globale',   defaultOn: true },
-  { id: 'bodyMap',  label: 'Mappa della forza', defaultOn: true },
-  { id: 'maxLifts', label: 'Massimali',         defaultOn: true },
+  { id: 'weekDots', label: 'La tua settimana',    defaultOn: true },
+  { id: 'bodyMap',  label: 'Mappa della forza',   defaultOn: true },
+  { id: 'maxLifts', label: 'Massimali ipotetici', defaultOn: true },
+  // 'search' non è più un modulo: la ricerca è un tasto quadrato sulla riga del
+  // saluto, di fianco alle impostazioni. Tutti e tre i moduli rimasti stanno
+  // dentro lo stesso riquadro, "Riepilogo complessivo".
   // 'weeklyReview' è stato rimosso: diceva le stesse cose de "La tua settimana"
   // più il volume, che è un numero senza un metro con cui confrontarlo — e per
   // quello ci sono i grafici. `load()` scarta da sé gli id che non sono più qui,
@@ -32,8 +31,8 @@ export const ALL_MODULES = [
 // Il bump serve a far comparire i moduli nuovi nella posizione voluta. Senza,
 // il caricamento li appenderebbe in fondo al layout già salvato e la settimana —
 // che è il colpo d'occhio della home — finirebbe sotto tutto il resto.
-const MODULES_KEY = 'jarvis-modules-v8'
-const LEGACY_MODULES_KEYS = ['jarvis-modules-v2', 'jarvis-modules-v3', 'jarvis-modules-v4', 'jarvis-modules-v5', 'jarvis-modules-v6', 'jarvis-modules-v7']
+const MODULES_KEY = 'jarvis-modules-v9'
+const LEGACY_MODULES_KEYS = ['jarvis-modules-v2', 'jarvis-modules-v3', 'jarvis-modules-v4', 'jarvis-modules-v5', 'jarvis-modules-v6', 'jarvis-modules-v7', 'jarvis-modules-v8']
 
 // Le `label` in `ALL_MODULES` restano scritte in italiano: sono le chiavi del
 // dizionario, e questa costante nasce una volta all'import. La traduzione avviene

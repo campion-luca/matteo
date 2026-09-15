@@ -136,85 +136,12 @@ export const DE_UI: Record<string, string> = {
   'Dati cloud non caricati — tocca per riprovare': 'Cloud-Daten nicht geladen — zum Wiederholen tippen',
   'Non sincronizzato — tocca per riprovare': 'Nicht synchronisiert — zum Wiederholen tippen',
 
-  // ── Suggerimenti (CoachMark) ─────────────────────────────────
-  'Come funziona': 'So funktioniert’s',
-  'Ho capito': 'Verstanden',
+  // ── Nomi delle sezioni ───────────────────────────────────────
   'Allenamento': 'Training',
   'Gruppo muscolare': 'Muskelgruppe',
-  'Scheda esercizio': 'Übungsblatt',
-  'Registra un’alzata': 'Satz eintragen',
-  'Tutti i grafici': 'Alle Diagramme',
   'Schede': 'Pläne',
   'Mappa della forza': 'Kraftkarte',
-  'Profilo': 'Profil',
   'Personal Coach': 'Personal Coach',
-  'Budget': 'Budget',
-  'I tuoi esercizi sono raccolti per gruppo muscolare: tocca un gruppo per aprirlo.':
-    'Deine Übungen sind nach Muskelgruppe sortiert: tippe auf eine Gruppe, um sie zu öffnen.',
-  'Dentro ogni esercizio registri le alzate — carico, serie e ripetizioni — e le ritrovi tutte nello storico.':
-    'In jeder Übung trägst du deine Sätze ein — Gewicht, Sätze und Wiederholungen — und findest sie alle im Verlauf wieder.',
-  'Con “Schede” prepari un allenamento in anticipo e poi lo esegui passo passo.':
-    'Mit „Pläne“ bereitest du ein Training vor und arbeitest es dann Schritt für Schritt ab.',
-  'Qui trovi tutti gli esercizi di questo gruppo, con l’ultima alzata registrata.':
-    'Hier findest du alle Übungen dieser Gruppe, mit dem zuletzt eingetragenen Satz.',
-  'Il colore del gruppo lo scegli tu: si cambia dalla matita dell’esercizio.':
-    'Die Farbe der Gruppe wählst du selbst: sie lässt sich über den Stift der Übung ändern.',
-  'Tocca un esercizio per aprirlo e registrare una nuova alzata.':
-    'Tippe auf eine Übung, um sie zu öffnen und einen neuen Satz einzutragen.',
-  'Il tasto grande registra una nuova alzata: carico, serie e ripetizioni.':
-    'Die große Taste trägt einen neuen Satz ein: Gewicht, Sätze und Wiederholungen.',
-  'Sotto trovi lo storico completo — ogni riga si può correggere o cancellare.':
-    'Darunter steht der vollständige Verlauf — jede Zeile lässt sich korrigieren oder löschen.',
-  'Il grafico segue il carico nel tempo: toccalo per aprire tutti gli altri.':
-    'Das Diagramm verfolgt das Gewicht über die Zeit: tippe darauf, um alle anderen zu öffnen.',
-  'Se vuoi ripartire da zero senza perdere l’esercizio, usa “svuota la memoria”.':
-    'Willst du bei null anfangen, ohne die Übung zu verlieren, nutze „Verlauf leeren“.',
-  'Metti il carico più alto che hai usato, le serie e le ripetizioni.':
-    'Trage das höchste Gewicht ein, das du benutzt hast, dazu Sätze und Wiederholungen.',
-  'Se hai cambiato peso serie per serie, accendi “peso diverso per serie”.':
-    'Hast du das Gewicht von Satz zu Satz geändert, schalte „Gewicht pro Satz“ ein.',
-  '“A corpo libero” somma il tuo peso corporeo: le trazioni non valgono zero.':
-    '„Eigengewicht“ rechnet dein Körpergewicht dazu: Klimmzüge zählen nicht als null.',
-  'Se batti il tuo massimo su questo esercizio, l’app te lo dice subito.':
-    'Schlägst du dein Maximum bei dieser Übung, sagt es dir die App sofort.',
-  '“Carico” è il peso sul bilanciere, “Massimale stimato” tiene conto anche delle ripetizioni.':
-    '„Gewicht“ ist die Last auf der Stange, „Geschätztes Maximum“ berücksichtigt auch die Wiederholungen.',
-  'Sull’asse verticale ci sono i chili, in basso la data di ogni alzata.':
-    'Auf der senkrechten Achse stehen die Kilo, unten das Datum jedes Satzes.',
-  'Sono due letture della stessa storia: il carico dice cosa hai caricato, il massimale quanto sei forte.':
-    'Es sind zwei Lesarten derselben Geschichte: das Gewicht sagt, was du aufgeladen hast, das Maximum, wie stark du bist.',
-  'Una scheda è l’allenamento scritto prima: esercizi, serie e ripetizioni in ordine.':
-    'Ein Plan ist das vorab aufgeschriebene Training: Übungen, Sätze und Wiederholungen der Reihe nach.',
-  'In esecuzione la segui riga per riga e ogni serie chiusa finisce nello storico.':
-    'Beim Durchführen folgst du ihm Zeile für Zeile, und jeder abgehakte Satz landet im Verlauf.',
-  'Puoi collegare ogni riga a un esercizio esistente, così i progressi si sommano ai suoi.':
-    'Du kannst jede Zeile mit einer vorhandenen Übung verknüpfen, so summieren sich die Fortschritte dort.',
-  'Ogni distretto è colorato per quanto sei forte, non per quanti chili sollevi.':
-    'Jede Region ist danach eingefärbt, wie stark du bist — nicht danach, wie viele Kilo du hebst.',
-  'Il punteggio va da 0 a 100, dove 100 è il livello “forte” di quel distretto: così braccia e gambe si confrontano.':
-    'Der Wert geht von 0 bis 100, wobei 100 die Stufe „stark“ dieser Region ist: so lassen sich Arme und Beine vergleichen.',
-  'Tocca un distretto per vedere i chili veri da cui esce il punteggio.':
-    'Tippe auf eine Region, um die echten Kilo hinter dem Wert zu sehen.',
-  'Peso e altezza non sono un vezzo: da lì escono la forza relativa e la mappa del corpo.':
-    'Gewicht und Größe sind keine Spielerei: daraus ergeben sich die relative Kraft und die Körperkarte.',
-  'Da qui cambi tema, colore e stile del menù di navigazione.':
-    'Von hier aus änderst du Thema, Farbe und Stil der Navigation.',
-  'Da qui registri il peso quando ti pesi: serve al trend, non al singolo numero.':
-    'Hier trägst du dein Gewicht ein, wenn du dich wiegst: es zählt der Verlauf, nicht die einzelne Zahl.',
-  'Puoi far seguire i tuoi allenamenti da un’altra persona che usa Matteo.':
-    'Du kannst dein Training von einer anderen Person betreuen lassen, die Matteo benutzt.',
-  'Generi un codice, glielo dai, e da quel momento vede i tuoi allenamenti e il tuo peso.':
-    'Du erzeugst einen Code, gibst ihn weiter, und ab dann sieht sie dein Training und dein Gewicht.',
-  'Vede solo: non può modificare niente. E puoi togliergli l’accesso quando vuoi.':
-    'Sie sieht nur zu: ändern kann sie nichts. Und du kannst den Zugang jederzeit entziehen.',
-  'Dall’altra linguetta fai il contrario: inserisci il codice di chi vuoi seguire.':
-    'Im anderen Reiter machst du es umgekehrt: du gibst den Code der Person ein, die du betreuen willst.',
-  'Metti lo stipendio e le spese fisse: l’app calcola cosa ti resta ogni mese.':
-    'Trage Gehalt und Fixkosten ein: die App rechnet aus, was dir jeden Monat bleibt.',
-  'Le spese grosse imminenti si scalano a parte, senza sporcare il conto mensile.':
-    'Größere anstehende Ausgaben werden separat abgezogen, ohne die Monatsrechnung zu verfälschen.',
-  'Il “sogno” ti dice fra quanto ci arrivi con quello che avanzi.':
-    'Der „Traum“ sagt dir, wann du ihn mit dem erreichst, was übrig bleibt.',
 
   // ── Dialogo di conferma ──────────────────────────────────────
   'Eliminazione': 'Löschen',
@@ -241,19 +168,10 @@ export const DE_UI: Record<string, string> = {
   'Nuova versione disponibile': 'Neue Version verfügbar',
   'Aggiorna': 'Aktualisieren',
 
-  // ── Spiegazioni (ⓘ) ─────────────────────────────────────────
-  'Cos’è': 'Was ist das',
-  'Come si calcola': 'So wird gerechnet',
-  'Da sapere': 'Gut zu wissen',
-
   // ── Navigazione ──────────────────────────────────────────────
   'Home': 'Start',
   'Impostazioni': 'Einstellungen',
   'Personal OS': 'Personal OS',
-  'Apri Budget': 'Budget öffnen',
-  'Apri Personal Coach': 'Personal Coach öffnen',
-  'Vai alla Home': 'Zur Startseite',
-  'Vai all’allenamento': 'Zum Training',
 
   // ── Saluti ───────────────────────────────────────────────────
   'Buongiorno': 'Guten Morgen',
@@ -333,71 +251,8 @@ export const DE_UI: Record<string, string> = {
   'Benvenuto': 'Willkommen',
   'Tocca per saltare': 'Zum Überspringen tippen',
 
-  // ── Budget ───────────────────────────────────────────────────
-  'Stipendio mensile netto': 'Monatliches Nettogehalt',
-  'Ogni mese': 'Jeden Monat',
-  'Entrate': 'Einnahmen',
-  'Spese fisse': 'Fixkosten',
-  'Spese variabili': 'Variable Kosten',
-  'Spese grosse imminenti': 'Größere anstehende Ausgaben',
-  'Ciò che paghi ogni mese: affitto, bollette, abbonamenti, rate…':
-    'Was du jeden Monat zahlst: Miete, Nebenkosten, Abos, Raten…',
-  'Spese eccezionali medie al mese: cinema, mangiare fuori, svago…':
-    'Außergewöhnliche Ausgaben im Monatsschnitt: Kino, Essen gehen, Freizeit…',
-  'Uscite una tantum in arrivo: tagliando auto, vacanza estiva, elettrodomestici…':
-    'Einmalige Ausgaben, die anstehen: Autoinspektion, Sommerurlaub, Haushaltsgeräte…',
-  'Ti resta al mese': 'Bleibt dir im Monat',
-  'Sforo mensile': 'Monatliches Minus',
-  '{somma} di uscite totali': '{somma} Ausgaben insgesamt',
-  'Descrizione': 'Beschreibung',
-  'Aggiungi voce': 'Posten hinzufügen',
-  'Nessuna voce ancora.': 'Noch keine Posten.',
-  'Nessuna voce · tocca per aggiungere': 'Keine Posten · zum Hinzufügen tippen',
-  '1 voce': '1 Posten',
-  '{n} voci': '{n} Posten',
-  '/mese': '/Monat',
-  'tot': 'ges.',
+  // ── Varie ────────────────────────────────────────────────────
   'Senza nome': 'Ohne Namen',
-  'Fra 12 mesi': 'In 12 Monaten',
-  'messi da parte': 'zurückgelegt',
-  'di debito accumulato': 'aufgelaufene Schulden',
-  'Spese grosse sostenibili': 'Tragbare größere Ausgaben',
-  'Con le spese attuali non riesci a mettere da parte nulla: rivedi le uscite prima di pianificare spese grosse.':
-    'Mit den jetzigen Ausgaben kannst du nichts zurücklegen: sieh die Kosten durch, bevor du größere Ausgaben planst.',
-  'Copri': 'Du deckst',
-  'tutte': 'alle',
-  'le spese grosse e ti avanzano': 'größeren Ausgaben, und es bleiben dir',
-  'Con {somma} copri': 'Mit {somma} deckst du',
-  'spese su {tot}. Ti mancano': 'von {tot} Ausgaben. Es fehlen dir',
-  'per farle tutte.': ', um alle zu schaffen.',
-  'Il sogno da raggiungere': 'Der Traum, den du erreichen willst',
-  'Una cosa che vuoi comprare: scrivi quanto costa e scopri se, col tuo risparmio, sei sulla giusta strada.':
-    'Etwas, das du kaufen willst: schreib auf, was es kostet, und sieh, ob du mit deinen Ersparnissen auf dem richtigen Weg bist.',
-  'Imposta un sogno': 'Traum festlegen',
-  'Es. Moto, viaggio in Giappone, casa…': 'z. B. Motorrad, Japanreise, Haus…',
-  'Costo': 'Kosten',
-  'Già da parte': 'Schon gespart',
-  'Entro il': 'Bis zum',
-  'obiettivo raggiunto': 'Ziel erreicht',
-  'mancano {somma}': 'es fehlen {somma}',
-  'Ci sei: hai da parte tutto il necessario.': 'Du bist da: du hast alles Nötige beisammen.',
-  'Puoi permettertelo.': 'Du kannst es dir leisten.',
-  'Ogni mese non ti avanza nulla:': 'Jeden Monat bleibt dir nichts übrig:',
-  'così non lo raggiungerai mai': 'so wirst du es nie erreichen',
-  'Riduci le spese o aumenta le entrate.': 'Senke die Ausgaben oder erhöhe die Einnahmen.',
-  'Al ritmo di {somma} al mese lo raggiungi in': 'Mit {somma} im Monat erreichst du es in',
-  'in tempo per la data che hai scelto.': 'rechtzeitig zum gewählten Datum.',
-  'Sei sulla giusta strada.': 'Du bist auf dem richtigen Weg.',
-  'Ti servono': 'Du brauchst',
-  'ma ne hai {quanti}: per arrivarci dovresti mettere da parte':
-    'hast aber {quanti}: um dorthin zu kommen, müsstest du',
-  'al mese invece di {somma}.': 'im Monat zurücklegen statt {somma}.',
-  'verso {mese}.': 'etwa im {mese}.',
-  'subito': 'sofort',
-  '1 mese': '1 Monat',
-  '{n} mesi': '{n} Monate',
-  '1 anno': '1 Jahr',
-  'e {n} mesi': 'und {n} Monate',
 
   // ── Personal Coach ───────────────────────────────────────────
   'Ti seguono': 'Betreuen dich',
@@ -405,15 +260,13 @@ export const DE_UI: Record<string, string> = {
   'Caricamento…': 'Wird geladen…',
   'Attendi…': 'Bitte warten…',
   'Annulla': 'Abbrechen',
-  'Indietro': 'Zurück',
   'Elimina': 'Löschen',
   'Confronto': 'Vergleich',
   'Il tuo codice': 'Dein Code',
   'Genera un codice e dallo a chi ti allena. Vedrà i tuoi allenamenti, il volume e l’andamento del peso —':
     'Erzeuge einen Code und gib ihn der Person, die dich trainiert. Sie sieht dein Training, das Volumen und den Gewichtsverlauf —',
   'in sola lettura': 'nur lesend',
-  'Il budget non esce da questo telefono. Puoi togliergli l’accesso quando vuoi.':
-    'Das Budget verlässt dieses Telefon nicht. Du kannst den Zugang jederzeit entziehen.',
+  'Puoi togliergli l’accesso quando vuoi.': 'Du kannst den Zugang jederzeit entziehen.',
   'Genera un codice': 'Code erzeugen',
   'Nuovo codice': 'Neuer Code',
   'Copiato': 'Kopiert',
@@ -496,7 +349,6 @@ export const DE_UI: Record<string, string> = {
   'Trascina · attiva / disattiva': 'Ziehen · ein- / ausschalten',
   'attivo': 'an',
   'spento': 'aus',
-  'Widget': 'Widgets',
   'Ordina la home': 'Startseite ordnen',
   'Nessun modulo attivo. Riaccendili da Impostazioni · Cambio widget.':
     'Kein Widget aktiv. Schalte sie unter Einstellungen · Widgets ändern wieder ein.',
@@ -504,7 +356,6 @@ export const DE_UI: Record<string, string> = {
   // ── Home ─────────────────────────────────────────────────────
   'Alleniamoci': 'Trainieren wir',
   'La tua settimana': 'Deine Woche',
-  'Massimali': 'Maximalwerte',
   'Registra un’alzata: qui vedrai squat, panca piana e stacco da terra.':
     'Trag einen Satz ein: hier erscheinen Kniebeuge, Bankdrücken und Kreuzheben.',
   'Total': 'Total',
@@ -513,7 +364,6 @@ export const DE_UI: Record<string, string> = {
   'Mai allenato': 'Nie trainiert',
   'Inserisci il peso nel profilo →': 'Gewicht im Profil eintragen →',
   'Ricerca globale': 'Globale Suche',
-  'Trova esercizi e schede…': 'Übungen und Pläne finden…',
 
   // ── Ricerca ──────────────────────────────────────────────────
   'Cerca esercizi, schede…': 'Übungen, Pläne suchen…',
@@ -822,11 +672,6 @@ export const DE_UI: Record<string, string> = {
   'Premium': 'Premium',
   'Sempre nero, vetro e contorni bianchi. Ignora l’interruttore chiaro/scuro.':
     'Immer schwarz, Glas und weiße Konturen. Ignoriert den Hell-/Dunkel-Schalter.',
-  'Tasto di navigazione': 'Navigationstaste',
-  'Da che parte lo trovi in fondo allo schermo.': 'Auf welcher Seite du sie unten am Bildschirm findest.',
-  'Sinistra': 'Links',
-  'Centro': 'Mitte',
-  'Destra': 'Rechts',
 
   // ── Account ──────────────────────────────────────────────────
   'Cambia password': 'Passwort ändern',
@@ -865,40 +710,19 @@ export const DE_UI: Record<string, string> = {
   'Stimato': 'Geschätzt',
   'Dal distretto': 'Aus der Region',
 
-  // ── Spiegazioni dei numeri (ⓘ) ──────────────────────────────
-  'Quanto sei forte in ogni distretto, su una scala che rende i distretti confrontabili fra loro.':
-    'Wie stark du in jeder Region bist, auf einer Skala, die die Regionen untereinander vergleichbar macht.',
-  'Il numero': 'Die Zahl',
-  'Per ogni distretto si prende il massimale stimato dell’esercizio in cui vai meglio (non la media: la media punisce chi ha in lista un accessorio leggero) e lo si divide per il tuo peso corporeo. Un esercizio con due gruppi muscolari conta per intero sul primario e a metà sul secondario: il muscolo che assiste lavora, ma non con quel carico — nessuno curla i 60 kg di un rematore.':
-    'Für jede Region wird das geschätzte Maximum der Übung genommen, in der du am besten bist (nicht der Durchschnitt: der bestraft alle, die eine leichte Zusatzübung in der Liste haben), und durch dein Körpergewicht geteilt. Eine Übung mit zwei Muskelgruppen zählt voll auf die primäre und zur Hälfte auf die sekundäre: der assistierende Muskel arbeitet mit, aber nicht mit dieser Last — niemand curlt die 60 kg einer Ruderübung.',
-  'Il colore': 'Die Farbe',
-  'Quattro livelli — iniziale, base, buono, forte — con soglie DIVERSE per distretto: servono 1.10× il tuo peso per un "base" sulle gambe e 0.35× per lo stesso grado sui bicipiti. È l’unico modo perché "colorato ovunque" voglia dire equilibrato e non solo "alleno le gambe".':
-    'Vier Stufen — Einsteiger, Grundlage, gut, stark — mit UNTERSCHIEDLICHEN Schwellen je Region: für „Grundlage“ an den Beinen braucht es das 1,10-Fache deines Gewichts, für dieselbe Stufe am Bizeps das 0,35-Fache. Nur so heißt „überall eingefärbt“ ausgewogen und nicht bloß „ich trainiere Beine“.',
-  'Le soglie sono approssimazioni da standard diffusi, non misure: gli stessi chili su una macchina e su un bilanciere non valgono uguale, e la tabella non lo sa. Il core è il più incerto — per gli addominali sotto carico uno standard non esiste, e quelle soglie sono una stima. Senza il peso corporeo nel profilo la mappa non può dire niente. E un distretto vuoto significa solo che non hai registrato alzate: non che sei debole.':
-    'Die Schwellen sind Näherungen aus verbreiteten Standards, keine Messungen: dieselben Kilo an einer Maschine und an der Langhantel sind nicht dasselbe, und die Tabelle weiß das nicht. Am unsichersten ist der Rumpf — für Bauchmuskeln unter Last gibt es keinen Standard, diese Schwellen sind geschätzt. Ohne Körpergewicht im Profil kann die Karte gar nichts sagen. Und eine leere Region heißt nur, dass du keine Sätze eingetragen hast — nicht, dass du schwach bist.',
-  'I tre numeri con cui la forza si racconta da sempre: squat, panca piana e stacco da terra. Il «total» è la loro somma.':
-    'Die drei Zahlen, mit denen Kraft seit jeher erzählt wird: Kniebeuge, Bankdrücken und Kreuzheben. Das „Total“ ist ihre Summe.',
-  'L’hai provato: una singola al carico massimo, salvata con l’interruttore «Massimale» quando registri l’alzata. Qui il numero è il carico, non una stima — Epley su una singola lo gonfierebbe del 3%.':
-    'Du hast es versucht: eine einzelne Wiederholung mit Maximalgewicht, beim Eintragen mit dem Schalter „Maximum“ gespeichert. Hier ist die Zahl die Last, keine Schätzung — Epley würde sie bei einer einzelnen Wiederholung um 3 % aufblähen.',
-  'Hai fatto quell’alzata a ripetizioni, e il massimale esce dalla serie migliore con la formula di Epley (vedi «Massimale stimato»). Vale l’esercizio giusto: «Panca inclinata» non conta come panca piana.':
-    'Du hast diese Übung auf Wiederholungen gemacht, und das Maximum kommt aus dem besten Satz über die Epley-Formel (siehe „Geschätztes Maximum“). Es zählt die richtige Übung: „Schrägbankdrücken“ gilt nicht als Bankdrücken.',
-  'Quell’alzata non è in lista. Il numero viene dai chili che sollevi sui gruppi muscolari coinvolti — gambe per lo squat, petto per la panca, glutei per lo stacco — peso corporeo incluso a corpo libero.':
-    'Diese Übung steht nicht in der Liste. Die Zahl kommt aus den Kilo, die du auf den beteiligten Muskelgruppen bewegst — Beine für die Kniebeuge, Brust fürs Bankdrücken, Gesäß fürs Kreuzheben — bei Eigengewicht inklusive Körpergewicht.',
-  'Gli stessi chili diviso il tuo peso corporeo: è il modo di confrontarsi fra persone di taglia diversa. 100 kg pesandone 65 è più forza che 110 pesandone 95.':
-    'Dieselben Kilo geteilt durch dein Körpergewicht: so vergleichen sich Menschen unterschiedlicher Statur. 100 kg bei 65 kg Körpergewicht sind mehr Kraft als 110 kg bei 95 kg.',
-  '× peso': '× Gewicht',
-  '«Dal distretto» NON è un massimale di quell’alzata: se le gambe le alleni alla pressa, quei chili non sono il tuo squat — sono un ordine di grandezza, e servono solo a non lasciare la riga vuota. Il numero diventa vero quando registri l’alzata, e diventa certo quando la provi come massimale. Il total esce solo con tutte tre: sommarne due darebbe un numero che sembra un total e non lo è. Il peso corporeo è quello del profilo: se è vecchio di mesi, i rapporti sbagliano di conseguenza.':
-    '„Aus der Region“ ist KEIN Maximum dieser Übung: wenn du die Beine an der Beinpresse trainierst, sind diese Kilo nicht deine Kniebeuge — sie sind eine Größenordnung und sollen nur die Zeile nicht leer lassen. Die Zahl wird echt, sobald du den Satz einträgst, und sicher, sobald du sie als Maximum versuchst. Das Total erscheint nur mit allen dreien: zwei zu addieren ergäbe eine Zahl, die aussieht wie ein Total und keines ist. Das Körpergewicht ist das aus dem Profil: ist es Monate alt, stimmen die Verhältnisse entsprechend nicht.',
-  'Quanto alzeresti per una singola ripetizione, dedotto da una serie che ne ha fatte parecchie. Serve a mettere sulla stessa scala alzate con colpi diversi.':
-    'Was du für eine einzelne Wiederholung heben würdest, abgeleitet aus einem Satz mit vielen. Damit landen Sätze mit unterschiedlichen Wiederholungen auf derselben Skala.',
-  'Formula di Epley: carico × (1 + colpi / 30). Così 50 kg × 8 dà 63 kg e 40 kg × 15 ne dà 60: la prima serie vale di più, anche se la seconda ha spostato più chili in totale. Con pesi diversi per serie conta la serie migliore, non la media. A corpo libero il carico include il tuo peso.':
-    'Epley-Formel: Last × (1 + Wdh. / 30). So ergeben 50 kg × 8 dann 63 kg und 40 kg × 15 nur 60: der erste Satz zählt mehr, obwohl der zweite insgesamt mehr Kilo bewegt hat. Bei unterschiedlichen Gewichten pro Satz zählt der beste Satz, nicht der Durchschnitt. Beim Eigengewicht schließt die Last dein Körpergewicht ein.',
-  'È una stima, non una prova: nessuno ti ha visto alzare quel peso. Oltre le 12 ripetizioni Epley diventa ottimista, perché lì contano fiato e resistenza più della forza massimale — un 20×30 kg non fa di te un 60 kg di massimale. Misura la forza, non la fatica: una serie fatta al cedimento e una lasciata a metà danno lo stesso numero.':
-    'Es ist eine Schätzung, kein Beweis: niemand hat dich dieses Gewicht heben sehen. Über 12 Wiederholungen wird Epley optimistisch, weil dort Atem und Ausdauer mehr zählen als Maximalkraft — 20 × 30 kg machen aus dir kein 60-kg-Maximum. Gemessen wird Kraft, nicht Anstrengung: ein Satz bis zum Muskelversagen und einer, der auf halbem Weg endet, ergeben dieselbe Zahl.',
-  'La sessione in cui hai espresso più forza su questo esercizio, non quella in cui hai alzato il peso più alto.':
-    'Die Einheit, in der du bei dieser Übung die meiste Kraft gezeigt hast — nicht die mit dem höchsten Gewicht.',
-  'La sessione col massimale stimato più alto (vedi sopra): kg e colpi finiscono in un numero solo. A parità vince la più recente.':
-    'Die Einheit mit dem höchsten geschätzten Maximum (siehe oben): Kilo und Wiederholungen landen in einer einzigen Zahl. Bei Gleichstand gewinnt die jüngere.',
-  'Non è un premio alla fatica: una serie infinita con poco peso non compare qui, per quanto abbia bruciato. Se hai cambiato modo di eseguire l’esercizio, il confronto con le alzate vecchie vale meno di quanto sembri.':
-    'Es ist kein Preis für Anstrengung: ein endloser Satz mit wenig Gewicht taucht hier nicht auf, so sehr er auch gebrannt hat. Hast du die Ausführung der Übung geändert, ist der Vergleich mit alten Sätzen weniger wert, als er scheint.',
+  // ── Home: riepilogo e calendario ─────────────────────────────
+  'Mese precedente': 'Vorheriger Monat',
+  'Mese successivo': 'Nächster Monat',
+  'I tuoi allenamenti': 'Deine Trainings',
+  'settimana di fila': 'Woche in Folge',
+  'settimane di fila': 'Wochen in Folge',
+  '1 giorno di allenamento': '1 Trainingstag',
+  '{n} giorni di allenamento': '{n} Trainingstage',
+  'Nessun allenamento registrato.': 'Noch kein Training erfasst.',
+  'Tocca un giorno allenato per vedere cosa hai fatto.': 'Tippe auf einen Trainingstag, um zu sehen, was du gemacht hast.',
+  'Apri il calendario degli allenamenti': 'Trainingskalender öffnen',
+  'Massimali ipotetici': 'Geschätzte Maximalwerte',
+  'Il total compare con tutte e tre le alzate': 'Das Total erscheint mit allen drei Übungen',
+  'Riepilogo complessivo': 'Gesamtübersicht',
+  'Torna alla home': 'Zurück zur Startseite',
 }

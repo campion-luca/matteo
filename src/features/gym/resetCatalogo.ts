@@ -15,7 +15,7 @@
 // record e grafici, che da quelle sono derivati) e `gymSchede`.
 //
 // ── Cosa NON tocca ─────────────────────────────────────────────
-// Dati personali, pesate, budget, stazioni Hyrox, colori dei gruppi muscolari,
+// Dati personali, pesate, stazioni Hyrox, colori dei gruppi muscolari,
 // tema e preferenze. Non è un "cancella tutto": è la palestra che riparte.
 //
 // ── La copia di scorta ─────────────────────────────────────────

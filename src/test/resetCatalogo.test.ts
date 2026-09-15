@@ -48,7 +48,7 @@ describe('azzeramento del catalogo', () => {
   })
 
   it('tocca solo palestra e schede', () => {
-    // Un azzeramento che si allargasse a pesate, budget o dati personali sarebbe
+    // Un azzeramento che si allargasse a pesate o dati personali sarebbe
     // un'altra operazione, e nessuno l'ha chiesta.
     expect(Object.keys(azzeramento()).sort()).toEqual(['catalogoReset', 'gymSchede', 'palestraExercises'])
   })

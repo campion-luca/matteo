@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtDayMon, fmtDayMonthFull, fmtShortDate, fmtMonthYear } from '@/lib/dateFormat'
+import { fmtDayMon, fmtDayMonthFull, fmtShortDate } from '@/lib/dateFormat'
 import { uid } from '@/lib/uid'
 
 describe('formattazione date', () => {
@@ -7,7 +7,6 @@ describe('formattazione date', () => {
     expect(fmtDayMon('2026-08-19')).toBe('19 ago')
     expect(fmtDayMonthFull('2026-08-19')).toBe('19 Agosto')
     expect(fmtShortDate('2026-08-19')).toBe('19/08/26')
-    expect(fmtMonthYear('2027-03-01')).toBe('marzo 2027')
   })
 
   // `new Date('2026-01-01')` è mezzanotte UTC: a ovest di Greenwich diventava il

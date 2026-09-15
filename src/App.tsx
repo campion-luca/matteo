@@ -3,7 +3,7 @@ import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
 import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, MONO_DARK } from '@/lib/jarvis-tokens'
-import { NucGrain, NucNav, NucSidebarNav } from '@/components/ui/NucComponents'
+import { NucGrain, NucSidebarNav } from '@/components/ui/NucComponents'
 import type { TabId } from '@/components/ui/NucComponents'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { UpdateToast } from '@/components/UpdateToast'
@@ -12,7 +12,6 @@ import { ConfirmModal } from '@/components/ConfirmModal'
 import { InstallBanner } from '@/components/InstallBanner'
 import { useStore, useJarvisStore, EMPTY_STATE, JARVIS_STORE_KEY, applyRemoteState } from '@/store/useJarvisStore'
 import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
-import { CoachMarkHost, fireCoach } from '@/components/CoachMark'
 import { supabase } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoteUpdatedAt } from '@/lib/cloudSync'
 import { useSyncStatus } from '@/lib/syncStatus'
@@ -28,8 +27,7 @@ const JarvisGym       = lazy(() => import('@/features/gym/JarvisGym').then(m => 
 const JarvisProfile   = lazy(() => import('@/features/profile/JarvisProfile').then(m => ({ default: m.JarvisProfile })))
 const JarvisLogin     = lazy(() => import('@/features/auth/JarvisLogin').then(m => ({ default: m.JarvisLogin })))
 const FirstSetup      = lazy(() => import('@/features/auth/FirstSetup').then(m => ({ default: m.FirstSetup })))
-// Strumenti (scorciatoie della sidebar desktop e dell'intestazione moduli su mobile)
-const JarvisBudget    = lazy(() => import('@/features/budget/JarvisBudget').then(m => ({ default: m.JarvisBudget })))
+// Personal Coach: overlay aperto dalla card nell'allenamento
 const JarvisCoach     = lazy(() => import('@/features/coach/JarvisCoach').then(m => ({ default: m.JarvisCoach })))
 
 // ── Suspense fallback ──────────────────────────────────────────
@@ -42,18 +40,18 @@ function TabFallback() {
 }
 
 // ── Tab content ────────────────────────────────────────────────
-function TabContent({ tab, onOpenGym, onOpenProfile, onOpenBudget, onOpenCoach }: {
+function TabContent({ tab, onOpenGym, onOpenHome, onOpenProfile, onOpenCoach }: {
   tab: TabId
   onOpenGym: () => void
+  onOpenHome: () => void
   onOpenProfile: () => void
-  onOpenBudget: () => void
   onOpenCoach: () => void
 }) {
   return (
     <div style={{ position: 'absolute', inset: 0, opacity: 1, overflowY: 'auto' }}>
       <Suspense fallback={<TabFallback/>}>
-        {tab === 'home' && <JarvisDashboard onOpenGym={onOpenGym} onOpenProfile={onOpenProfile} onOpenBudget={onOpenBudget} onOpenCoach={onOpenCoach}/>}
-        {tab === 'gym'  && <JarvisGym/>}
+        {tab === 'home' && <JarvisDashboard onOpenGym={onOpenGym} onOpenProfile={onOpenProfile}/>}
+        {tab === 'gym'  && <JarvisGym onBack={onOpenHome} onOpenCoach={onOpenCoach}/>}
       </Suspense>
     </div>
   )
@@ -237,7 +235,6 @@ export default function App() {
   const [booted, setBooted] = useState(() => readStorage('session', 'jarvis-booted') === '1')
   const [tab, setTab] = useState<TabId>('home')
   const [showProfile, setShowProfile] = useState(false)
-  const [showBudget, setShowBudget] = useState(false)
   const [showCoach, setShowCoach] = useState(false)
   // Le domande del primo accesso sono già state chiuse in questa sessione. Serve
   // perché `profiloVuoto` si aggiorna dallo store un attimo dopo il salvataggio,
@@ -355,10 +352,8 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, loadAttempt])
 
-  // In "Notte" la variante si sceglie qui e `adjustPaletteForDark` va scavalcata: su un
-  // accent near-black quella schiarisce fino a un grigio-talpa, cioè esattamente ciò
-  // che il layout monocromatico non vuole. `accentColor` resta intatto nello store e
-  // torna in vigore appena si rimette il layout standard.
+  // In "Premium" la variante si sceglie qui e `adjustPaletteForDark` va scavalcata.
+  // `accentColor` resta intatto nello store e torna in vigore con il layout standard.
   const basePalette = paletteFor(s.accentColor, s.customAccentHex)
   const palette = premium
     ? MONO_DARK                                        // accent bianco, sempre
@@ -371,9 +366,7 @@ export default function App() {
 
   const handleNavChange = (t: TabId) => {
     setTab(t)
-    if (t === 'gym') fireCoach('gym')
     // Close any open overlay so navigation actually switches the visible screen
-    setShowBudget(false)
     setShowCoach(false)
     setShowProfile(false)
   }
@@ -406,10 +399,10 @@ export default function App() {
     '--j-accent-deep': palette.accentDeep,
     '--j-rgb': palette.rgb,
     '--j-deep-rgb': palette.deepRgb,
-    // Quanto spazio deve lasciare libero una pagina in fondo perché la nav non le
-    // finisca sopra. Le pagine ci sommano il proprio respiro di fine lista.
-    // Su desktop è zero: lì la navigazione è la colonna a sinistra.
-    '--nav-clear': isDesktop ? '0px' : 'calc(96px + env(safe-area-inset-bottom))',
+    // Quanto spazio deve lasciare libero una pagina in fondo. Il tasto di
+    // navigazione in basso non c'è più: resta solo la barra di sistema del telefono.
+    // Le pagine ci sommano il proprio respiro di fine lista.
+    '--nav-clear': isDesktop ? '0px' : 'env(safe-area-inset-bottom)',
   } as React.CSSProperties
 
   if (session === undefined) return null
@@ -465,20 +458,11 @@ export default function App() {
           {!cloudLoading && booted && (
             <TabContent
               tab={tab}
-              onOpenGym={() => { setTab('gym'); fireCoach('gym') }}
-              onOpenProfile={() => { setShowProfile(true); fireCoach('profile') }}
-              onOpenBudget={() => { setShowProfile(false); setShowBudget(true); fireCoach('budget') }}
-              onOpenCoach={() => { setShowProfile(false); setShowCoach(true); fireCoach('coach') }}
+              onOpenGym={() => setTab('gym')}
+              onOpenHome={() => setTab('home')}
+              onOpenProfile={() => setShowProfile(true)}
+              onOpenCoach={() => { setShowProfile(false); setShowCoach(true) }}
             />
-          )}
-
-
-          {/* Nav — mobile only: un tasto solo, che porta all'altra schermata.
-              Con due sole destinazioni non c'era niente da scegliere, e le vecchie
-              varianti "riga"/"laterale" erano tre modi di disegnare lo stesso
-              singolo bottone. */}
-          {!isDesktop && !cloudLoading && booted && (
-            <NucNav active={tab} onChange={handleNavChange} pos={s.navPos ?? 'centro'}/>
           )}
 
           {!cloudLoading && booted && !loadFailed && profiloVuoto && !setupFatto && (
@@ -496,15 +480,10 @@ export default function App() {
           <Suspense fallback={null}>
             <JarvisProfile open={showProfile} onClose={() => setShowProfile(false)}/>
           </Suspense>
-          {/* Ultimo fra i pannelli: il suggerimento deve poter cadere SOPRA la
-              schermata che ha appena spiegato, profilo e strumenti compresi. */}
-          {booted && <CoachMarkHost/>}
           <InstallBanner/>
 
-          {/* Strumenti / extra — overlay disponibili su mobile e desktop (aperti dal
-              menù Strumenti, dai widget di home o dalla sidebar desktop) */}
+          {/* Personal Coach — overlay su mobile e desktop, aperto dall'allenamento */}
           <Suspense fallback={null}>
-            {showBudget && <JarvisBudget onBack={() => setShowBudget(false)}/>}
             {showCoach  && <JarvisCoach  userId={session.user.id} onBack={() => setShowCoach(false)}/>}
           </Suspense>
         </>
@@ -541,9 +520,7 @@ export default function App() {
               <NucSidebarNav
                 active={tab}
                 onChange={handleNavChange}
-                onOpenBudget={() => { setShowProfile(false); setShowBudget(true); fireCoach('budget') }}
-                onOpenProfile={() => { setShowProfile(true); fireCoach('profile') }}
-                onOpenCoach={() => { setShowProfile(false); setShowCoach(true); fireCoach('coach') }}
+                onOpenProfile={() => setShowProfile(true)}
                 userName={s.userName}
               />
             )}
@@ -558,7 +535,7 @@ export default function App() {
                   // content area beside the sidebar), otherwise capped reading width.
                   // La home è a piena larghezza: i suoi moduli sono card indipendenti che
                   // si distribuiscono in colonne, non un testo da leggere in una riga.
-                  maxWidth: (tab === 'home' || showBudget || showCoach) ? 'none' : 800,
+                  maxWidth: (tab === 'home' || showCoach) ? 'none' : 800,
                   height: '100%',
                   position: 'relative',
                   overflow: 'hidden',

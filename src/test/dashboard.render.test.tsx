@@ -7,14 +7,12 @@ import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 
 // La home è la schermata d'ingresso: se non monta, l'app è inutilizzabile.
 // Qui si verifica che monti con lo stato vuoto (utente nuovo), che il tasto
-// "Alleniamoci" e le due scorciatoie a feature chiamino la cosa giusta, e che
-// dei moduli rimossi non resti traccia.
+// "Alleniamoci" e i due comandi sulla riga del saluto chiamino la cosa giusta, e
+// che delle funzioni rimosse non resti traccia.
 
 const props = () => ({
   onOpenGym: vi.fn(),
   onOpenProfile: vi.fn(),
-  onOpenBudget: vi.fn(),
-  onOpenCoach: vi.fn(),
 })
 
 beforeEach(() => {
@@ -27,7 +25,7 @@ describe('JarvisDashboard', () => {
   it('monta con lo stato vuoto e saluta per nome', () => {
     render(<JarvisDashboard {...props()}/>)
     expect(screen.getByText(/Luca/)).toBeInTheDocument()
-    expect(screen.getByText('Widget')).toBeInTheDocument()
+    expect(screen.getByText('Riepilogo complessivo')).toBeInTheDocument()
   })
 
   it('il tasto Alleniamoci porta all’allenamento', async () => {
@@ -39,16 +37,27 @@ describe('JarvisDashboard', () => {
     expect(p.onOpenGym).toHaveBeenCalledOnce()
   })
 
-  it('le due scorciatoie aprono Personal Coach e Budget', async () => {
+  it('Budget e Personal Coach non sono più in home', () => {
+    // Il Budget è stato tolto dall'app; Personal Coach vive fra le card
+    // dell'allenamento.
+    render(<JarvisDashboard {...props()}/>)
+    expect(screen.queryByLabelText('Apri Budget')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Apri Personal Coach')).not.toBeInTheDocument()
+  })
+
+  it('la ricerca globale è un tasto, non più un modulo', async () => {
     const user = userEvent.setup()
-    const p = props()
-    render(<JarvisDashboard {...p}/>)
+    render(<JarvisDashboard {...props()}/>)
+    await user.click(screen.getByLabelText('Ricerca globale'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
 
-    await user.click(screen.getByLabelText('Apri Personal Coach'))
-    expect(p.onOpenCoach).toHaveBeenCalledOnce()
-
-    await user.click(screen.getByLabelText('Apri Budget'))
-    expect(p.onOpenBudget).toHaveBeenCalledOnce()
+  it('toccando la settimana si apre il calendario con la serie di settimane', async () => {
+    const user = userEvent.setup()
+    render(<JarvisDashboard {...props()}/>)
+    await user.click(screen.getByLabelText('Apri il calendario degli allenamenti'))
+    expect(await screen.findByText('I tuoi allenamenti')).toBeInTheDocument()
+    expect(screen.getByText('settimane di fila')).toBeInTheDocument()
   })
 
   it('non è rimasto il menù Strumenti, sostituito dal collegamento diretto', () => {
@@ -56,9 +65,9 @@ describe('JarvisDashboard', () => {
     expect(screen.queryByLabelText('Strumenti')).not.toBeInTheDocument()
   })
 
-  it('la home ha un solo tondo, ed è quello delle impostazioni', async () => {
+  it('la rotella porta alle impostazioni', async () => {
     // Il gestore dei moduli non è più in home: vive nel menù utente, e la rotella
-    // porta lì. I due tondi separati (utente + moduli) sono diventati uno.
+    // porta lì.
     const user = userEvent.setup()
     const p = props()
     render(<JarvisDashboard {...p}/>)

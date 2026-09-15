@@ -120,7 +120,7 @@ export async function redeemCode(code: string, coachName: string): Promise<{ ath
 }
 
 // Il sottoinsieme di stato che l'allenatore può leggere. NON è `JarvisState`:
-// budget, tema e preferenze non escono dal database — vedi il commento in
+// tema e preferenze non escono dal database — vedi il commento in
 // coach_schema.sql, dove il taglio è fatto.
 export interface AthleteData {
   userName?: string

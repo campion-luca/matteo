@@ -5,7 +5,15 @@
 
 export type VistaEsercizi = 'elenco' | 'griglia'
 
-export const VISTA_KEY = 'jarvis-vista-esercizi'
+// La `-v2` rimette tutti sulla griglia (set 2026): è diventata il default voluto
+// sia per gli esercizi sia per i gruppi, e una scelta "elenco" salvata quando la
+// griglia non aveva ancora le immagini non va trascinata avanti.
+export const VISTA_KEY = 'jarvis-vista-esercizi-v2'
+
+// Stessa scelta, ma per l'elenco dei gruppi muscolari: una chiave a parte perché
+// si può volere la griglia degli esercizi (con le foto) e l'elenco compatto dei
+// gruppi, o viceversa.
+export const VISTA_GRUPPI_KEY = 'jarvis-vista-gruppi'
 
 /** La vista con cui si apre la palestra, dato quello che c'è in memoria.
  *

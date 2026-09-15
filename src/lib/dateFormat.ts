@@ -36,6 +36,30 @@ const DAYS_SHORT: Record<Lang, readonly string[]> = {
   de: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
 }
 
+// Nomi interi dei giorni, da lunedì. In italiano minuscoli (vanno dentro la
+// frase: "martedì 15 settembre"), in tedesco maiuscoli come ogni sostantivo.
+const DAYS_LONG: Record<Lang, readonly string[]> = {
+  it: ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'],
+  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+}
+
+/** "martedì 15 settembre" · "Dienstag, 15. September" — la data in cima alla home.
+ *  Senza anno: è sempre oggi, e l'anno lo sa già chi guarda. Prende una `Date`
+ *  locale e non una stringa ISO perché il giorno della settimana va letto dal
+ *  calendario, e da una ISO servirebbe comunque ricostruire la `Date`. */
+export function fmtGiornoLungo(d: Date, lang: Lang = getLang()): string {
+  const giorno = DAYS_LONG[lang][(d.getDay() + 6) % 7]
+  const mese = MONTHS[lang][d.getMonth()]
+  return lang === 'de'
+    ? `${giorno}, ${d.getDate()}. ${mese}`
+    : `${giorno} ${d.getDate()} ${mese.toLowerCase()}`
+}
+
+/** "Settembre 2026" · "September 2026" — il titolo di un mese del calendario. */
+export function fmtMeseAnno(year: number, month: number, lang: Lang = getLang()): string {
+  return `${MONTHS[lang][month]} ${year}`
+}
+
 /** Le iniziali dei sette giorni, da lunedì.
  *
  *  La lingua si può passare esplicitamente: chi chiama da dentro un `useMemo` ha
@@ -96,13 +120,4 @@ export function fmtDayMonth(iso: string): string {
   return getLang() === 'de' ? `${m[3]}.${m[2]}.` : `${m[3]}/${m[2]}`
 }
 
-/** "marzo 2027" · "März 2027" — mese con anno, per le proiezioni del budget.
- *  In italiano va minuscolo dentro la frase; in tedesco resta maiuscolo. */
-export function fmtMonthYear(iso: string): string {
-  const mi = monthIndex(iso)
-  if (mi < 0) return iso
-  const lang = getLang()
-  return lang === 'de'
-    ? `${MONTHS.de[mi]} ${iso.slice(0, 4)}`
-    : `${MONTHS.it[mi].toLowerCase()} ${iso.slice(0, 4)}`
-}
+

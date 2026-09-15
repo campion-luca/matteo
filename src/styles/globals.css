@@ -90,6 +90,13 @@
      l'ingombro è lo stesso in ogni tema), sul vetro bianco come tutto il resto. */
   --accent-edge:   transparent;
 
+  /* Terziario: le rifiniture — titoli di sezione, la data in home, i grassetti.
+     Il colore scelto è #ACC8E5; sulla carta chiara sta a 1.4:1 e sparirebbe, quindi
+     qui `--tertiary-ink` (quello che si usa come testo) è la stessa tinta scurita
+     fino a 4.9:1 su --surface-2. Nei temi scuri i due coincidono. */
+  --tertiary:      #ACC8E5;
+  --tertiary-ink:  #3f6690;
+
   /* Misc */
   --radius:      0px;
   /* Elevazione unica, calda e quasi invisibile (l'inchiostro carta, non il nero freddo). */
@@ -184,6 +191,8 @@
     touch-action: manipulation;
   }
   input, select { font-family: inherit; }
+  /* I grassetti dentro il testo sono una rifinitura: prendono il terziario. */
+  b, strong { color: var(--tertiary-ink); }
   select option { background: var(--surface); color: var(--fg); }
 
   /* iOS Safari zooma la pagina al focus di un campo con font effettivo < 16px.
@@ -330,7 +339,7 @@
     font-family: var(--font-label);
     font-size: clamp(11px, 1.4vw, 12px); font-weight: 600;
     line-height: 1.2; letter-spacing: .16em;
-    color: var(--fg-mute); text-transform: uppercase;
+    color: var(--tertiary-ink); text-transform: uppercase;
   }
 
   /* ── Focus da tastiera ─────────────────────────────────────────
@@ -587,26 +596,20 @@
     overflow: hidden;
   }
 
-  /* Page scroll container — bottom padding clears the docked bottom nav + iOS safe area.
-     `--nav-clear` lo decide App in base allo stile di nav: con la barra "riga" il
-     contenuto si ferma già sopra la barra e resta solo il respiro di fine lista. */
+  /* Page scroll container — il padding in fondo scansa la barra di sistema del
+     telefono (`--nav-clear`, deciso da App) più il respiro di fine lista. */
   .j-scroll-area {
     flex: 1; overflow-y: auto;
-    padding: 0 20px calc(var(--nav-clear, calc(96px + env(safe-area-inset-bottom))) + 24px);
+    padding: 0 20px calc(var(--nav-clear, env(safe-area-inset-bottom)) + 24px);
   }
 
   /* CTA ancorato in fondo a una pagina a colonna (il "Inizia allenamento" di una
      scheda, il "Termina Allenamento" di una sessione).
-     Serve la stessa clearance di .j-scroll-area ma per un motivo diverso: lì il
-     padding scorre col contenuto ed è solo respiro di fine lista, qui il blocco
-     è ancorato in basso, dove sul telefono galleggia il tasto di navigazione. Con
-     i soli 20px di prima la nav cadeva sul CENTRO del bottone — cioè sul punto in
-     cui lo si preme — e, essendo dello stesso accent, ne tagliava a metà la
-     scritta invece di sembrarci sopra. Su desktop --nav-clear è 0 e resta il
-     margine di prima. */
+     Stessa clearance di .j-scroll-area: il blocco è ancorato in basso e deve
+     stare sopra la barra di sistema del telefono. */
   .j-page-cta {
     flex-shrink: 0;
-    padding: 12px 20px calc(var(--nav-clear, calc(96px + env(safe-area-inset-bottom))) + 20px);
+    padding: 12px 20px calc(var(--nav-clear, env(safe-area-inset-bottom)) + 20px);
   }
 
   /* Riga dell'elenco gruppi muscolari. Dentro una scheda già sollevata il tocco
@@ -760,10 +763,17 @@
    che ci scorre sopra ne raccoglie la luce e cambia tono. */
 .dark, .premium {
   --bg:          #000000;
+  /* Due aloni arancioni agli angoli opposti (in alto a sinistra, in basso a
+     destra) danno profondità: il fondo non è più un piano ma una stanza con una
+     luce calda che entra di sbieco. Stanno SOTTO a quelli bianchi nell'elenco,
+     che restano la luce principale. */
   --paper-grain:
     radial-gradient(70% 38% at 50% -4%, rgba(255,255,255,.17), transparent 72%),
     radial-gradient(55% 32% at 104% 42%, rgba(255,255,255,.075), transparent 70%),
-    radial-gradient(60% 34% at -6% 82%, rgba(255,255,255,.085), transparent 70%);
+    radial-gradient(60% 34% at -6% 82%, rgba(255,255,255,.085), transparent 70%),
+    radial-gradient(75% 48% at -10% -8%, rgba(236,112,44,.42), rgba(236,112,44,.12) 45%, transparent 74%),
+    radial-gradient(75% 48% at 110% 108%, rgba(236,112,44,.40), rgba(236,112,44,.11) 45%, transparent 74%);
+  --tertiary-ink: #ACC8E5;
 
   --surface:     rgba(255,255,255,.045);
   --surface-2:   rgba(255,255,255,.085);

@@ -8,12 +8,11 @@
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
 import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, MONO_DARK } from '@/lib/jarvis-tokens'
-import { useStore, useJarvisStore, type LayoutMode, type NavPos } from '@/store/useJarvisStore'
+import { useStore, useJarvisStore, type LayoutMode } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
 import { Icons } from '@/components/ui/Icons'
-import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { HomeModulesManager } from '@/features/dashboard/HomeModulesManager'
 import { supabase } from '@/lib/supabase'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
@@ -121,27 +120,6 @@ function LayoutSwatch({ mode }: { mode: LayoutMode }) {
   )
 }
 
-// Mini-anteprima: uno schermo con il tasto dove finirebbe. Disegnata e non
-// fotografata, come LayoutSwatch, così segue l'accent scelto in quel momento.
-function NavPosPreview({ pos, active }: { pos: NavPos; active: boolean }) {
-  return (
-    <div style={{
-      position: 'relative', width: 30, height: 38, borderRadius: 0,
-      background: 'var(--surface-2)',
-      border: `1px solid ${active ? 'var(--j-accent)' : 'var(--hairline)'}`,
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        position: 'absolute', bottom: 3, width: 9, height: 9,
-        background: 'var(--j-accent)',
-        left:  pos === 'sinistra' ? 3 : pos === 'centro' ? '50%' : undefined,
-        right: pos === 'destra' ? 3 : undefined,
-        transform: pos === 'centro' ? 'translateX(-50%)' : undefined,
-      }}/>
-    </div>
-  )
-}
-
 // `flex: 1` + `minWidth: 0`: nella riga a 3 colonne i campi si dimensionavano sul
 // contenuto, quindi Sesso/Età/Peso venivano di larghezze diverse.
 //
@@ -165,7 +143,6 @@ function StaticField({ label, value }: { label?: string; value: string }) {
 export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
   const [s, set] = useStore()
   const t = useT()
-  const isDesktop = useIsDesktop()
   const [name, setName] = useState(s.userName || '')
   const [editingBody, setEditingBody] = useState(false)
   // I due pannelli dell'aspetto e dei widget. Sono PAGINE dentro le impostazioni,
@@ -397,38 +374,6 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
           </div>
         </Section>
 
-        {/* Posizione del tasto di navigazione. Solo su telefono: sul desktop la
-            navigazione è la colonna a sinistra e questo tasto non esiste. */}
-        {!isDesktop && (
-          <Section title={t('Tasto di navigazione')} hint={t('Da che parte lo trovi in fondo allo schermo.')}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {([
-                { id: 'sinistra', label: t('Sinistra') },
-                { id: 'centro',   label: t('Centro')   },
-                { id: 'destra',   label: t('Destra')   },
-              ] as Array<{ id: NavPos; label: string }>).map(opt => {
-                const active = (s.navPos ?? 'centro') === opt.id
-                return (
-                  <button key={opt.id} onClick={() => set({ navPos: opt.id })} style={{
-                    minHeight: 68, padding: '10px 8px', borderRadius: 0,
-                    background: 'var(--surface)',
-                    border: `2px solid ${active ? 'var(--j-accent)' : 'transparent'}`,
-                    outline: active ? 'none' : '1px solid var(--hairline)',
-                    outlineOffset: -1,
-                    cursor: 'pointer',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                    transition: 'all 220ms',
-                  }}>
-                    <NavPosPreview pos={opt.id} active={active}/>
-                    <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', color: active ? 'var(--fg)' : 'var(--fg-mute)', textTransform: 'uppercase' }}>
-                      {opt.label}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </Section>
-        )}
         </div>
       ) : pannello === 'widget' ? (
         <HomeModulesManager/>

@@ -54,5 +54,6 @@ export const Icons = {
   // I pallini sono pieni perché a 15px un cerchio vuoto di 2 unità di raggio
   // diventa un anello grigio, e tre anelli grigi non sono più tre nodi.
   share:     (p: IconProps = {}) => ic(<><circle cx="18" cy="5" r="2.6" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="2.6" fill="currentColor" stroke="none"/><circle cx="18" cy="19" r="2.6" fill="currentColor" stroke="none"/><path d="M8.4 10.8 15.6 6.4M8.4 13.2l7.2 4.4"/></>, p),
-  wallet:    (p: IconProps = {}) => ic(<><path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1"/><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="13" r="1.2" fill="currentColor" stroke="none"/></>, p),
+  // Fiamma con la lingua interna: la serie di settimane di allenamento di fila.
+  flame:     (p: IconProps = {}) => ic(<><path d="M12 22c4 0 7-2.9 7-7 0-3.2-2-5.6-3.6-7.4-.3 1.8-1.2 3-2.4 3.4C13.4 7.6 12 4.6 9.5 2c.2 3.1-1.3 5.3-3 7.3C5.1 11 5 12.6 5 15c0 4.1 3 7 7 7z"/><path d="M12 22c-1.9 0-3.2-1.4-3.2-3.3 0-1.8 1.3-3 2.1-4.2.3 1 .9 1.6 1.6 1.8.3-1.2 1-2.3 2-3.1.3 2 1 2.9 1 4.9 0 2.4-1.5 3.9-3.5 3.9z"/></>, p),
 }

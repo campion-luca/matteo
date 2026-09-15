@@ -196,7 +196,7 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
       <NucCard pad={16} style={{ marginBottom: 18 }}>
         <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)', marginBottom: 14 }}>
           {t('Genera un codice e dallo a chi ti allena. Vedrà i tuoi allenamenti, il volume e l’andamento del peso —')}{' '}
-          <b>{t('in sola lettura')}</b>. {t('Il budget non esce da questo telefono. Puoi togliergli l’accesso quando vuoi.')}
+          <b>{t('in sola lettura')}</b>. {t('Puoi togliergli l’accesso quando vuoi.')}
         </div>
 
         {invito ? (

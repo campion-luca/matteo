@@ -10,8 +10,6 @@
 import { useState, useMemo } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT, useTData } from '@/lib/i18n'
-import { useIndietro } from '@/lib/indietro'
-import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import type { HyroxExercise, HyroxHistoryEntry } from '@/store/useJarvisStore'
@@ -30,8 +28,6 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
   onUpdate?: (changes: Partial<HyroxExercise>) => void
   isRace?: boolean
 }) {
-  const isDesktop = useIsDesktop()
-  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   // Ordinato per data (letto e riscritto qui, quindi gli indici restano coerenti).
@@ -65,14 +61,9 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
     <div className="flex flex-col h-full overflow-hidden">
       <div className="px-5 pt-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
-          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
-              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
-              fondo non esiste — c'è la sidebar — quindi qui resta. */}
-          {isDesktop && (
-          <button onClick={onBack} className="j-btn-back">
+                    <button onClick={onBack} className="j-btn-back">
             <Icons.chevL size={16} stroke={2}/>
           </button>
-          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5">{ex.target} {ex.unit} · {isRace ? t('Gara Hyrox') : t('Hyrox')}</div>

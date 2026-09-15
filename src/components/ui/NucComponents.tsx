@@ -1,10 +1,7 @@
 import { useState, type ReactNode, type CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
-import { useAzioneIndietro } from '@/lib/indietro'
-import type { MetricId } from '@/lib/metricInfo'
 import { Icons } from './Icons'
-import { InfoDot } from './InfoDot'
 
 // ── Grain overlay (paper texture, very subtle) ─────────────────
 export function NucGrain() {
@@ -156,140 +153,35 @@ export function NucSubTabs({ options, value, onChange, style }: NucSubTabsProps)
 }
 
 // ── Eyebrow label ──────────────────────────────────────────────
-interface NucEyebrowProps { children: ReactNode; right?: ReactNode; info?: MetricId; style?: CSSProperties }
+interface NucEyebrowProps { children: ReactNode; right?: ReactNode; style?: CSSProperties }
 
-export function NucEyebrow({ children, right, info, style }: NucEyebrowProps) {
+export function NucEyebrow({ children, right, style }: NucEyebrowProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 2px', marginBottom: 10, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', color: NUC.faint, textTransform: 'uppercase' }}>{children}</div>
-        {/* La ⓘ sta accanto al titolo di sezione, non ai singoli numeri: vedi InfoDot. */}
-        {info && <InfoDot id={info}/>}
+        {/* Il titolo di sezione è una rifinitura: prende il colore terziario. */}
+        <div style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.16em', color: 'var(--tertiary-ink)', textTransform: 'uppercase' }}>{children}</div>
       </div>
       {right && <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', color: NUC.faint, textTransform: 'uppercase', flexShrink: 0 }}>{right}</div>}
     </div>
   )
 }
 
-// ── Bottom nav ─────────────────────────────────────────────────
+// ── Navigazione ────────────────────────────────────────────────
+// Su telefono non c'è più un tasto di navigazione: dalla home si entra
+// nell'allenamento con "Alleniamoci", e ogni schermata ha la sua freccia in alto
+// a sinistra. Su desktop resta la colonna qui sotto.
 export type TabId = 'home' | 'gym'
 
 export interface NucNavProps { active: TabId; onChange: (t: TabId) => void }
 
-// Da che parte cade il tasto. `centro` resta il default.
-const ALLINEAMENTO: Record<string, 'flex-start' | 'center' | 'flex-end'> = {
-  sinistra: 'flex-start', centro: 'center', destra: 'flex-end',
-}
-
-export function NucNav({ active, onChange, pos = 'centro' }: NucNavProps & { pos?: string }) {
-  const t = useT()
-  const onHome = active === 'home'
-
-  // Con due sole schermate il tasto non apre un menù: porta direttamente
-  // all'altra. Un menù orbitale che si apre per mostrare una voce sola sarebbe
-  // un tocco in più per la stessa destinazione.
-  const destinazione: TabId = onHome ? 'gym' : 'home'
-  const Ico = onHome ? Icons.weight : Icons.home
-  const etichetta = onHome ? t('Vai all’allenamento') : t('Vai alla Home')
-
-  // Chi è aperto sopra la tab dichiara come si torna indietro (vedi lib/indietro).
-  // Dalla home e dalla palestra non torna niente, e il tasto non si disegna: una
-  // freccia che non porta da nessuna parte è peggio di una freccia assente.
-  const indietro = useAzioneIndietro()
-
-  return (
-    <div style={{
-      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40,
-      pointerEvents: 'none',
-      // Appoggiato al fondo: i 10px in più lo tenevano sospeso a metà aria sopra
-      // il bordo, e su un telefono senza notch (dove la safe-area è zero) era
-      // l'unica cosa che lo separava dal bordo dello schermo.
-      paddingBottom: 'calc(env(safe-area-inset-bottom) + 2px)',
-      // A sinistra e a destra non va a filo: il pollice ci arriva, ma un tasto
-      // incollato al bordo si legge come tagliato dallo schermo.
-      paddingLeft: 18, paddingRight: 18,
-      display: 'flex', flexDirection: 'column', alignItems: ALLINEAMENTO[pos] ?? 'center', gap: 5,
-    }}>
-      {/* Il quadrato (con la sua etichetta) è l'unico elemento in flusso: la
-          freccia gli sta accanto in posizione assoluta, così quando compare o
-          sparisce il quadrato resta esattamente dov'era.
-
-          Di norma sta a sinistra del quadrato. Con la nav allineata a sinistra lì
-          ci sono solo i 18px di margine e la freccia uscirebbe dallo schermo:
-          in quel caso passa a destra. */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-        {/* L'ancora è il quadrato e non la colonna: l'etichetta "Allenamento" è
-            più larga di 44px e allargherebbe la distanza dalla freccia. */}
-        <div style={{ position: 'relative' }}>
-          {indietro && (
-            <button
-              onClick={indietro}
-              aria-label={t('Indietro')}
-              className="j-hard j-focus"
-              style={{
-                position: 'absolute', top: 0,
-                ...(pos === 'sinistra' ? { left: 'calc(100% + 8px)' } : { right: 'calc(100% + 8px)' }),
-                // Stessa misura del quadrato accanto ma senza accento: la
-                // destinazione è l'azione principale e resta l'unica colorata.
-                width: 44, height: 44, borderRadius: 0,
-                background: 'var(--surface)', border: '1px solid var(--hairline)',
-                color: 'var(--fg)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                pointerEvents: 'auto',
-              }}
-            >
-              <Icons.chevL size={20} stroke={2}/>
-            </button>
-          )}
-
-          {/* Quadrato, non più una palla: parla la stessa lingua di tutto il resto
-              — angoli vivi e ombra "stampa" (.j-hard), che è anche l'unica cosa
-              che deve dire "si preme". Niente box-shadow/transform inline qui: uno
-              stile inline batte il foglio e spegnerebbe l'ombra in silenzio. */}
-          <button
-            onClick={() => onChange(destinazione)}
-            aria-label={etichetta}
-            className="j-hard j-accent-key j-focus"
-            style={{
-              // 44 e non 54: il quadrato è un bersaglio da dito, e 44px è già la
-              // misura minima buona. L'icona resta a 22 — è lei a dire dove porta,
-              // e rimpicciolirla avrebbe reso il tasto più piccolo E più muto.
-              width: 44, height: 44, borderRadius: 0,
-              // `backgroundColor` e non `background`: lo shorthand inline azzererebbe
-              // il riflesso che `.j-accent-key` stende sopra l'accent.
-              backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', cursor: 'pointer',
-              color: 'var(--j-accent-fg)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              pointerEvents: 'auto',
-            }}
-          >
-            <Ico size={22} stroke={1.9}/>
-          </button>
-        </div>
-        {/* L'icona da sola non dice dove porta: il tasto cambia glifo a ogni
-            schermata, e senza etichetta il manubrio si confonde con la
-            scorciatoia Personal Coach della home. */}
-        <span style={{
-          fontFamily: NUC.label, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em',
-          textTransform: 'uppercase', color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-        }}>{onHome ? t('Allenamento') : t('Home')}</span>
-      </div>
-    </div>
-  )
-}
-
 // ── Desktop sidebar nav ────────────────────────────────────────
 interface SidebarNavProps extends NucNavProps {
-  onOpenBudget?: () => void
-  onOpenCoach?: () => void
   onOpenProfile?: () => void
   userName?: string
 }
 
-// Riga della sidebar: icona a sinistra, etichetta in maiuscoletto. Ne esistevano
-// due copie quasi identiche (le tab e il Budget) prima che la barra si prendesse
-// anche profilo e impostazioni; a quel punto sarebbero diventate cinque.
+// Riga della sidebar: icona a sinistra, etichetta in maiuscoletto.
 function SidebarRow({ icon: Ico, label, onClick, active = false, ariaLabel }: {
   icon: (p?: { size?: number; stroke?: number }) => JSX.Element
   label: string
@@ -330,7 +222,7 @@ function SidebarRow({ icon: Ico, label, onClick, active = false, ariaLabel }: {
 
 const SidebarDivider = () => <div style={{ margin: '8px 0 6px', height: 1, background: 'var(--divider)' }}/>
 
-export function NucSidebarNav({ active, onChange, onOpenBudget, onOpenCoach, onOpenProfile, userName }: SidebarNavProps) {
+export function NucSidebarNav({ active, onChange, onOpenProfile, userName }: SidebarNavProps) {
   const t = useT()
   const navItems: Array<{ id: TabId; icon: (p?: { size?: number; stroke?: number }) => JSX.Element; label: string }> = [
     { id: 'home',   icon: Icons.home,   label: t('Home')        },
@@ -368,12 +260,7 @@ export function NucSidebarNav({ active, onChange, onOpenBudget, onOpenCoach, onO
             active={item.id === active} onClick={() => onChange(item.id)}/>
         ))}
 
-        {/* Strumenti: overlay, non tab, quindi senza stato "attivo". Separati da un
-            filo perché non sono destinazioni di navigazione. */}
-        <SidebarDivider/>
-        <SidebarRow icon={Icons.dumbbell} label={t('Personal Coach')} ariaLabel={t('Apri Personal Coach')} onClick={onOpenCoach}/>
-        <SidebarRow icon={Icons.wallet} label={t('Budget')} ariaLabel={t('Apri Budget')} onClick={onOpenBudget}/>
-
+        {/* Personal Coach non è più qui: sta fra le card dell'allenamento. */}
         {/* Su desktop la chrome vive QUI e non in cima alla home: la barra è già una
             colonna permanente accanto al contenuto, e ripetere gli stessi tondi
             dentro la pagina voleva dire due posti dove cercare la stessa cosa. Su

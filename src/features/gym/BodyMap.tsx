@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
-import { fireCoach } from '@/components/CoachMark'
 import { LEVEL_LABELS, type DistrictStrength, type StrengthLevel } from './gymStrength'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import {
@@ -121,16 +120,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
     return lang === 'de' ? etichetta : etichetta.toLowerCase()
   }
   const [side, setSide] = useState<'front' | 'back'>('front')
-  const [pickedRaw, setPickedRaw] = useState<string | null>(null)
-  const picked = pickedRaw
-
-  // La mappa non ha un tasto che la apre: vive già sulla home. Il primo tocco su
-  // un distretto è il momento in cui l'utente le sta chiedendo qualcosa, ed è lì
-  // che ha senso spiegarle cos'è quel punteggio.
-  const setPicked = (v: React.SetStateAction<string | null>) => {
-    fireCoach('bodyMap')
-    setPickedRaw(v)
-  }
+  const [picked, setPicked] = useState<string | null>(null)
 
   const visibili = (side === 'front' ? FRONT : BACK)
     .map(m => districts.find(d => d.muscle === m))
@@ -153,7 +143,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
       {/* Interruttore fronte/retro */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 12, border: '1px solid var(--hairline)', width: 'fit-content' }}>
         {(['front', 'back'] as const).map(v => (
-          <button key={v} onClick={() => { setSide(v); setPickedRaw(null) }} style={{
+          <button key={v} onClick={() => { setSide(v); setPicked(null) }} style={{
             padding: '5px 12px', borderRadius: 0, border: 'none', cursor: 'pointer',
             background: side === v ? 'var(--j-accent)' : 'transparent',
             color: side === v ? 'var(--j-accent-fg)' : 'var(--fg-soft)',

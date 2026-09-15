@@ -65,30 +65,6 @@ export interface GymScheda {
   draft?: boolean          // true = bozza incompleta (salvata comunque per non perdere il lavoro)
 }
 
-// ── Budget / Finanza ───────────────────────────────────────────
-// Una voce di spesa: mensile (fisse/variabili) o "grossa imminente" (importo
-// totale una tantum, es. tagliando auto o vacanza).
-export interface BudgetItem {
-  id: string
-  name: string
-  amount: number  // €
-}
-// L'obiettivo di risparmio a lungo termine: una cosa che si vuole comprare, con
-// quanto si è già messo da parte e — se c'è — la data entro cui la si vuole.
-export interface BudgetDream {
-  name: string
-  amount: number       // costo totale
-  saved: number        // già accantonato
-  targetDate?: string  // YYYY-MM-DD
-}
-export interface BudgetState {
-  salary: number            // stipendio mensile netto
-  fixed: BudgetItem[]       // spese fisse (ogni mese)
-  variable: BudgetItem[]    // spese eccezionali/variabili (stima mensile: cinema, uscite…)
-  big: BudgetItem[]         // spese grosse imminenti (importo totale una tantum)
-  dream?: BudgetDream       // il "sogno da raggiungere"
-}
-
 // ── Peso ───────────────────────────────────────────────────────
 // Lo storico delle pesate. Stava dentro `kcal` insieme a fabbisogno calorico,
 // obiettivo e proteine; quella parte non esiste più — Matteo misura la forza, non
@@ -98,11 +74,6 @@ export interface WeightLogEntry {
   date: string  // YYYY-MM-DD
   kg: number
 }
-
-// Da che parte sta il tasto di navigazione, su telefono. Non è una preferenza
-// estetica: chi tiene il telefono con la destra arriva male all'angolo sinistro e
-// viceversa, e il tasto è l'unico comando fisso dell'app.
-export type NavPos = 'sinistra' | 'centro' | 'destra'
 
 // Layout dell'app. Trasversale al "tema colore": 'premium' spegne il colore ovunque
 // (accent, gruppi muscolari) e resta sempre nero — vetro, contorni bianchi, niente
@@ -128,16 +99,13 @@ export interface JarvisState {
   userDob?: string     // YYYY-MM-DD
   darkMode?: boolean
   layout?: LayoutMode
-  navPos?: NavPos
   accentColor: AccentColor
   customAccentHex?: string
   hyroxExercises: HyroxExercise[]
   palestraExercises: PalestraExercise[]
   muscleColors: Record<string, string>
   gymSchede: GymScheda[]
-  budget: BudgetState
   weightLog: WeightLogEntry[]
-  onboardingSeen?: string[]  // id delle schede di cui l'intro è già stata mostrata
   /** Quale azzeramento del catalogo è già stato applicato a questo account.
    *  Vive nello stato perché viaggia col blob: il telefono che lo fa lo dice al
    *  portatile, e il portatile non lo rifà. Vedi resetCatalogo.ts. */
@@ -151,20 +119,20 @@ export const EMPTY_STATE: JarvisState = {
   palestraExercises: [],
   muscleColors: {},
   gymSchede: [],
-  budget: { salary: 0, fixed: [], variable: [], big: [] },
   weightLog: [],
 }
 
 // Chiavi che l'app conosce davvero. Sia il cloud sia il localStorage possono
 // portare campi delle schede rimosse (agenda, attività, lavori, readiness,
-// idratazione, ciclo): senza questo filtro rientrerebbero nello store a ogni
+// idratazione, ciclo, budget, i suggerimenti d'uso, la posizione del tasto di
+// navigazione): senza questo filtro rientrerebbero nello store a ogni
 // riavvio e il salvataggio, che manda su l'intero stato, li ripubblicherebbe
 // per sempre.
 const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
-  'darkMode', 'layout', 'navPos', 'accentColor', 'customAccentHex',
+  'darkMode', 'layout', 'accentColor', 'customAccentHex',
   'hyroxExercises', 'palestraExercises', 'muscleColors', 'gymSchede',
-  'budget', 'weightLog', 'onboardingSeen', 'catalogoReset',
+  'weightLog', 'catalogoReset',
 ]
 
 // Il filtro a lista chiusa lavora sul PRIMO livello. Quello che vive più in basso
@@ -242,7 +210,6 @@ const useJarvisStoreBase = create<JarvisState>()(
         return {
           ...current,
           ...p,
-          budget: { ...current.budget, ...(p.budget ?? {}) },
           weightLog: p.weightLog ?? current.weightLog,
         }
       },
@@ -260,15 +227,11 @@ export function useStore(): [JarvisState, (updater: StoreUpdater) => void] {
 
 export { useJarvisStoreBase as useJarvisStore }
 
-// Applica uno stato parziale proveniente dal cloud. `setState` fa un merge
-// SHALLOW al primo livello: un `budget` remoto salvato prima che un campo
-// esistesse sostituirebbe in blocco quello locale, lasciando chiavi a `undefined`
-// → crash su .map/.filter. Qui lo ri-normalizziamo sui default.
+// Applica uno stato parziale proveniente dal cloud, passato dal filtro delle chiavi.
 export function applyRemoteState(data: Partial<JarvisState>): void {
   const known = pickKnown(data)
   useJarvisStoreBase.setState({
     ...known,
-    ...(known.budget ? { budget: { ...EMPTY_STATE.budget, ...known.budget } } : {}),
     // `setState` fonde: una chiave che il blob remoto non ha si terrebbe il
     // valore locale. Per quasi tutto va bene — è quello che salva un campo
     // nuovo quando arriva un blob salvato da una versione vecchia.
@@ -281,13 +244,4 @@ export function applyRemoteState(data: Partial<JarvisState>): void {
     // è già stata fatta, quindi non si ripete mai più e nessuno se ne accorge.
     catalogoReset: known.catalogoReset,
   })
-}
-
-// ── Onboarding ─────────────────────────────────────────────────
-export function markOnboardingSeen(tab: string): void {
-  useJarvisStoreBase.setState(s => (
-    s.onboardingSeen?.includes(tab)
-      ? s
-      : { onboardingSeen: [...(s.onboardingSeen ?? []), tab] }
-  ))
 }

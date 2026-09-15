@@ -18,11 +18,10 @@ describe('filtro delle chiavi di stato', () => {
     // qui manca e il test dice esattamente quale.
     const remote = {
       userName: 'Luca', lang: 'de', userAge: 31, userSex: 'F', userWeight: 78, userHeight: 168, userDob: '1995-03-02',
-      darkMode: true, layout: 'premium', navPos: 'destra', accentColor: 'rose', customAccentHex: '#abcdef',
+      darkMode: true, layout: 'premium', accentColor: 'rose', customAccentHex: '#abcdef',
       hyroxExercises: [], palestraExercises: [], muscleColors: { Petto: '#111111' },
-      gymSchede: [], budget: { salary: 2000, fixed: [], variable: [], big: [] },
+      gymSchede: [],
       weightLog: [{ date: '2026-08-01', kg: 78 }],
-      onboardingSeen: ['hint:gym'],
     } as unknown as Partial<JarvisState>
 
     applyRemoteState(remote)
@@ -50,10 +49,13 @@ describe('filtro delle chiavi di stato', () => {
       hydration: { date: '2026-08-18', ml: 1200 },
       hydrationActivity: 'intensa',
       everydayResetOn: '2026-08-18',
+      budget: { salary: 2000, fixed: [], variable: [], big: [] },
+      onboardingSeen: ['hint:gym'],
+      navPos: 'destra',
     } as unknown as Partial<JarvisState>)
 
     const after = get() as unknown as Record<string, unknown>
-    for (const k of ['events', 'agendaCategories', 'todos', 'companies', 'readinessHistory', 'ciclo', 'hydration', 'hydrationActivity', 'everydayResetOn']) {
+    for (const k of ['events', 'agendaCategories', 'todos', 'companies', 'readinessHistory', 'ciclo', 'hydration', 'hydrationActivity', 'everydayResetOn', 'budget', 'onboardingSeen', 'navPos']) {
       expect(after[k], `"${k}" è rientrato nello store`).toBeUndefined()
     }
     expect(get().userName).toBe('Luca')

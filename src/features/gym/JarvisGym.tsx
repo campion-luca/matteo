@@ -15,7 +15,6 @@ import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
-import { fireCoach } from '@/components/CoachMark'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
   TECHNIQUE_LABELS, MUSCLE_OPTIONS,
@@ -30,19 +29,18 @@ import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
 import { fotoEsercizio } from './eserciziFoto'
-import { vistaIniziale, VISTA_KEY, type VistaEsercizi } from './vistaEsercizi'
+import { vistaIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi } from './vistaEsercizi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { BookmarkRibbon, LineChart } from './gymShared'
 import { useBodyWeight } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
-import { useIndietro } from '@/lib/indietro'
-import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, LogHyroxModal, LogPalestraModal, RecordModal } from './gymModals'
 import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary } from './GymHyrox'
+import { GlobalSearch } from '@/features/search/GlobalSearch'
 
 type MuscleView = 'vol' | 'sessioni'
 
@@ -110,24 +108,24 @@ function GymModeTabs({ value, onChange }: { value: 'palestra' | 'hyrox'; onChang
   )
 }
 
-// Le tre cose che si fanno sull'allenamento, quadrate e affiancate sotto i tab.
-// Quadrate perché sono destinazioni di pari peso: schede, ricerca e statistiche
-// erano finite in tre posti diversi — una riga larga in mezzo alla lista, un
-// campo di testo sempre acceso e una cella di un segmented control — e nessuna
-// delle tre si trovava guardando la schermata.
-function AzioniGym({ attiva, onSchede, onCerca, onStats }: {
+// Le quattro cose che si fanno sull'allenamento, quadrate e affiancate sotto i tab.
+// Quadrate perché sono destinazioni di pari peso. Personal Coach è la prima: stava
+// in home fra le scorciatoie, ma è una cosa che riguarda l'allenamento, e qui
+// sta accanto alle schede che un allenatore ti assegna.
+function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
   attiva: 'cerca' | 'stats' | null
+  onCoach: () => void
   onSchede: () => void
   onCerca: () => void
   onStats: () => void
 }) {
   const t = useT()
-  const card = (id: 'schede' | 'cerca' | 'stats', label: string, icon: JSX.Element, onClick: () => void) => {
+  const card = (id: 'coach' | 'schede' | 'cerca' | 'stats', label: string, icon: JSX.Element, onClick: () => void) => {
     const on = id === attiva
     return (
       <button
         onClick={onClick}
-        aria-pressed={id === 'schede' ? undefined : on}
+        aria-pressed={id === 'schede' || id === 'coach' ? undefined : on}
         className="j-hard"
         style={{
           // `aspectRatio` e non un'altezza fissa: la card resta quadrata dal
@@ -136,23 +134,25 @@ function AzioniGym({ attiva, onSchede, onCerca, onStats }: {
           background: on ? 'var(--j-accent)' : 'var(--surface)',
           border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
           color: on ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7,
+          padding: '0 4px',
           transition: 'background 200ms, border-color 200ms, color 200ms',
         }}
       >
         {icon}
         <span style={{
-          fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.14em',
-          textTransform: 'uppercase',
+          fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.1em',
+          textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2,
         }}>{label}</span>
       </button>
     )
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 10, maxWidth: 420 }}>
-      {card('schede', t('Schede'), <Icons.bookOpen size={26} stroke={1.5}/>, onSchede)}
-      {card('cerca',  t('Cerca'),  <Icons.search   size={26} stroke={1.5}/>, onCerca)}
-      {card('stats',  t('Stats'),  <Icons.chart    size={26} stroke={1.5}/>, onStats)}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 10, maxWidth: 520 }}>
+      {card('coach',  t('Personal Coach'), <Icons.dumbbell size={24} stroke={1.5}/>, onCoach)}
+      {card('schede', t('Schede'), <Icons.bookOpen size={24} stroke={1.5}/>, onSchede)}
+      {card('cerca',  t('Cerca'),  <Icons.search   size={24} stroke={1.5}/>, onCerca)}
+      {card('stats',  t('Stats'),  <Icons.chart    size={24} stroke={1.5}/>, onStats)}
     </div>
   )
 }
@@ -507,8 +507,6 @@ function AchievementsSection({ exercises, bodyWeight }: { exercises: PalestraExe
 function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   ex: PalestraExercise; onBack: () => void; muscleColors: Record<string, string>
 }) {
-  const isDesktop = useIsDesktop()
-  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   const bodyWeight = useBodyWeight()
@@ -531,12 +529,12 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   // pensato per restare distinto in tutti e cinque i temi.
   const charts = [
     {
-      show: kgs.length >= 2, label: t('Carico (kg)'), info: undefined,
+      show: kgs.length >= 2, label: t('Carico (kg)'),
       sub: t('il peso sul bilanciere, sessione per sessione'),
       data: kgs, c: 'var(--j-accent)',
     },
     {
-      show: oneRMs.length >= 2, label: t('Massimale stimato (kg)'), info: 'oneRM' as const,
+      show: oneRMs.length >= 2, label: t('Massimale stimato (kg)'),
       sub: t('quanto alzeresti per una singola: tiene conto anche dei colpi'),
       data: oneRMs, c: 'var(--chart-2)',
     },
@@ -555,10 +553,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
-          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
-              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
-              fondo non esiste — c'è la sidebar — quindi qui resta. */}
-          {isDesktop && <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>}
+          <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{t('Scopri di più')} · {t('{n} sessioni', { n: hist.length })}</div>
@@ -572,7 +567,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
             sua: questa pagina risponde a "come sto andando", e il record è la
             prima riga di quella risposta. */}
         <NucCard pad={14} style={{ marginBottom: 22 }}>
-          <NucEyebrow info="bestLift" style={{ marginBottom: 7 }}>{t('Miglior alzata')}</NucEyebrow>
+          <NucEyebrow style={{ marginBottom: 7 }}>{t('Miglior alzata')}</NucEyebrow>
           {best ? (
             <>
               <div style={{ fontFamily: NUC.label, fontSize: 22, color: NUC.accentSoft, letterSpacing: -0.5, lineHeight: 1 }}>
@@ -591,7 +586,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
         {!any && <div className="j-empty">{t('Servono almeno 2 sessioni per visualizzare i grafici')}</div>}
         {charts.filter(c => c.show).map(c => (
           <div key={c.label} style={{ marginBottom: 22 }}>
-            <NucEyebrow info={c.info}>{c.label}</NucEyebrow>
+            <NucEyebrow>{c.label}</NucEyebrow>
             <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.3, marginTop: -4, marginBottom: 8, paddingLeft: 2 }}>{c.sub}</div>
             <NucCard pad={14}>
               <LineChart data={c.data} labels={dates} pointLabels={c.data.map(String)} height={180} color={c.c} labelSize={11} yAxis/>
@@ -614,8 +609,6 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   muscleColors: Record<string, string>
   onSaveMuscleColor: (muscle: string, color: string | undefined) => void
 }) {
-  const isDesktop = useIsDesktop()
-  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   const bodyWeight = useBodyWeight()
@@ -669,14 +662,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
-          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
-              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
-              fondo non esiste — c'è la sidebar — quindi qui resta. */}
-          {isDesktop && (
-          <button onClick={onBack} className="j-btn-back">
+                    <button onClick={onBack} className="j-btn-back">
             <Icons.chevL size={16} stroke={2}/>
           </button>
-          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{ex.muscle2 ? `${tData(displayMuscle(ex.muscle))} · ${tData(displayMuscle(ex.muscle2))}` : tData(displayMuscle(ex.muscle))}</div>
@@ -913,9 +901,9 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
 // desktop si abbraccia una griglia, e portarsi la scelta dall'uno all'altro
 // sarebbe un dispetto invece che una comodità. Il logout non la tocca — porta
 // via solo il blob dei dati — quindi la scelta sopravvive al prossimo accesso.
-function useVistaEsercizi(): [VistaEsercizi, (v: VistaEsercizi) => void] {
-  const [vista, setVista] = useState<VistaEsercizi>(() => vistaIniziale(readStorage('local', VISTA_KEY)))
-  const cambia = (v: VistaEsercizi) => { setVista(v); writeStorage('local', VISTA_KEY, v) }
+function useVistaEsercizi(chiave: string = VISTA_KEY): [VistaEsercizi, (v: VistaEsercizi) => void] {
+  const [vista, setVista] = useState<VistaEsercizi>(() => vistaIniziale(readStorage('local', chiave)))
+  const cambia = (v: VistaEsercizi) => { setVista(v); writeStorage('local', chiave, v) }
   return [vista, cambia]
 }
 // L'interruttore fra le due viste: due icone, non due parole. Sta nell'occhiello
@@ -1114,6 +1102,57 @@ function ElencoGruppi({ gruppi, muscleColors, onApri }: {
   )
 }
 
+// Griglia dei gruppi: la stessa forma della griglia degli esercizi — fascia
+// illustrata in cima, testo sotto — con il disegno del gruppo al posto della foto.
+function GrigliaGruppi({ gruppi, muscleColors, onApri }: {
+  gruppi: Array<{ muscle: string; items: PalestraExercise[] }>
+  muscleColors: Record<string, string>
+  onApri: (muscle: string) => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 10 }}>
+      {gruppi.map(({ muscle, items }, i) => {
+        const color = muscleColors[muscle] ?? muscleColors.Altro
+        return (
+          <button
+            key={muscle}
+            onClick={() => onApri(muscle)}
+            className="j-hard j-rise-in"
+            style={{
+              animationDelay: `${Math.min(i * 35, 300)}ms`,
+              minWidth: 0, borderRadius: 0, cursor: 'pointer', overflow: 'hidden',
+              background: 'var(--surface)', border: '1px solid var(--hairline)',
+              borderLeft: `3px solid ${color}`,
+              padding: 0, display: 'flex', flexDirection: 'column', textAlign: 'left',
+            }}
+          >
+            <div style={{
+              width: '100%', aspectRatio: '1 / 1', minHeight: 0,
+              background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color, flexShrink: 0,
+            }}>
+              <MuscleIcon muscle={muscle} size={84} stroke={1.5}/>
+            </div>
+            <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
+              <div style={{
+                fontFamily: NUC.font, fontSize: 12.5, fontWeight: 600, color: NUC.ink,
+                textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.15,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{tData(muscle)}</div>
+              <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.06em', color: NUC.faint, marginTop: 3, textTransform: 'uppercase' }}>
+                {items.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: items.length })}
+              </div>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Pagina di un gruppo muscolare (i suoi esercizi) ────────────
 function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, onAddExercise }: {
   muscle: string; color: string; exercises: PalestraExercise[]
@@ -1121,8 +1160,6 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
   onSelectExercise: (ex: PalestraExercise) => void
   onAddExercise: () => void
 }) {
-  const isDesktop = useIsDesktop()
-  useIndietro(onBack)
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
@@ -1135,10 +1172,7 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0 }}><BookmarkRibbon color={color}/></div>
         <div className="flex items-center gap-3">
-          {/* Su telefono la freccia sta in basso, di fianco al tasto Home: la
-              dichiara `useIndietro` e la disegna la nav. Su desktop la nav in
-              fondo non esiste — c'è la sidebar — quindi qui resta. */}
-          {isDesktop && <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>}
+          <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
           <div style={{ color, display: 'flex', flexShrink: 0 }}>
             <MuscleIcon muscle={muscle} size={34} stroke={1.6}/>
           </div>
@@ -1169,7 +1203,7 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
   )
 }
 
-export function JarvisGym() {
+export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenCoach: () => void }) {
   // Selettori granulari: ri-render solo al cambio dei campi palestra usati.
   const s = useJarvisStore(useShallow(st => ({
     hyroxExercises: st.hyroxExercises,
@@ -1212,6 +1246,8 @@ export function JarvisGym() {
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSchede, setShowSchede] = useState(false)
+  const [showRicercaGlobale, setShowRicercaGlobale] = useState(false)
+  const [vistaGruppi, setVistaGruppi] = useVistaEsercizi(VISTA_GRUPPI_KEY)
 
   // Mappa risolta (default + override utente, desaturata in layout "Notte"). Il picker
   // di EditExModal riceve invece `s.muscleColors` raw: vedi sotto.
@@ -1426,10 +1462,10 @@ export function JarvisGym() {
         <ExerciseDetail
           ex={selectedExercise}
           onBack={() => { setSelectedExercise(null); setShowExerciseCharts(false) }}
-          onLog={() => { setLogPalestra(selectedExercise); fireCoach('addLift') }}
+          onLog={() => setLogPalestra(selectedExercise)}
           onUpdate={changes => updatePalestraExercise(selectedExercise, changes)}
           onDelete={() => deletePalestraExercise(selectedExercise)}
-          onOpenCharts={() => { setShowExerciseCharts(true); fireCoach('charts') }}
+          onOpenCharts={() => setShowExerciseCharts(true)}
           noteCoach={noteCoach.filter(n => n.exercise_id === selectedExercise.id)}
           muscleColors={muscleColors}
           onSaveMuscleColor={saveMuscleColor}
@@ -1449,7 +1485,7 @@ export function JarvisGym() {
           color={mColor}
           exercises={muscleExercises}
           onBack={() => setSelectedMuscle(null)}
-          onSelectExercise={ex => { setSelectedExercise(ex); fireCoach('exercise') }}
+          onSelectExercise={ex => setSelectedExercise(ex)}
           onAddExercise={() => setShowAdd(true)}
         />
         {modals}
@@ -1460,8 +1496,12 @@ export function JarvisGym() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="j-page-header">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+        <div className="flex items-center gap-3 mb-4">
+          {/* Senza il tasto di navigazione in basso, è da qui che si torna alla home. */}
+          <button onClick={onBack} className="j-btn-back" aria-label={t('Torna alla home')}>
+            <Icons.chevL size={16} stroke={2}/>
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div className="j-page-title">{t('Allenamento')}</div>
             {/* Il conteggio segue il tab: sul tab Pesi la lista sotto ne mostra 33 e
                 il sottotitolo ne dichiarava 38 (palestra + hyrox). */}
@@ -1471,8 +1511,13 @@ export function JarvisGym() {
               {mode === 'stats'    && t('{n} esercizi tracciati', { n: s.hyroxExercises.length + s.palestraExercises.length })}
             </div>
           </div>
+          {/* La ricerca globale sta a sinistra del "+": è la stessa della home,
+              su esercizi e schede insieme. */}
+          <button onClick={() => setShowRicercaGlobale(true)} className="j-btn-add" aria-label={t('Ricerca globale')} title={t('Ricerca globale')}>
+            <Icons.search size={17} stroke={1.9}/>
+          </button>
           {mode === 'palestra' && (
-            <button onClick={() => setShowAdd(true)} className="j-btn-add">
+            <button onClick={() => setShowAdd(true)} className="j-btn-add" aria-label={t('Nuovo esercizio')}>
               <Icons.plus size={18} stroke={2}/>
             </button>
           )}
@@ -1483,7 +1528,8 @@ export function JarvisGym() {
             statistiche non vuol dire niente — quindi accenderne una spegne l'altra. */}
         <AzioniGym
           attiva={stats ? 'stats' : ricerca ? 'cerca' : null}
-          onSchede={() => { setShowSchede(true); fireCoach('schede') }}
+          onCoach={onOpenCoach}
+          onSchede={() => setShowSchede(true)}
           onCerca={() => {
             if (ricerca) { setRicerca(false); setSearchQuery('') }
             else { setRicerca(true); setStats(false) }
@@ -1594,7 +1640,7 @@ export function JarvisGym() {
                   <div key={ex.id} className="j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}>
                     <PalestraCard
                       ex={ex}
-                      onNavigate={() => { setSelectedExercise(ex); fireCoach('exercise') }}
+                      onNavigate={() => setSelectedExercise(ex)}
                       muscleColors={muscleColors}
                     />
                   </div>
@@ -1606,7 +1652,9 @@ export function JarvisGym() {
                 {/* La riga larga "Schede d'allenamento" non è più qui: era in mezzo
                     alla lista degli esercizi, cioè dentro il contenuto invece che
                     fra i comandi. Adesso è la prima delle tre card sopra. */}
-                <NucEyebrow right={t('{n} esercizi', { n: s.palestraExercises.length })}>{t('Gruppi muscolari')}</NucEyebrow>
+                <NucEyebrow right={<VistaSwitch valore={vistaGruppi} onChange={setVistaGruppi}/>}>
+                  {t('Gruppi muscolari')} · {t('{n} esercizi', { n: s.palestraExercises.length })}
+                </NucEyebrow>
                 {/* Il catalogo entra da solo al primo accesso, ma chi aveva già un
                     profilo quel passaggio non lo rivede più: senza questa riga i
                     trentasette esercizi — e le loro foto — restavano irraggiungibili
@@ -1634,11 +1682,17 @@ export function JarvisGym() {
                 )}
                 {groupedPalestra.length === 0 ? (
                   <div className="j-empty">{t('Nessun esercizio — aggiungine uno con +')}</div>
-                ) : (
+                ) : vistaGruppi === 'elenco' ? (
                   <ElencoGruppi
                     gruppi={groupedPalestra}
                     muscleColors={muscleColors}
-                    onApri={muscle => { setSelectedMuscle(muscle); fireCoach('muscleGroup') }}
+                    onApri={muscle => setSelectedMuscle(muscle)}
+                  />
+                ) : (
+                  <GrigliaGruppi
+                    gruppi={groupedPalestra}
+                    muscleColors={muscleColors}
+                    onApri={muscle => setSelectedMuscle(muscle)}
                   />
                 )}
               </>
@@ -1648,6 +1702,13 @@ export function JarvisGym() {
       </div>
 
       {modals}
+      {/* Dall'allenamento un risultato non ha altrove dove portare: chiude e
+          lascia sulla schermata in cui si è già. */}
+      <GlobalSearch
+        open={showRicercaGlobale}
+        onClose={() => setShowRicercaGlobale(false)}
+        onOpenGym={() => setShowRicercaGlobale(false)}
+      />
     </div>
   )
 }
