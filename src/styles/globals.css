@@ -824,6 +824,14 @@
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
           backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
+/* Safari su iPhone, alla prima pittura di un elemento con `backdrop-filter`,
+   lo mostra per un attimo senza fondo — un lampo chiaro. `backface-visibility`
+   lo mette subito su un livello suo, già pronto quando compare. Non `transform`:
+   i tasti lo usano per la pressione, e un valore di base lo sovrascriverebbe. */
+:is(.dark, .premium) :is(.j-glass, .j-glass-pop, .j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
+  -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
+}
 :is(.dark, .premium) .j-glass-pop {
   -webkit-backdrop-filter: blur(22px) saturate(160%);
           backdrop-filter: blur(22px) saturate(160%);

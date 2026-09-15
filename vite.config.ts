@@ -20,8 +20,10 @@ export default defineConfig({
         // Stessi valori della <meta name="theme-color"> in index.html: il tema
         // di default è la carta avorio, e un nero qui faceva lampeggiare la
         // splash dell'app installata prima del primo frame.
-        theme_color: '#e9e3d4',
-        background_color: '#e9e3d4',
+        // Nero come il tema di default (Premium): è il colore della schermata di
+        // avvio dell'app installata, prima che la pagina carichi.
+        theme_color: '#000000',
+        background_color: '#000000',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

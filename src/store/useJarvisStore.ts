@@ -119,6 +119,10 @@ export interface JarvisState {
 
 export const EMPTY_STATE: JarvisState = {
   userName: '',
+  // Premium è il tema con cui l'app si presenta. Vale per chi la apre la prima
+  // volta e per chi non ha mai scelto un layout: la sua scelta, se c'è, è nel
+  // blob e sovrascrive questo valore.
+  layout: 'premium',
   accentColor: 'green',
   hyroxExercises: [],
   palestraExercises: [],

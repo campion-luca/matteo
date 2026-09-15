@@ -529,6 +529,9 @@ export default function App() {
     <ConfirmDeleteProvider>
       <div className="app-shell" style={{
         background: 'var(--bg)',
+        // Lo stesso fondo del contenitore anche qui: se un giorno qualcosa lascia
+        // scoperto un bordo, sotto non c'è un nero diverso dal resto.
+        backgroundImage: 'var(--paper-grain)',
         display: 'flex',
         alignItems: isDesktop ? 'stretch' : 'center',
         justifyContent: isDesktop ? 'stretch' : 'center',
@@ -577,13 +580,16 @@ export default function App() {
             </div>
           </div>
         ) : (
-          // ── Mobile: centered 420px card ────────────────────────
+          // ── Mobile: a tutta larghezza ──────────────────────────
+          // Era una colonna di 420px centrata: sui telefoni più larghi (iPhone
+          // Plus e Pro Max sono 428-430) ai lati restavano due bande di nero
+          // pieno, fuori dal contenitore che porta gli aloni del fondo.
           <div
             ref={containerRef}
             data-jmodal-root
             style={{
               position: 'relative',
-              width: '100%', maxWidth: 420,
+              width: '100%',
               height: '100%',
               background: NUC.bg,
               backgroundImage: 'var(--paper-grain)',

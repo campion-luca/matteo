@@ -347,7 +347,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
         <Section title={t('Cambio layout')}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: 8 }}>
             {LAYOUTS.map(opt => {
-              const active = (s.layout ?? 'standard') === opt.id
+              const active = (s.layout ?? 'premium') === opt.id
               return (
                 <button key={opt.id} onClick={() => set({ layout: opt.id })} style={{
                   minHeight: 78, padding: '12px 10px', borderRadius: 0,

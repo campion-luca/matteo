@@ -5,7 +5,7 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#e9e3d4" />
+    <meta name="theme-color" content="#000000" />
     <meta name="description" content="Matteo — Personal OS: allenamenti (palestra e Hyrox) e strumenti personali, offline e installabile." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -19,6 +19,22 @@
     <title>Matteo</title>
   </head>
   <body>
+    <!-- Il tema prima di React: senza, la prima pittura usa la carta chiara e poi
+         scatta sul nero quando App monta. Legge lo stesso blob dello store; se non
+         c'è (primo avvio) vale il default, Premium. -->
+    <script>
+      (function () {
+        var layout = 'premium', dark = false
+        try {
+          var s = JSON.parse(localStorage.getItem('jarvis-store-v4') || '{}').state || {}
+          if (s.layout === 'standard') layout = 'standard'
+          dark = !!s.darkMode
+        } catch (e) {}
+        var c = document.documentElement.classList
+        if (layout === 'premium') c.add('premium')
+        if (dark) c.add('dark')
+      })()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -108,7 +108,15 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
 
       {caricamento ? (
         <div className="j-empty">{t('Caricamento…')}</div>
-      ) : ruolo === 'seguito' ? (
+      ) : (
+        <>
+        {/* I due lati restano montati entrambi, e si nasconde quello non scelto.
+            Smontarli e rimontarli a ogni tocco del selettore ricreava card e
+            tasti di vetro, e Safari su iPhone mentre ricrea il `backdrop-filter`
+            li fa lampeggiare chiari: era la banda luminosa che compariva
+            passando a "Segui". Non hanno effetti al montaggio, tenerli vivi non
+            costa niente — e il codice scritto a metà non si perde cambiando lato. */}
+        <div hidden={ruolo !== 'seguito'}>
         <LatoSeguito
           userId={userId}
           userName={userName}
@@ -127,7 +135,8 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
             },
           )}
         />
-      ) : (
+        </div>
+        <div hidden={ruolo !== 'allenatore'}>
         <LatoAllenatore
           userName={userName}
           atleti={atleti}
@@ -144,6 +153,8 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
             },
           )}
         />
+        </div>
+        </>
       )}
     </Pagina>
   )
@@ -612,17 +623,20 @@ function RigaPersona({ nome, sotto, primo, onApri, onRimuovi }: {
 function Bottone({ children, onClick, disabled, variante = 'accent' }: {
   children: React.ReactNode; onClick: () => void; disabled?: boolean; variante?: 'accent' | 'chiaro'
 }) {
-  const accent = variante === 'accent'
+  // Da disabilitato il tasto accent non resta un blocco di accent sbiadito: in
+  // Premium l'accent è bianco, e al 45% diventava una fascia chiara larga quanto
+  // la card. Spento prende l'aspetto del tasto chiaro, e il colore arriva quando
+  // c'è davvero qualcosa da premere.
+  const accent = variante === 'accent' && !disabled
   return (
     <button onClick={onClick} disabled={disabled} className="j-hard" style={{
       flex: 1, width: '100%', minHeight: 44, borderRadius: 0,
       background: accent ? 'var(--j-accent)' : 'var(--surface-2)',
       border: accent ? 'none' : '1px solid var(--hairline)',
-      color: accent ? 'var(--j-accent-fg)' : 'var(--fg)',
+      color: accent ? 'var(--j-accent-fg)' : disabled ? 'var(--fg-mute)' : 'var(--fg)',
       fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
       letterSpacing: '.14em', textTransform: 'uppercase',
       cursor: disabled ? 'default' : 'pointer',
-      opacity: disabled ? 0.45 : 1,
     }}>{children}</button>
   )
 }
