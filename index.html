@@ -27,7 +27,9 @@
         var layout = 'premium', dark = false
         try {
           var s = JSON.parse(localStorage.getItem('jarvis-store-v4') || '{}').state || {}
-          if (s.layout === 'standard') layout = 'standard'
+          // Standard vale solo se scelto DOPO il passaggio a Premium per tutti
+          // (temaVersione 2, vedi TEMA_VERSIONE nello store).
+          if (s.layout === 'standard' && (s.temaVersione || 0) >= 2) layout = 'standard'
           dark = !!s.darkMode
         } catch (e) {}
         var c = document.documentElement.classList

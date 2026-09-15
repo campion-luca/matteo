@@ -115,14 +115,23 @@ export interface JarvisState {
    *  Vive nello stato perché viaggia col blob: il telefono che lo fa lo dice al
    *  portatile, e il portatile non lo rifà. Vedi resetCatalogo.ts. */
   catalogoReset?: string
+  /** Quale passaggio di tema è già stato applicato a questo account (vedi
+   *  `migrateNested`). Viaggia col blob per lo stesso motivo di `catalogoReset`:
+   *  il passaggio va fatto una volta per account, non una per dispositivo. */
+  temaVersione?: number
 }
+
+// La versione del tema corrente. Alzarla rimette tutti gli account sul layout di
+// default una volta, al primo caricamento dopo l'aggiornamento; poi la scelta
+// dell'utente torna a valere.
+export const TEMA_VERSIONE = 2
 
 export const EMPTY_STATE: JarvisState = {
   userName: '',
-  // Premium è il tema con cui l'app si presenta. Vale per chi la apre la prima
-  // volta e per chi non ha mai scelto un layout: la sua scelta, se c'è, è nel
-  // blob e sovrascrive questo valore.
+  // Premium è il tema con cui l'app si presenta, e un account nuovo parte già
+  // alla versione di tema corrente: il passaggio forzato è per chi c'era prima.
   layout: 'premium',
+  temaVersione: TEMA_VERSIONE,
   accentColor: 'green',
   hyroxExercises: [],
   palestraExercises: [],
@@ -141,7 +150,7 @@ const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
   'darkMode', 'layout', 'accentColor', 'customAccentHex',
   'hyroxExercises', 'palestraExercises', 'muscleColors', 'gymSchede',
-  'weightLog', 'catalogoReset',
+  'weightLog', 'catalogoReset', 'temaVersione',
 ]
 
 // Il filtro a lista chiusa lavora sul PRIMO livello. Quello che vive più in basso
@@ -159,6 +168,14 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   const layout = out.layout as string | undefined
   if (layout === 'nero') out.layout = 'premium'
   else if (layout !== undefined && layout !== 'standard' && layout !== 'premium') out.layout = 'standard'
+
+  // Premium diventa il tema di TUTTI, anche di chi aveva scelto Standard: con
+  // l'aggiornamento lo si vede subito. Una volta sola per account: il marcatore
+  // resta nel blob, e chi dopo rimette Standard lo tiene.
+  if ((out.temaVersione ?? 0) < TEMA_VERSIONE) {
+    out.layout = 'premium'
+    out.temaVersione = TEMA_VERSIONE
+  }
 
   // `rir` (ripetizioni in riserva) non è più chiesto né usato: senza questa
   // potatura resterebbe negli oggetti storici e verrebbe risalvato per sempre.

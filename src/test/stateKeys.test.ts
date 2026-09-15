@@ -22,6 +22,7 @@ describe('filtro delle chiavi di stato', () => {
       hyroxExercises: [], palestraExercises: [], muscleColors: { Petto: '#111111' },
       gymSchede: [],
       weightLog: [{ date: '2026-08-01', kg: 78 }],
+      temaVersione: 2,
     } as unknown as Partial<JarvisState>
 
     applyRemoteState(remote)
@@ -120,9 +121,19 @@ describe('filtro delle chiavi di stato', () => {
   // deve atterrare su un layout che esiste, non restare un valore orfano risalvato
   // per sempre.
   it('converte i layout rinominati o rimossi', () => {
-    applyRemoteState({ layout: 'nero' } as unknown as Partial<JarvisState>)
+    applyRemoteState({ layout: 'nero', temaVersione: 2 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('premium')
-    applyRemoteState({ layout: 'notte' } as unknown as Partial<JarvisState>)
+    applyRemoteState({ layout: 'notte', temaVersione: 2 } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('standard')
+  })
+
+  // Con l'aggiornamento tutti passano a Premium, anche chi aveva scelto
+  // Standard — ma una volta sola: chi dopo rimette Standard deve tenerlo.
+  it('porta tutti su Premium una volta, poi rispetta la scelta', () => {
+    applyRemoteState({ layout: 'standard' } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('premium')
+    expect(get().temaVersione).toBe(2)
+    applyRemoteState({ layout: 'standard', temaVersione: 2 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('standard')
   })
 
