@@ -1512,16 +1512,20 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
             </div>
           </div>
           {/* La ricerca globale sta a sinistra del "+": è la stessa della home,
-              su esercizi e schede insieme. */}
-          {/* 38px e icona a 16: la stessa misura dei due tasti quadrati della home. */}
-          <button onClick={() => setShowRicercaGlobale(true)} className="j-btn-add" aria-label={t('Ricerca globale')} title={t('Ricerca globale')} style={{ width: 38, height: 38 }}>
-            <Icons.search size={16} stroke={1.8}/>
-          </button>
-          {mode === 'palestra' && (
-            <button onClick={() => setShowAdd(true)} className="j-btn-add" aria-label={t('Nuovo esercizio')} style={{ width: 38, height: 38 }}>
-              <Icons.plus size={16} stroke={2}/>
+              su esercizi e schede insieme.
+              38px, icona a 16 e 8px fra i due: la stessa misura e la stessa
+              distanza dei due tasti quadrati della home. Stanno in un gruppo loro
+              perché la riga intorno ha il suo gap (12px) fra freccia e titolo. */}
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setShowRicercaGlobale(true)} className="j-btn-add" aria-label={t('Ricerca globale')} title={t('Ricerca globale')} style={{ width: 38, height: 38 }}>
+              <Icons.search size={16} stroke={1.8}/>
             </button>
-          )}
+            {mode === 'palestra' && (
+              <button onClick={() => setShowAdd(true)} className="j-btn-add" aria-label={t('Nuovo esercizio')} style={{ width: 38, height: 38 }}>
+                <Icons.plus size={16} stroke={2}/>
+              </button>
+            )}
+          </div>
         </div>
         <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setRicerca(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null); setSearchQuery('') }}/>
         {/* Cerca e Stats sono interruttori: si ripreme la card per tornare alla
