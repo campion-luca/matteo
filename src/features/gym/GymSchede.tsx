@@ -189,6 +189,21 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
     })
   }
 
+  // Sposta una delle MIE schede di un posto. L'ordine è quello dell'array nello
+  // store, che è anche l'ordine dell'elenco: nessun campo `ordine` da tenere
+  // allineato. Le schede assegnate da un allenatore non ci sono (non stanno nel
+  // blob) e restano sempre in cima.
+  const moveScheda = (id: string, dir: -1 | 1) => {
+    set(st => {
+      const list = [...(st.gymSchede ?? [])]
+      const i = list.findIndex(x => x.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= list.length) return {}
+      ;[list[i], list[j]] = [list[j], list[i]]
+      return { gymSchede: list }
+    })
+  }
+
   const removeScheda = (id: string) => {
     const target = schede.find(s => s.id === id)
     // Una scheda assegnata non è nello store: toglierla dal blob non farebbe
@@ -346,6 +361,8 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
       onNew={() => { setEditing(null); setView('form') }}
       onOpen={sc => { setActive(sc); setView('detail') }}
       onDelete={removeScheda}
+      onMove={moveScheda}
+      mie={mie.map(x => x.id)}
       onReport={() => setView('report')}
     />
   )
@@ -360,7 +377,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
 }
 
 // ── Lista schede ───────────────────────────────────────────────
-function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onReport }: {
+function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onReport, onMove, mie }: {
   schede: GymScheda[]
   /** id scheda → nome dell'allenatore che l'ha assegnata. */
   daCoach: Map<string, string>
@@ -369,9 +386,31 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
   onOpen: (s: GymScheda) => void
   onDelete: (id: string) => void
   onReport: () => void
+  /** Sposta una propria scheda di un posto. */
+  onMove: (id: string, dir: -1 | 1) => void
+  /** Gli id delle proprie schede, nell'ordine dello store: solo queste si spostano. */
+  mie: string[]
 }) {
   const t = useT()
   const hasExercises = schede.some(s => s.exercises.length > 0)
+  // Le frecce: stessa forma di quelle del form della scheda. Il tocco non deve
+  // arrivare alla card, che aprirebbe la scheda.
+  const freccia = (id: string, dir: -1 | 1, attiva: boolean) => (
+    <button
+      onClick={e => { e.stopPropagation(); if (attiva) onMove(id, dir) }}
+      disabled={!attiva}
+      aria-label={dir < 0 ? t('Sposta su') : t('Sposta giù')}
+      title={dir < 0 ? t('Sposta su') : t('Sposta giù')}
+      className="flex items-center justify-center"
+      style={{
+        width: 30, height: 30, borderRadius: 0,
+        background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
+        cursor: attiva ? 'pointer' : 'default', opacity: attiva ? 1 : 0.3,
+      }}
+    >
+      <span style={{ display: 'flex', transform: `rotate(${dir < 0 ? -90 : 90}deg)` }}><Icons.chev size={13} stroke={2}/></span>
+    </button>
+  )
   return (
     <SchedaPage
       onBack={onBack}
@@ -411,6 +450,13 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
                   </div>
                 </div>
                 <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+                  {/* Su e giù solo per le proprie schede, e solo se ce n'è più di una. */}
+                  {mie.length > 1 && mie.includes(s.id) && (
+                    <>
+                      {freccia(s.id, -1, mie.indexOf(s.id) > 0)}
+                      {freccia(s.id, 1, mie.indexOf(s.id) < mie.length - 1)}
+                    </>
+                  )}
                   <button
                     onClick={e => { e.stopPropagation(); onDelete(s.id) }}
                     className="flex items-center justify-center"
