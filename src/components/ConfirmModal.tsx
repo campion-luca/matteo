@@ -50,9 +50,11 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
         aria-labelledby={titleId}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
+        className="j-glass-pop"
         style={{
           width: '100%', maxWidth: 320,
-          background: 'var(--surface)',
+          background: 'var(--surface-pop)',
+          backgroundImage: 'var(--glass-sheen)',
           borderRadius: 0,
           padding: '24px 20px 20px',
           boxShadow: '0 24px 64px rgba(42,36,24,0.45)',

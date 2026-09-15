@@ -113,11 +113,11 @@ export function JModal({ open, onClose, children, title, leading, headerRight, w
         onClick={(e) => e.stopPropagation()}
         // PROTOTIPO ombra hard — vedi .j-hard in globals.css. Sui modali è statica:
         // un modale non si preme.
-        className="j-hard-static"
+        className="j-hard-static j-glass-pop"
         style={{
         width: '100%', maxWidth: width, maxHeight,
-        background: 'var(--surface)',
-        backgroundImage: 'var(--paper-grain)',
+        background: 'var(--surface-pop)',
+        backgroundImage: 'var(--paper-grain), var(--glass-sheen)',
         border: `1px solid var(--fg)`,
         borderRadius: 0,
         color: 'var(--fg)', fontFamily: NUC.font,
@@ -132,7 +132,7 @@ export function JModal({ open, onClose, children, title, leading, headerRight, w
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '14px 16px 10px', gap: 10,
-            borderBottom: '1px solid var(--hairline)',
+            borderBottom: '1px solid var(--divider)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
               {leading}

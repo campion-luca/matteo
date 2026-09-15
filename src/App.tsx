@@ -176,8 +176,8 @@ const PILL_STYLE: React.CSSProperties = {
   position: 'fixed', top: 'calc(env(safe-area-inset-top) + 10px)', left: '50%',
   transform: 'translateX(-50%)', zIndex: 200,
   display: 'flex', alignItems: 'center', gap: 8,
-  padding: '7px 14px', borderRadius: 999,
-  background: 'var(--surface)', border: '1px solid var(--hairline)',
+  padding: '7px 14px', borderRadius: 0,
+  background: 'var(--surface-pop)', border: '1px solid var(--hairline)',
   color: NUC.ink, fontFamily: NUC.font, fontSize: 10.5,
   letterSpacing: '.12em', textTransform: 'uppercase',
   boxShadow: '0 2px 12px rgba(42,36,24,.12)',
@@ -196,7 +196,7 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
 
   if (loadFailed) {
     return (
-      <button onClick={onRetryLoad} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
+      <button onClick={onRetryLoad} className="j-glass-pop" style={{ ...PILL_STYLE, cursor: 'pointer' }}>
         {PILL_DOT}
         {t('Dati cloud non caricati — tocca per riprovare')}
       </button>
@@ -204,7 +204,7 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
   }
   if (status === 'error') {
     return (
-      <button onClick={() => retry?.()} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
+      <button onClick={() => retry?.()} className="j-glass-pop" style={{ ...PILL_STYLE, cursor: 'pointer' }}>
         {PILL_DOT}
         {t('Non sincronizzato — tocca per riprovare')}
       </button>
@@ -212,7 +212,7 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
   }
   if (notice) {
     return (
-      <div role="status" style={PILL_STYLE}>
+      <div role="status" className="j-glass-pop" style={PILL_STYLE}>
         {PILL_DOT}
         {notice}
       </div>

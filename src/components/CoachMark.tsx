@@ -226,12 +226,12 @@ export function CoachMarkHost() {
         aria-modal="true"
         aria-label={hint.title}
         onClick={e => e.stopPropagation()}
-        className="j-hard-static"
+        className="j-hard-static j-glass-pop"
         style={{
           position: 'relative',
           width: '100%', maxWidth: 400,
-          background: 'var(--surface)',
-          backgroundImage: 'var(--paper-grain)',
+          background: 'var(--surface-pop)',
+          backgroundImage: 'var(--paper-grain), var(--glass-sheen)',
           border: '1px solid var(--fg)',
           borderRadius: 0,
           padding: '16px 16px 14px',

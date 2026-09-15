@@ -710,14 +710,14 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
           <button onClick={() => setColor('')} style={{
-            width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', padding: 0,
+            width: 28, height: 28, borderRadius: 0, cursor: 'pointer', padding: 0,
             background: 'var(--surface-2)', border: `2px solid ${!color ? 'var(--fg)' : 'var(--hairline)'}`,
             fontFamily: NUC.label, fontSize: 10, color: NUC.faint,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>A</button>
           {COLOR_PALETTE.map(c => (
             <button key={c} onClick={() => setColor(color === c ? '' : c)} style={{
-              width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
+              width: 28, height: 28, borderRadius: 0, background: c, cursor: 'pointer', padding: 0,
               border: `2px solid ${activeColor === c && color === c ? 'var(--surface)' : 'transparent'}`,
               outline: activeColor === c && color === c ? `2px solid ${c}` : 'none',
               transition: 'outline 120ms',

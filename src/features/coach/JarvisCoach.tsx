@@ -557,7 +557,7 @@ function Pagina({ titolo, onBack, isDesktop, children }: {
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '14px 18px 12px', flexShrink: 0,
-        borderBottom: '1px solid var(--hairline)', background: 'var(--surface)',
+        borderBottom: '1px solid var(--divider)', background: 'var(--surface)',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
         <button onClick={onBack} className="j-btn-back" style={{ width: 34, height: 34 }}>

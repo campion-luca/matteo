@@ -220,7 +220,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
           {/* Senza questa riga il "72" resta un numero senza unità: l'utente
               deve poter sapere dove finisce la scala senza aprire una ⓘ. */}
           <div style={{
-            marginTop: 2, paddingTop: 6, borderTop: '1px solid var(--hairline)',
+            marginTop: 2, paddingTop: 6, borderTop: '1px solid var(--divider)',
             fontFamily: NUC.label, fontSize: 9, letterSpacing: '.08em',
             textTransform: 'uppercase', color: 'var(--fg-mute)',
           }}>

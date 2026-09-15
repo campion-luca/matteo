@@ -895,10 +895,9 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
 
       {scheda.exercises.length > 0 && (
         <div className="j-page-cta">
-          <button onClick={onStart} className="flex items-center justify-center gap-2 w-full" style={{
-            height: 52, borderRadius: 0, background: 'var(--j-accent)', border: 'none',
+          <button onClick={onStart} className="j-hard j-accent-key j-focus flex items-center justify-center gap-2 w-full" style={{
+            height: 52, borderRadius: 0, backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)',
             color: 'var(--j-accent-fg)', cursor: 'pointer', fontFamily: NUC.font, fontSize: 15, fontWeight: 500,
-            boxShadow: '0 6px 18px -6px rgba(42,36,24,0.35)',
           }}>
             <Icons.play size={18}/> {t('Inizia allenamento')}
           </button>
@@ -1301,7 +1300,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             const nonSvolto = r.fatte === 0
             return (
               <div key={r.id} className="flex items-baseline justify-between gap-3" style={{
-                padding: '9px 0', borderBottom: `1px solid ${NUC.hairline}`, opacity: nonSvolto ? 0.55 : 1,
+                padding: '9px 0', borderBottom: '1px solid var(--divider)', opacity: nonSvolto ? 0.55 : 1,
               }}>
                 <div style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {tData(r.name)}

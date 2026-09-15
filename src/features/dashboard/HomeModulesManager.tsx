@@ -68,7 +68,7 @@ export function HomeModulesManager() {
               >
                 <div style={{
                   position: 'absolute', top: 2, left: m.on ? 20 : 2,
-                  width: 16, height: 16, borderRadius: '50%',
+                  width: 16, height: 16, borderRadius: 0,
                   background: m.on ? 'var(--j-accent-fg)' : 'var(--fg-mute)',
                   transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)',
                 }}/>

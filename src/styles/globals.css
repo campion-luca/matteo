@@ -75,6 +75,20 @@
   /* Borders — inchiostro carta */
   --hairline:      rgba(42,36,24,.20);
   --hairline-soft: rgba(42,36,24,.10);
+  /* Righe che dividono DENTRO un blocco (sotto un titolo, fra testata e contenuto).
+     Token a parte perché nei temi a vetro il contorno diventa bianco pieno, e le
+     divisioni interne con lo stesso peso trasformerebbero ogni card in una griglia. */
+  --divider:       rgba(42,36,24,.20);
+
+  /* Superficie degli elementi che GALLEGGIANO sopra altro contenuto (modali, pill,
+     toast): sulla carta coincide con --surface, nei temi a vetro resta più piena
+     perché sotto non c'è il fondo ma testo da non far trasparire. */
+  --surface-pop:   #f7f3e8;
+  /* Riflesso del vetro sopra le card: sulla carta non esiste. */
+  --glass-sheen:   none;
+  /* Contorno dei tasti pieni d'accent: sulla carta nessuno (trasparente, così
+     l'ingombro è lo stesso in ogni tema), sul vetro bianco come tutto il resto. */
+  --accent-edge:   transparent;
 
   /* Misc */
   --radius:      0px;
@@ -338,7 +352,7 @@
      piazzato a mano. Così le sezioni condizionali (la nav, solo su mobile) non
      lasciano più divider orfani o doppi, e lo spazio fra i blocchi è uno solo. */
   .j-profile-sec + .j-profile-sec {
-    border-top: 1px solid var(--hairline);
+    border-top: 1px solid var(--divider);
     padding-top: 20px;
   }
 
@@ -840,6 +854,150 @@
   --card:               0 0% 4%;
   --card-foreground:    0 0% 100%;
   --border:             0 0% 20%;
+}
+
+/* ── Vetro ────────────────────────────────────────────────────────
+   Il restyle dei temi scuri (set 2026): nero pieno con aloni bianchi sul fondo,
+   superfici di vetro smerigliato, contorni bianchi, angoli vivi.
+
+   Vale per tutti i fondi neri — `.dark`, `.nero` e `.mono.dark` — e scavalca i
+   loro token di superficie, bordo e ombra. `.mono.dark` è nella lista perché ha
+   specificità doppia: senza, i suoi grigi opachi vincerebbero su questo blocco.
+   Colori di stato e accent restano quelli di ciascun tema.
+
+   Come si regge il vetro: le superfici sono BIANCO velato, non grigi. Su un fondo
+   uniforme non ci sarebbe niente da smerigliare, per questo il fondo porta gli
+   aloni (`--paper-grain`, che nei contenitori di pagina è già agganciato): la card
+   che ci scorre sopra ne raccoglie la luce e cambia tono. */
+.dark, .nero, .mono.dark {
+  --bg:          #000000;
+  --paper-grain:
+    radial-gradient(70% 38% at 50% -4%, rgba(255,255,255,.17), transparent 72%),
+    radial-gradient(55% 32% at 104% 42%, rgba(255,255,255,.075), transparent 70%),
+    radial-gradient(60% 34% at -6% 82%, rgba(255,255,255,.085), transparent 70%);
+
+  --surface:     rgba(255,255,255,.045);
+  --surface-2:   rgba(255,255,255,.085);
+  --input-bg:    rgba(255,255,255,.055);
+  --surface-pop: rgba(14,14,14,.78);
+  --glass-sheen: linear-gradient(155deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,.015) 38%, transparent 62%, rgba(255,255,255,.035) 100%);
+  --glass-blur:  16px;
+
+  /* Il contorno è bianco: è lui a disegnare ogni blocco. Non pieno al 100% — sul
+     nero un filo bianco puro vibra e fa sembrare più spesso l'intero layout. */
+  --hairline:      rgba(255,255,255,.62);
+  --hairline-soft: rgba(255,255,255,.13);
+  --divider:       rgba(255,255,255,.16);
+  --border:        0 0% 62%;
+
+  --track:  rgba(255,255,255,.12);
+  --scrim:  rgba(0,0,0,.6);
+
+  /* Luce sul bordo alto (il vetro prende luce dallo spigolo) + un'ombra lunga e
+     morbida che lo stacca dagli aloni. */
+  --shadow-card: inset 0 1px 0 rgba(255,255,255,.14), 0 18px 36px -22px rgba(0,0,0,.95);
+  --shadow-pop:  inset 0 1px 0 rgba(255,255,255,.16), 0 24px 48px -16px rgba(0,0,0,.95);
+
+  /* Spessore del tasto: il bordo che si vede SOTTO un controllo a riposo e che
+     sparisce quando lo si preme. Bianco velato, perché sul nero un bordo scuro non
+     esiste; sui tasti accent diventa l'accent profondo (vedi sotto). */
+  --key-edge: rgba(255,255,255,.26);
+  --accent-edge: rgba(255,255,255,.62);
+  --nav-lift: rgba(255,255,255,.24);
+}
+
+/* Le option dei <select> le disegna il sistema su un foglio proprio: un fondo
+   velato lì non ha niente sotto e diventa trasparente sul bianco del menù. */
+:is(.dark, .nero) select option { background: #111; color: #fff; }
+
+/* Smerigliatura. Classe e non token perché `backdrop-filter` non si può spegnere
+   con un valore neutro senza costare comunque un layer GPU a elemento. */
+:is(.dark, .nero) .j-glass {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+          backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+}
+:is(.dark, .nero) .j-glass-pop {
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+          backdrop-filter: blur(22px) saturate(160%);
+}
+
+/* I campi sono vetro anche loro, con la luce sullo spigolo alto. */
+:is(.dark, .nero) .j-field, :is(.dark, .nero) .j-field-lg {
+  border-color: var(--hairline);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+}
+:is(.dark, .nero) .j-field:focus, :is(.dark, .nero) .j-field-lg:focus {
+  border-color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 3px rgba(255,255,255,.12);
+}
+
+/* ── Tasti a pressione (vetro) ──────────────────────────────────
+   Stesso contratto di `.j-hard` (riposo → hover a metà → active a fondo, ingombro
+   costante), ma in verticale e con lo spessore di un tasto vero invece dell'ombra
+   da stampa in diagonale, che sul nero non si vedeva affatto.
+
+   A riposo: luce sullo spigolo alto, spessore `--key-edge` sotto, ombra lunga.
+   Premuto: il tasto scende di tutto lo spessore, lo spessore sparisce e al suo
+   posto compare un'ombra INTERNA — la superficie sembra affondare, non spostarsi. */
+:is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
+  --j-hard-d: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -1px 0 rgba(0,0,0,.35),
+    0 var(--j-hard-d) 0 0 var(--key-edge),
+    0 calc(var(--j-hard-d) + 12px) 22px -12px rgba(0,0,0,.95);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+          backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+}
+:is(.dark, .nero) .j-hard-sm { --j-hard-d: 2px; }
+@media (hover: hover) {
+  :is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
+    --j-hard-h: calc(var(--j-hard-d) / 2);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.26),
+      inset 0 -1px 0 rgba(0,0,0,.35),
+      0 var(--j-hard-h) 0 0 var(--key-edge),
+      0 calc(var(--j-hard-h) + 10px) 20px -12px rgba(0,0,0,.95);
+    transform: translateY(var(--j-hard-h));
+  }
+}
+:is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):active {
+  box-shadow:
+    inset 0 3px 10px rgba(0,0,0,.6),
+    inset 0 1px 2px rgba(0,0,0,.5),
+    0 0 0 0 var(--key-edge);
+  transform: translateY(var(--j-hard-d));
+}
+:is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
+  box-shadow: none;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.dark, .nero) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):is(:hover, :active) { transform: none; }
+}
+
+/* Tasti pieni d'accent: lo spessore è l'accent profondo, e sopra al colore passa
+   un riflesso che scende dallo spigolo — è ciò che lo fa leggere come vetro
+   colorato invece che come un rettangolo di tinta. `.j-accent-key` è per i tasti
+   accent scritti inline (Alleniamoci, la nav, Inizia allenamento). */
+:is(.dark, .nero) :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
+  --key-edge: color-mix(in srgb, var(--j-accent-deep) 55%, #000);
+  border: 1px solid var(--accent-edge);
+  background-image: linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.1) 100%);
+}
+
+/* Card inerti con l'ombra e modali: luce sullo spigolo e ombra lunga, niente spessore. */
+:is(.dark, .nero) .j-hard-flat { box-shadow: var(--shadow-card); }
+:is(.dark, .nero) .j-hard-static { box-shadow: var(--shadow-pop); }
+
+/* Il ghost e il cestino si premevano con uno `scale`: sul vetro affondano come gli altri. */
+:is(.dark, .nero) .j-btn-ghost { box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+:is(.dark, .nero) .j-btn-ghost:active,
+:is(.dark, .nero) .j-btn-del:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.6);
 }
 
 .mono body { background: var(--bg); }

@@ -238,7 +238,7 @@ function DreamPanel({ dream, monthlyLeft, POS, NEG }: {
             <div style={{ width: `${d.pct}%`, height: '100%', background: barColor, transition: 'width 540ms' }}/>
           </div>
 
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--hairline)', fontFamily: NUC.font, fontSize: 12.5, color: NUC.dim, lineHeight: 1.55 }}>
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--divider)', fontFamily: NUC.font, fontSize: 12.5, color: NUC.dim, lineHeight: 1.55 }}>
             {verdict}
           </div>
         </>
@@ -289,7 +289,7 @@ export function JarvisBudget({ onBack }: { onBack: () => void }) {
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '14px 18px 12px', flexShrink: 0,
-        borderBottom: `1px solid var(--hairline)`, background: 'var(--surface)',
+        borderBottom: '1px solid var(--divider)', background: 'var(--surface)',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
         <button onClick={onBack} className="j-btn-back" style={{ width: 34, height: 34 }}>
@@ -329,7 +329,7 @@ export function JarvisBudget({ onBack }: { onBack: () => void }) {
               <SummaryRow label={t('Spese fisse')} value={`− ${fmtEur(r.fixedTotal)}`} color={NUC.dim}/>
               <SummaryRow label={t('Spese variabili')} value={`− ${fmtEur(r.variableTotal)}`} color={NUC.dim}/>
             </div>
-            <div style={{ height: 1, background: 'var(--hairline)', marginBottom: 14 }}/>
+            <div style={{ height: 1, background: 'var(--divider)', marginBottom: 14 }}/>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: NUC.faint }}>
@@ -411,7 +411,7 @@ export function JarvisBudget({ onBack }: { onBack: () => void }) {
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid var(--hairline)`, fontFamily: NUC.font, fontSize: 12.5, color: NUC.dim, lineHeight: 1.5 }}>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--divider)', fontFamily: NUC.font, fontSize: 12.5, color: NUC.dim, lineHeight: 1.5 }}>
                 {r.yearlySaved <= 0
                   ? t('Con le spese attuali non riesci a mettere da parte nulla: rivedi le uscite prima di pianificare spese grosse.')
                   : r.coveredCount === budget.big.length

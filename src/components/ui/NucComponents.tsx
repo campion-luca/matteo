@@ -56,7 +56,8 @@ export function NucCard({ children, style = {}, strong = false, pad = 18, onPres
 
   return (
     <div
-      className={conOmbra ? (sinks ? 'j-hard' : 'j-hard-flat') : undefined}
+      // `j-glass` smeriglia il fondo nei temi scuri (vedi "Vetro" in globals.css).
+      className={`j-glass${conOmbra ? (sinks ? ' j-hard' : ' j-hard-flat') : ''}`}
       // La card è un controllo solo se il click è suo E non c'è già un bottone
       // figlio a portare il nome accessibile: vedi `pressable`.
       role={isControl ? 'button' : undefined}
@@ -71,6 +72,7 @@ export function NucCard({ children, style = {}, strong = false, pad = 18, onPres
         position: 'relative',
         borderRadius: 0, padding: pad,
         background: strong ? NUC.cardStrong : NUC.card,
+        backgroundImage: 'var(--glass-sheen)',
         border: `1px solid ${NUC.hairline}`,
         ...(soft && {
           boxShadow: 'var(--shadow-card)',
@@ -247,13 +249,15 @@ export function NucNav({ active, onChange, pos = 'centro' }: NucNavProps & { pos
           <button
             onClick={() => onChange(destinazione)}
             aria-label={etichetta}
-            className="j-hard j-focus"
+            className="j-hard j-accent-key j-focus"
             style={{
               // 44 e non 54: il quadrato è un bersaglio da dito, e 44px è già la
               // misura minima buona. L'icona resta a 22 — è lei a dire dove porta,
               // e rimpicciolirla avrebbe reso il tasto più piccolo E più muto.
               width: 44, height: 44, borderRadius: 0,
-              background: 'var(--j-accent)', border: 'none', cursor: 'pointer',
+              // `backgroundColor` e non `background`: lo shorthand inline azzererebbe
+              // il riflesso che `.j-accent-key` stende sopra l'accent.
+              backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', cursor: 'pointer',
               color: 'var(--j-accent-fg)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               pointerEvents: 'auto',
@@ -324,7 +328,7 @@ function SidebarRow({ icon: Ico, label, onClick, active = false, ariaLabel }: {
   )
 }
 
-const SidebarDivider = () => <div style={{ margin: '8px 0 6px', height: 1, background: 'var(--hairline)' }}/>
+const SidebarDivider = () => <div style={{ margin: '8px 0 6px', height: 1, background: 'var(--divider)' }}/>
 
 export function NucSidebarNav({ active, onChange, onOpenBudget, onOpenCoach, onOpenProfile, userName }: SidebarNavProps) {
   const t = useT()
@@ -346,7 +350,7 @@ export function NucSidebarNav({ active, onChange, onOpenBudget, onOpenCoach, onO
       zIndex: 40,
     }}>
       {/* Brand */}
-      <div style={{ padding: '28px 20px 22px', borderBottom: '1px solid var(--hairline)' }}>
+      <div style={{ padding: '28px 20px 22px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{
           fontFamily: NUC.label, fontSize: 10, letterSpacing: '.28em',
           color: 'var(--fg-mute)', textTransform: 'uppercase', marginBottom: 5,

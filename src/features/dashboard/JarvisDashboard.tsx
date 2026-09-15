@@ -119,7 +119,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile, onOpenBudget, onOpen
                       tratteggiati: un cerchio vuoto pieno di bordo li avrebbe fatti
                       leggere come "saltato", che non è ancora vero. */}
                   <div style={{
-                    width: 30, height: 30, borderRadius: '50%',
+                    width: 30, height: 30, borderRadius: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: d.trained ? 'var(--j-accent)' : 'transparent',
                     border: d.trained
@@ -297,19 +297,16 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile, onOpenBudget, onOpen
           telefono e su desktop. */}
       <button
         onClick={onOpenGym}
-        className="j-focus"
+        // Pressione, ombra e riflesso arrivano da `.j-hard` e `.j-accent-key`: niente
+        // boxShadow/transform/transition inline, batterebbero il foglio in silenzio.
+        className="j-hard j-accent-key j-focus"
         style={{
           width: '100%', display: 'block',
           marginBottom: isDesktop ? 20 : 16,
           padding: isDesktop ? '13px 18px' : '11px 16px',
           borderRadius: 0, cursor: 'pointer',
-          background: 'var(--j-accent)', border: 'none', color: 'var(--j-accent-fg)',
-          boxShadow: '0 8px 18px -10px rgba(var(--j-rgb),0.55)',
-          transition: 'transform 160ms var(--ease)',
+          backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', color: 'var(--j-accent-fg)',
         }}
-        onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.985)')}
-        onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
-        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
       >
         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <span style={{

@@ -73,13 +73,13 @@ function Section({ title, hint, action, right, children }: {
 function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => void; disabled?: boolean; label: string }) {
   return (
     <button onClick={onClick} disabled={disabled} role="switch" aria-checked={on} aria-label={label} style={{
-      width: 42, height: 24, borderRadius: 12, padding: 0, flexShrink: 0,
+      width: 42, height: 24, borderRadius: 0, padding: 0, flexShrink: 0,
       background: on ? 'var(--j-accent)' : 'var(--surface-2)',
       border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
       cursor: disabled ? 'default' : 'pointer', position: 'relative', opacity: disabled ? 0.6 : 1,
       transition: 'all 220ms',
     }}>
-      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
+      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 0, background: 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
     </button>
   )
 }
@@ -280,7 +280,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '14px 18px 12px',
-        borderBottom: `1px solid var(--hairline)`,
+        borderBottom: '1px solid var(--divider)',
         background: 'var(--surface)',
       }}>
         {/* Il back è uno solo e sa dov'è: da un pannello torna all'elenco, dall'elenco
@@ -350,7 +350,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
                   {active && (
                     <div style={{
                       position: 'absolute', top: 6, right: 6,
-                      width: 14, height: 14, borderRadius: '50%',
+                      width: 14, height: 14, borderRadius: 0,
                       background: p.accent,
                       // la spunta usa currentColor: senza questo eredita l'inchiostro
                       // di pagina e sparisce dentro i pallini scuri.

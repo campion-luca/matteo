@@ -1027,7 +1027,7 @@ function GrigliaEsercizi({ esercizi, color, onApri }: {
           >
             <div style={{
               width: '100%', aspectRatio: '1 / 1', minHeight: 0,
-              background: 'var(--surface-2)', borderBottom: '1px solid var(--hairline)',
+              background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color, flexShrink: 0,
             }}>

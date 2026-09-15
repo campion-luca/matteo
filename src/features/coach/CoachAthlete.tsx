@@ -168,7 +168,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
               <div key={g.iso} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
                 <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: 'var(--fg-mute)', textTransform: 'uppercase' }}>{g.dow}</div>
                 <div style={{
-                  width: 26, height: 26, borderRadius: '50%',
+                  width: 26, height: 26, borderRadius: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: g.trained ? 'var(--j-accent)' : 'transparent',
                   border: `1px solid ${g.trained ? 'var(--j-accent)' : 'var(--hairline)'}`,
@@ -179,7 +179,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 18, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
+          <div style={{ display: 'flex', gap: 18, borderTop: '1px solid var(--divider)', paddingTop: 12 }}>
             {/* Il volume settimanale non c'è più: "20 kg" o "12.400 kg" non dice
                 niente a chi guarda un allievo — non ha un metro con cui
                 confrontarlo, e cambia coi chili spostati, non con l'impegno. Al
@@ -559,7 +559,7 @@ export function UltimoAllenamento({ palestra }: { palestra: PalestraExercise[] }
       <NucCard pad={0}>
         <div style={{
           display: 'flex', gap: 8, padding: '9px 14px',
-          borderBottom: '1px solid var(--hairline)',
+          borderBottom: '1px solid var(--divider)',
           fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em',
           textTransform: 'uppercase', color: 'var(--fg-mute)',
         }}>
