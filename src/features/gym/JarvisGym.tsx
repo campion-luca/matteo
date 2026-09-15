@@ -1513,12 +1513,13 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
           </div>
           {/* La ricerca globale sta a sinistra del "+": è la stessa della home,
               su esercizi e schede insieme. */}
-          <button onClick={() => setShowRicercaGlobale(true)} className="j-btn-add" aria-label={t('Ricerca globale')} title={t('Ricerca globale')}>
-            <Icons.search size={17} stroke={1.9}/>
+          {/* 38px e icona a 16: la stessa misura dei due tasti quadrati della home. */}
+          <button onClick={() => setShowRicercaGlobale(true)} className="j-btn-add" aria-label={t('Ricerca globale')} title={t('Ricerca globale')} style={{ width: 38, height: 38 }}>
+            <Icons.search size={16} stroke={1.8}/>
           </button>
           {mode === 'palestra' && (
-            <button onClick={() => setShowAdd(true)} className="j-btn-add" aria-label={t('Nuovo esercizio')}>
-              <Icons.plus size={18} stroke={2}/>
+            <button onClick={() => setShowAdd(true)} className="j-btn-add" aria-label={t('Nuovo esercizio')} style={{ width: 38, height: 38 }}>
+              <Icons.plus size={16} stroke={2}/>
             </button>
           )}
         </div>
