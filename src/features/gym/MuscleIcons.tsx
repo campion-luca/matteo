@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { displayMuscle } from './gymModel'
 import {
-  BOUNDS, figura, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, type Forma,
+  BOUNDS, figura, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, AVAMBRACCI, type Forma,
 } from './bodyBlocks'
 
 // Icone dei gruppi muscolari: una figura in miniatura con il distretto acceso.
@@ -41,6 +41,12 @@ const GRUPPI: Record<string, Gruppo> = {
   'Petto':     { corpo: FRONTE, acceso: PETTO },
   'Core':      { corpo: FRONTE, acceso: CORE },
   'Bicipiti':  { corpo: FRONTE, acceso: BRACCIA },
+  // Gli avambracci non sono un gruppo di serie — nessun esercizio del catalogo ci
+  // finisce dentro — ma la sagoma esiste già (fanno parte della figura neutra), e
+  // chi si crea il gruppo "Avambracci" deve poterla accendere invece di ripiegare
+  // sul bicipite. Stando qui vale anche come figura automatica per un gruppo
+  // chiamato così: il nome trova la sagoma da solo.
+  'Avambracci': { corpo: FRONTE, acceso: AVAMBRACCI },
   'Gambe':     { corpo: FRONTE, acceso: GAMBE },
   // Dorso, tricipiti e glutei si vedono solo da dietro: mostrarli sulla faccia
   // anteriore vorrebbe dire accendere un blocco dove quel muscolo non c'è.

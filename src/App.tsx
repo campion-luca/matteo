@@ -449,24 +449,6 @@ export default function App() {
     <>
       <NucGrain/>
 
-      {/* La firma. In basso a sinistra e quasi trasparente: è una targhetta, non
-          un'informazione — deve potersi leggere se la si cerca e sparire mentre si
-          usa l'app. `pointerEvents: none` perché non è un bersaglio: sotto ci
-          scorrono le card, e un rettangolo invisibile che mangia i tocchi
-          nell'angolo sarebbe un difetto che nessuno saprebbe spiegarsi.
-          Lo z-index la tiene sopra il fondo e ben sotto modali (90+) e pill (200).
-          Il nome non passa da `t()`: è un nome proprio, non una frase da tradurre. */}
-      <div aria-hidden style={{
-        position: 'absolute', zIndex: 5,
-        left: 'clamp(10px, 3vw, 18px)',
-        bottom: 'calc(env(safe-area-inset-bottom) + 6px)',
-        pointerEvents: 'none',
-        fontFamily: NUC.label, fontSize: 'clamp(8px, 2.2vw, 9.5px)',
-        letterSpacing: '.14em', textTransform: 'uppercase',
-        color: 'var(--fg-mute)', opacity: 0.45,
-      }}>
-        created by Campion Luca
-      </div>
 
       {(!session || recovering) && (
         <Suspense fallback={null}>

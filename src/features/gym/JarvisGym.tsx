@@ -133,12 +133,17 @@ function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
         className="j-hard"
         style={{
           // `aspectRatio` e non un'altezza fissa: la card resta quadrata dal
-          // telefono stretto al desktop, dove la colonna è il doppio.
-          aspectRatio: '1 / 1', minWidth: 0, borderRadius: 0, cursor: 'pointer',
+          // telefono stretto al desktop, dove la colonna è il doppio. Il tetto in
+          // `dvh` la smussa in rettangolo dove l'altezza è la risorsa scarsa: su un
+          // telefono largo quattro card quadrate mangiavano novanta pixel di
+          // schermo prima ancora di arrivare ai gruppi muscolari.
+          aspectRatio: '1 / 1', maxHeight: 'clamp(54px, 9dvh, 92px)',
+          minWidth: 0, borderRadius: 0, cursor: 'pointer',
           background: on ? 'var(--j-accent)' : 'var(--surface)',
           border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
           color: on ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 'clamp(4px, 0.8dvh, 7px)',
           padding: '0 4px',
           transition: 'background 200ms, border-color 200ms, color 200ms',
         }}
@@ -152,11 +157,11 @@ function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
     )
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 10, maxWidth: 520 }}>
-      {card('coach',  t('Personal Coach'), <Icons.dumbbell size={24} stroke={1.5}/>, onCoach)}
-      {card('schede', t('Schede'), <Icons.bookOpen size={24} stroke={1.5}/>, onSchede)}
-      {card('cerca',  t('Cerca'),  <Icons.search   size={24} stroke={1.5}/>, onCerca)}
-      {card('stats',  t('Stats'),  <Icons.chart    size={24} stroke={1.5}/>, onStats)}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'clamp(6px, 2vw, 8px)', marginTop: 10, maxWidth: 520 }}>
+      {card('coach',  t('Personal Coach'), <Icons.dumbbell size={24} stroke={1.5} style={ICONA_AZIONE}/>, onCoach)}
+      {card('schede', t('Schede'), <Icons.bookOpen size={24} stroke={1.5} style={ICONA_AZIONE}/>, onSchede)}
+      {card('cerca',  t('Cerca'),  <Icons.search   size={24} stroke={1.5} style={ICONA_AZIONE}/>, onCerca)}
+      {card('stats',  t('Stats'),  <Icons.chart    size={24} stroke={1.5} style={ICONA_AZIONE}/>, onStats)}
     </div>
   )
 }
@@ -642,6 +647,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   const [editHistEntry, setEditHistEntry] = useState<{ entry: PalestraHistoryEntry; idx: number } | null>(null)
   const { confirmDelete } = useConfirmDelete()
   const color = exColor(ex, muscleColors)
+  const foto = fotoEsercizio(ex.n)
 
   // `current` è il prefill dei prossimi log: dopo aver cancellato o modificato
   // l'ultima sessione restava sui valori vecchi (o su quelli appena eliminati).
@@ -714,6 +720,35 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             primario per un'azione che si fa una volta l'anno. Sotto e basso un
             terzo pesa quanto deve — si trova quando lo si cerca, non si preme per
             sbaglio al posto di "Nuova alzata". */}
+        {/* La miniatura dell'esercizio, sopra il comando che lo registra. È la
+            stessa immagine della griglia da cui si è arrivati: serve a confermare
+            di essere nel posto giusto — con trenta nomi che si somigliano
+            ("Croci ai cavi alti", "Croci ai cavi bassi") la figura lo dice prima
+            del titolo. Chi non ha una foto tiene il disegno del gruppo, come nella
+            griglia: nessun esercizio resta senza.
+            Alta in `dvh` e non in pixel: è decorazione, e su un telefono basso deve
+            cedere il posto allo storico, che è il contenuto. */}
+        <div style={{
+          // Quadrata e centrata, non una fascia a tutta larghezza: stesa su 350px e
+          // alta 170 tagliava a metà un'immagine che è quadrata — nel riquadro
+          // restava il busto, senza testa né ginocchia. La misura la dà l'altezza
+          // dello schermo, con un tetto perché è pur sempre decorazione: sotto c'è
+          // lo storico, che è il contenuto.
+          width: 'min(100%, clamp(112px, 24dvh, 220px))',
+          aspectRatio: '1 / 1',
+          margin: '0 auto 10px',
+          background: 'var(--surface-2)', border: '1px solid var(--hairline)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden', color,
+        }}>
+          {foto
+            // alt vuoto: il nome dell'esercizio è il titolo qui sopra, e ripeterlo
+            // farebbe sentire la stessa cosa due volte a chi usa il lettore di schermo.
+            ? <img src={foto} alt="" loading="lazy" decoding="async"
+                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+            : <MuscleIcon muscle={ex.muscle} size={96} style={{ height: '78%', width: 'auto', maxWidth: '60%' }}/>}
+        </div>
+
         <button onClick={onLog} className="j-btn-accent" style={{ width: '100%', marginBottom: hist.length > 0 ? 6 : 16 }}>
           <Icons.plus size={16} stroke={2}/> {t('Nuova alzata')}
         </button>
@@ -958,11 +993,52 @@ function VistaSwitch({ valore, onChange }: { valore: VistaEsercizi; onChange: (v
 // devono avere lo stesso passo. La colonna minima è a sua volta elastica — su un
 // telefono stretto scende a 88px e ne entrano tre, su uno schermo grande sale a
 // 128 e le card non diventano francobolli allineati a decine.
+// Le card sono più STRETTE di prima, e non è un vezzo: è così che la griglia sta
+// in una schermata senza scorrere. Le illustrazioni degli esercizi sono tutte
+// 512×512, cioè quadrate, e un riquadro quadrato le mostra intere — quindi
+// l'altezza di una card È la sua larghezza, e l'unico modo di abbassare le righe
+// è restringere le colonne. A parità di spazio quattro colonne da 82px occupano
+// tre righe dove tre colonne da 111px ne occupavano quattro.
+//
+// Il tentativo precedente faceva il contrario: teneva le colonne larghe e
+// schiacciava il riquadro con un tetto in altezza. Funzionava per lo scorrimento e
+// rompeva le figure — un'immagine quadrata dentro un riquadro 4:3 con `cover`
+// viene tagliata sopra e sotto, cioè esattamente dove stanno la testa e i piedi.
 const GRIGLIA: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(88px, 26vw, 128px), 1fr))',
-  gap: 'clamp(7px, 2.2vw, 12px)',
+  // Il tetto è basso apposta. `vw` misura la FINESTRA, non la colonna: da desktop
+  // questa griglia vive nella colonna di sinistra dello split, larga 460px, e
+  // 18.5vw lì dentro vale mezzo schermo — quindi a decidere è sempre il massimo.
+  // A 104px la colonna ne teneva tre da 134, cioè quattro righe; a 92 ne tiene
+  // quattro e le righe tornano tre.
+  gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(64px, 18.5vw, 92px), 1fr))',
+  gap: 'clamp(5px, 1.2dvh, 9px)',
 }
+
+// La fascia illustrata in cima a ogni card, gruppi ed esercizi.
+//
+// Quadrata, e deve restarlo: le foto degli esercizi sono 512×512, e in un riquadro
+// quadrato `objectFit: cover` non ritaglia NIENTE — il rapporto coincide. Basta
+// che il riquadro si allarghi o si stringa di un filo perché `cover` cominci a
+// mangiare i bordi dell'illustrazione, che è dove stanno la testa e i piedi.
+// A tenere la griglia dentro una schermata è la larghezza della colonna (vedi
+// GRIGLIA), non un tetto in altezza su questo riquadro.
+const FASCIA: React.CSSProperties = {
+  width: '100%', aspectRatio: '1 / 1', minHeight: 0,
+  background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0,
+}
+
+// Il blocco di testo sotto la fascia: anche il suo respiro segue l'altezza dello
+// schermo, o su un telefono basso si riprenderebbe ciò che la fascia ha ceduto.
+const TESTO_CARD: React.CSSProperties = {
+  padding: 'clamp(4px, 0.7dvh, 8px) 8px clamp(5px, 0.9dvh, 9px)',
+  minWidth: 0, width: '100%',
+}
+
+// Le icone dei quattro comandi: seguono l'altezza come la card che le contiene.
+const ICONA_AZIONE: React.CSSProperties = { width: 'clamp(18px, 4.4dvh, 26px)', height: 'auto' }
 
 // ── La card e la riga "+" ──────────────────────────────────────
 // Aggiungere un gruppo o un esercizio era un tasto nell'intestazione, lontano
@@ -987,13 +1063,10 @@ function CardNuovo({ label, onClick }: { label: string; onClick: () => void }) {
         color: 'var(--j-accent-ink)',
       }}
     >
-      <div style={{
-        width: '100%', aspectRatio: '1 / 1', minHeight: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>
-        <Icons.plus size={34} stroke={1.5} style={{ width: '34%', height: 'auto' }}/>
+      <div style={{ ...FASCIA, background: 'transparent', borderBottom: 'none' }}>
+        <Icons.plus size={34} stroke={1.5} style={{ width: 'clamp(20px, 5dvh, 34px)', height: 'auto' }}/>
       </div>
-      <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
+      <div style={TESTO_CARD}>
         {/* Su due righe e non troncata: i nomi dei gruppi sono parole sole
             ("Petto", "Dorso") e in una riga ci stanno, questa etichetta ne ha due e
             in tre colonne diventava "NUOVO ESERCI…". */}
@@ -1118,12 +1191,7 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
               padding: 0, display: 'flex', flexDirection: 'column', textAlign: 'left',
             }}
           >
-            <div style={{
-              width: '100%', aspectRatio: '1 / 1', minHeight: 0,
-              background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color, flexShrink: 0,
-            }}>
+            <div style={{ ...FASCIA, color }}>
               {foto
                 // alt vuoto di proposito: il nome dell'esercizio è scritto qui
                 // sotto: con l'alt pieno chi usa il lettore di schermo se lo
@@ -1135,7 +1203,7 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
                 // ripiego — l'esercizio senza foto — non il soggetto della card.
                 : <MuscleIcon muscle={ex.muscle} size={52} style={{ height: '52%', width: 'auto', maxWidth: '64%' }}/>}
             </div>
-            <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
+            <div style={TESTO_CARD}>
               <div style={{
                 fontFamily: NUC.font, fontSize: 12.5, fontWeight: 500, color: NUC.ink,
                 lineHeight: 1.15,
@@ -1242,12 +1310,7 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
               padding: 0, display: 'flex', flexDirection: 'column', textAlign: 'left',
             }}
           >
-            <div style={{
-              width: '100%', aspectRatio: '1 / 1', minHeight: 0,
-              background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color, flexShrink: 0,
-            }}>
+            <div style={{ ...FASCIA, color }}>
               {/* La figura è alta il 66% del riquadro invece di 84px fissi. Il
                   riquadro è quadrato e largo quanto la colonna: su un telefono a
                   tre colonne fa ~100px, e una figura di 84 lo riempiva da bordo a
@@ -1259,7 +1322,7 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
                   manubrio dei gruppi sconosciuti ha un viewBox quadrato). */}
               <MuscleIcon muscle={muscle} icon={icone[muscle]} size={84} style={{ height: '66%', width: 'auto', maxWidth: '76%' }}/>
             </div>
-            <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
+            <div style={TESTO_CARD}>
               <div style={{
                 fontFamily: NUC.font, fontSize: 12.5, fontWeight: 600, color: NUC.ink,
                 textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.15,

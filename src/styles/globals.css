@@ -609,7 +609,12 @@
      telefono (`--nav-clear`, deciso da App) più il respiro di fine lista. */
   .j-scroll-area {
     flex: 1; overflow-y: auto;
-    padding: 0 20px calc(var(--nav-clear, env(safe-area-inset-bottom)) + 24px);
+    /* Il respiro di fine lista segue l'altezza dello schermo. Non è cosmesi: questo
+       padding sta DENTRO l'area che scorre, quindi ventiquattro pixel di vuoto in
+       fondo sono ventiquattro pixel che possono far comparire la barra di
+       scorrimento su un telefono basso. La clearance della barra di sistema
+       (`--nav-clear`) invece non si tocca: quella non è respiro, è ingombro. */
+    padding: 0 20px calc(var(--nav-clear, env(safe-area-inset-bottom)) + clamp(10px, 2dvh, 24px));
   }
 
   /* CTA ancorato in fondo a una pagina a colonna (il "Inizia allenamento" di una
@@ -628,9 +633,12 @@
   @media (hover: hover) { .j-riga-gruppo:hover { background: var(--surface-2) !important; } }
   .j-riga-gruppo:active { background: var(--surface-2) !important; }
 
-  /* Page header */
+  /* Page header — il respiro sopra e sotto segue l'altezza dello schermo. Su un
+     telefono basso quaranta pixel di vuoto in cima sono quaranta pixel tolti alla
+     griglia, che è la ragione per cui si è aperta l'app. */
   .j-page-header {
-    padding: 24px 20px 16px; flex-shrink: 0;
+    padding: clamp(12px, 2.4dvh, 24px) 20px clamp(8px, 1.8dvh, 16px);
+    flex-shrink: 0;
   }
 }
 
