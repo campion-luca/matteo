@@ -169,9 +169,7 @@ export const DE_UI: Record<string, string> = {
   'Aggiorna': 'Aktualisieren',
 
   // ── Navigazione ──────────────────────────────────────────────
-  'Home': 'Start',
   'Impostazioni': 'Einstellungen',
-  'Personal OS': 'Personal OS',
 
   // ── Saluti ───────────────────────────────────────────────────
   'Buongiorno': 'Guten Morgen',
@@ -349,12 +347,11 @@ export const DE_UI: Record<string, string> = {
   'Trascina · attiva / disattiva': 'Ziehen · ein- / ausschalten',
   'attivo': 'an',
   'spento': 'aus',
-  'Ordina la home': 'Startseite ordnen',
+  'Ordina il riepilogo': 'Übersicht ordnen',
   'Nessun modulo attivo. Riaccendili da Impostazioni · Cambio widget.':
     'Kein Widget aktiv. Schalte sie unter Einstellungen · Widgets ändern wieder ein.',
 
   // ── Home ─────────────────────────────────────────────────────
-  'Alleniamoci': 'Trainieren wir',
   'La tua settimana': 'Deine Woche',
   'Registra un’alzata: qui vedrai squat, panca piana e stacco da terra.':
     'Trag einen Satz ein: hier erscheinen Kniebeuge, Bankdrücken und Kreuzheben.',
@@ -406,17 +403,14 @@ export const DE_UI: Record<string, string> = {
   'Cerca stazione…': 'Station suchen…',
   'Svuota la ricerca': 'Suche leeren',
   'Nessun esercizio': 'Keine Übung',
+  'Scegli un esercizio per vederne la scheda': 'Wähle eine Übung, um ihr Blatt zu sehen',
+  'Apri un gruppo muscolare, poi un esercizio': 'Öffne eine Muskelgruppe, dann eine Übung',
   'Nessuna stazione': 'Keine Station',
-  'Nessun esercizio — aggiungine uno con +': 'Keine Übung — füg eine mit + hinzu',
-  'Nessun esercizio in {gruppo} — aggiungine uno con +': 'Keine Übung in {gruppo} — füg eine mit + hinzu',
   'Aggiungi gli esercizi di base': 'Die Basisübungen hinzufügen',
   'Ne manca 1, con la sua immagine': '1 fehlt noch, mit ihrem Bild',
   'Ne mancano {n}, con la loro immagine': 'Es fehlen noch {n}, mit ihren Bildern',
   '1 esercizio': '1 Übung',
   '{n} esercizi': '{n} Übungen',
-  '{n} esercizi in palestra': '{n} Übungen im Studio',
-  '{n} esercizi hyrox': '{n} Hyrox-Übungen',
-  '{n} esercizi tracciati': '{n} erfasste Übungen',
   'Vedi in elenco': 'Als Liste anzeigen',
   'Vedi in griglia': 'Als Raster anzeigen',
   'Nessuna alzata': 'Kein Satz',
@@ -561,6 +555,16 @@ export const DE_UI: Record<string, string> = {
   'Distanza / Ripetizioni': 'Distanz / Wiederholungen',
   'Kg (opzionale)': 'Kg (optional)',
   'Pace': 'Pace',
+  'Profilo': 'Profil',
+  'Nuovo gruppo': 'Neue Gruppe',
+  'Nuovo gruppo muscolare': 'Neue Muskelgruppe',
+  'Es. Avambracci': 'Z. B. Unterarme',
+  'Esiste già un gruppo con questo nome': 'Eine Gruppe mit diesem Namen gibt es bereits',
+  'Colore': 'Farbe',
+  'Figura': 'Figur',
+  'Crea gruppo': 'Gruppe erstellen',
+  'Chiudi il profilo': 'Profil schließen',
+  'Pesati ogni mattina appena sveglio, a stomaco vuoto: è l’unico modo perché due misure siano confrontabili. Conta la direzione, non il numero di oggi.': 'Wiege dich jeden Morgen direkt nach dem Aufstehen, nüchtern: nur so sind zwei Messungen vergleichbar. Es zählt die Richtung, nicht die Zahl von heute.',
   'Salva': 'Speichern',
   'Modifica sessione': 'Einheit bearbeiten',
   'Quantità': 'Menge',
@@ -636,8 +640,6 @@ export const DE_UI: Record<string, string> = {
   'Altezza (cm)': 'Größe (cm)',
   'Altezza': 'Größe',
   'Data di nascita': 'Geburtsdatum',
-  'Registralo quando ti pesi: conta la direzione, non il numero di oggi.':
-    'Trag es ein, wenn du dich wiegst: es zählt die Richtung, nicht die Zahl von heute.',
   'Peso di oggi in kg': 'Heutiges Gewicht in kg',
   'Registra': 'Eintragen',
   '{d} kg dalla prima delle {n} pesate': '{d} kg seit der ersten von {n} Wiegungen',
@@ -667,6 +669,12 @@ export const DE_UI: Record<string, string> = {
   'Malva': 'Malve',
   'scuro': 'dunkel',
   'Cambio layout': 'Layout ändern',
+  'Sfondo fuso': 'Verschmolzener Hintergrund',
+  'Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.':
+    'Schwarz, Orange und Blaugrau ineinander verlaufend statt nur warmer Lichthöfe. Gilt für die dunklen Themen.',
+  'Sfondo in movimento': 'Hintergrund in Bewegung',
+  'Gli aloni scorrono lentamente e non si fermano mai. Si muove solo il fondo, il resto della pagina non si ridisegna.':
+    'Die Lichthöfe ziehen langsam und ohne Unterbrechung. Nur der Hintergrund bewegt sich, der Rest der Seite wird nicht neu gezeichnet.',
   'Standard': 'Standard',
   'I colori del tema scelto sopra.': 'Die Farben des oben gewählten Themas.',
   'Premium': 'Premium',
@@ -726,5 +734,4 @@ export const DE_UI: Record<string, string> = {
   'Massimali ipotetici': 'Geschätzte Maximalwerte',
   'Il total compare con tutte e tre le alzate': 'Das Total erscheint mit allen drei Übungen',
   'Riepilogo complessivo': 'Gesamtübersicht',
-  'Torna alla home': 'Zurück zur Startseite',
 }

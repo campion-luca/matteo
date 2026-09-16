@@ -3,8 +3,7 @@ import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
 import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, MONO_DARK } from '@/lib/jarvis-tokens'
-import { NucGrain, NucSidebarNav } from '@/components/ui/NucComponents'
-import type { TabId } from '@/components/ui/NucComponents'
+import { NucGrain } from '@/components/ui/NucComponents'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { UpdateToast } from '@/components/UpdateToast'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
@@ -23,7 +22,6 @@ import { readStorage, writeStorage, removeStorage } from '@/lib/safeStorage'
 
 // ── Lazy-loaded features ───────────────────────────────────────
 const JarvisBoot      = lazy(() => import('@/features/boot/JarvisBoot').then(m => ({ default: m.JarvisBoot })))
-const JarvisDashboard = lazy(() => import('@/features/dashboard/JarvisDashboard').then(m => ({ default: m.JarvisDashboard })))
 const JarvisGym       = lazy(() => import('@/features/gym/JarvisGym').then(m => ({ default: m.JarvisGym })))
 const JarvisProfile   = lazy(() => import('@/features/profile/JarvisProfile').then(m => ({ default: m.JarvisProfile })))
 const JarvisLogin     = lazy(() => import('@/features/auth/JarvisLogin').then(m => ({ default: m.JarvisLogin })))
@@ -40,19 +38,21 @@ function TabFallback() {
   )
 }
 
-// ── Tab content ────────────────────────────────────────────────
-function TabContent({ tab, onOpenGym, onOpenHome, onOpenProfile, onOpenCoach }: {
-  tab: TabId
-  onOpenGym: () => void
-  onOpenHome: () => void
+// ── Il contenuto dell'app ──────────────────────────────────────
+// Una schermata sola. C'erano due tab — "Home" e "Allenamento" — e la home era una
+// pagina di passaggio: un saluto, un tasto grande per entrare nell'allenamento e
+// un riquadro di riepilogo. Adesso l'allenamento È la pagina d'ingresso, il saluto
+// gli sta in cima (SalutoHeader) e il riepilogo si apre da Stats. Senza un secondo
+// posto dove andare, la navigazione a tab non ha più niente da commutare.
+function Contenuto({ onOpenProfile, onOpenUser, onOpenCoach }: {
   onOpenProfile: () => void
+  onOpenUser: () => void
   onOpenCoach: () => void
 }) {
   return (
     <div style={{ position: 'absolute', inset: 0, opacity: 1, overflowY: 'auto' }}>
       <Suspense fallback={<TabFallback/>}>
-        {tab === 'home' && <JarvisDashboard onOpenGym={onOpenGym} onOpenProfile={onOpenProfile}/>}
-        {tab === 'gym'  && <JarvisGym onBack={onOpenHome} onOpenCoach={onOpenCoach}/>}
+        <JarvisGym onOpenCoach={onOpenCoach} onOpenProfile={onOpenProfile} onOpenUser={onOpenUser}/>
       </Suspense>
     </div>
   )
@@ -251,8 +251,9 @@ export default function App() {
   // true = al mount il bridge deve spingere subito il locale (modifiche offline).
   const [pushOnMount, setPushOnMount] = useState(false)
   const [booted, setBooted] = useState(() => readStorage('session', 'jarvis-booted') === '1')
-  const [tab, setTab] = useState<TabId>('home')
-  const [showProfile, setShowProfile] = useState(false)
+  // Quale delle due porte è aperta: le impostazioni dell'app o il profilo (nome,
+  // dati, peso). Una sola alla volta, e `null` quando non c'è niente aperto.
+  const [profilo, setProfilo] = useState<null | 'impostazioni' | 'utente'>(null)
   const [showCoach, setShowCoach] = useState(false)
   // Le domande del primo accesso sono già state chiuse in questa sessione. Serve
   // perché `profiloVuoto` si aggiorna dallo store un attimo dopo il salvataggio,
@@ -279,6 +280,18 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('premium', premium)
   }, [premium])
+
+  // Le due prove sul fondo (vedi "Sfondo fuso" e "Sfondo in movimento" in
+  // globals.css). Assenti dallo stato = accese: sono il fondo con cui l'app si
+  // presenta ora, e chi non le vuole le spegne da Impostazioni · Aspetto.
+  const bgFuso  = s.bgFuso  ?? true
+  const bgAnim  = s.bgAnim  ?? true
+  useEffect(() => {
+    document.documentElement.classList.toggle('bg-fusione', bgFuso)
+  }, [bgFuso])
+  useEffect(() => {
+    document.documentElement.classList.toggle('bg-anim', bgAnim)
+  }, [bgAnim])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -395,13 +408,6 @@ export default function App() {
     setBooted(true)
   }
 
-  const handleNavChange = (t: TabId) => {
-    setTab(t)
-    // Close any open overlay so navigation actually switches the visible screen
-    setShowCoach(false)
-    setShowProfile(false)
-  }
-
   // "Premium" ha il fondo scuro anche con l'interruttore chiaro/scuro spento: chi
   // calcola la leggibilità deve saperlo, o spingerebbe l'accent verso la carta
   // chiara mentre sta su nero pieno.
@@ -442,6 +448,25 @@ export default function App() {
   const innerContent = (
     <>
       <NucGrain/>
+
+      {/* La firma. In basso a sinistra e quasi trasparente: è una targhetta, non
+          un'informazione — deve potersi leggere se la si cerca e sparire mentre si
+          usa l'app. `pointerEvents: none` perché non è un bersaglio: sotto ci
+          scorrono le card, e un rettangolo invisibile che mangia i tocchi
+          nell'angolo sarebbe un difetto che nessuno saprebbe spiegarsi.
+          Lo z-index la tiene sopra il fondo e ben sotto modali (90+) e pill (200).
+          Il nome non passa da `t()`: è un nome proprio, non una frase da tradurre. */}
+      <div aria-hidden style={{
+        position: 'absolute', zIndex: 5,
+        left: 'clamp(10px, 3vw, 18px)',
+        bottom: 'calc(env(safe-area-inset-bottom) + 6px)',
+        pointerEvents: 'none',
+        fontFamily: NUC.label, fontSize: 'clamp(8px, 2.2vw, 9.5px)',
+        letterSpacing: '.14em', textTransform: 'uppercase',
+        color: 'var(--fg-mute)', opacity: 0.45,
+      }}>
+        created by Campion Luca
+      </div>
 
       {(!session || recovering) && (
         <Suspense fallback={null}>
@@ -487,12 +512,10 @@ export default function App() {
           )}
 
           {!cloudLoading && booted && (
-            <TabContent
-              tab={tab}
-              onOpenGym={() => setTab('gym')}
-              onOpenHome={() => setTab('home')}
-              onOpenProfile={() => setShowProfile(true)}
-              onOpenCoach={() => { setShowProfile(false); setShowCoach(true) }}
+            <Contenuto
+              onOpenProfile={() => setProfilo('impostazioni')}
+              onOpenUser={() => setProfilo('utente')}
+              onOpenCoach={() => { setProfilo(null); setShowCoach(true) }}
             />
           )}
 
@@ -509,7 +532,7 @@ export default function App() {
           )}
 
           <Suspense fallback={null}>
-            <JarvisProfile open={showProfile} onClose={() => setShowProfile(false)}/>
+            <JarvisProfile open={!!profilo} sezione={profilo ?? 'impostazioni'} onClose={() => setProfilo(null)}/>
           </Suspense>
           <InstallBanner/>
 
@@ -539,44 +562,34 @@ export default function App() {
       }}>
         {isDesktop ? (
           // ── Desktop: full-width sidebar + content ──────────────
-          <div style={{
+          <div className="j-bg-fondo" style={{
             flex: 1,
             display: 'flex',
             height: '100%',
             background: NUC.bg,
-            backgroundImage: 'var(--paper-grain)',
             fontFamily: NUC.font,
             color: NUC.ink,
             overflow: 'hidden',
+            position: 'relative',
             ...cssVars,
           }}>
-            {session && !cloudLoading && booted && (
-              <NucSidebarNav
-                active={tab}
-                onChange={handleNavChange}
-                onOpenProfile={() => setShowProfile(true)}
-                userName={s.userName}
-              />
-            )}
-            {/* Centering wrapper — caps width and shows background on sides */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
-              <div
-                ref={containerRef}
-                data-jmodal-root
-                style={{
-                  width: '100%',
-                  // Full-width when a tool overlay is open (so its top bar spans the whole
-                  // content area beside the sidebar), otherwise capped reading width.
-                  // La home è a piena larghezza: i suoi moduli sono card indipendenti che
-                  // si distribuiscono in colonne, non un testo da leggere in una riga.
-                  maxWidth: (tab === 'home' || showCoach) ? 'none' : 800,
-                  height: '100%',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                {innerContent}
-              </div>
+            {/* Area di contenuto. Non è più una colonna di 800px centrata: da
+                desktop le pagine si aprono ACCANTO all'elenco che le ha aperte
+                (vedi SplitPane), e la seconda colonna ha bisogno dello spazio
+                che il cappello si teneva come margine. La larghezza di lettura la
+                decide adesso ogni pannello per conto suo. */}
+            <div
+              ref={containerRef}
+              data-jmodal-root
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: '100%',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              {innerContent}
             </div>
           </div>
         ) : (
@@ -587,12 +600,12 @@ export default function App() {
           <div
             ref={containerRef}
             data-jmodal-root
+            className="j-bg-fondo"
             style={{
               position: 'relative',
               width: '100%',
               height: '100%',
               background: NUC.bg,
-              backgroundImage: 'var(--paper-grain)',
               overflow: 'hidden',
               fontFamily: NUC.font,
               color: NUC.ink,

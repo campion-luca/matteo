@@ -16,10 +16,10 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_OPTIONS, MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum } from './gymModel'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, type RecordItem } from './gymModals'
-import { useBodyWeight } from './gymHooks'
+import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { useMuscleColors } from './useMuscleColors'
 import { fotoEsercizio } from './eserciziFoto'
 import { MuscleIcon } from './MuscleIcons'
@@ -489,6 +489,9 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const tData = useTData()
   // Il form leggeva i colori da una mappa vuota, ignorando le personalizzazioni utente.
   const muscleColors = useMuscleColors()
+  // Anche i gruppi creati dall'utente: una riga di scheda deve poter puntare a
+  // "Avambracci" come a "Petto".
+  const gruppi = useGruppiMuscolari()
   // Id e data di creazione stabili per tutta la sessione del form: così un salvataggio
   // "bozza" e il successivo salvataggio "pieno" aggiornano la STESSA scheda (niente doppioni).
   const [schedaId] = useState(() => scheda?.id ?? uid('sc'))
@@ -752,7 +755,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   </div>
                   <select value={r.muscle} onChange={e => patch(r.id, { muscle: e.target.value })} className="j-field">
                     <option value="">{t('Scegli il gruppo…')}</option>
-                    {MUSCLE_OPTIONS.map(m => <option key={m} value={m}>{tData(m)}</option>)}
+                    {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
                   </select>
                 </div>
               )}

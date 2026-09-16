@@ -70,6 +70,23 @@ export interface GymScheda {
   draft?: boolean          // true = bozza incompleta (salvata comunque per non perdere il lavoro)
 }
 
+// ── Gruppi muscolari creati dall'utente ────────────────────────
+// Gli otto distretti di serie stanno in `MUSCLE_OPTIONS` (gymModel): sono una
+// costante perché sono anche le chiavi delle figure e dei colori di default.
+// Questi sono quelli che l'utente aggiunge, e vivono nello stato perché sono suoi
+// e devono seguirlo da un dispositivo all'altro.
+//
+// Il COLORE non è qui: sta in `muscleColors`, la stessa mappa che tiene gli
+// override dei gruppi di serie. Duplicarlo vorrebbe dire due posti da cui leggere
+// il colore di un gruppo, e il picker della palestra scrive già lì.
+export interface CustomMuscle {
+  /** Il nome È la chiave: finisce in `ex.muscle` e in `muscleColors`. */
+  name: string
+  /** Quale figura accendere: uno dei gruppi di serie (Petto, Dorso, …). Le
+   *  sagome esistono solo per quegli otto — vedi MuscleIcons. */
+  icon: string
+}
+
 // ── Peso ───────────────────────────────────────────────────────
 // Lo storico delle pesate. Stava dentro `kcal` insieme a fabbisogno calorico,
 // obiettivo e proteine; quella parte non esiste più — Matteo misura la forza, non
@@ -104,11 +121,18 @@ export interface JarvisState {
   userDob?: string     // YYYY-MM-DD
   darkMode?: boolean
   layout?: LayoutMode
+  /** Sfondo "fuso": nero, arancione e grigio-azzurro sovrapposti invece dei due
+   *  soli aloni caldi di serie. In prova — assente = acceso, vedi globals.css. */
+  bgFuso?: boolean
+  /** Gli aloni del fondo scorrono lentamente, senza fermarsi. Assente = acceso. */
+  bgAnim?: boolean
   accentColor: AccentColor
   customAccentHex?: string
   hyroxExercises: HyroxExercise[]
   palestraExercises: PalestraExercise[]
   muscleColors: Record<string, string>
+  /** I gruppi muscolari aggiunti dall'utente (vedi CustomMuscle). */
+  customMuscles?: CustomMuscle[]
   gymSchede: GymScheda[]
   weightLog: WeightLogEntry[]
   /** Quale azzeramento del catalogo è già stato applicato a questo account.
@@ -148,8 +172,8 @@ export const EMPTY_STATE: JarvisState = {
 // per sempre.
 const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
-  'darkMode', 'layout', 'accentColor', 'customAccentHex',
-  'hyroxExercises', 'palestraExercises', 'muscleColors', 'gymSchede',
+  'darkMode', 'layout', 'bgFuso', 'bgAnim', 'accentColor', 'customAccentHex',
+  'hyroxExercises', 'palestraExercises', 'muscleColors', 'customMuscles', 'gymSchede',
   'weightLog', 'catalogoReset', 'temaVersione',
 ]
 

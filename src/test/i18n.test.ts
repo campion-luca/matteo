@@ -111,8 +111,10 @@ describe('dizionario tedesco', () => {
     // una nuova coincidenza va guardata invece di passare in silenzio.
     const uguali = Object.entries(DE_UI).filter(([it, de]) => it === de).map(([it]) => it)
     expect(uguali.sort()).toEqual([
+      // "Personal OS" se n'è andato con la sidebar desktop, che non aveva più
+      // due schermate fra cui commutare.
       'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
-      'Personal Coach', 'Personal OS', 'Premium', 'Standard', 'Total', 'Trend',
+      'Personal Coach', 'Premium', 'Standard', 'Total', 'Trend',
     ])
   })
 })

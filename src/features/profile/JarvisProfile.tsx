@@ -1,9 +1,14 @@
-// Impostazioni: dati personali, aspetto, widget della home e uscita dall'account.
+// Le due schermate personali, in un overlay solo: il PROFILO (nome, dati del
+// corpo, peso) e le IMPOSTAZIONI (lingua, aspetto, widget, account). Quale delle
+// due lo dice la prop `sezione`; le aprono le due icone in cima all'app, la
+// persona e la rotella (vedi SalutoHeader).
 //
-// È un overlay a tutta pagina, non una tab: si apre dalla rotella in home e
-// dalla sidebar desktop. Ogni interruttore qui scrive nello store, cioè nel blob
-// che va in cloud — tranne i widget della home, che sono una preferenza del
-// dispositivo (vedi homeModules).
+// Erano un elenco solo, e i propri dati stavano in cima a una pagina che parla di
+// temi e password.
+//
+// Ogni interruttore qui scrive nello store, cioè nel blob che va in cloud — tranne
+// i widget del riepilogo, che sono una preferenza del dispositivo (vedi
+// homeModules).
 // Le anteprime (LayoutSwatch) sono disegnate a mano invece che con screenshot:
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
@@ -19,7 +24,16 @@ import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
 import { Flag } from '@/components/ui/Flags'
 
-interface JarvisProfileProps { open: boolean; onClose: () => void }
+interface JarvisProfileProps {
+  open: boolean
+  onClose: () => void
+  /** Due porte, lo stesso overlay. 'utente' mostra quello che è TUO — nome, dati
+   *  del corpo, peso — e 'impostazioni' tutto il resto: lingua, aspetto, account.
+   *  Erano un elenco solo, e i propri dati stavano in cima a una pagina che parla
+   *  di temi e password. Dividerli è anche il motivo per cui in alto ci sono due
+   *  icone e non una (vedi SalutoHeader). */
+  sezione?: 'impostazioni' | 'utente'
+}
 
 // Restano 3 palette,
 // che è anche il numero di colonne della griglia — prima erano 4 su 3 colonne, con
@@ -133,14 +147,17 @@ function StaticField({ label, value }: { label?: string; value: string }) {
       {label && (
         <div style={{ fontFamily: 'var(--font-label)', fontSize: 9.5, fontWeight: 400, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)', opacity: 0.85 }}>{label}</div>
       )}
-      <div style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: value === '—' ? 'var(--fg-mute)' : 'var(--fg)', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 0, minHeight: 44, display: 'flex', alignItems: 'center' }}>
+      {/* Corpo e spaziatura elastici: sono quattro campi affiancati, e su un
+          telefono stretto "180 cm" andava a capo — una casella cresceva di una riga
+          e la fila si sfalsava. */}
+      <div style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(13px, 3.4vw, 15px)', color: value === '—' ? 'var(--fg-mute)' : 'var(--fg)', padding: '10px clamp(7px, 2.4vw, 12px)', background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 0, minHeight: 44, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
         {value}
       </div>
     </div>
   )
 }
 
-export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
+export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: JarvisProfileProps) {
   const [s, set] = useStore()
   const t = useT()
   const [name, setName] = useState(s.userName || '')
@@ -152,6 +169,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
   // problema sul prossimo overlay; una pagina non ce l'ha proprio, e per due
   // pannelli grandi come questi è anche la forma giusta.
   const [pannello, setPannello] = useState<null | 'tema' | 'widget'>(null)
+  const mieiDati = sezione === 'utente'
   const [age, setAge]       = useState(s.userAge ? String(s.userAge) : '')
   const [sex, setSex]       = useState<'M' | 'F' | ''>(s.userSex ?? '')
   const [weight, setWeight] = useState(s.userWeight ? String(s.userWeight) : '')
@@ -228,6 +246,9 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
 
   const current = s.accentColor ?? 'green'
   const monoOn  = s.layout === 'premium'
+  // Assenti = accese: stesso patto di App.tsx, che è chi legge davvero i due campi.
+  const bgFuso  = s.bgFuso ?? true
+  const bgAnim  = s.bgAnim ?? true
   const initial = (name.trim() || '?')[0].toUpperCase()
 
   // Stessa risoluzione di App.tsx, altrimenti l'avatar mente: leggeva ACCENT_PALETTES
@@ -261,19 +282,21 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
             della pagina — sono il modo più rapido di far uscire qualcuno per sbaglio. */}
         <button
           onClick={() => pannello ? setPannello(null) : onClose()}
-          aria-label={pannello ? t('Torna alle impostazioni') : t('Chiudi le impostazioni')}
+          aria-label={pannello ? t('Torna alle impostazioni') : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
           className="j-btn-back" style={{ width: 34, height: 34 }}
         >
           <Icons.chevL size={15}/>
         </button>
         <div className="j-eyebrow" style={{ letterSpacing: '.18em' }}>
-          {pannello === 'tema' ? t('Cambio tema') : pannello === 'widget' ? t('Cambio widget') : t('Impostazioni')}
+          {pannello === 'tema' ? t('Cambio tema')
+            : pannello === 'widget' ? t('Cambio widget')
+            : mieiDati ? t('Profilo') : t('Impostazioni')}
         </div>
         {/* "Salva" vale per i campi dell'elenco (nome, dati). Dentro i pannelli non
             c'è niente da salvare — tema e widget si applicano al tocco — e un tasto
             che non fa nulla è peggio di un tasto assente. Lo spazio resta occupato
             perché il titolo, che è centrato, altrimenti scivolerebbe a destra. */}
-        {pannello ? (
+        {pannello || !mieiDati ? (
           <div style={{ width: 62, height: 34, flexShrink: 0 }} aria-hidden/>
         ) : (
           /* PROTOTIPO ombra hard — vedi .j-hard in globals.css */
@@ -374,10 +397,32 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
           </div>
         </Section>
 
+        {/* Sfondo — due prove sul fondo dei temi scuri, entrambe reversibili da
+            qui. Assenti dallo stato valgono ACCESE (vedi App.tsx): sono il fondo
+            con cui l'app si presenta ora, e questi due interruttori servono a
+            tornare indietro se non convince. */}
+        <Section
+          title={t('Sfondo fuso')}
+          hint={t('Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.')}
+          right={<Toggle on={bgFuso} onClick={() => set({ bgFuso: !bgFuso })} label={t('Sfondo fuso')}/>}
+        />
+
+        <Section
+          title={t('Sfondo in movimento')}
+          hint={t('Gli aloni scorrono lentamente e non si fermano mai. Si muove solo il fondo, il resto della pagina non si ridisegna.')}
+          right={<Toggle on={bgAnim} onClick={() => set({ bgAnim: !bgAnim })} label={t('Sfondo in movimento')}/>}
+        />
+
         </div>
       ) : pannello === 'widget' ? (
         <HomeModulesManager/>
       ) : (
+        <>
+
+        {/* ── Quello che è TUO ─────────────────────────────────────
+            Nome, dati del corpo e peso: si aprono dall'icona utente in cima
+            all'app, non più da qui in mezzo a temi e password. */}
+        {mieiDati && (
         <>
 
         {/* Avatar — quadrato a sinistra, il CAMPO del nome a destra sulla stessa
@@ -497,6 +542,13 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
         {/* Peso */}
         <PesoSection/>
 
+        </>
+        )}
+
+        {/* ── Le regolazioni dell'app ──────────────────────────── */}
+        {!mieiDati && (
+        <>
+
         {/* Lingua */}
         <LinguaSection/>
 
@@ -514,7 +566,7 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
           <CardImpostazione
             icon={<Icons.settings size={20} stroke={1.6}/>}
             label={t('Cambio widget')}
-            sotto={t('Ordina la home')}
+            sotto={t('Ordina il riepilogo')}
             onClick={() => setPannello('widget')}
           />
         </div>
@@ -623,6 +675,9 @@ export function JarvisProfile({ open, onClose }: JarvisProfileProps) {
             Exercise data by RepDB (repdb.co)
           </a>
         </div>
+
+        </>
+        )}
         </>
       )}
       </div>
@@ -778,7 +833,7 @@ function PesoSection() {
   const delta = ultime.length >= 2 ? ultime[ultime.length - 1].kg - ultime[0].kg : null
 
   return (
-    <Section title={t('Peso')} hint={t('Registralo quando ti pesi: conta la direzione, non il numero di oggi.')}>
+    <Section title={t('Peso')} hint={t('Pesati ogni mattina appena sveglio, a stomaco vuoto: è l’unico modo perché due misure siano confrontabili. Conta la direzione, non il numero di oggi.')}>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           type="number" inputMode="decimal" step="0.1"

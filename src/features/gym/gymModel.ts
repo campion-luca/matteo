@@ -36,6 +36,28 @@ export const COLOR_PALETTE = ['#3f7357','#2f7a6b','#6e7a38','#b0873f','#c08a2e',
 // ovunque; a tradurla quando si stampa è `tData`.
 export const MUSCLE_OPTIONS = ['Petto', 'Dorso', 'Gambe', 'Spalle', 'Bicipiti', 'Tricipiti', 'Core', 'Glutei', 'Altro']
 
+// L'elenco COMPLETO: gli otto di serie più quelli creati dall'utente. I nuovi si
+// infilano prima di 'Altro' e non in fondo — 'Altro' è il cassetto delle cose che
+// non hanno un gruppo, e deve restare l'ultima voce di ogni elenco e di ogni
+// select, altrimenti smette di leggersi come tale.
+//
+// Un gruppo custom che si chiama come uno di serie non raddoppia la voce: il
+// nome è la chiave, e due chiavi uguali sarebbero lo stesso gruppo scritto due
+// volte.
+export function gruppiMuscolari(custom?: { name: string }[]): string[] {
+  const noti = new Set(MUSCLE_OPTIONS.map(m => m.toLowerCase()))
+  const extra: string[] = []
+  for (const c of custom ?? []) {
+    const n = c.name.trim()
+    if (!n || noti.has(n.toLowerCase())) continue
+    noti.add(n.toLowerCase())
+    extra.push(n)
+  }
+  if (!extra.length) return MUSCLE_OPTIONS
+  const i = MUSCLE_OPTIONS.indexOf('Altro')
+  return [...MUSCLE_OPTIONS.slice(0, i), ...extra, ...MUSCLE_OPTIONS.slice(i)]
+}
+
 // retrocompatibilità: esercizi salvati con 'Schiena' vengono mostrati come 'Dorso'
 const MUSCLE_ALIASES: Record<string, string> = { 'Schiena': 'Dorso' }
 export function displayMuscle(m: string): string { return MUSCLE_ALIASES[m] ?? m }

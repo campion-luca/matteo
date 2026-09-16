@@ -1,10 +1,14 @@
-// Home dell'app: la data, il saluto, il richiamo all'allenamento e sotto il
-// riepilogo complessivo.
+// Il riepilogo complessivo: la settimana, la mappa della forza, i massimali.
 //
-// Il tasto "Alleniamoci" è fisso e non è un modulo: è l'azione per cui l'app
-// esiste, e non deve poter essere spenta o spinta in fondo.
-// Ogni modulo (settimana, forza, massimali) è invece una sezione del riepilogo, un
-// case dello switch dentro `JarvisDashboard`: l'ordine e quali siano accesi arrivano da
+// Era la home dell'app — data, saluto, "Alleniamoci" e sotto questo riquadro. La
+// pagina d'ingresso adesso è l'allenamento (vedi JarvisGym), e di quella schermata
+// qui resta solo il riquadro: sta in cima a Stats, aperto. Non è una pagina e non
+// è una tendina — nessuna intestazione, nessuna freccia, nessuno scroll proprio:
+// è una SEZIONE, e chi la ospita decide dove e quanto spazio le tocca.
+// Il saluto e i comandi sono andati in `SalutoHeader`, in cima all'allenamento.
+//
+// Ogni modulo (settimana, forza, massimali) è una sezione del riepilogo, un
+// case dello switch qui sotto: l'ordine e quali siano accesi arrivano da
 // `homeModules` (localStorage, non lo store cloud: è una preferenza del singolo
 // dispositivo). A riordinarli è il menù utente — vedi HomeModulesManager.
 // Qui non si calcola nulla di proprio: volumi e settimane arrivano da gymModel.
@@ -12,24 +16,23 @@
 import { useState, useMemo } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
-import { useGreeting } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { localISO } from '@/lib/isoDate'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
-import { GlobalSearch } from '@/features/search/GlobalSearch'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { maxLifts, maxTotal, SOURCE_LABELS } from '@/features/gym/gymMaxLifts'
 import { BodyMapPanel } from '@/features/gym/BodyMap'
-import { daysShort, fmtGiornoLungo } from '@/lib/dateFormat'
+import { daysShort } from '@/lib/dateFormat'
 import { useHomeModules } from './homeModules'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
 import { settimaneDiFila } from './allenamenti'
 import { useT, useTData, useLang } from '@/lib/i18n'
 
-interface DashboardProps {
-  onOpenGym: () => void
+interface RiepilogoProps {
+  /** Il profilo, dove si inserisce il peso corporeo: senza, mappa della forza e
+   *  massimali restano monchi, e da qui ci si arriva in un tocco. */
   onOpenProfile: () => void
 }
 
@@ -37,7 +40,7 @@ interface DashboardProps {
 // misura normale, meno su uno schermo basso.
 const SEZ = 'clamp(8px, 1.4dvh, 12px)'
 
-export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
+export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   const t = useT()
   const lang = useLang()
   // I nomi dei massimali arrivano dal catalogo, cioè dai dati: passano da `tData`,
@@ -46,19 +49,15 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
   // Selettori granulari: la home si ri-renderizza solo quando cambiano i campi
   // che mostra, non a ogni modifica dello store.
   const s = useJarvisStore(useShallow(st => ({
-    userName: st.userName,
     userWeight: st.userWeight,
     userSex: st.userSex,
     palestra: st.palestraExercises,
     hyrox: st.hyroxExercises,
   })))
   const isDesktop = useIsDesktop()
-  const greeting = useGreeting(s.userName)
   const modules = useHomeModules()
-  const [showSearch, setShowSearch] = useState(false)
   const [showCalendario, setShowCalendario] = useState(false)
   const [maxAperti, setMaxAperti] = useState(false)
-  const userName = s.userName.trim()
 
   // ── La settimana corrente, lunedì→domenica ───────────────────
   // NON gli ultimi 7 giorni: "la mia settimana" è quella del calendario, con i
@@ -287,99 +286,9 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
 
   const activeModules = modules.filter(m => m.on)
 
-  // Split greeting: everything before the name, the name, and after
-  const nameStart = userName ? greeting.indexOf(userName) : -1
-  const greetBefore = nameStart >= 0 ? greeting.slice(0, nameStart) : greeting
-  const greetAfter  = nameStart >= 0 ? greeting.slice(nameStart + userName.length) : ''
-
-  // I due comandi della home: stessa forma, quadrati, sulla riga del saluto.
-  const tastoQuadrato = (label: string, onClick: () => void, icona: JSX.Element) => (
-    <button onClick={onClick} aria-label={label} title={label} className="j-hard j-hard-sm j-focus" style={{
-      width: 38, height: 38, borderRadius: 0, flexShrink: 0,
-      background: 'var(--surface)', border: '1px solid var(--hairline)',
-      color: 'var(--fg-soft)', cursor: 'pointer',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      {icona}
-    </button>
-  )
-
   return (
-    <div style={{
-      // Su mobile la tacca/status bar la scansa già l'app shell con
-      // `env(safe-area-inset-top)` (App.tsx): questo padding è solo respiro.
-      position: 'relative', minHeight: '100%',
-      // Su telefono i vuoti verticali seguono l'altezza dello schermo (vedi SEZ):
-      // la home deve stare in una schermata di iPhone senza tagliare il riepilogo.
-      padding: isDesktop ? '24px 28px 48px' : 'clamp(12px, 2.6dvh, 26px) 20px calc(var(--nav-clear) + 16px)',
-      fontFamily: NUC.font, color: 'var(--fg)',
-    }}>
-
-      {/* Header — la data di oggi, il saluto, e sulla stessa riga i due comandi. */}
-      <div className="jarvis-boot" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: isDesktop ? 28 : 'clamp(12px, 2.2dvh, 22px)' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontFamily: NUC.label, fontSize: 12, fontWeight: 600, letterSpacing: '.04em',
-            color: 'var(--tertiary-ink)', marginBottom: 4,
-          }}>{fmtGiornoLungo(new Date(), lang)}</div>
-          {/* Il saluto è l'unica cosa in Fraunces di tutta l'app (--font-saluto): nome
-              enfatizzato con peso + sottolineatura accent */}
-          <div style={{
-            fontFamily: 'var(--font-saluto)',
-            // Il minore fra larghezza e altezza: su un telefono basso il saluto
-            // su due righe è la cosa che spinge giù tutto il resto.
-            fontSize: isDesktop ? 'clamp(30px, 5.2vw, 42px)' : 'clamp(26px, 3.6dvh, 34px)', fontWeight: 500, letterSpacing: '-0.01em',
-            lineHeight: 1.05, color: 'var(--fg)',
-          }}>
-            {greetBefore}
-            {nameStart >= 0 && (
-              <em style={{
-                fontStyle: 'normal', fontWeight: 600,
-                textDecoration: 'underline',
-                textDecorationColor: 'var(--j-accent)',
-                textDecorationThickness: 1,
-                textUnderlineOffset: 3,
-              }}>{userName}</em>
-            )}
-            {greetAfter}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0, paddingTop: 2 }}>
-          {tastoQuadrato(t('Ricerca globale'), () => setShowSearch(true), <Icons.search size={16} stroke={1.8}/>)}
-          {tastoQuadrato(t('Impostazioni'), onOpenProfile, <Icons.settings size={15} stroke={1.6}/>)}
-        </div>
-      </div>
-
-      {/* Alleniamoci — l'azione per cui l'app esiste, e su telefono l'unica via per
-          l'allenamento. Non è un modulo: sta sopra a tutto, non si può spegnere e
-          non si può riordinare. */}
-      <button
-        onClick={onOpenGym}
-        // Pressione, ombra e riflesso arrivano da `.j-hard` e `.j-accent-key`: niente
-        // boxShadow/transform/transition inline, batterebbero il foglio in silenzio.
-        className="j-hard j-accent-key j-focus"
-        style={{
-          width: '100%', display: 'block',
-          marginBottom: isDesktop ? 20 : 'clamp(10px, 1.8dvh, 18px)',
-          padding: isDesktop ? '13px 18px' : 'clamp(8px, 1.3dvh, 11px) 16px',
-          borderRadius: 0, cursor: 'pointer',
-          backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', color: 'var(--j-accent-fg)',
-        }}
-      >
-        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <span style={{
-            fontFamily: 'var(--font-body)', fontWeight: 600,
-            fontSize: 'clamp(17px, 4.2vw, 23px)', lineHeight: 1,
-            letterSpacing: '-0.01em', textTransform: 'uppercase',
-          }}>{t('Alleniamoci')}</span>
-          <span aria-hidden style={{ display: 'flex' }}>
-            <Icons.weight size={20} stroke={1.7}/>
-          </span>
-        </span>
-      </button>
-
-      {/* Riepilogo complessivo: un riquadro solo, con i moduli come sezioni. */}
-      <NucCard pad={14} style={{ maxWidth: isDesktop ? 720 : undefined }}>
+    <>
+      <NucCard pad={14} style={{ marginBottom: 16, maxWidth: isDesktop ? 720 : undefined }}>
         <div style={{
           fontFamily: NUC.label, fontSize: 12, fontWeight: 700, letterSpacing: '.18em',
           textTransform: 'uppercase', color: 'var(--fg)', paddingBottom: 4,
@@ -400,12 +309,7 @@ export function JarvisDashboard({ onOpenGym, onOpenProfile }: DashboardProps) {
         ))}
       </NucCard>
 
-      <GlobalSearch
-        open={showSearch}
-        onClose={() => setShowSearch(false)}
-        onOpenGym={onOpenGym}
-      />
       <CalendarioAllenamenti open={showCalendario} onClose={() => setShowCalendario(false)}/>
-    </div>
+    </>
   )
 }

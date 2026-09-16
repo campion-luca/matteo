@@ -7,6 +7,7 @@
 // ripetizioni × serie, in Hyrox un TEMPO su una distanza — da qui due modali di
 // log separati invece di uno generico pieno di if.
 import { useState, useMemo, useEffect } from 'react'
+import type React from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { selezionaAlFocus, preCompila } from '@/lib/campi'
 import { useT, useTData } from '@/lib/i18n'
@@ -16,12 +17,13 @@ import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry, GymTechnique } from '@/store/useJarvisStore'
 import {
-  TECHNIQUE_LABELS, TECHNIQUES, MUSCLE_COLORS, COLOR_PALETTE, MUSCLE_OPTIONS,
+  TECHNIQUE_LABELS, TECHNIQUES, MUSCLE_COLORS, COLOR_PALETTE,
   displayMuscle, fmtKg, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
   effectiveLoad, sortedHistory,
   } from './gymModel'
 import { LineChart } from './gymShared'
-import { useBodyWeight } from './gymHooks'
+import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
+import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { todayISO } from '@/lib/isoDate'
 import { uid } from '@/lib/uid'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
@@ -29,6 +31,13 @@ import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 // I modali della scheda Allenamento: registrare una prestazione, aggiungere o
 // modificare un esercizio, correggere una riga di storico.
 // Sono foglie — non conoscono nessuna delle pagine che li aprono.
+
+// La micro-label sopra un campo. Era ricopiata inline a ogni campo del file, con
+// la stessa mezza dozzina di proprietà: un posto solo, così restano allineate.
+const ETICHETTA: React.CSSProperties = {
+  fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em',
+  color: NUC.faint, textTransform: 'uppercase', marginTop: 2,
+}
 
 export interface LogHyroxModalProps {
   open: boolean; onClose: () => void
@@ -449,6 +458,9 @@ export interface AddExModalProps {
 export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExModalProps) {
   const t = useT()
   const tData = useTData()
+  // Non `MUSCLE_OPTIONS`: anche i gruppi che l'utente si è creato devono comparire
+  // nel select, o esisterebbero solo nella griglia che li ha generati.
+  const gruppi = useGruppiMuscolari()
   const [name, setName] = useState('')
   const [unit, setUnit] = useState<'km' | 'm' | 'rep'>('m')
   const [target, setTarget] = useState('')
@@ -500,13 +512,13 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
               <option value="">{t('Seleziona gruppo muscolare')}</option>
               {/* `value` resta il nome italiano: è ciò che finisce nei dati. Si
                   traduce solo l'etichetta che si legge. */}
-              {MUSCLE_OPTIONS.map(m => <option key={m} value={m}>{tData(m)}</option>)}
+              {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
             </select>
             {/* Un solo campo per il muscolo scritto a mano. Prima erano due input in
                 posizioni diverse dell'albero (uno per muscle vuoto, uno per muscle
                 custom): al primo carattere React smontava l'uno e montava l'altro,
                 e il campo perdeva il focus a ogni tasto. */}
-            {!MUSCLE_OPTIONS.includes(muscle) && (
+            {!gruppi.includes(muscle) && (
               <input
                 value={muscle}
                 onChange={e => setMuscle(e.target.value)}
@@ -521,9 +533,9 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
                 </div>
                 <select value={muscle2} onChange={e => setMuscle2(e.target.value)} className="j-field">
                   <option value="">{t('Nessuno')}</option>
-                  {MUSCLE_OPTIONS.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
+                  {gruppi.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
                 </select>
-                {muscle2 && !MUSCLE_OPTIONS.includes(muscle2) && (
+                {muscle2 && !gruppi.includes(muscle2) && (
                   <input value={muscle2} onChange={e => setMuscle2(e.target.value)} placeholder={t('Secondo muscolo')} className="j-field"/>
                 )}
               </>
@@ -654,6 +666,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   // picker e `color` finisce dritto in `onSaveMuscleColor`. Con la mappa desaturata,
   // aprire e salvare in layout "Notte" persisterebbe il grigio come colore scelto.
   const muscleColors = useJarvisStore(st => st.muscleColors) ?? {}
+  const gruppi = useGruppiMuscolari()
   const [name, setName] = useState(ex.n)
   const [muscle, setMuscle] = useState(displayMuscle(ex.muscle))
   const [muscle2, setMuscle2] = useState(displayMuscle(ex.muscle2 ?? ''))
@@ -694,15 +707,15 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
         <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field"/>
 
         <select value={muscle} onChange={e => { setMuscle(e.target.value); setColor('') }} className="j-field">
-          {MUSCLE_OPTIONS.map(m => <option key={m} value={m}>{tData(m)}</option>)}
+          {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
         </select>
-        {!MUSCLE_OPTIONS.includes(muscle) && (
+        {!gruppi.includes(muscle) && (
           <input value={muscle} onChange={e => setMuscle(e.target.value)} placeholder={t('Gruppo muscolare')} className="j-field"/>
         )}
 
         <select value={muscle2} onChange={e => setMuscle2(e.target.value)} className="j-field">
           <option value="">{t('Secondo gruppo (opzionale)')}</option>
-          {MUSCLE_OPTIONS.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
+          {gruppi.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
         </select>
 
         <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
@@ -960,6 +973,96 @@ export function RecordModal({ records, onClose }: { records: RecordItem[]; onClo
         </div>
 
         <button onClick={onClose} className="j-btn-accent">{t('Bene così')}</button>
+      </div>
+    </JModal>
+  )
+}
+
+// ── Nuovo gruppo muscolare ─────────────────────────────────────
+// Prima si potevano creare solo di rimbalzo: nel modale "Nuovo esercizio" il
+// campo libero compariva soltanto finché il select era vuoto, e un gruppo nato
+// così restava senza colore e senza figura, invisibile nei select degli altri
+// esercizi. Qui è un'azione sua, con le tre cose che rendono un gruppo un gruppo:
+// come si chiama, di che colore è, che figura accende.
+//
+// La FIGURA si sceglie fra le otto di serie e non si disegna: le sagome sono
+// coordinate di un corpo umano (bodyBlocks), e un gruppo nuovo può solo dire
+// "somiglia alle braccia" o "somiglia al dorso".
+export function NuovoGruppoModal({ open, onClose, onCrea, esistenti }: {
+  open: boolean; onClose: () => void
+  onCrea: (g: { name: string; icon: string; color: string }) => void
+  /** I gruppi già in casa: un nome ripetuto sarebbe lo stesso gruppo due volte. */
+  esistenti: string[]
+}) {
+  const t = useT()
+  const tData = useTData()
+  const [name, setName] = useState('')
+  const [icon, setIcon] = useState(FIGURE[0])
+  const [color, setColor] = useState(COLOR_PALETTE[0])
+
+  useEffect(() => {
+    if (!open) return
+    setName(''); setIcon(FIGURE[0]); setColor(COLOR_PALETTE[0])
+  }, [open])
+
+  const pulito = name.trim()
+  const doppio = esistenti.some(m => m.trim().toLowerCase() === pulito.toLowerCase())
+  const valido = !!pulito && !doppio
+
+  return (
+    <JModal open={open} onClose={onClose} title={t('Nuovo gruppo muscolare')} width={340}>
+      <div className="flex flex-col gap-2.5">
+        <div style={ETICHETTA}>{t('Nome')}</div>
+        <input
+          value={name} onChange={e => setName(e.target.value)}
+          placeholder={t('Es. Avambracci')} className="j-field" autoFocus
+        />
+        {/* Detto subito e non al salvataggio: il nome è la chiave del gruppo, e
+            scoprire che è occupato dopo aver scelto colore e figura è tardi. */}
+        {doppio && (
+          <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--danger)', letterSpacing: '.04em' }}>
+            {t('Esiste già un gruppo con questo nome')}
+          </div>
+        )}
+
+        <div style={ETICHETTA}>{t('Colore')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(26px, 8vw, 34px), 1fr))', gap: 6 }}>
+          {COLOR_PALETTE.map(c => (
+            <button key={c} onClick={() => setColor(c)} aria-label={c} aria-pressed={color === c} style={{
+              aspectRatio: '1 / 1', width: '100%', borderRadius: 0, background: c, cursor: 'pointer', padding: 0,
+              border: `2px solid ${color === c ? 'var(--surface)' : 'transparent'}`,
+              outline: color === c ? `2px solid ${c}` : 'none',
+              transition: 'outline 120ms',
+            }}/>
+          ))}
+        </div>
+
+        <div style={ETICHETTA}>{t('Figura')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(52px, 16vw, 68px), 1fr))', gap: 6 }}>
+          {FIGURE.map(f => {
+            const on = icon === f
+            return (
+              <button key={f} onClick={() => setIcon(f)} aria-label={tData(f)} aria-pressed={on} style={{
+                aspectRatio: '3 / 4', width: '100%', minWidth: 0, borderRadius: 0, cursor: 'pointer', padding: 4,
+                background: 'var(--surface-2)',
+                border: `2px solid ${on ? color : 'transparent'}`,
+                outline: on ? 'none' : '1px solid var(--hairline)', outlineOffset: -1,
+                color: on ? color : 'var(--fg-mute)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'border-color 160ms, color 160ms',
+              }}>
+                <MuscleIcon muscle={f} size={40} style={{ height: '82%', width: 'auto', maxWidth: '100%' }}/>
+              </button>
+            )
+          })}
+        </div>
+
+        <button
+          onClick={() => { if (valido) { onCrea({ name: pulito, icon, color }); onClose() } }}
+          disabled={!valido}
+          className="j-btn-accent"
+          style={{ opacity: valido ? 1 : 0.5 }}
+        >{t('Crea gruppo')}</button>
       </div>
     </JModal>
   )

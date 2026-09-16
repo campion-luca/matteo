@@ -49,6 +49,11 @@ const GRUPPI: Record<string, Gruppo> = {
   'Glutei':    { corpo: RETRO,  acceso: GLUTEI },
 }
 
+// I gruppi che una figura ce l'hanno davvero. Derivata da GRUPPI e non riscritta a
+// mano: è l'elenco che il picker del nuovo gruppo muscolare offre, e una copia
+// scritta a parte scivolerebbe il giorno che qui se ne aggiunge o toglie uno.
+export const FIGURE_DISPONIBILI = Object.keys(GRUPPI)
+
 // Quanto resta visibile il corpo che non è il distretto. Abbastanza da dare la
 // posizione, poco da non competere col pieno: alzarlo fa perdere l'icona, che
 // diventa "una persona" e basta.
@@ -67,8 +72,11 @@ function paths(fs: Forma[], key: string) {
   return fs.map((d, i) => <path key={`${key}${i}`} d={d}/>)
 }
 
-export function MuscleIcon({ muscle, size = 28, color = 'currentColor', style }: { muscle: string } & MuscleIconProps) {
-  const g = GRUPPI[displayMuscle(muscle)]
+// `icon` serve ai gruppi che l'utente si è creato: il nome è suo ("Avambracci") e
+// non corrisponde a nessuna sagoma, quindi chi lo disegna dice quale figura
+// accendere. Per gli otto di serie non si passa: la sagoma la trova il nome.
+export function MuscleIcon({ muscle, icon, size = 28, color = 'currentColor', style }: { muscle: string; icon?: string } & MuscleIconProps) {
+  const g = GRUPPI[displayMuscle(muscle)] ?? (icon ? GRUPPI[displayMuscle(icon)] : undefined)
 
   // Fallback dei gruppi legacy o sconosciuti: il manubrio. Non è un distretto, e
   // accendere mezzo corpo per dire "altro" direbbe una cosa falsa.

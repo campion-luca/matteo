@@ -9,15 +9,18 @@
 // log/modifica vivono in gymModals.tsx e il calcolo (EVL, volume, PR) in
 // gymModel.ts, che è puro e testato.
 import { useState, useMemo, useEffect } from 'react'
+import type React from 'react'
 import { NUC, accentInkFor } from '@/lib/jarvis-tokens'
 import { NucCard, NucSubTabs, NucEyebrow } from '@/components/ui/NucComponents'
+import { SalutoHeader } from '@/components/ui/SalutoHeader'
+import { SplitPane, SplitVuoto } from '@/components/ui/SplitPane'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  TECHNIQUE_LABELS, MUSCLE_OPTIONS,
+  TECHNIQUE_LABELS,
   displayMuscle, exColor, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
   effectiveLoad, entryVolume, sortedHistory,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
@@ -25,6 +28,7 @@ import {
 import { useMuscleColors } from './useMuscleColors'
 import { achievements } from './gymStrength'
 import { GymSchede } from './GymSchede'
+import { Riepilogo } from '@/features/dashboard/Riepilogo'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
@@ -33,11 +37,11 @@ import { vistaIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi } from '
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { LineChart } from './gymShared'
-import { useBodyWeight } from './gymHooks'
+import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
-import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, LogHyroxModal, LogPalestraModal, RecordModal } from './gymModals'
+import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal } from './gymModals'
 import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary } from './GymHyrox'
 import { GlobalSearch } from '@/features/search/GlobalSearch'
@@ -167,6 +171,7 @@ function GymStats({ exercises, hyroxExercises }: {
   const [statsTab, setStatsTab] = useState<'pesi' | 'hyrox'>('pesi')
   const [muscleView, setMuscleView] = useState<MuscleView>('vol')
   const [prOpen, setPrOpen] = useState(false)
+  const [volumeOpen, setVolumeOpen] = useState(false)
   const bodyWeight = useBodyWeight()
 
   const totalPalestra = exercises.reduce((sum, ex) => sum + ex.history.length, 0)
@@ -264,13 +269,29 @@ function GymStats({ exercises, hyroxExercises }: {
 
       {statsTab === 'pesi' && (
         <>
+          {/* Le barre sono una riga per gruppo muscolare: con otto gruppi sono otto
+              righe in cima a Stats, prima di traguardi e record. Chiuse restano una
+              riga sola. L'interruttore vol/volte sta DENTRO la testata ed è escluso
+              dal tocco che apre: premerlo per cambiare metrica non deve richiudere
+              quello che si sta guardando. */}
           {muscleEntries.length > 0 && (
             <>
-              <NucEyebrow right={
+              <div className="w-full flex items-center justify-between px-0.5" style={{ marginBottom: volumeOpen ? 10 : 16 }}>
+                <button
+                  onClick={() => setVolumeOpen(o => !o)}
+                  aria-expanded={volumeOpen}
+                  className="flex items-center gap-1.5 bg-transparent border-none cursor-pointer p-0"
+                >
+                  <div className="j-eyebrow">
+                    {muscleView === 'vol' ? t('Volume per muscolo') : t('Allenamenti per muscolo')}
+                  </div>
+                  <div style={{ color: NUC.faint, transform: volumeOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'flex' }}>
+                    <Icons.chev size={12} stroke={2}/>
+                  </div>
+                </button>
                 <MetricSwitch value={muscleView} onChange={setMuscleView}/>
-              }>
-                {muscleView === 'vol' ? t('Volume per muscolo') : t('Allenamenti per muscolo')}
-              </NucEyebrow>
+              </div>
+              {volumeOpen && (
               <NucCard pad={14} style={{ marginBottom: 16 }}>
                 <div className="flex flex-col gap-2.5">
                   {muscleBars.map(({ muscle, value, label }) => (
@@ -286,6 +307,7 @@ function GymStats({ exercises, hyroxExercises }: {
                   ))}
                 </div>
               </NucCard>
+              )}
             </>
           )}
 
@@ -912,7 +934,7 @@ function VistaSwitch({ valore, onChange }: { valore: VistaEsercizi; onChange: (v
     const on = v === valore
     return (
       <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={on} aria-label={etichetta} style={{
-        width: 28, height: 24, borderRadius: 0, padding: 0,
+        width: 'clamp(26px, 7.5vw, 32px)', height: 'clamp(22px, 6.5vw, 27px)', borderRadius: 0, padding: 0,
         background: on ? 'var(--surface)' : 'transparent',
         border: `1px solid ${on ? 'var(--j-accent)' : 'transparent'}`,
         color: on ? 'var(--j-accent-ink)' : NUC.faint,
@@ -922,18 +944,100 @@ function VistaSwitch({ valore, onChange }: { valore: VistaEsercizi; onChange: (v
     )
   }
   return (
+    // La griglia sta a SINISTRA perché è la vista di partenza: in un interruttore a
+    // due stati il primo posto è di quello predefinito, e leggere da sinistra
+    // l'alternativa prima della norma faceva sembrare l'elenco la scelta normale.
     <div style={{ display: 'flex', border: '1px solid var(--hairline)', background: 'var(--surface-2)' }}>
-      {cella('elenco',  t('Vedi in elenco'),  <Icons.list size={13} stroke={1.9}/>)}
       {cella('griglia', t('Vedi in griglia'), <Icons.grid size={13} stroke={1.9}/>)}
+      {cella('elenco',  t('Vedi in elenco'),  <Icons.list size={13} stroke={1.9}/>)}
     </div>
+  )
+}
+
+// La griglia delle card, una sola per gruppi ed esercizi: hanno la stessa forma e
+// devono avere lo stesso passo. La colonna minima è a sua volta elastica — su un
+// telefono stretto scende a 88px e ne entrano tre, su uno schermo grande sale a
+// 128 e le card non diventano francobolli allineati a decine.
+const GRIGLIA: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(88px, 26vw, 128px), 1fr))',
+  gap: 'clamp(7px, 2.2vw, 12px)',
+}
+
+// ── La card e la riga "+" ──────────────────────────────────────
+// Aggiungere un gruppo o un esercizio era un tasto nell'intestazione, lontano
+// dalle cose che creava e uguale per tutta la pagina: dalla griglia dei gruppi
+// creava un ESERCIZIO, e bisognava saperlo. Adesso l'azione sta dentro l'elenco a
+// cui appartiene, in prima posizione, con la stessa forma delle altre — così si
+// legge come "e qui ne aggiungi uno", non come un comando a parte.
+//
+// Prima e non in fondo: in fondo a trentotto esercizi non la trova nessuno.
+function CardNuovo({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="j-hard j-rise-in j-focus"
+      aria-label={label}
+      style={{
+        minWidth: 0, borderRadius: 0, cursor: 'pointer', overflow: 'hidden',
+        background: 'var(--surface-2)',
+        // Tratteggiato: è un posto vuoto da riempire, non una cosa che c'è già.
+        border: '1px dashed var(--hairline)',
+        padding: 0, display: 'flex', flexDirection: 'column', textAlign: 'left',
+        color: 'var(--j-accent-ink)',
+      }}
+    >
+      <div style={{
+        width: '100%', aspectRatio: '1 / 1', minHeight: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <Icons.plus size={34} stroke={1.5} style={{ width: '34%', height: 'auto' }}/>
+      </div>
+      <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
+        {/* Su due righe e non troncata: i nomi dei gruppi sono parole sole
+            ("Petto", "Dorso") e in una riga ci stanno, questa etichetta ne ha due e
+            in tre colonne diventava "NUOVO ESERCI…". */}
+        <div style={{
+          fontFamily: NUC.font, fontSize: 'clamp(10.5px, 2.9vw, 12.5px)', fontWeight: 600, color: NUC.ink,
+          textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.15,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>{label}</div>
+      </div>
+    </button>
+  )
+}
+
+function RigaNuovo({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo j-focus"
+      aria-label={label}
+      style={{
+        padding: '11px 12px', borderRadius: 0, textAlign: 'left', cursor: 'pointer',
+        background: 'transparent', border: 'none',
+        borderBottom: '1px dashed var(--hairline)',
+        color: 'var(--j-accent-ink)',
+      }}
+    >
+      <div style={{ display: 'flex', flexShrink: 0, width: 'clamp(22px, 7vw, 28px)', justifyContent: 'center' }}>
+        <Icons.plus size={20} stroke={1.8}/>
+      </div>
+      <div style={{
+        flex: 1, minWidth: 0,
+        fontFamily: NUC.font, fontSize: 'clamp(13px, 3.6vw, 15px)', fontWeight: 500, color: NUC.ink,
+        textTransform: 'uppercase', letterSpacing: '.01em', lineHeight: 1.1,
+      }}>{label}</div>
+    </button>
   )
 }
 
 // Elenco: le righe unite in una scheda sola, come i gruppi muscolari. Erano card
 // staccate con un margine fra l'una e l'altra, e sei esercizi occupavano lo
 // schermo che ne basta a dodici.
-function ElencoEsercizi({ esercizi, color, onApri }: {
+function ElencoEsercizi({ esercizi, color, onApri, onNuovo }: {
   esercizi: PalestraExercise[]; color: string; onApri: (ex: PalestraExercise) => void
+  onNuovo: () => void
 }) {
   const t = useT()
   const tData = useTData()
@@ -941,6 +1045,7 @@ function ElencoEsercizi({ esercizi, color, onApri }: {
     <div className="j-hard-flat" style={{
       background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 0, overflow: 'hidden',
     }}>
+      <RigaNuovo label={t('Nuovo esercizio')} onClick={onNuovo}/>
       {esercizi.map((ex, i) => {
         const hist = sortedHistory(ex.history)
         const last = hist[hist.length - 1]
@@ -987,13 +1092,15 @@ function ElencoEsercizi({ esercizi, color, onApri }: {
 // una regola visibile. Foto scattate nella palestra di chi usa l'app cambiano il
 // conto: coprono TUTTO il catalogo di partenza, e il disegno resta solo dove
 // significa qualcosa — "questo esercizio te lo sei aggiunto tu".
-function GrigliaEsercizi({ esercizi, color, onApri }: {
+function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
   esercizi: PalestraExercise[]; color: string; onApri: (ex: PalestraExercise) => void
+  onNuovo: () => void
 }) {
   const t = useT()
   const tData = useTData()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 10 }}>
+    <div style={GRIGLIA}>
+      <CardNuovo label={t('Nuovo esercizio')} onClick={onNuovo}/>
       {esercizi.map((ex, i) => {
         const hist = sortedHistory(ex.history)
         const last = hist[hist.length - 1]
@@ -1023,7 +1130,10 @@ function GrigliaEsercizi({ esercizi, color, onApri }: {
                 // sentirebbe due volte di fila.
                 ? <img src={foto} alt="" loading="lazy" decoding="async"
                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
-                : <MuscleIcon muscle={ex.muscle} size={52} stroke={1.5}/>}
+                // Stessa regola della griglia dei gruppi: la figura è una quota del
+                // riquadro, non una misura fissa. Qui sta più bassa perché è un
+                // ripiego — l'esercizio senza foto — non il soggetto della card.
+                : <MuscleIcon muscle={ex.muscle} size={52} style={{ height: '52%', width: 'auto', maxWidth: '64%' }}/>}
             </div>
             <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
               <div style={{
@@ -1053,10 +1163,12 @@ function GrigliaEsercizi({ esercizi, color, onApri }: {
 // L'ombra sta sulla SCHEDA e non sulle righe: dentro un contenitore che è già
 // sollevato, otto rilievi in fila si annullerebbero a vicenda. Alla riga il tocco
 // lo segnala il fondo, che cambia sotto il dito.
-function ElencoGruppi({ gruppi, muscleColors, onApri }: {
+function ElencoGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
   gruppi: Array<{ muscle: string; items: PalestraExercise[] }>
   muscleColors: Record<string, string>
+  icone: Record<string, string>
   onApri: (muscle: string) => void
+  onNuovo: () => void
 }) {
   const t = useT()
   const tData = useTData()
@@ -1065,6 +1177,7 @@ function ElencoGruppi({ gruppi, muscleColors, onApri }: {
       background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 0,
       overflow: 'hidden',
     }}>
+      <RigaNuovo label={t('Nuovo gruppo')} onClick={onNuovo}/>
       {gruppi.map(({ muscle, items }, i) => {
         const color = muscleColors[muscle] ?? muscleColors.Altro
         return (
@@ -1084,7 +1197,7 @@ function ElencoGruppi({ gruppi, muscleColors, onApri }: {
             }}
           >
             <div style={{ color, display: 'flex', flexShrink: 0 }}>
-              <MuscleIcon muscle={muscle} size={36} stroke={1.5}/>
+              <MuscleIcon muscle={muscle} icon={icone[muscle]} size={36} stroke={1.5}/>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.01em', lineHeight: 1.1 }}>{tData(muscle)}</div>
@@ -1102,15 +1215,18 @@ function ElencoGruppi({ gruppi, muscleColors, onApri }: {
 
 // Griglia dei gruppi: la stessa forma della griglia degli esercizi — fascia
 // illustrata in cima, testo sotto — con il disegno del gruppo al posto della foto.
-function GrigliaGruppi({ gruppi, muscleColors, onApri }: {
+function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
   gruppi: Array<{ muscle: string; items: PalestraExercise[] }>
   muscleColors: Record<string, string>
+  icone: Record<string, string>
   onApri: (muscle: string) => void
+  onNuovo: () => void
 }) {
   const t = useT()
   const tData = useTData()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 10 }}>
+    <div style={GRIGLIA}>
+      <CardNuovo label={t('Nuovo gruppo')} onClick={onNuovo}/>
       {gruppi.map(({ muscle, items }, i) => {
         const color = muscleColors[muscle] ?? muscleColors.Altro
         return (
@@ -1132,7 +1248,16 @@ function GrigliaGruppi({ gruppi, muscleColors, onApri }: {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color, flexShrink: 0,
             }}>
-              <MuscleIcon muscle={muscle} size={84} stroke={1.5}/>
+              {/* La figura è alta il 66% del riquadro invece di 84px fissi. Il
+                  riquadro è quadrato e largo quanto la colonna: su un telefono a
+                  tre colonne fa ~100px, e una figura di 84 lo riempiva da bordo a
+                  bordo — era quello a farla sembrare sovradimensionata, non la
+                  misura in sé. In percentuale la griglia si legge uguale ovunque:
+                  su desktop, dove i riquadri sono più larghi, l'icona cresce con
+                  loro invece di restare una macchiolina in mezzo al vuoto.
+                  `size` resta come misura di ripiego per il ramo senza CSS (il
+                  manubrio dei gruppi sconosciuti ha un viewBox quadrato). */}
+              <MuscleIcon muscle={muscle} icon={icone[muscle]} size={84} style={{ height: '66%', width: 'auto', maxWidth: '76%' }}/>
             </div>
             <div style={{ padding: '8px 9px 9px', minWidth: 0, width: '100%' }}>
               <div style={{
@@ -1152,8 +1277,8 @@ function GrigliaGruppi({ gruppi, muscleColors, onApri }: {
 }
 
 // ── Pagina di un gruppo muscolare (i suoi esercizi) ────────────
-function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, onAddExercise }: {
-  muscle: string; color: string; exercises: PalestraExercise[]
+function MuscleDetailPage({ muscle, color, icona, exercises, onBack, onSelectExercise, onAddExercise }: {
+  muscle: string; color: string; icona?: string; exercises: PalestraExercise[]
   onBack: () => void
   onSelectExercise: (ex: PalestraExercise) => void
   onAddExercise: () => void
@@ -1171,36 +1296,37 @@ function MuscleDetailPage({ muscle, color, exercises, onBack, onSelectExercise, 
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
           <div style={{ color, display: 'flex', flexShrink: 0 }}>
-            <MuscleIcon muscle={muscle} size={34} stroke={1.6}/>
+            <MuscleIcon muscle={muscle} icon={icona} size={34} stroke={1.6}/>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 24, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.1 }}>{tData(muscle)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: exercises.length })}</div>
           </div>
-          <button onClick={onAddExercise} className="j-btn-add">
-            <Icons.plus size={18} stroke={2}/>
-          </button>
         </div>
       </div>
       <div className="j-scroll-area">
-        {exercises.length === 0 ? (
-          <div className="j-empty">{t('Nessun esercizio in {gruppo} — aggiungine uno con +', { gruppo: tData(muscle) })}</div>
-        ) : (
-          <>
-            <NucEyebrow right={<VistaSwitch valore={vista} onChange={setVista}/>}>
-              {exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: exercises.length })}
-            </NucEyebrow>
-            {vista === 'elenco'
-              ? <ElencoEsercizi esercizi={exercises} color={color} onApri={onSelectExercise}/>
-              : <GrigliaEsercizi esercizi={exercises} color={color} onApri={onSelectExercise}/>}
-          </>
-        )}
+        {/* Anche un gruppo vuoto mostra la lista: dentro c'è la card "+", che è
+            come si aggiunge il primo esercizio. Prima qui c'era una frase che
+            rimandava a un tasto ("aggiungine uno con +") ormai lontano dagli occhi. */}
+        <NucEyebrow right={<VistaSwitch valore={vista} onChange={setVista}/>}>
+          {exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: exercises.length })}
+        </NucEyebrow>
+        {vista === 'elenco'
+          ? <ElencoEsercizi esercizi={exercises} color={color} onApri={onSelectExercise} onNuovo={onAddExercise}/>
+          : <GrigliaEsercizi esercizi={exercises} color={color} onApri={onSelectExercise} onNuovo={onAddExercise}/>}
       </div>
     </div>
   )
 }
 
-export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenCoach: () => void }) {
+// L'allenamento è la schermata d'ingresso dell'app: non ha più un "indietro",
+// perché sopra di lei non c'è niente. `onOpenUser` apre il profilo (nome, dati,
+// peso), `onOpenProfile` le impostazioni: due porte diverse, vedi SalutoHeader.
+export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
+  onOpenCoach: () => void
+  onOpenProfile: () => void
+  onOpenUser: () => void
+}) {
   // Selettori granulari: ri-render solo al cambio dei campi palestra usati.
   const s = useJarvisStore(useShallow(st => ({
     hyroxExercises: st.hyroxExercises,
@@ -1243,12 +1369,30 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSchede, setShowSchede] = useState(false)
+  const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
   const [showRicercaGlobale, setShowRicercaGlobale] = useState(false)
   const [vistaGruppi, setVistaGruppi] = useVistaEsercizi(VISTA_GRUPPI_KEY)
 
   // Mappa risolta (default + override utente, desaturata in layout "Notte"). Il picker
   // di EditExModal riceve invece `s.muscleColors` raw: vedi sotto.
   const muscleColors = useMuscleColors()
+  // Gli otto di serie più quelli creati qui dentro, e la figura che ciascuno dei
+  // nuovi ha scelto di accendere.
+  const gruppiNoti = useGruppiMuscolari()
+  const iconeGruppi = useMuscleIcons()
+
+  // Creare un gruppo è scrivere due cose in due posti diversi: il gruppo (nome +
+  // figura) e il suo colore, che vive nella stessa mappa degli override dei gruppi
+  // di serie. Un solo `set` per non lasciare mai un gruppo senza colore.
+  const creaGruppo = ({ name, icon, color }: { name: string; icon: string; color: string }) => {
+    set(st => ({
+      customMuscles: [...(st.customMuscles ?? []), { name, icon }],
+      muscleColors: { ...(st.muscleColors ?? {}), [name]: color },
+    }))
+    // Si entra subito nel gruppo appena creato: è vuoto, e lì dentro c'è la card
+    // "+" per metterci il primo esercizio.
+    setSelectedMuscle(name)
+  }
 
   const saveMuscleColor = (muscle: string, color: string | undefined) => {
     set(st => {
@@ -1348,21 +1492,21 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
     // Seed con tutti i gruppi muscolari standard: così ogni account (anche
     // nuovo, senza esercizi) trova già tutte le card — seppur vuote — e
     // capisce subito a cosa serve la sezione.
-    for (const m of MUSCLE_OPTIONS) groups[m] = []
+    for (const m of gruppiNoti) groups[m] = []
     for (const ex of filteredPalestra) {
       const m = displayMuscle(ex.muscle)
       ;(groups[m] ??= []).push(ex)
     }
     const ordered = Object.keys(groups)
       .sort((a, b) => {
-        const ia = MUSCLE_OPTIONS.indexOf(a), ib = MUSCLE_OPTIONS.indexOf(b)
+        const ia = gruppiNoti.indexOf(a), ib = gruppiNoti.indexOf(b)
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b)
       })
       .map(m => ({ muscle: m, items: groups[m] }))
     // Un gruppo vuoto ("Altro · 0 esercizi") occupa una riga per dire niente. Le
     // card vuote restano solo all'utente nuovo, dove sono l'onboarding di cui sopra.
     return hasAny ? ordered.filter(g => g.items.length > 0) : ordered
-  }, [filteredPalestra, hasAny])
+  }, [filteredPalestra, hasAny, gruppiNoti])
 
   const raceStationData = useMemo<HyroxExercise[]>(() =>
     RACE_STATIONS.map(rs => ({
@@ -1419,111 +1563,99 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
         presetMuscle={selectedMuscle ?? undefined}
       />
       <RecordModal records={records} onClose={() => setRecords([])}/>
+      <NuovoGruppoModal
+        open={showNuovoGruppo} onClose={() => setShowNuovoGruppo(false)}
+        onCrea={creaGruppo}
+        esistenti={gruppiNoti}
+      />
     </>
   )
 
+  // Le schede sono un mondo a sé, con la propria navigazione interna (elenco →
+  // scheda → allenamento in corso): non si infilano in una delle due colonne, si
+  // prendono la pagina. Il tetto di larghezza è lo stesso della radice — una
+  // scheda è un elenco di righe, e una riga lunga un monitor non si legge.
   if (showSchede) {
-    return <GymSchede onBack={() => setShowSchede(false)}/>
-  }
-
-  if (selectedHyrox) {
-    const isRace = RACE_IDS.has(selectedHyrox.id)
     return (
-      <>
-        <HyroxDetail
-          ex={selectedHyrox}
-          onBack={() => setSelectedHyrox(null)}
-          onLog={() => setLogHyrox(selectedHyrox)}
-          isRace={isRace}
-          onDelete={isRace ? undefined : () => deleteHyroxExercise(selectedHyrox)}
-          onUpdate={changes => updateHyroxExercise(selectedHyrox, changes)}
-        />
-        {modals}
-      </>
+      <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>
+        <GymSchede onBack={() => setShowSchede(false)}/>
+      </div>
     )
   }
 
-  if (selectedExercise && showExerciseCharts) {
+  // ── Le pagine ───────────────────────────────────────────────────
+  // Costruite come valori e non più come rami di `return`: su desktop due di
+  // loro sono a video INSIEME (vedi SplitPane in fondo), e un `return` anticipato
+  // può mostrarne una sola. Su telefono l'ordine di precedenza è lo stesso di
+  // prima — la più profonda copre le altre.
+
+  const paginaHyrox = selectedHyrox ? (() => {
+    const isRace = RACE_IDS.has(selectedHyrox.id)
     return (
+      <HyroxDetail
+        ex={selectedHyrox}
+        onBack={() => setSelectedHyrox(null)}
+        onLog={() => setLogHyrox(selectedHyrox)}
+        isRace={isRace}
+        onDelete={isRace ? undefined : () => deleteHyroxExercise(selectedHyrox)}
+        onUpdate={changes => updateHyroxExercise(selectedHyrox, changes)}
+      />
+    )
+  })() : null
+
+  const paginaEsercizio = selectedExercise ? (
+    showExerciseCharts ? (
       <ExerciseChartsPage
         ex={selectedExercise}
         onBack={() => setShowExerciseCharts(false)}
         muscleColors={muscleColors}
       />
+    ) : (
+      <ExerciseDetail
+        ex={selectedExercise}
+        onBack={() => { setSelectedExercise(null); setShowExerciseCharts(false) }}
+        onLog={() => setLogPalestra(selectedExercise)}
+        onUpdate={changes => updatePalestraExercise(selectedExercise, changes)}
+        onDelete={() => deletePalestraExercise(selectedExercise)}
+        onOpenCharts={() => setShowExerciseCharts(true)}
+        noteCoach={noteCoach.filter(n => n.exercise_id === selectedExercise.id)}
+        muscleColors={muscleColors}
+        onSaveMuscleColor={saveMuscleColor}
+      />
     )
-  }
+  ) : null
 
-  if (selectedExercise) {
-    return (
-      <>
-        <ExerciseDetail
-          ex={selectedExercise}
-          onBack={() => { setSelectedExercise(null); setShowExerciseCharts(false) }}
-          onLog={() => setLogPalestra(selectedExercise)}
-          onUpdate={changes => updatePalestraExercise(selectedExercise, changes)}
-          onDelete={() => deletePalestraExercise(selectedExercise)}
-          onOpenCharts={() => setShowExerciseCharts(true)}
-          noteCoach={noteCoach.filter(n => n.exercise_id === selectedExercise.id)}
-          muscleColors={muscleColors}
-          onSaveMuscleColor={saveMuscleColor}
-        />
-        {modals}
-      </>
-    )
-  }
+  const paginaMuscolo = selectedMuscle ? (
+    <MuscleDetailPage
+      muscle={selectedMuscle}
+      color={muscleColors[selectedMuscle] ?? muscleColors.Altro}
+      icona={iconeGruppi[selectedMuscle]}
+      exercises={s.palestraExercises.filter(e => displayMuscle(e.muscle) === selectedMuscle)}
+      onBack={() => setSelectedMuscle(null)}
+      onSelectExercise={ex => setSelectedExercise(ex)}
+      onAddExercise={() => setShowAdd(true)}
+    />
+  ) : null
 
-  if (selectedMuscle) {
-    const muscleExercises = s.palestraExercises.filter(e => displayMuscle(e.muscle) === selectedMuscle)
-    const mColor = muscleColors[selectedMuscle] ?? muscleColors.Altro
-    return (
-      <>
-        <MuscleDetailPage
-          muscle={selectedMuscle}
-          color={mColor}
-          exercises={muscleExercises}
-          onBack={() => setSelectedMuscle(null)}
-          onSelectExercise={ex => setSelectedExercise(ex)}
-          onAddExercise={() => setShowAdd(true)}
-        />
-        {modals}
-      </>
-    )
-  }
-
-  return (
-    <div className="flex flex-col h-full overflow-hidden">
+  const paginaRadice = (
+    // Il tetto di larghezza è per quando questa pagina è a TUTTA l'area di
+    // contenuto — le statistiche su desktop (vedi sotto). Senza, i tab e le
+    // quattro card dei comandi si stiravano per milletrecento pixel, e le barre
+    // del volume diventavano righe lunghe un monitor. Dentro la colonna dello
+    // split non ha effetto: lì la larghezza è già molto sotto.
+    <div className="flex flex-col h-full overflow-hidden" style={{ width: '100%', maxWidth: 860, margin: '0 auto' }}>
       <div className="j-page-header">
-        <div className="flex items-center gap-3 mb-4">
-          {/* Senza il tasto di navigazione in basso, è da qui che si torna alla home. */}
-          <button onClick={onBack} className="j-btn-back" aria-label={t('Torna alla home')}>
-            <Icons.chevL size={16} stroke={2}/>
-          </button>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="j-page-title">{t('Allenamento')}</div>
-            {/* Il conteggio segue il tab: sul tab Pesi la lista sotto ne mostra 33 e
-                il sottotitolo ne dichiarava 38 (palestra + hyrox). */}
-            <div className="j-eyebrow mt-0.5">
-              {mode === 'palestra' && t('{n} esercizi in palestra', { n: s.palestraExercises.length })}
-              {mode === 'hyrox'    && t('{n} esercizi hyrox', { n: s.hyroxExercises.length })}
-              {mode === 'stats'    && t('{n} esercizi tracciati', { n: s.hyroxExercises.length + s.palestraExercises.length })}
-            </div>
-          </div>
-          {/* La ricerca globale sta a sinistra del "+": è la stessa della home,
-              su esercizi e schede insieme.
-              38px, icona a 16 e 8px fra i due: la stessa misura e la stessa
-              distanza dei due tasti quadrati della home. Stanno in un gruppo loro
-              perché la riga intorno ha il suo gap (12px) fra freccia e titolo. */}
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setShowRicercaGlobale(true)} className="j-btn-add" aria-label={t('Ricerca globale')} title={t('Ricerca globale')} style={{ width: 38, height: 38 }}>
-              <Icons.search size={16} stroke={1.8}/>
-            </button>
-            {mode === 'palestra' && (
-              <button onClick={() => setShowAdd(true)} className="j-btn-add" aria-label={t('Nuovo esercizio')} style={{ width: 38, height: 38 }}>
-                <Icons.plus size={16} stroke={2}/>
-              </button>
-            )}
-          </div>
-        </div>
+        {/* Qui c'era "Allenamento · 38 esercizi in palestra", col tasto indietro
+            verso una home che non esiste più: questa È la home. Al suo posto la
+            testata dell'app — data, saluto e i tre comandi che valgono ovunque.
+            Il "+" se n'è andato con lei: creare un gruppo o un esercizio adesso si
+            fa dalla card "+" dentro l'elenco a cui appartiene (vedi CardNuovo), non
+            da un tasto che faceva cose diverse a seconda della pagina. */}
+        <SalutoHeader
+          onSearch={() => setShowRicercaGlobale(true)}
+          onUser={onOpenUser}
+          onSettings={onOpenProfile}
+        />
         <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setRicerca(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null); setSearchQuery('') }}/>
         {/* Cerca e Stats sono interruttori: si ripreme la card per tornare alla
             lista. Non si escludono per principio ma per senso — cercare dentro le
@@ -1574,8 +1706,16 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
         )}
 
         {mode === 'stats' && (
-          <GymStats exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}/>
+          <>
+            {/* Il riepilogo complessivo è qui, aperto. Era la schermata d'ingresso
+                dell'app e per un giro è stato dietro un bottone: ma è la cosa che si
+                guarda per prima entrando in Stats — quanto ti sei allenato, quanto
+                sei forte — e un tocco per vederla era un tocco di troppo. */}
+            <Riepilogo onOpenProfile={onOpenUser}/>
+            <GymStats exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}/>
+          </>
         )}
+
         {mode === 'hyrox' && searchQuery.trim() && (
           <>
             <NucEyebrow right={`${filteredHyrox.length}`}>{t('Risultati')}</NucEyebrow>
@@ -1682,19 +1822,21 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
                     <Icons.chev size={15} stroke={1.6} color={NUC.faint}/>
                   </button>
                 )}
-                {groupedPalestra.length === 0 ? (
-                  <div className="j-empty">{t('Nessun esercizio — aggiungine uno con +')}</div>
-                ) : vistaGruppi === 'elenco' ? (
+                {vistaGruppi === 'elenco' ? (
                   <ElencoGruppi
                     gruppi={groupedPalestra}
                     muscleColors={muscleColors}
+                    icone={iconeGruppi}
                     onApri={muscle => setSelectedMuscle(muscle)}
+                    onNuovo={() => setShowNuovoGruppo(true)}
                   />
                 ) : (
                   <GrigliaGruppi
                     gruppi={groupedPalestra}
                     muscleColors={muscleColors}
+                    icone={iconeGruppi}
                     onApri={muscle => setSelectedMuscle(muscle)}
+                    onNuovo={() => setShowNuovoGruppo(true)}
                   />
                 )}
               </>
@@ -1702,7 +1844,14 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
           </>
         )}
       </div>
+    </div>
+  )
 
+  // Modali e ricerca globale stanno FUORI dalle pagine: su desktop la radice può
+  // non essere a video (a sinistra c'è il gruppo aperto), e un modale montato
+  // dentro di lei sparirebbe insieme a lei mentre è aperto.
+  const contorno = (
+    <>
       {modals}
       {/* Dall'allenamento un risultato non ha altrove dove portare: chiude e
           lascia sulla schermata in cui si è già. */}
@@ -1711,7 +1860,38 @@ export function JarvisGym({ onBack, onOpenCoach }: { onBack: () => void; onOpenC
         onClose={() => setShowRicercaGlobale(false)}
         onOpenGym={() => setShowRicercaGlobale(false)}
       />
-    </div>
+    </>
+  )
+
+  // Le statistiche non aprono niente: sono grafici, e non c'è un "dettaglio" che
+  // possa comparire di fianco. Spartire lo schermo con una colonna che resterebbe
+  // vuota per sempre vorrebbe dire stringere i grafici a metà larghezza per
+  // niente, quindi qui la vista resta intera.
+  if (mode === 'stats') {
+    return <>{paginaRadice}{contorno}</>
+  }
+
+  // A sinistra l'elenco su cui si sta navigando — i gruppi muscolari, oppure gli
+  // esercizi del gruppo aperto — a destra la scheda di quello che si è scelto.
+  // Su telefono SplitPane mostra solo lo strato più alto, che è il comportamento
+  // di sempre.
+  return (
+    <>
+      <SplitPane
+        master={paginaMuscolo ?? paginaRadice}
+        detail={paginaEsercizio ?? paginaHyrox}
+        vuoto={
+          <SplitVuoto>
+            {/* Dalla radice un esercizio non è ancora scegliibile: prima si apre un
+                gruppo. Dirlo qui evita l'invito a fare una cosa che non si può fare. */}
+            {selectedMuscle
+              ? t('Scegli un esercizio per vederne la scheda')
+              : t('Apri un gruppo muscolare, poi un esercizio')}
+          </SplitVuoto>
+        }
+      />
+      {contorno}
+    </>
   )
 }
 
