@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { decideInitialSync, getSyncMeta, markDirty, setSynced, type SyncMeta } from '@/lib/syncMeta'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { decideInitialSync, getSyncMeta, markDirty, setSynced, clearSyncMeta, resetSyncMeta, type SyncMeta } from '@/lib/syncMeta'
 
 const meta = (o: Partial<SyncMeta> = {}): SyncMeta => ({ lastSyncedAt: null, dirty: false, noti: null, ...o })
 
@@ -46,7 +46,10 @@ describe('decideInitialSync', () => {
 })
 
 describe('persistenza della meta', () => {
-  beforeEach(() => localStorage.clear())
+  // `resetSyncMeta` butta la copia in memoria: senza, ogni test erediterebbe lo
+  // stato del precedente, perché la memoria sopravvive a `localStorage.clear()`.
+  // Ed è esattamente il punto — vedi il blocco qui sotto.
+  beforeEach(() => { localStorage.clear(); resetSyncMeta() })
 
   it('parte vuota e non sporca', () => {
     expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null })
@@ -74,5 +77,68 @@ describe('persistenza della meta', () => {
   it('sopravvive a un contenuto illeggibile in localStorage', () => {
     localStorage.setItem('jarvis-sync-meta-v1', '{non json')
     expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null })
+  })
+
+  it('il logout non lascia le meta dell’account precedente', () => {
+    setSynced('2026-08-19T10:00:00Z', { schede: ['s1'], esercizi: ['p1'] })
+    markDirty()
+    clearSyncMeta()
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null })
+    expect(localStorage.getItem('jarvis-sync-meta-v1')).toBeNull()
+  })
+})
+
+// ── Il caso che rende il flag affidabile ───────────────────────
+// Con lo storage negato o pieno, `dirty` deve restare vero lo stesso: se si
+// perde, `performSave` esce alla prima riga e NIENTE arriva più in cloud, senza
+// un errore a dirlo. È il guasto peggiore possibile per un'app che esiste per
+// conservare un dato, ed è silenzioso.
+describe('localStorage rotto o pieno', () => {
+  // Si sostituisce su `Storage.prototype`, non su `localStorage`: in jsdom (come
+  // nei browser) `localStorage` è un Proxy che tratta ogni assegnazione come una
+  // VOCE da salvare, quindi `localStorage.setItem = fn` non sostituisce il metodo
+  // — scrive una chiave che si chiama "setItem", e il metodo vero continua a
+  // funzionare. Un test scritto così passa sempre e non prova niente.
+  const vero = { getItem: Storage.prototype.getItem, setItem: Storage.prototype.setItem }
+
+  beforeEach(() => { localStorage.clear(); resetSyncMeta() })
+  afterEach(() => {
+    Storage.prototype.getItem = vero.getItem
+    Storage.prototype.setItem = vero.setItem
+  })
+
+  const rompiScrittura = () => {
+    Storage.prototype.setItem = () => { throw new DOMException('QuotaExceededError') }
+  }
+
+  it('markDirty regge anche se la scrittura fallisce', () => {
+    rompiScrittura()
+    markDirty()
+    expect(getSyncMeta().dirty, 'il dirty è andato perso: nessun salvataggio partirebbe più').toBe(true)
+  })
+
+  it('anche con lo storage muto in lettura E scrittura', () => {
+    Storage.prototype.getItem = () => { throw new DOMException('SecurityError') }
+    rompiScrittura()
+    markDirty()
+    expect(getSyncMeta().dirty).toBe(true)
+  })
+
+  it('setSynced pulisce il dirty anche senza storage', () => {
+    rompiScrittura()
+    markDirty()
+    setSynced('2026-08-19T10:00:00Z')
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-19T10:00:00Z', dirty: false, noti: null })
+  })
+
+  it('una scrittura fallita non fa risorgere il valore vecchio dal disco', () => {
+    // Il disco contiene ancora `dirty: false` dal sync precedente. Se la lettura
+    // tornasse a fidarsi di lui, la modifica appena fatta sparirebbe.
+    setSynced('2026-08-18T10:00:00Z')
+    rompiScrittura()
+    markDirty()
+    expect(getSyncMeta().dirty).toBe(true)
+    expect(JSON.parse(localStorage.getItem('jarvis-sync-meta-v1') ?? '{}').dirty,
+      'il disco è rimasto indietro, ed è normale').toBe(false)
   })
 })

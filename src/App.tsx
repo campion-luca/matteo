@@ -12,9 +12,9 @@ import { InstallBanner } from '@/components/InstallBanner'
 import { useStore, useJarvisStore, EMPTY_STATE, JARVIS_STORE_KEY, applyRemoteState } from '@/store/useJarvisStore'
 import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
 import { supabase } from '@/lib/supabase'
-import { loadUserData, saveUserData, fetchRemoteUpdatedAt } from '@/lib/cloudSync'
+import { loadUserData, saveUserData, fetchRemoteUpdatedAt, senzaRete } from '@/lib/cloudSync'
 import { useSyncStatus } from '@/lib/syncStatus'
-import { getSyncMeta, setSynced, markDirty, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
+import { getSyncMeta, setSynced, markDirty, clearSyncMeta, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
@@ -299,6 +299,11 @@ export default function App() {
       if (event === 'SIGNED_OUT') {
         useJarvisStore.setState({ ...EMPTY_STATE })
         removeStorage('local', JARVIS_STORE_KEY)
+        // Anche le meta di sync: sono dell'ACCOUNT, non del dispositivo. Restando,
+        // l'utente successivo ereditava `dirty`, `lastSyncedAt` e soprattutto gli id
+        // `noti` di quello prima — cioè `syncMerge` avrebbe deciso cosa "è nato qui"
+        // guardando gli id di un altro.
+        clearSyncMeta()
       }
       // link "password dimenticata": mostra la schermata per impostare la nuova password
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)
@@ -332,6 +337,21 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.user) return
+
+    // Senza rete non si aspetta niente: si va dritti al dato locale.
+    // È lo stesso identico percorso del load fallito (vedi il .catch qui sotto),
+    // solo istantaneo invece che dopo il timeout. Serve al caso più frequente di
+    // tutti per un'app da palestra — il seminterrato che non prende — dove prima
+    // si restavano a guardare lo scheletro per sette secondi e mezzo prima di
+    // vedere i propri esercizi, che erano lì sul telefono dall'inizio.
+    if (senzaRete()) {
+      setInitialUpdatedAt(getSyncMeta().lastSyncedAt)
+      setPushOnMount(false)
+      setLoadFailed(true)
+      setCloudLoading(false)
+      return
+    }
+
     setCloudLoading(true)
     setLoadFailed(false)
     loadUserData(session.user.id)

@@ -27,9 +27,24 @@ export interface SyncMeta {
 
 const EMPTY: SyncMeta = { lastSyncedAt: null, dirty: false, noti: null }
 
-// Tutte le funzioni sono tolleranti a localStorage rotto, pieno o assente
-// (Safari privato): la sincronizzazione degrada, non esplode.
-export function getSyncMeta(): SyncMeta {
+// ── Dov'è la verità ────────────────────────────────────────────
+// In MEMORIA. `localStorage` è solo il modo di farla sopravvivere a un riavvio.
+//
+// Prima era il contrario, e c'era un guasto silenzioso con le peggiori
+// conseguenze possibili: `write()` ingoia l'eccezione (giusto: un'app che
+// esplode perché non può scrivere una preferenza è peggio), e `getSyncMeta()`
+// in errore tornava `dirty: false`. Quindi con lo storage negato (Safari
+// privato) o PIENO — che è dove si finisce con anni di storico, visto che
+// zustand/persist riscrive tutto il blob a ogni modifica — `markDirty()`
+// falliva senza dirlo, `performSave` usciva alla prima riga, e l'utente si
+// allenava per settimane senza che una riga arrivasse in cloud. Nessun errore,
+// nessuna pill: lo stato restava `idle`, cioè "tutto a posto".
+//
+// Con la copia in memoria il caso peggiore torna a essere quello giusto: si
+// perde la memoria di sync fra un riavvio e l'altro, non il salvataggio.
+let memoria: SyncMeta | null = null
+
+function dalloStorage(): SyncMeta {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return { ...EMPTY }
@@ -45,8 +60,32 @@ export function getSyncMeta(): SyncMeta {
   }
 }
 
+// Tutte le funzioni sono tolleranti a localStorage rotto, pieno o assente
+// (Safari privato): la sincronizzazione degrada, non esplode.
+export function getSyncMeta(): SyncMeta {
+  // Prima lettura della sessione: si idrata da disco. Dopo, comanda la memoria —
+  // anche quando il disco non ha accettato l'ultima scrittura.
+  if (!memoria) memoria = dalloStorage()
+  return { ...memoria }
+}
+
+/** Solo per i test: butta la copia in memoria e riparte da localStorage. */
+export function resetSyncMeta(): void {
+  memoria = null
+}
+
 function write(meta: SyncMeta) {
-  try { localStorage.setItem(KEY, JSON.stringify(meta)) } catch { /* storage pieno o non disponibile */ }
+  memoria = { ...meta }
+  try { localStorage.setItem(KEY, JSON.stringify(meta)) } catch { /* storage pieno o negato: resta in memoria */ }
+}
+
+/** Da chiamare al logout: le meta sono dell'ACCOUNT, non del dispositivo.
+ *  Senza, l'utente successivo eredita `dirty`, `lastSyncedAt` e soprattutto gli
+ *  id `noti` di quello precedente — cioè `syncMerge` ragionerebbe sugli id di
+ *  un altro account. */
+export function clearSyncMeta(): void {
+  memoria = { ...EMPTY }
+  try { localStorage.removeItem(KEY) } catch { /* niente da fare */ }
 }
 
 /** Da chiamare a ogni modifica locale, PRIMA di pianificare il save. */

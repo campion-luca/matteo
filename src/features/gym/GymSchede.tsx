@@ -20,6 +20,7 @@ import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, norm
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
+import { leggiSessione, salvaSessione, scartaSessione } from './sessioneInCorso'
 import { useMuscleColors } from './useMuscleColors'
 import { fotoEsercizio } from './eserciziFoto'
 import { MuscleIcon } from './MuscleIcons'
@@ -1140,6 +1141,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   }
 
   const [progress, setProgress] = useState<Record<string, TrainProgress>>(() => {
+    // Prima di ricominciare da zero: c'è una sessione lasciata a metà su questa
+    // scheda? Se sì si riprende da lì. È l'unica cosa che separa un tasto
+    // indietro premuto per sbaglio da un'ora di allenamento buttata.
+    const ripresa = leggiSessione(scheda)
+    if (ripresa) return ripresa
+
     const init: Record<string, TrainProgress> = {}
     for (const e of scheda.exercises) {
       // resolveLinked: fallback per nome, così l'ultimo peso si precompila anche
@@ -1202,7 +1209,17 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   }).length, [scheda, progress])
   const anyDone = useMemo(() => Object.values(progress).some(p => p.checks.some(Boolean)), [progress])
 
+  // Ogni spunta, ogni chilo scritto finisce su disco. È un oggetto da poche
+  // centinaia di byte e la scrittura è sincrona ma trascurabile: il costo è
+  // incomparabile con quello di perdere la sessione.
+  useEffect(() => {
+    salvaSessione(scheda.id, progress)
+  }, [scheda.id, progress])
+
   const finish = () => {
+    // Da qui in poi i dati stanno nello storico: tenerne una copia qui vorrebbe
+    // dire ritrovarsi l'allenamento di ieri già spuntato al prossimo ingresso.
+    scartaSessione()
     onFinish(scheda.exercises.map(e => ({
       id: e.id,
       checks: progress[e.id].checks,

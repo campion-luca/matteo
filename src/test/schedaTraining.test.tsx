@@ -23,6 +23,10 @@ const scheda = {
 
 beforeEach(() => {
   useJarvisStore.setState({ ...EMPTY_STATE, userName: 'Luca', gymSchede: [scheda] }, true)
+  // L'allenamento a metà sopravvive in localStorage (vedi sessioneInCorso): senza
+  // questa riga il secondo test riprende le spunte del primo invece di partire da
+  // una scheda pulita.
+  localStorage.clear()
 })
 afterEach(cleanup)
 
