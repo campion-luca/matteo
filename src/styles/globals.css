@@ -633,6 +633,21 @@
   @media (hover: hover) { .j-riga-gruppo:hover { background: var(--surface-2) !important; } }
   .j-riga-gruppo:active { background: var(--surface-2) !important; }
 
+  /* Colonna di lettura dentro un overlay a tutta pagina.
+     Impostazioni, profilo e questionario si aprono coprendo tutto lo schermo: è
+     giusto — sono schermate, non pannelli — ma il loro CONTENUTO è un elenco di
+     voci, e stirato su un monitor da milleottocento pixel diventa una riga di
+     bandiere larga un metro con in fondo una spunta. La barra del titolo resta a
+     tutta larghezza, perché una barra è quello che deve sembrare; quello che sta
+     dentro si incolonna e si centra.
+     720px è la stessa misura del riquadro del riepilogo: le due schermate si
+     aprono una dopo l'altra e devono avere lo stesso passo. */
+  .j-colonna {
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
+  }
+
   /* Page header — il respiro sopra e sotto segue l'altezza dello schermo. Su un
      telefono basso quaranta pixel di vuoto in cima sono quaranta pixel tolti alla
      griglia, che è la ragione per cui si è aperta l'app. */

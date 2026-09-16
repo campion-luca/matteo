@@ -112,7 +112,13 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
       display: 'flex', flexDirection: 'column',
       fontFamily: NUC.font, color: 'var(--fg)',
       padding: 'calc(env(safe-area-inset-top) + 26px) 26px calc(env(safe-area-inset-bottom) + 22px)',
+      // Da desktop le domande restano in colonna invece di stendersi sul monitor:
+      // il campo del nome largo milleottocento pixel e il tasto "Avanti" lungo
+      // quanto lo schermo non si leggono come un questionario, si leggono come un
+      // errore. È la stessa colonna delle impostazioni (vedi .j-colonna).
+      alignItems: 'center',
     }}>
+    <div className="j-colonna" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* Avanzamento: tacche, non una percentuale. Cinque tacche dicono anche
           quante domande mancano, che è la cosa che si vuole sapere. */}
       <div style={{ display: 'flex', gap: 5, marginBottom: 34 }}>
@@ -218,6 +224,7 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
           {ultimo ? t('Iniziamo') : t('Avanti')}
         </button>
       </div>
+    </div>
     </div>
   )
 }

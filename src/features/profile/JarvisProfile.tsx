@@ -270,12 +270,17 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
       fontFamily: NUC.font, color: 'var(--fg)',
     }}>
 
-      {/* Header */}
+      {/* Header — la barra prende tutta la larghezza, il suo contenuto no: freccia,
+          titolo e "Salva" stanno sulla stessa colonna delle voci qui sotto, o su uno
+          schermo largo il back finirebbe a un palmo dalla roba che comanda. */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 18px 12px',
         borderBottom: '1px solid var(--divider)',
         background: 'var(--surface)',
+        flexShrink: 0,
+      }}>
+      <div className="j-colonna" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 18px 12px',
       }}>
         {/* Il back è uno solo e sa dov'è: da un pannello torna all'elenco, dall'elenco
             chiude le impostazioni. Due frecce sovrapposte — una del pannello e una
@@ -308,9 +313,10 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           }}>{t('Salva')}</button>
         )}
       </div>
+      </div>
 
       {/* Content */}
-      <div className="j-profile-body" style={{ flex: 1, overflowY: 'auto', padding: '22px 22px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="j-profile-body j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '22px 22px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {pannello === 'tema' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Dark mode */}
