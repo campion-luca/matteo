@@ -30,9 +30,13 @@ export function SplitPane({ master, detail, vuoto }: {
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       <div style={{
-        // Abbastanza larga da tenere tre colonne della griglia dei gruppi, mai
-        // tanto da diventare lei la pagina principale.
-        width: 'clamp(340px, 34%, 460px)',
+        // Metà esatta, non una colonna di larghezza fissa. Era `clamp(340px, 34%,
+        // 460px)`: su uno schermo grande l'elenco restava una striscia da 460px con
+        // accanto un vuoto largo il doppio, e le due colonne non si leggevano più
+        // come due metà ma come una barra laterale. A metà precisa il rapporto
+        // resta lo stesso a ogni larghezza, e l'elenco cresce insieme alla scheda
+        // che apre.
+        width: '50%',
         flexShrink: 0,
         height: '100%',
         overflow: 'hidden',
