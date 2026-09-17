@@ -8,6 +8,7 @@
 // distanza): il "meglio" è il valore più basso, e i grafici vanno letti al
 // contrario rispetto a quelli dei pesi.
 import { useState, useMemo } from 'react'
+import type React from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT, useTData } from '@/lib/i18n'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
@@ -15,36 +16,55 @@ import { Icons } from '@/components/ui/Icons'
 import type { HyroxExercise, HyroxHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { fmtTime, pace, sortedHistory } from './gymModel'
+import {
+  type FormatoHyrox, type StimaSegmento, type Categoria, type Contesto,
+  formatoSessione, distanzaLeggibile, stimaGara, fmtTempoGara,
+  FATICA_CORSA, ROXZONE_PASSAGGI, ROXZONE_SEC, MIN_PER_PROFILO,
+} from './hyroxStima'
+import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { EditHyroxHistModal } from './gymModals'
+import { FormatoSwitch } from './FormatoSwitch'
 import { LineChart } from './gymShared'
 import { fmtShortDate } from '@/lib/dateFormat'
 
 // La parte Hyrox della scheda Allenamento: la card in elenco, la pagina di
 // dettaglio di una stazione e il riepilogo gara.
 
-export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = false }: {
+export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = false, formato, onFormato }: {
   ex: HyroxExercise; onBack: () => void; onLog: () => void
   onDelete?: () => void
   onUpdate?: (changes: Partial<HyroxExercise>) => void
   isRace?: boolean
+  formato: FormatoHyrox
+  onFormato: (f: FormatoHyrox) => void
 }) {
   const t = useT()
   const tData = useTData()
   // Ordinato per data (letto e riscritto qui, quindi gli indici restano coerenti).
   const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
-  const [histOpen, setHistOpen] = useState(false)
   const [editHistEntry, setEditHistEntry] = useState<{ entry: HyroxHistoryEntry; idx: number } | null>(null)
   const { confirmDelete } = useConfirmDelete()
 
+  // Solo le sessioni del formato scelto. Miglior tempo, trend e grafici su
+  // distanze diverse non si confrontano: un 500 m sarebbe sempre il "record" di
+  // un 1000 m, e il grafico salterebbe a ogni cambio di distanza. L'indice vero
+  // viaggia con la sessione: modifica ed eliminazione lavorano su `hist` intero.
+  const visibili = useMemo(
+    () => hist.map((h, idx) => ({ h, idx })).filter(({ h }) => formatoSessione(h, ex.target) === formato),
+    [hist, ex.target, formato],
+  )
+  const distIntera = distanzaLeggibile(ex.target, ex.unit)
+  const distMezza  = distanzaLeggibile(ex.target / 2, ex.unit)
+
   const { times, paces, labels } = useMemo(() => ({
-    times:  hist.map(h => h.sec),
-    paces:  hist.map(h => {
+    times:  visibili.map(({ h }) => h.sec),
+    paces:  visibili.map(({ h }) => {
       if (ex.unit === 'km') return Math.round(h.sec / h.units)
       if (ex.unit === 'm')  return Math.round((h.sec / h.units) * 500)
       return Math.round((h.units / h.sec) * 60)
     }),
-    labels: hist.map(h => h.d),
-  }), [hist, ex.unit])
+    labels: visibili.map(({ h }) => h.d),
+  }), [visibili, ex.unit])
 
   const bestSec  = times.length ? Math.min(...times) : 0
   const lastSec  = times[times.length - 1]
@@ -66,7 +86,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
-            <div className="j-eyebrow mt-0.5">{ex.target} {ex.unit} · {isRace ? t('Gara Hyrox') : t('Hyrox')}</div>
+            <div className="j-eyebrow mt-0.5">{formato === 'mezzo' ? distMezza : distIntera} · {isRace ? t('Gara Hyrox') : t('Hyrox')}</div>
           </div>
           {!isRace && onDelete && (
             <button onClick={() => confirmDelete(onDelete, tData(ex.n))} style={{
@@ -80,11 +100,13 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
       </div>
 
       <div className="j-scroll-area">
+        <FormatoSwitch valore={formato} onChange={onFormato} etichette={[distIntera, distMezza]} style={{ marginBottom: 14 }}/>
+
         <div className="grid grid-cols-3 gap-2 mb-4">
           {[
             { label: t('Miglior tempo'), value: bestSec > 0 ? fmtTime(bestSec) : '—' },
             { label: t('Trend'),         value: trend !== 0 ? `${trend < 0 ? '▼' : '▲'} ${Math.abs(trend)}s` : '—', color: trendCol },
-            { label: t('Sessioni'),      value: String(hist.length) },
+            { label: t('Sessioni'),      value: String(visibili.length) },
           ].map(st => (
             <NucCard key={st.label} pad={12} style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textTransform: 'uppercase', marginBottom: 6 }}>{st.label}</div>
@@ -118,26 +140,21 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
           </>
         )}
 
-        <button onClick={() => setHistOpen(o => !o)} className="w-full flex items-center justify-between px-0.5 bg-transparent border-none cursor-pointer" style={{ marginBottom: histOpen ? 10 : 16 }}>
-          <div className="j-eyebrow">{t('Storico')}</div>
-          <div className="flex items-center gap-1.5">
-            <div className="j-eyebrow">{hist.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: hist.length })}</div>
-            <div style={{ color: NUC.faint, transform: histOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-              <Icons.chev size={12} stroke={2}/>
-            </div>
-          </div>
-        </button>
+        {/* Tutte le sessioni in vista, come nella pagina di un esercizio dei pesi:
+            chiuse dietro una tendina erano il contenuto della pagina nascosto. */}
+        <NucEyebrow right={visibili.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: visibili.length })}>{t('Storico')}</NucEyebrow>
 
-        {histOpen && hist.length === 0 && <div className="j-empty">{t('Nessuna sessione registrata')}</div>}
+        {visibili.length === 0 && (
+          <div className="j-empty">{t('Nessuna sessione da {dist}', { dist: formato === 'mezzo' ? distMezza : distIntera })}</div>
+        )}
 
-        {histOpen && [...hist].reverse().map((h, i) => {
-          const realIdx = hist.length - 1 - i
+        {[...visibili].reverse().map(({ h, idx: realIdx }) => {
           const dateStr = h.date ? fmtShortDate(h.date) : h.d
           return (
-            <div key={i} className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
+            <div key={realIdx} className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, color: NUC.ink, letterSpacing: -0.2 }}>
-                  {fmtTime(h.sec)} · {h.units} {ex.unit}
+                  {fmtTime(h.sec)} · {distanzaLeggibile(h.units, ex.unit)}
                 </div>
                 <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
               </div>
@@ -175,7 +192,8 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
         unit={ex.unit}
         onClose={() => setEditHistEntry(null)}
         onSave={updated => {
-          const newHist = hist.map((h, i) => i === editHistEntry.idx ? updated : h)
+          // Riordinato: con la data modificabile la sessione può cambiare posto.
+          const newHist = sortedHistory(hist.map((h, i) => i === editHistEntry.idx ? updated : h))
           onUpdate?.({ history: newHist })
           setEditHistEntry(null)
         }}
@@ -186,159 +204,226 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
 }
 
 // ── Riepilogo gara ─────────────────────────────────────────────
+// Il tempo di gara che i tuoi allenamenti promettono, segmento per segmento.
+// I conti stanno in hyroxStima, puri e testati; qui c'è solo il modo di leggerli.
+//
+// Tre cose si vedono sempre, perché una stima che non dice come è fatta non è
+// una stima, è un numero: DA DOVE viene ogni segmento (gara, simulazione,
+// allenamento, o completato dal profilo), QUANTO pesano le ipotesi (fatica in
+// corsa, turni in coppia, Roxzone) e QUANTO fidarsi (il ± sotto il tempo).
+
+const CATEGORIA_KEY = 'jarvis-categoria-hyrox'
+
 export function RaceSummary({ raceStations, runStation }: {
   raceStations: HyroxExercise[]
   runStation: HyroxExercise
 }) {
   const t = useT()
   const tData = useTData()
-  const stationStats = useMemo(() =>
-    raceStations.map(ex => {
-      const hist = ex.history
-      if (!hist.length) return { ex, avgSec: null as number | null, avgUnits: ex.target, sessions: 0 }
-      const avgSec = Math.round(hist.reduce((s, h) => s + h.sec, 0) / hist.length)
-      const avgUnits = hist.reduce((s, h) => s + h.units, 0) / hist.length
-      return { ex, avgSec, avgUnits, sessions: hist.length }
-    }),
-    [raceStations]
+  // La categoria che corri. Si ricorda sul dispositivo come la distanza: il
+  // default è il double, e cambiarla cambia anche come si leggono le gare
+  // registrate — una gara in coppia ha stazioni più brevi di una da solo.
+  const [categoria, setCategoriaState] = useState<Categoria>(
+    () => readStorage('local', CATEGORIA_KEY) === 'singolo' ? 'singolo' : 'double',
+  )
+  const setCategoria = (c: Categoria) => { setCategoriaState(c); writeStorage('local', CATEGORIA_KEY, c) }
+
+  const g = useMemo(() => stimaGara(runStation, raceStations, categoria), [runStation, raceStations, categoria])
+  const tempi = g.tempi[categoria]
+  const altra: Categoria = categoria === 'double' ? 'singolo' : 'double'
+  const nomeCat = (c: Categoria) => c === 'double' ? t('Double') : t('Singolo')
+  const sec = (x: number) => fmtTime(Math.round(x))
+
+  // "× 2,09": quanto si moltiplica il tempo della mezza. È 2^k, e dice la stessa
+  // cosa dell'esponente in un modo che si capisce senza sapere chi è Riegel.
+  const fattore = (k: number) => Math.pow(2, k).toFixed(2).replace('.', ',')
+  const nomeContesto = (c: Contesto) => c === 'gara' ? t('gara') : c === 'simulazione' ? t('simulazione') : t('allenamento')
+
+  const provenienza = (stima: StimaSegmento, target: number, unit: HyroxExercise['unit']) => {
+    if (stima.fonte === 'mancante') return t('nessuna sessione')
+    if (stima.fonte === 'profilo') return t('dal tuo profilo')
+    const parti = [stima.contesti.map(nomeContesto).join(' + ')]
+    if (stima.daMezza) parti.push(`${t('da {dist}', { dist: distanzaLeggibile(target / 2, unit) })} × ${fattore(stima.k)}`)
+    if (stima.kPersonale) parti.push(t('tarato su di te'))
+    return parti.join(' · ')
+  }
+
+  const riga = (id: string, nome: string, sotto: string, stima: StimaSegmento, target: number, unit: HyroxExercise['unit'],
+    valore: number | undefined, extra?: string, ultima = false) => (
+    <div key={id} className="flex justify-between items-center gap-3 py-3"
+      style={{ borderBottom: ultima ? 'none' : '1px solid var(--hairline-soft)' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>{nome}</div>
+        <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2, lineHeight: 1.45 }}>
+          {sotto} · <span style={{ color: stima.fonte === 'profilo' || stima.daMezza ? 'var(--tertiary-ink)' : undefined }}>
+            {provenienza(stima, target, unit)}
+          </span>
+        </div>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        {valore !== undefined ? (
+          <>
+            <div style={{ fontFamily: NUC.label, fontSize: 15, color: stima.fonte === 'profilo' ? NUC.dim : NUC.accentSoft, letterSpacing: -0.5 }}>{sec(valore)}</div>
+            {extra && <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 1 }}>{extra}</div>}
+          </>
+        ) : (
+          <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.faint }}>—</div>
+        )}
+      </div>
+    </div>
   )
 
-  const runStats = useMemo(() => {
-    const hist = runStation.history
-    if (!hist.length) return { avgSec: null as number | null, sessions: 0 }
-    return {
-      avgSec: Math.round(hist.reduce((s, h) => s + h.sec, 0) / hist.length),
-      sessions: hist.length,
-    }
-  }, [runStation])
+  const voce = (label: string, valore: string, forte = false) => (
+    <div className="flex justify-between items-baseline gap-3" style={{ padding: '4px 0' }}>
+      <span style={{ fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.04em', color: forte ? NUC.ink : NUC.faint }}>{label}</span>
+      <span style={{ fontFamily: NUC.label, fontSize: forte ? 13 : 12, color: forte ? NUC.ink : NUC.dim, fontWeight: forte ? 600 : 400, flexShrink: 0 }}>{valore}</span>
+    </div>
+  )
 
-  const logged   = stationStats.filter(s => s.avgSec !== null).length + (runStats.avgSec !== null ? 1 : 0)
-  const totalSec = stationStats.reduce((sum, s) => sum + (s.avgSec ?? 0), 0) + (runStats.avgSec !== null ? runStats.avgSec * 8 : 0)
+  const ultimaGara = g.gare[g.gare.length - 1]
+  const ultimaSim = g.simulazioni[g.simulazioni.length - 1]
+  const basi = [
+    ultimaGara && t('gara del {d}', { d: fmtShortDate(ultimaGara) }),
+    ultimaSim && t('simulazione del {d}', { d: fmtShortDate(ultimaSim) }),
+  ].filter(Boolean).join(' · ')
+
+  const piccolo: React.CSSProperties = { fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 4, letterSpacing: .2 }
 
   return (
     <div>
-      <NucCard pad={16} style={{ marginBottom: 16, textAlign: 'center' }}>
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textTransform: 'uppercase', marginBottom: 8 }}>
-          {t('Tempo gara stimato · media sessioni')}
+      <FormatoSwitch<Categoria>
+        valore={categoria} onChange={setCategoria}
+        valori={['double', 'singolo']} etichette={[t('Double'), t('Singolo')]}
+        etichettaGruppo={t('Categoria')}
+        style={{ marginBottom: 14 }}
+      />
+
+      <NucCard pad={16} style={{ marginBottom: 16 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textTransform: 'uppercase', marginBottom: 8 }}>
+            {t('Tempo gara stimato')} · {nomeCat(categoria)}
+          </div>
+          <div style={{ fontFamily: NUC.label, fontSize: 32, color: tempi ? NUC.accentSoft : NUC.faint, letterSpacing: -1.5, lineHeight: 1 }}>
+            {tempi ? fmtTempoGara(tempi.totale) : '—'}
+          </div>
+          {tempi && g.margine !== null && (
+            <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.dim, marginTop: 6 }}>± {sec(g.margine)}</div>
+          )}
+          {g.tempi[altra] && (
+            <div style={{ ...piccolo, marginTop: 8, fontSize: 11 }}>
+              {nomeCat(altra)}: {fmtTempoGara(g.tempi[altra]!.totale)}
+            </div>
+          )}
+
+          <div style={{ ...piccolo, marginTop: 10 }}>
+            {t('{n}/{tot} segmenti misurati', { n: g.misurati, tot: g.totaleSegmenti })}
+            {g.daProfilo > 0 && ` · ${t('{n} dal tuo profilo', { n: g.daProfilo })}`}
+          </div>
+          <div style={{ ...piccolo, color: basi ? 'var(--tertiary-ink)' : NUC.faint }}>
+            {basi || t('nessuna gara né simulazione: stima dagli allenamenti')}
+          </div>
+          {!tempi && (
+            <div style={{ ...piccolo, opacity: .8 }}>
+              {t('Servono almeno {n} segmenti registrati', { n: MIN_PER_PROFILO })} · {t('logga le sessioni mancanti nella scheda Esercizi')}
+            </div>
+          )}
         </div>
-        <div style={{ fontFamily: NUC.label, fontSize: 32, color: logged > 0 ? NUC.accentSoft : NUC.faint, letterSpacing: -1.5, lineHeight: 1 }}>
-          {logged > 0 ? fmtTime(totalSec) : '—'}
-        </div>
-        <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 10, letterSpacing: .3 }}>
-          {t('{n}/9 segmenti tracciati', { n: logged })}
-          {logged === 9 ? ` · ${t('stima completa')}` : logged > 0 ? ` · ${t('stima parziale')}` : ''}
-        </div>
-        {logged < 9 && (
-          <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 4, letterSpacing: .2, opacity: .7 }}>
-            {t('logga le sessioni mancanti nella scheda Esercizi')}
+
+        {/* Come è fatto il numero: ogni ipotesi ha la sua riga, così si vede quanto pesa. */}
+        {tempi && (
+          <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--divider)' }}>
+            {voce(t('Corsa 8 × {p} (fatica +{f}%)', { p: sec(tempi.corsaKm), f: Math.round((FATICA_CORSA[categoria] - 1) * 100) }), fmtTempoGara(tempi.corsa))}
+            {voce(categoria === 'double' ? t('Stazioni a turni in due') : t('Stazioni da solo'), fmtTempoGara(tempi.stazioni))}
+            {voce(t('Roxzone ({n} × {s} s)', { n: ROXZONE_PASSAGGI, s: ROXZONE_SEC }), fmtTempoGara(tempi.roxzone))}
+            <div style={{ borderTop: '1px solid var(--hairline-soft)', marginTop: 4, paddingTop: 4 }}>
+              {voce(t('Stima gara'), fmtTempoGara(tempi.totale), true)}
+            </div>
           </div>
         )}
       </NucCard>
 
-      <NucCard pad={16}>
-        {/* Run row */}
-        <div className="flex justify-between items-center py-3" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>{t('Corsa 1 km')}</div>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>
-              1 km · {t('{n} sess.', { n: runStats.sessions })}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            {runStats.avgSec !== null ? (
-              <>
-                <div style={{ fontFamily: NUC.label, fontSize: 15, color: NUC.accentSoft, letterSpacing: -0.5 }}>{fmtTime(runStats.avgSec)}</div>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 1 }}>{pace(runStats.avgSec, 1, 'km')}</div>
-              </>
-            ) : (
-              <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.faint }}>—</div>
-            )}
-          </div>
-        </div>
-
-        {/* Station rows */}
-        {stationStats.map(({ ex, avgSec, avgUnits, sessions }, idx) => (
-          <div key={ex.id} className="flex justify-between items-center py-3"
-            style={{ borderBottom: idx < stationStats.length - 1 ? '1px solid var(--hairline-soft)' : 'none' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
-              <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>
-                {ex.target} {ex.unit} · {t('{n} sess.', { n: sessions })}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              {avgSec !== null ? (
-                <>
-                  <div style={{ fontFamily: NUC.label, fontSize: 15, color: NUC.accentSoft, letterSpacing: -0.5 }}>{fmtTime(avgSec)}</div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 1 }}>{pace(avgSec, avgUnits, ex.unit)}</div>
-                </>
-              ) : (
-                <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.faint }}>—</div>
-              )}
-            </div>
-          </div>
+      <NucCard pad={16} style={{ marginBottom: 16 }}>
+        {riga(runStation.id, t('Corsa 1 km'), '1 km × 8', g.corsa, runStation.target, runStation.unit,
+          tempi?.corsaKm, tempi ? `× 8 = ${fmtTempoGara(tempi.corsa)}` : undefined)}
+        {g.stazioni.map(({ ex, stima }, idx) => riga(
+          ex.id, tData(ex.n), distanzaLeggibile(ex.target, ex.unit), stima, ex.target, ex.unit,
+          tempi?.perStazione[ex.id],
+          // In double il tempo è della coppia: accanto, quello tuo da solo, perché
+          // è la misura che alleni e che registri.
+          tempi && categoria === 'double' && stima.fresco !== null ? t('da solo {t}', { t: sec(stima.fresco) }) : undefined,
+          idx === g.stazioni.length - 1,
         ))}
+      </NucCard>
+
+      {/* Il ragionamento, in chiaro: chi guarda un tempo deve poter sapere cosa ci
+          sta dietro senza aprire il codice. */}
+      <NucCard pad={14}>
+        <NucEyebrow>{t('Come ragiona la stima')}</NucEyebrow>
+        <div style={{ fontFamily: NUC.font, fontSize: 12, color: NUC.dim, lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div>{t('1. Ogni sessione viene riportata a te da solo e a gambe fresche: alla corsa di gara si toglie la fatica, alle stazioni di una gara in double i turni col compagno, e una mezza si porta alla distanza intera.')}</div>
+          <div>{t('2. Una gara o una simulazione si riconoscono da sole (5 segmenti lo stesso giorno) e contano più degli allenamenti. I segmenti che mancano si completano col tuo profilo, se ne hai registrati almeno 3.')}</div>
+          <div>{t('3. La gara si rimonta nella categoria: corsa +10% in singolo e +5% in double, stazioni a turni in due, 16 passaggi in Roxzone da 25 s. In double si suppone un compagno del tuo livello.')}</div>
+        </div>
       </NucCard>
     </div>
   )
 }
 
 // ── Hyrox Card ─────────────────────────────────────────────────
-export function HyroxCard({ ex, onLog, onDelete }: {
+// Bassa apposta: nove stazioni devono scorrere in fretta. Il grafico vive nella
+// pagina della stazione; qui servono il nome, l'ultimo tempo e il tasto per
+// registrare, sulla stessa riga del nome dove il pollice lo trova subito.
+export function HyroxCard({ ex, onLog, onDelete, formato }: {
   ex: HyroxExercise
   onLog: (e?: React.MouseEvent) => void
   onDelete?: (e?: React.MouseEvent) => void
+  formato: FormatoHyrox
 }) {
   const t = useT()
   const tData = useTData()
-  const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
+  // L'ultima sessione e il trend sono quelli della distanza scelta.
+  const hist = useMemo(
+    () => sortedHistory(ex.history).filter(h => formatoSessione(h, ex.target) === formato),
+    [ex.history, ex.target, formato],
+  )
   const last = hist[hist.length - 1]
   const prev = hist[hist.length - 2]
-  const times = hist.map(h => h.sec)
-  const labels = hist.map(h => h.d)
   const trend = last && prev ? last.sec - prev.sec : 0
   const trendColor = trend < 0 ? NUC.accentSoft : trend > 0 ? 'var(--danger)' : NUC.faint
+  const dist = distanzaLeggibile(formato === 'mezzo' ? ex.target / 2 : ex.target, ex.unit)
+  const piccolo: React.CSSProperties = { fontFamily: NUC.label, fontSize: 10, letterSpacing: 1, color: NUC.faint, whiteSpace: 'nowrap' }
 
   return (
-    <NucCard pad={16} style={{ marginBottom: 10 }}>
-      <div className="flex justify-between items-start mb-2.5">
-        <div>
-          <div style={{ fontFamily: NUC.font, fontSize: 18, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, marginBottom: 3 }}>{tData(ex.n)}</div>
-          <div className="j-eyebrow">{ex.target} {ex.unit}</div>
+    <NucCard pad={12} style={{ marginBottom: 8 }}>
+      <div className="flex items-center gap-2">
+        <div style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {tData(ex.n)}
         </div>
-        <div className="flex items-center gap-2">
-          {last && (
-            <div className="text-right">
-              <div style={{ fontFamily: NUC.label, fontSize: 16, color: NUC.accentSoft, letterSpacing: -0.5 }}>{fmtTime(last.sec)}</div>
-              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1, color: NUC.faint }}>{pace(last.sec, last.units, ex.unit)}</div>
-            </div>
-          )}
-          {trend !== 0 && (
-            <div style={{ fontFamily: NUC.label, fontSize: 10, color: trendColor, letterSpacing: 0.5 }}>
-              {trend < 0 ? '▼' : '▲'} {Math.abs(trend)}s
-            </div>
-          )}
-        </div>
-      </div>
-
-      {times.length >= 2 && (
-        <div className="mb-2.5">
-          <LineChart data={times} labels={labels} height={52} color={NUC.accentSoft}/>
-        </div>
-      )}
-
-      {times.length === 0 && (
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textAlign: 'center', padding: '10px 0', textTransform: 'uppercase' }}>
-          {t('Nessuna sessione registrata')}
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <button onClick={e => { e.stopPropagation(); onLog(e) }} className="j-btn-log flex-1">
-          <Icons.plus size={14} stroke={2}/> {t('Nuova sessione')}
+        <button onClick={e => { e.stopPropagation(); onLog(e) }} className="j-btn-log"
+          style={{ width: 'auto', height: 32, padding: '0 12px', fontSize: 12, flexShrink: 0 }}>
+          <Icons.plus size={13} stroke={2}/> {t('Sessione')}
         </button>
         {onDelete && (
-          <button onClick={e => { e.stopPropagation(); onDelete(e) }} className="flex items-center justify-center w-[38px] h-[38px] rounded-none" style={{ background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer' }}><Icons.trash size={15} stroke={1.6}/></button>
+          <button onClick={e => { e.stopPropagation(); onDelete(e) }} aria-label={t('Elimina')}
+            className="flex items-center justify-center w-[32px] h-[32px] rounded-none"
+            style={{ background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer', flexShrink: 0 }}>
+            <Icons.trash size={14} stroke={1.6}/>
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-baseline gap-2" style={{ marginTop: 6, minWidth: 0 }}>
+        <span className="j-eyebrow" style={{ whiteSpace: 'nowrap' }}>{dist}</span>
+        {last ? (
+          <>
+            <span style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentSoft, letterSpacing: -0.4, marginLeft: 'auto' }}>{fmtTime(last.sec)}</span>
+            <span style={piccolo}>{pace(last.sec, last.units, ex.unit)}</span>
+            {trend !== 0 && (
+              <span style={{ ...piccolo, color: trendColor }}>{trend < 0 ? '▼' : '▲'} {Math.abs(trend)}s</span>
+            )}
+          </>
+        ) : (
+          <span style={{ ...piccolo, marginLeft: 'auto', textTransform: 'uppercase' }}>{t('Nessuna sessione registrata')}</span>
         )}
       </div>
     </NucCard>

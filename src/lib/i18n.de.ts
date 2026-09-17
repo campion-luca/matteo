@@ -121,7 +121,7 @@ export const DE_DATA: Record<string, string> = {
   // Stazioni Hyrox: i nomi di gara sono gli stessi in Germania — SkiErg, Sled Push,
   // Wall Balls stanno scritti così anche sul percorso di Hyrox Berlin. Si traduce
   // solo la corsa, che è l'unica voce non ufficiale dell'elenco.
-  'Corsa (1 km)': 'Laufen (1 km)',
+  'Corsa avg pace': 'Laufen Ø-Pace',
 }
 
 // ── Interfaccia ────────────────────────────────────────────────
@@ -416,7 +416,8 @@ export const DE_UI: Record<string, string> = {
   'Nessuna alzata': 'Kein Satz',
   'Corsa · 8 × 1 km': 'Laufen · 8 × 1 km',
   'Stazioni gara': 'Wettkampfstationen',
-  'Grafico andamento': 'Verlaufsdiagramm',
+  'Registra almeno 2 sessioni per vedere il grafico': 'Trag mindestens 2 Einheiten ein, um das Diagramm zu sehen',
+  'più basso = meglio': 'niedriger = besser',
 
   // ── Dettaglio esercizio ──────────────────────────────────────
   'Nuova alzata': 'Neuer Satz',
@@ -453,7 +454,6 @@ export const DE_UI: Record<string, string> = {
     'Eine Erinnerung für das nächste Mal: Griff, Sitz, Tempo…',
 
   // ── Statistiche ──────────────────────────────────────────────
-  'Sessioni hyrox': 'Hyrox-Einheiten',
   'Volume per muscolo': 'Volumen pro Muskel',
   'Volte': 'Mal',
   'Allenamenti per muscolo': 'Trainings pro Muskel',
@@ -477,10 +477,6 @@ export const DE_UI: Record<string, string> = {
   'Cadenza (rep/min)': 'Frequenz (Wdh./Min.)',
   'Nuova sessione': 'Neue Einheit',
   'Sessione': 'Einheit',
-  'Tempo gara stimato · media sessioni': 'Geschätzte Wettkampfzeit · Durchschnitt der Einheiten',
-  '{n}/9 segmenti tracciati': '{n}/9 Abschnitte erfasst',
-  'stima completa': 'vollständige Schätzung',
-  'stima parziale': 'teilweise Schätzung',
   'logga le sessioni mancanti nella scheda Esercizi': 'trage die fehlenden Einheiten im Reiter Übungen ein',
   'Corsa 1 km': 'Laufen 1 km',
 
@@ -565,6 +561,37 @@ export const DE_UI: Record<string, string> = {
   'Crea gruppo': 'Gruppe erstellen',
   'Chiudi il profilo': 'Profil schließen',
   'Pesati ogni mattina appena sveglio, a stomaco vuoto: è l’unico modo perché due misure siano confrontabili. Conta la direzione, non il numero di oggi.': 'Wiege dich jeden Morgen direkt nach dem Aufstehen, nüchtern: nur so sind zwei Messungen vergleichbar. Es zählt die Richtung, nicht die Zahl von heute.',
+  'Distanza': 'Distanz',
+  'Nessuna sessione da {dist}': 'Keine Einheit über {dist}',
+  'nessuna sessione': 'keine Einheit',
+  'da {dist}': 'aus {dist}',
+  'tarato su di te': 'auf dich kalibriert',
+  'Tempo gara stimato': 'Geschätzte Wettkampfzeit',
+  'Roxzone ({n} × {s} s)': 'Roxzone ({n} × {s} s)',
+  'Stima gara': 'Wettkampfschätzung',
+  'Mezza distanza': 'Halbe Distanz',
+  'Corsa · 8 × 500 m': 'Laufen · 8 × 500 m',
+  'Double': 'Doppel',
+  'Singolo': 'Einzel',
+  'Categoria': 'Kategorie',
+  'gara': 'Wettkampf',
+  'simulazione': 'Simulation',
+  'allenamento': 'Training',
+  'dal tuo profilo': 'aus deinem Profil',
+  'gara del {d}': 'Wettkampf vom {d}',
+  'simulazione del {d}': 'Simulation vom {d}',
+  '{n}/{tot} segmenti misurati': '{n}/{tot} Abschnitte gemessen',
+  '{n} dal tuo profilo': '{n} aus deinem Profil',
+  'nessuna gara né simulazione: stima dagli allenamenti': 'kein Wettkampf und keine Simulation: Schätzung aus dem Training',
+  'Servono almeno {n} segmenti registrati': 'Mindestens {n} erfasste Abschnitte nötig',
+  'Corsa 8 × {p} (fatica +{f}%)': 'Laufen 8 × {p} (Ermüdung +{f}%)',
+  'Stazioni a turni in due': 'Stationen abwechselnd zu zweit',
+  'Stazioni da solo': 'Stationen allein',
+  'da solo {t}': 'allein {t}',
+  'Come ragiona la stima': 'Wie die Schätzung rechnet',
+  '1. Ogni sessione viene riportata a te da solo e a gambe fresche: alla corsa di gara si toglie la fatica, alle stazioni di una gara in double i turni col compagno, e una mezza si porta alla distanza intera.': '1. Jede Einheit wird auf dich allein und mit frischen Beinen umgerechnet: Beim Wettkampflauf wird die Ermüdung abgezogen, bei Stationen eines Doppel-Wettkampfs die Wechsel mit dem Partner, und eine halbe Distanz wird auf die volle hochgerechnet.',
+  '2. Una gara o una simulazione si riconoscono da sole (5 segmenti lo stesso giorno) e contano più degli allenamenti. I segmenti che mancano si completano col tuo profilo, se ne hai registrati almeno 3.': '2. Wettkämpfe und Simulationen werden automatisch erkannt (5 Abschnitte am selben Tag) und zählen mehr als Training. Fehlende Abschnitte werden aus deinem Profil ergänzt, wenn du mindestens 3 erfasst hast.',
+  '3. La gara si rimonta nella categoria: corsa +10% in singolo e +5% in double, stazioni a turni in due, 16 passaggi in Roxzone da 25 s. In double si suppone un compagno del tuo livello.': '3. Der Wettkampf wird in der Kategorie zusammengesetzt: Laufen +10 % im Einzel und +5 % im Doppel, Stationen abwechselnd zu zweit, 16 Roxzone-Durchgänge à 25 s. Im Doppel wird ein Partner auf deinem Niveau angenommen.',
   'Salva': 'Speichern',
   'Modifica sessione': 'Einheit bearbeiten',
   'Quantità': 'Menge',

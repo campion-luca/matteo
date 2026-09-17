@@ -19,10 +19,12 @@ import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistor
 import {
   TECHNIQUE_LABELS, TECHNIQUES, MUSCLE_COLORS, COLOR_PALETTE,
   displayMuscle, fmtKg, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
-  effectiveLoad, sortedHistory,
+  effectiveLoad, sortedHistory, fmtTime,
   } from './gymModel'
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
+import { FormatoSwitch } from './FormatoSwitch'
+import { type FormatoHyrox, unitaFormato, distanzaLeggibile } from './hyroxStima'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { todayISO } from '@/lib/isoDate'
 import { uid } from '@/lib/uid'
@@ -43,9 +45,15 @@ export interface LogHyroxModalProps {
   open: boolean; onClose: () => void
   ex: HyroxExercise | null
   onSave: (entry: HyroxHistoryEntry) => void
+  /** Intera o mezza: decide la distanza proposta. È la STESSA scelta della
+   *  sezione, non una copia locale — cambiarla qui cambia anche la pagina sotto,
+   *  così la sessione appena salvata compare dove la si sta guardando invece di
+   *  finire nell'altro formato e sembrare persa. */
+  formato: FormatoHyrox
+  onFormato: (f: FormatoHyrox) => void
 }
 
-export function LogHyroxModal({ open, onClose, ex, onSave }: LogHyroxModalProps) {
+export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }: LogHyroxModalProps) {
   const t = useT()
   const tData = useTData()
   const today = todayISO()
@@ -61,8 +69,16 @@ export function LogHyroxModal({ open, onClose, ex, onSave }: LogHyroxModalProps)
   useEffect(() => {
     if (!open || !ex) return
     setDate(todayISO())
-    setMin(''); setSec(''); setUnits(String(ex.target ?? 1)); setKg(''); setSets('')
+    setMin(''); setSec(''); setKg(''); setSets('')
   }, [open, ex])
+
+  // La distanza segue il formato anche a modale aperto: premere "500 m" deve
+  // scrivere 500 nel campo, non lasciarlo a 1000 in attesa che qualcuno se ne
+  // accorga dopo aver salvato.
+  useEffect(() => {
+    if (!open || !ex) return
+    setUnits(String(unitaFormato(ex.target ?? 1, formato)))
+  }, [open, ex, formato])
 
   if (!ex) return null
 
@@ -84,7 +100,12 @@ export function LogHyroxModal({ open, onClose, ex, onSave }: LogHyroxModalProps)
   return (
     <JModal open={open} onClose={onClose} title={`${t('Log')} · ${tData(ex.n)}`} width={340}>
       <div className="flex flex-col gap-2.5">
-        <div className="j-eyebrow mb-0.5">{t('Data')}</div>
+        <FormatoSwitch
+          valore={formato} onChange={onFormato}
+          etichette={[distanzaLeggibile(ex.target, ex.unit), distanzaLeggibile(ex.target / 2, ex.unit)]}
+        />
+
+        <div className="j-eyebrow mb-0.5 mt-1">{t('Data')}</div>
         <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
 
         <div className="j-eyebrow mt-1">{t('Tempo')}</div>
@@ -120,6 +141,12 @@ export function LogHyroxModal({ open, onClose, ex, onSave }: LogHyroxModalProps)
 }
 
 // ── Edit Hyrox History Modal ───────────────────────────────────
+/** La data scelta nel modale, con la sua etichetta settimana. Un campo svuotato
+ *  non cancella la data che c'era: lascia la sessione dov'è. */
+function conData(date: string): { date?: string; d?: string } {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date, d: weekLabel(date) } : {}
+}
+
 export function EditHyroxHistModal({ entry, unit, onClose, onSave }: {
   entry: HyroxHistoryEntry; unit: string
   onClose: () => void; onSave: (h: HyroxHistoryEntry) => void
@@ -128,18 +155,24 @@ export function EditHyroxHistModal({ entry, unit, onClose, onSave }: {
   const [minV, setMin] = useState(String(Math.floor(entry.sec / 60)))
   const [secV, setSec] = useState(String(entry.sec % 60))
   const [units, setUnits] = useState(String(entry.units))
+  const [date, setDate] = useState(entry.date ?? '')
 
   const save = () => {
     const totalSec = (parseInt(minV) || 0) * 60 + (parseInt(secV) || 0)
     if (!totalSec) return
-    onSave({ ...entry, sec: totalSec, units: parseFloat(units) || entry.units })
+    onSave({ ...entry, ...conData(date), sec: totalSec, units: parseFloat(units) || entry.units })
     onClose()
   }
 
   return (
     <JModal open={true} onClose={onClose} title={t('Modifica sessione')} width={300}>
       <div className="flex flex-col gap-2.5">
-        <div className="j-eyebrow">{t('Tempo')}</div>
+        {/* La data si corregge come il resto: una sessione registrata la sera
+            dopo, o col giorno sbagliato, finiva nel posto sbagliato di grafici e
+            trend e l'unico rimedio era cancellarla e riscriverla. */}
+        <div className="j-eyebrow">{t('Data')}</div>
+        <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
+        <div className="j-eyebrow mt-1">{t('Tempo')}</div>
         <div className="flex gap-2">
           <input value={minV} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
           <input value={secV} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
@@ -653,6 +686,98 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
   )
 }
 
+// ── Statistiche di un esercizio Hyrox ──────────────────────────
+// Si apre toccando una riga di Stats → Hyrox, come i record dei pesi aprono
+// `ExStatsModal`. Riceve le sessioni GIÀ filtrate per distanza: un grafico che
+// mescola 500 m e 1000 m salterebbe su e giù a ogni cambio di formato.
+export function HyroxStatsModal({ ex, hist, onClose }: {
+  ex: Pick<HyroxExercise, 'n' | 'unit'>
+  hist: HyroxHistoryEntry[]
+  onClose: () => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const ord = useMemo(() => sortedHistory(hist), [hist])
+
+  const { times, paces, labels } = useMemo(() => ({
+    times:  ord.map(h => h.sec),
+    // Lo stesso passo della pagina della stazione: al km, ai 500 m o rep/min.
+    paces:  ord.map(h => ex.unit === 'km' ? Math.round(h.sec / h.units)
+      : ex.unit === 'm' ? Math.round((h.sec / h.units) * 500)
+      : Math.round((h.units / h.sec) * 60)),
+    labels: ord.map(h => h.date ? fmtDayMonth(h.date) : h.d),
+  }), [ord, ex.unit])
+
+  const best  = times.length ? Math.min(...times) : 0
+  const last  = times[times.length - 1]
+  const prev  = times[times.length - 2]
+  const trend = last !== undefined && prev !== undefined ? last - prev : 0
+
+  return (
+    <JModal open onClose={onClose} title={tData(ex.n)} width={360} maxHeight="calc(100% - 32px)">
+      <div className="flex flex-col gap-3.5">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: t('Miglior tempo'), value: best > 0 ? fmtTime(best) : '—' },
+            { label: t('Ultimo'),        value: last !== undefined ? fmtTime(last) : '—' },
+            { label: t('Sessioni'),      value: String(ord.length) },
+          ].map(s => (
+            <div key={s.label} className="j-stat-tile">
+              <div className="j-eyebrow mb-1.5">{s.label}</div>
+              <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.4 }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {times.length >= 2 ? (
+          <>
+            <div>
+              {/* Qui il meglio è in basso: un tempo che scende è un miglioramento,
+                  e il trend si colora di conseguenza. */}
+              <NucEyebrow right={trend !== 0 ? (
+                <span style={{ color: trend < 0 ? 'var(--j-accent-ink)' : 'var(--danger)' }}>
+                  {trend < 0 ? '▼' : '▲'} {Math.abs(trend)}s
+                </span>
+              ) : t('più basso = meglio')}>{t('Tempo')}</NucEyebrow>
+              <div className="j-chart-box">
+                <LineChart data={times} labels={labels} height={96} color="var(--j-accent)" yAxis labelSize={9} yFormat={fmtTime}/>
+              </div>
+            </div>
+            <div>
+              <NucEyebrow>
+                {ex.unit === 'km' ? t('Pace (sec/km)') : ex.unit === 'm' ? t('Pace (sec/500m)') : t('Cadenza (rep/min)')}
+              </NucEyebrow>
+              <div className="j-chart-box">
+                <LineChart data={paces} labels={labels} height={96} color="var(--chart-2)" yAxis labelSize={9}
+                  yFormat={ex.unit === 'rep' ? undefined : fmtTime}/>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="j-empty">{t('Registra almeno 2 sessioni per vedere il grafico')}</div>
+        )}
+
+        {ord.length > 0 && (
+          <div>
+            <NucEyebrow>{ord.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: ord.length })}</NucEyebrow>
+            <div className="flex flex-col">
+              {[...ord].reverse().slice(0, 8).map((h, i) => (
+                <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>{fmtTime(h.sec)} · {distanzaLeggibile(h.units, ex.unit)}</div>
+                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{h.date ? fmtShortDate(h.date) : h.d}</div>
+                  </div>
+                  <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--j-accent-ink)', flexShrink: 0 }}>{pace(h.sec, h.units, ex.unit)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </JModal>
+  )
+}
+
 // ── Modifica esercizio (nome, gruppi muscolari, colore) ────────
 export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   open: boolean; onClose: () => void
@@ -784,6 +909,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
   // Anche un'alzata già registrata può essere un massimale: il flag si mette e si
   // toglie da qui, altrimenti l'unico modo sarebbe cancellarla e riscriverla.
   const [isMax, setIsMax] = useState(entry.maxLift === true)
+  const [date, setDate] = useState(entry.date ?? '')
 
   const nSets = Math.max(1, parseInt(sets) || 1)
   const updateSetWeight = (i: number, v: string) =>
@@ -823,6 +949,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
     }
     onSave({
       ...entry,
+      ...conData(date),
       kg: kgN, reps: repsOut, sets_n: setsN,
       setWeights,   // esplicito: azzera eventuali pesi-serie non più validi
       setReps,      // idem per i colpi-serie
@@ -833,12 +960,15 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
     onClose()
   }
 
-  const dateLabel = entry.date ? fmtShortDate(entry.date) : entry.d
-
   return (
-    <JModal open={true} onClose={onClose} title={`${t('Modifica alzata')} · ${dateLabel}`} width={300}>
+    <JModal open={true} onClose={onClose} title={t('Modifica alzata')} width={300}>
       <div className="flex flex-col gap-2.5">
-        <div className="j-eyebrow">{t('Tipo di carico')}</div>
+        {/* La data si corregge come il resto: una sessione registrata la sera
+            dopo, o col giorno sbagliato, finiva nel posto sbagliato di grafici e
+            trend e l'unico rimedio era cancellarla e riscriverla. */}
+        <div className="j-eyebrow">{t('Data')}</div>
+        <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
+        <div className="j-eyebrow mt-1">{t('Tipo di carico')}</div>
         <div className="flex gap-2">
           {([false, true] as const).map(bw => (
             <button key={String(bw)} onClick={() => { setIsBodyweight(bw); setZavorra(''); setKg('') }} style={{

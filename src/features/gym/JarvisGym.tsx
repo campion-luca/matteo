@@ -41,9 +41,11 @@ import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
-import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal } from './gymModals'
+import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal } from './gymModals'
 import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary } from './GymHyrox'
+import { FormatoSwitch } from './FormatoSwitch'
+import { type FormatoHyrox, sessioniDel } from './hyroxStima'
 import { GlobalSearch } from '@/features/search/GlobalSearch'
 
 type MuscleView = 'vol' | 'sessioni'
@@ -166,14 +168,21 @@ function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
   )
 }
 
-function GymStats({ exercises, hyroxExercises }: {
+function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormatoHyrox }: {
   exercises: PalestraExercise[]
   hyroxExercises: HyroxExercise[]
+  /** Pesi o Hyrox: la sceglie JarvisGym, che mette l'interruttore sopra il
+   *  riepilogo complessivo. */
+  statsTab: 'pesi' | 'hyrox'
+  /** Le statistiche Hyrox guardano una distanza sola: miglior tempo e media fra
+   *  un 500 m e un 1000 m non vogliono dire niente. */
+  formatoHyrox: FormatoHyrox
+  onFormatoHyrox: (f: FormatoHyrox) => void
 }) {
   const t = useT()
   const tData = useTData()
   const [selectedEx, setSelectedEx] = useState<PalestraExercise | null>(null)
-  const [statsTab, setStatsTab] = useState<'pesi' | 'hyrox'>('pesi')
+  const [hyroxAperto, setHyroxAperto] = useState<string | null>(null)
   const [muscleView, setMuscleView] = useState<MuscleView>('vol')
   const [prOpen, setPrOpen] = useState(false)
   const [volumeOpen, setVolumeOpen] = useState(false)
@@ -219,13 +228,16 @@ function GymStats({ exercises, hyroxExercises }: {
       ...RACE_STATIONS,
       ...hyroxExercises.filter(e => !RACE_IDS.has(e.id)),
     ].map(rs => {
-      const hist = hyroxExercises.find(e => e.id === rs.id)?.history ?? []
+      const hist = sessioniDel(hyroxExercises.find(e => e.id === rs.id)?.history ?? [], rs.target, formatoHyrox)
       const bestSec = hist.length ? Math.min(...hist.map(h => h.sec)) : null
       const avgSec  = hist.length ? Math.round(hist.reduce((s, h) => s + h.sec, 0) / hist.length) : null
       return { ...rs, hist, bestSec, avgSec }
     })
     return allStations
-  }, [hyroxExercises])
+  }, [hyroxExercises, formatoHyrox])
+  // Per id e non per oggetto: cambiando 1 km / 500 m a modale aperto, le
+  // sessioni mostrate seguono la distanza nuova.
+  const hyroxSel = hyroxStats.find(s => s.id === hyroxAperto) ?? null
 
   // Le barre si riordinano insieme alla metrica: un grafico ordinato per volume e
   // letto in allenamenti mostrerebbe la barra più lunga in mezzo alla lista.
@@ -243,34 +255,8 @@ function GymStats({ exercises, hyroxExercises }: {
   }, [muscleEntries, muscleView, t])
   const muscleMax = Math.max(1, ...muscleBars.map(b => b.value))
 
-  const hyroxTabOpts = [
-    { id: 'pesi',  label: t('Pesi')  },
-    { id: 'hyrox', label: t('Hyrox') },
-  ]
-
   return (
     <div>
-      {/* Sub-tab */}
-      <NucSubTabs
-        options={hyroxTabOpts}
-        value={statsTab}
-        onChange={id => setStatsTab(id as 'pesi' | 'hyrox')}
-        style={{ marginBottom: 16 }}
-      />
-
-      {/* Il conteggio sessioni resta solo su Hyrox: lì è il dato che manca
-          altrove. Sui pesi era un numero senza appiglio — "112 sessioni" non dice
-          né quanto né quando — e stava in cima a tutto il resto. */}
-      {statsTab === 'hyrox' && (
-        <NucCard pad={14} style={{ marginBottom: 16, textAlign: 'center' }}>
-          <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textTransform: 'uppercase', marginBottom: 6 }}>
-            {t('Sessioni hyrox')}
-          </div>
-          <div style={{ fontFamily: NUC.label, fontSize: 32, color: NUC.accentSoft, letterSpacing: -1, lineHeight: 1 }}>
-            {totalHyrox}
-          </div>
-        </NucCard>
-      )}
 
       {statsTab === 'pesi' && (
         <>
@@ -362,11 +348,17 @@ function GymStats({ exercises, hyroxExercises }: {
 
       {statsTab === 'hyrox' && (
         <>
-          <NucEyebrow>{t('Tempi per esercizio')}</NucEyebrow>
+          {/* 1 km e 500 m separati: la stessa scelta dell'elenco esercizi, così
+              passare da una schermata all'altra non cambia i numeri sotto il dito. */}
+          <FormatoSwitch valore={formatoHyrox} onChange={onFormatoHyrox} etichette={['1 km', '500 m']} style={{ marginBottom: 14 }}/>
+
+          <NucEyebrow right={formatoHyrox === 'mezzo' ? t('Mezza distanza') : undefined}>{t('Tempi per esercizio')}</NucEyebrow>
           <NucCard pad={16} style={{ marginBottom: 16 }}>
+            {/* Ogni riga apre il grafico dell'esercizio, come i record dei pesi. */}
             {hyroxStats.map(({ id, n, hist, bestSec, avgSec }, idx) => (
-              <div key={id} className="flex justify-between items-center py-2.5"
-                style={{ borderBottom: idx < hyroxStats.length - 1 ? '1px solid var(--hairline-soft)' : 'none' }}>
+              <button key={id} type="button" onClick={() => setHyroxAperto(id)}
+                className="w-full flex justify-between items-center gap-2.5 py-2.5 bg-transparent border-none cursor-pointer text-left"
+                style={{ borderBottom: idx < hyroxStats.length - 1 ? '1px solid var(--hairline-soft)' : 'none', paddingLeft: 0, paddingRight: 0 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>{tData(n)}</div>
                   <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>{t('{n} sess.', { n: hist.length })}</div>
@@ -383,28 +375,18 @@ function GymStats({ exercises, hyroxExercises }: {
                     <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.faint }}>—</div>
                   )}
                 </div>
-              </div>
+                <div style={{ color: NUC.faint, display: 'flex', flexShrink: 0 }}><Icons.chev size={16} stroke={1.6}/></div>
+              </button>
             ))}
           </NucCard>
 
-          {hyroxStats.filter(s => (s.hist?.length ?? 0) >= 2).map(st => {
-            const times = st.hist.map(h => h.sec)
-            const labels = st.hist.map(h => h.d)
-            return (
-              <div key={st.id} style={{ marginBottom: 16 }}>
-                <NucEyebrow>{tData(st.n)}</NucEyebrow>
-                <NucCard pad={12}>
-                  <LineChart data={times} labels={labels} height={48} color={NUC.accentSoft}/>
-                </NucCard>
-              </div>
-            )
-          })}
 
           {totalHyrox === 0 && <div className="j-empty">{t('Nessuna sessione hyrox registrata')}</div>}
         </>
       )}
 
       {selectedEx && <ExStatsModal ex={selectedEx} onClose={() => setSelectedEx(null)}/>}
+      {hyroxSel && <HyroxStatsModal ex={hyroxSel} hist={hyroxSel.hist} onClose={() => setHyroxAperto(null)}/>}
     </div>
   )
 }
@@ -956,6 +938,18 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
 // desktop si abbraccia una griglia, e portarsi la scelta dall'uno all'altro
 // sarebbe un dispetto invece che una comodità. Il logout non la tocca — porta
 // via solo il blob dei dati — quindi la scelta sopravvive al prossimo accesso.
+// Intera o mezza distanza, per tutta la sezione Hyrox. Come la vista griglia/
+// elenco sta in localStorage: è il modo in cui ti alleni in questo periodo, non
+// un dato da portare fra dispositivi. Un valore sconosciuto torna a "intero".
+const FORMATO_HYROX_KEY = 'jarvis-formato-hyrox'
+function useFormatoHyrox(): [FormatoHyrox, (f: FormatoHyrox) => void] {
+  const [formato, setFormato] = useState<FormatoHyrox>(
+    () => readStorage('local', FORMATO_HYROX_KEY) === 'mezzo' ? 'mezzo' : 'intero',
+  )
+  const cambia = (f: FormatoHyrox) => { setFormato(f); writeStorage('local', FORMATO_HYROX_KEY, f) }
+  return [formato, cambia]
+}
+
 function useVistaEsercizi(chiave: string = VISTA_KEY): [VistaEsercizi, (v: VistaEsercizi) => void] {
   const [vista, setVista] = useState<VistaEsercizi>(() => vistaIniziale(readStorage('local', chiave)))
   const cambia = (v: VistaEsercizi) => { setVista(v); writeStorage('local', chiave, v) }
@@ -1398,14 +1392,13 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   })))
   const set = useJarvisStore.setState
   const t = useT()
-  const tData = useTData()
   const bodyWeight = useBodyWeight()
-  const { confirmDelete } = useConfirmDelete()
   // `tab` è il mondo in cui si sta (pesi o hyrox), `stats` e `ricerca` sono due
   // viste che ci si aprono sopra. Prima era un'enum sola, e per questo "Stats"
   // doveva per forza essere un terzo tab: entrarci significava USCIRE da pesi.
   const [tab, setTab] = useState<'palestra' | 'hyrox'>('palestra')
   const [stats, setStats] = useState(false)
+  const [statsTab, setStatsTab] = useState<'pesi' | 'hyrox'>('pesi')
   const [ricerca, setRicerca] = useState(false)
   const mode: GymMode = stats ? 'stats' : tab
   const [hyroxSubTab, setHyroxSubTab] = useState<'gara' | 'esercizi'>('esercizi')
@@ -1433,6 +1426,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSchede, setShowSchede] = useState(false)
   const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
+  const [formatoHyrox, setFormatoHyrox] = useFormatoHyrox()
   const [showRicercaGlobale, setShowRicercaGlobale] = useState(false)
   const [vistaGruppi, setVistaGruppi] = useVistaEsercizi(VISTA_GRUPPI_KEY)
 
@@ -1613,6 +1607,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       <LogHyroxModal
         open={!!logHyrox} onClose={() => setLogHyrox(null)}
         ex={logHyrox}
+        formato={formatoHyrox}
+        onFormato={setFormatoHyrox}
         onSave={entry => logHyrox && saveHyroxEntry(logHyrox, entry)}
       />
       <LogPalestraModal
@@ -1662,6 +1658,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         isRace={isRace}
         onDelete={isRace ? undefined : () => deleteHyroxExercise(selectedHyrox)}
         onUpdate={changes => updateHyroxExercise(selectedHyrox, changes)}
+        formato={formatoHyrox}
+        onFormato={setFormatoHyrox}
       />
     )
   })() : null
@@ -1733,7 +1731,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           }}
           onStats={() => {
             if (stats) setStats(false)
-            else { setStats(true); setRicerca(false); setSearchQuery('') }
+            // Stats si apre sul mondo da cui si arriva: da Hyrox, sui numeri Hyrox.
+            else { setStats(true); setStatsTab(tab === 'hyrox' ? 'hyrox' : 'pesi'); setRicerca(false); setSearchQuery('') }
           }}
         />
       </div>
@@ -1774,8 +1773,21 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
                 dell'app e per un giro è stato dietro un bottone: ma è la cosa che si
                 guarda per prima entrando in Stats — quanto ti sei allenato, quanto
                 sei forte — e un tocco per vederla era un tocco di troppo. */}
-            <Riepilogo onOpenProfile={onOpenUser}/>
-            <GymStats exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}/>
+            {/* Pesi / Hyrox in cima, sopra il riepilogo: è la prima scelta della
+                schermata, e sotto il riepilogo si perdeva a metà pagina. */}
+            <NucSubTabs
+              options={[{ id: 'pesi', label: t('Pesi') }, { id: 'hyrox', label: t('Hyrox') }]}
+              value={statsTab}
+              onChange={id => setStatsTab(id as 'pesi' | 'hyrox')}
+              style={{ marginBottom: 16 }}
+            />
+            {/* Il riepilogo parla solo di pesi (settimana, mappa della forza,
+                massimali): sotto Hyrox sarebbe un pannello di numeri non suoi. */}
+            {statsTab === 'pesi' && <Riepilogo onOpenProfile={onOpenUser}/>}
+            <GymStats
+              exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}
+              statsTab={statsTab} formatoHyrox={formatoHyrox} onFormatoHyrox={setFormatoHyrox}
+            />
           </>
         )}
 
@@ -1784,7 +1796,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
             <NucEyebrow right={`${filteredHyrox.length}`}>{t('Risultati')}</NucEyebrow>
             {filteredHyrox.map(ex => (
               <div key={ex.id} onClick={() => setSelectedHyrox(ex)} style={{ cursor: 'pointer' }}>
-                <HyroxCard ex={ex} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
+                <HyroxCard ex={ex} formato={formatoHyrox} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
               </div>
             ))}
             {filteredHyrox.length === 0 && <div className="j-empty">{t('Nessuna stazione')}</div>}
@@ -1806,32 +1818,24 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
 
             {hyroxSubTab === 'esercizi' && (
               <>
-                <NucEyebrow>{t('Corsa · 8 × 1 km')}</NucEyebrow>
+                {/* In cima a tutte le stazioni, non ripetuto dentro ciascuna card: la
+                    scelta vale per l'intera sezione. Le etichette sono quelle della
+                    corsa — il segmento che dà il ritmo a tutta la gara — mentre
+                    dentro una stazione diventano le sue distanze. */}
+                <FormatoSwitch valore={formatoHyrox} onChange={setFormatoHyrox} etichette={['1 km', '500 m']} style={{ marginBottom: 14 }}/>
+
+                <NucEyebrow>{formatoHyrox === 'mezzo' ? t('Corsa · 8 × 500 m') : t('Corsa · 8 × 1 km')}</NucEyebrow>
                 <div onClick={() => setSelectedHyrox(runStationData)} style={{ cursor: 'pointer' }}>
-                  <HyroxCard ex={runStationData} onLog={e => { e?.stopPropagation?.(); setLogHyrox(runStationData) }}/>
+                  <HyroxCard ex={runStationData} formato={formatoHyrox} onLog={e => { e?.stopPropagation?.(); setLogHyrox(runStationData) }}/>
                 </div>
 
                 <div style={{ marginTop: 8 }}><NucEyebrow>{t('Stazioni gara')}</NucEyebrow></div>
                 {raceStationData.map(ex => (
                   <div key={ex.id} onClick={() => setSelectedHyrox(ex)} style={{ cursor: 'pointer' }}>
-                    <HyroxCard ex={ex} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
+                    <HyroxCard ex={ex} formato={formatoHyrox} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
                   </div>
                 ))}
 
-                {customHyrox.length > 0 && (
-                  <>
-                    <div style={{ marginTop: 8 }}><NucEyebrow right={`${customHyrox.length}`}>{t('Grafico andamento')}</NucEyebrow></div>
-                    {customHyrox.map(ex => (
-                      <div key={ex.id} onClick={() => setSelectedHyrox(ex)} style={{ cursor: 'pointer' }}>
-                        <HyroxCard
-                          ex={ex}
-                          onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}
-                          onDelete={e => { e?.stopPropagation?.(); confirmDelete(() => deleteHyroxExercise(ex), tData(ex.n)) }}
-                        />
-                      </div>
-                    ))}
-                  </>
-                )}
               </>
             )}
           </>

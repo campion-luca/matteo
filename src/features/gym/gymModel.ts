@@ -265,5 +265,5 @@ export const RACE_STATIONS: Array<{ id: string; n: string; unit: HyroxExercise['
   { id: 'hx_lunge',  n: 'Sandbag Lunges',     unit: 'm',   target: 100  },
   { id: 'hx_wb',     n: 'Wall Balls',         unit: 'rep', target: 100  },
 ]
-export const RUNNING_STATION: HyroxExercise = { id: 'hx_run', n: 'Corsa (1 km)', unit: 'km', target: 1, history: [] }
+export const RUNNING_STATION: HyroxExercise = { id: 'hx_run', n: 'Corsa avg pace', unit: 'km', target: 1, history: [] }
 export const RACE_IDS = new Set([...RACE_STATIONS.map(s => s.id), RUNNING_STATION.id])

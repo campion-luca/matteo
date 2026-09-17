@@ -113,8 +113,9 @@ describe('dizionario tedesco', () => {
     expect(uguali.sort()).toEqual([
       // "Personal OS" se n'è andato con la sidebar desktop, che non aveva più
       // due schermate fra cui commutare.
+      // "Roxzone" è il nome ufficiale della zona di cambio Hyrox, uguale ovunque.
       'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
-      'Personal Coach', 'Premium', 'Standard', 'Total', 'Trend',
+      'Personal Coach', 'Premium', 'Roxzone ({n} × {s} s)', 'Standard', 'Total', 'Trend',
     ])
   })
 })
