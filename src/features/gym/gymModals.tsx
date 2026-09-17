@@ -15,9 +15,9 @@ import { NucEyebrow } from '@/components/ui/NucComponents'
 import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry, GymTechnique } from '@/store/useJarvisStore'
+import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import {
-  TECHNIQUE_LABELS, TECHNIQUES, MUSCLE_COLORS, COLOR_PALETTE,
+  MUSCLE_COLORS, COLOR_PALETTE,
   displayMuscle, fmtKg, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
   effectiveLoad, sortedHistory, fmtTime,
   } from './gymModel'
@@ -185,6 +185,65 @@ export function EditHyroxHistModal({ entry, unit, onClose, onSave }: {
   )
 }
 
+// Un campo con il suo nome scritto piccolo sopra. È per gli occhi: il lettore di
+// schermo ha già l'`aria-label` dell'input. Sta fuori dal campo per restare
+// visibile anche quando il campo è pieno.
+function CampoEtichettato({ etichetta, children }: { etichetta: string; children: React.ReactNode }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span aria-hidden="true" style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: NUC.faint }}>
+        {etichetta}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+// La data dell'alzata sotto il nome dell'esercizio: da leggere, e modificabile
+// solo se lo si chiede. Chiusa è testo con una matita accanto; aperta è il campo
+// data con una spunta che conferma e richiude.
+function DataModificabile({ valore, onChange, aperta, onApri, etichetta }: {
+  valore: string
+  onChange: (d: string) => void
+  aperta: boolean
+  onApri: (a: boolean) => void
+  etichetta: string
+}) {
+  const t = useT()
+  const oggi = valore === todayISO()
+  const bottone: React.CSSProperties = {
+    width: 26, height: 26, borderRadius: 0, flexShrink: 0, padding: 0,
+    background: 'var(--surface)', border: '1px solid var(--hairline)',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+  if (aperta) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          value={valore} onChange={e => e.target.value && onChange(e.target.value)} type="date"
+          aria-label={etichetta} autoFocus className="j-field"
+          style={{ height: 30, width: 140, fontSize: 12, background: 'var(--surface-2)' }}
+        />
+        <button type="button" onClick={() => onApri(false)} aria-label={t('Conferma la data')}
+          style={{ ...bottone, color: 'var(--j-accent-ink)', borderColor: 'var(--j-accent)' }}>
+          <Icons.check size={13} stroke={2.4}/>
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ fontFamily: NUC.label, fontSize: 11, letterSpacing: '.04em', color: NUC.faint }}>
+        {oggi ? `${t('Oggi')} · ${fmtShortDate(valore)}` : fmtShortDate(valore)}
+      </span>
+      <button type="button" onClick={() => onApri(true)} aria-label={t('Modifica la data')}
+        style={{ ...bottone, color: NUC.faint }}>
+        <Icons.pencil size={11} stroke={1.8}/>
+      </button>
+    </div>
+  )
+}
+
 // Una colonna del blocco interruttori del log: il titolo e le sue due
 // alternative, impilate. Tre colonne affiancate invece di tre righe piene: le sei
 // scelte prendono l'altezza di due bottoni invece che di sei, e restano visibili
@@ -229,14 +288,13 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   const [kg, setKg] = useState(String(ex?.current.kg ?? ''))
   const [reps, setReps] = useState(String(ex?.current.reps ?? ''))
   const [sets, setSets] = useState(String(ex?.current.sets_n ?? ''))
-  const [techniques, setTechniques] = useState<GymTechnique[]>([])
   const [isBodyweight, setIsBodyweight] = useState(false)
   const [zavorra, setZavorra] = useState('')
-  const [techOpen, setTechOpen] = useState(false)
   const [perSet, setPerSet] = useState(false)          // peso e colpi diversi per ogni serie
   const [setWeightsStr, setSetWeightsStr] = useState<string[]>([])
   const [setRepsStr, setSetRepsStr] = useState<string[]>([])
   const [isMax, setIsMax] = useState(false)            // massimale: una singola al massimo
+  const [modificaData, setModificaData] = useState(false)
 
   // Il modale resta montato: pre-compila kg/reps/sets dall'ultimo valore ad ogni
   // apertura (l'init di useState gira una volta sola, con ex ancora null).
@@ -246,7 +304,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     setKg(preCompila(ex.current.kg))
     setReps(preCompila(ex.current.reps))
     setSets(preCompila(ex.current.sets_n))
-    setTechniques([]); setIsBodyweight(false); setZavorra(''); setTechOpen(false)
+    setIsBodyweight(false); setZavorra(''); setModificaData(false)
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
   }, [open, ex])
 
@@ -297,9 +355,6 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
 
   if (!ex) return null
 
-  const toggleTech = (t: GymTechnique) =>
-    setTechniques(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])
-
   const save = () => {
     if (!hasValues) return
     // Con peso variabile: `kg` = serie più pesante (rappresentativa), e i pesi
@@ -320,11 +375,9 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
       reps: repsOut, sets_n: setsN,
       ...(varies ? { setWeights: weights } : {}),
       ...(variesReps ? { setReps: repsPerSet } : {}),
-      techniques: techniques.length > 0 ? techniques : undefined,
       ...(isBodyweight ? { bodyweight: true as const } : {}),
       ...(isMax ? { maxLift: true as const } : {}),
     })
-    setTechniques([])
     setIsBodyweight(false); setZavorra('')
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
     onClose()
@@ -332,17 +385,16 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
 
   return (
     <JModal
-      open={open} onClose={onClose} title={`${t('Log')} · ${tData(ex.n)}`} width={360}
-      // La data è quasi sempre oggi e quasi mai si tocca: in cima al form
-      // prendeva la prima riga — e la prima riga di un form è quella che si
-      // legge come "compila da qui". Nell'intestazione dice quando senza
-      // chiedere niente, e il form comincia da ciò che c'è davvero da scrivere.
-      headerRight={
-        <input
-          value={date} onChange={e => setDate(e.target.value)} type="date"
-          aria-label={t('Data dell’alzata')}
-          className="j-field"
-          style={{ height: 34, width: 118, fontSize: 12, background: 'var(--surface-2)' }}
+      open={open} onClose={onClose} title={tData(ex.n)} width={360}
+      // La data è quasi sempre oggi e quasi mai si tocca: sta sotto il nome come
+      // un'informazione, non come un campo. La matita la rende modificabile e
+      // diventa una spunta per confermare — un campo data sempre aperto
+      // nell'intestazione si leggeva come qualcosa da compilare.
+      subtitle={
+        <DataModificabile
+          valore={date} onChange={setDate}
+          aperta={modificaData} onApri={setModificaData}
+          etichetta={t('Data dell’alzata')}
         />
       }
     >
@@ -360,14 +412,17 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
           </div>
         ) : (
           <>
-        {/* Niente etichetta sopra i campi: 'serie', 'colpi' e 'kg' sono già
-            scritti dentro. Erano due righe di maiuscoletto per ripetere tre
-            parole che c'erano un centimetro più sotto, e in un modale che si apre
-            per scrivere tre numeri quello spazio conta. Il segnaposto sparisce
-            quando scrivi, ed è il momento in cui non serve più. */}
+        {/* Un'etichetta minuscola sopra ogni campo: il segnaposto dentro sparisce
+            appena si scrive, e con i campi precompilati dall'ultima alzata non si
+            vedeva mai — tre numeri senza nome, e bisognava ricordare quale fosse
+            quale. */}
             <div className="flex gap-2">
-              <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
-              <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
+              <CampoEtichettato etichetta={t('serie')}>
+                <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
+              </CampoEtichettato>
+              <CampoEtichettato etichetta={t('ripetizioni')}>
+                <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
+              </CampoEtichettato>
             </div>
           </>
         )}
@@ -413,7 +468,9 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
           </>
         ) : (
           <>
-            <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
+            <CampoEtichettato etichetta={t('chili')}>
+              <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
+            </CampoEtichettato>
           </>
         )}
 
@@ -439,29 +496,6 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
             { label: t('Per serie'), on: perSet,  onClick: () => enablePerSet() },
           ]}/>
         </div>
-
-        <button type="button" onClick={() => setTechOpen(o => !o)} className="flex items-center justify-between mt-1 w-full" style={{ background: 'transparent', border: 'none', padding: '2px 0', cursor: 'pointer' }}>
-          <span className="j-eyebrow">
-            {t('Tecniche di intensità')}{techniques.length > 0 && <span style={{ color: 'var(--j-accent-ink)' }}> · {techniques.length}</span>}
-          </span>
-          <div style={{ color: NUC.faint, transform: techOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .2s', display: 'flex' }}>
-            <Icons.chev size={13} stroke={2}/>
-          </div>
-        </button>
-        {techOpen && TECHNIQUES.map(tec => {
-          const active = techniques.includes(tec)
-          return (
-            <button key={tec} onClick={() => toggleTech(tec)} className="flex items-center justify-between px-3.5 h-10 rounded-none text-left transition-all duration-180" style={{
-              background: active ? 'var(--surface-2)' : 'var(--surface)',
-              border: `1px solid ${active ? 'var(--j-accent)' : NUC.hairline}`,
-              color: active ? 'var(--j-accent-ink)' : NUC.dim,
-              fontFamily: NUC.font, fontSize: 13, cursor: 'pointer',
-            }}>
-              <span>{t(TECHNIQUE_LABELS[tec])}</span>
-              {active && <Icons.check size={14} stroke={2.5}/>}
-            </button>
-          )
-        })}
 
         {preview && (
           <div className="rounded-none p-3.5 mt-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
@@ -657,7 +691,6 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
             <div className="flex flex-col">
               {[...hist].reverse().slice(0, 8).map((h, i) => {
                 const dateStr = h.date ? fmtShortDate(h.date) : h.d
-                const techLabels = (h.techniques ?? []).map(tec => t(TECHNIQUE_LABELS[tec])).join(' · ')
                 return (
                   <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
                     <div>
@@ -666,7 +699,6 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
                       </div>
                       <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
                       {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
-                      {techLabels && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{techLabels}</div>}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
                       <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{Math.round(entry1RM(h, bodyWeight))}</div>

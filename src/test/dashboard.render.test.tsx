@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Riepilogo } from '@/features/dashboard/Riepilogo'
-import { HomeModulesManager } from '@/features/dashboard/HomeModulesManager'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 
 // Il riepilogo complessivo era la home dell'app; adesso è una sezione aperta in
@@ -56,25 +55,5 @@ describe('Riepilogo', () => {
     await user.click(screen.getByLabelText('Apri il calendario degli allenamenti'))
     expect(await screen.findByText('I tuoi allenamenti')).toBeInTheDocument()
     expect(screen.getByText('settimane di fila')).toBeInTheDocument()
-  })
-})
-
-describe('HomeModulesManager', () => {
-  it('non offre più i moduli delle schede rimosse', () => {
-    render(<HomeModulesManager/>)
-    const testo = document.body.textContent ?? ''
-    for (const morto of ['Idratazione', 'Readiness', 'Insight', 'Attività oggi', 'Calendario', 'Agenda di oggi', 'Riepilogo settimanale']) {
-      expect(testo, `"${morto}" è ancora fra i moduli`).not.toContain(morto)
-    }
-  })
-
-  it('riordina e spegne i moduli della home', async () => {
-    const user = userEvent.setup()
-    render(<HomeModulesManager/>)
-
-    const settimana = screen.getByRole('switch', { name: /La tua settimana/ })
-    expect(settimana).toHaveAttribute('aria-checked', 'true')
-    await user.click(settimana)
-    expect(screen.getByRole('switch', { name: /La tua settimana/ })).toHaveAttribute('aria-checked', 'false')
   })
 })

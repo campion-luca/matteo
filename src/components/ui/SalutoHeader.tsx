@@ -67,13 +67,9 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
         }}>
           {greetBefore}
           {nameStart >= 0 && (
-            <em style={{
-              fontStyle: 'normal', fontWeight: 600,
-              textDecoration: 'underline',
-              textDecorationColor: 'var(--j-accent)',
-              textDecorationThickness: 1,
-              textUnderlineOffset: 3,
-            }}>{userName}</em>
+            // Corsivo e non sottolineato: la sottolineatura è il segno di un link,
+            // e un nome che sembra cliccabile ma non fa niente è una promessa rotta.
+            <em style={{ fontStyle: 'italic', fontWeight: 600 }}>{userName}</em>
           )}
           {greetAfter}
         </div>

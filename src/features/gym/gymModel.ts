@@ -1,21 +1,6 @@
 // Modello e helper condivisi della sezione Palestra/Hyrox (logica pura, niente JSX).
-import type { HyroxExercise, PalestraExercise, PalestraHistoryEntry, GymTechnique } from '@/store/useJarvisStore'
+import type { HyroxExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { isoWeekLabel, isoWeekSortKey } from '@/lib/isoDate'
-
-// ── Tecniche di intensità ──────────────────────────────────────
-// Restano un'ETICHETTA sull'alzata, non un moltiplicatore: pesavano l'EVL, che
-// era la stima di fatica, e la fatica non è più una cosa che l'app misura.
-// I nomi restano in italiano: sono le CHIAVI del dizionario (vedi i18n.ts) e chi
-// li stampa li passa da `t`. Qui siamo a livello di modulo, dove la lingua scelta
-// non è ancora nota.
-export const TECHNIQUE_LABELS: Record<GymTechnique, string> = {
-  slowEccentric:  'Eccentrica lenta',
-  slowConcentric: 'Concentrica lenta',
-  peakHold:       'Isometria al picco',
-  dropSet:        'Drop Set',
-}
-
-export const TECHNIQUES = Object.keys(TECHNIQUE_LABELS) as GymTechnique[]
 
 // Palette categorica calda Journal (mid-tone, visibile su carta e su copertina).
 export const MUSCLE_COLORS: Record<string, string> = {

@@ -7,10 +7,10 @@
 // è una SEZIONE, e chi la ospita decide dove e quanto spazio le tocca.
 // Il saluto e i comandi sono andati in `SalutoHeader`, in cima all'allenamento.
 //
-// Ogni modulo (settimana, forza, massimali) è una sezione del riepilogo, un
-// case dello switch qui sotto: l'ordine e quali siano accesi arrivano da
-// `homeModules` (localStorage, non lo store cloud: è una preferenza del singolo
-// dispositivo). A riordinarli è il menù utente — vedi HomeModulesManager.
+// Ogni modulo (settimana, forza, massimali) è una sezione del riepilogo, in un
+// ordine fisso. Si potevano spegnere e riordinare da "Cambio widget", nelle
+// impostazioni: tolto quel pannello, restano tutti e tre accesi — un modulo
+// spento senza più un posto da cui riaccenderlo sarebbe sparito per sempre.
 // Qui non si calcola nulla di proprio: volumi e settimane arrivano da gymModel.
 // La dashboard è una vista, e deve restare tale.
 import { useState, useMemo } from 'react'
@@ -25,7 +25,6 @@ import { districtStrength } from '@/features/gym/gymStrength'
 import { maxLifts, maxTotal, SOURCE_LABELS } from '@/features/gym/gymMaxLifts'
 import { BodyMapPanel } from '@/features/gym/BodyMap'
 import { daysShort } from '@/lib/dateFormat'
-import { useHomeModules } from './homeModules'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
 import { settimaneDiFila } from './allenamenti'
 import { useT, useTData, useLang } from '@/lib/i18n'
@@ -55,7 +54,6 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
     hyrox: st.hyroxExercises,
   })))
   const isDesktop = useIsDesktop()
-  const modules = useHomeModules()
   const [showCalendario, setShowCalendario] = useState(false)
   const [maxAperti, setMaxAperti] = useState(false)
 
@@ -107,8 +105,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   const totalRatio = total !== null && s.userWeight ? total / s.userWeight : null
 
   // Ogni modulo è una SEZIONE del riepilogo, non più una card sua: stanno tutti
-  // nello stesso riquadro, divisi da un filo. L'ordine e quali siano accesi
-  // restano quelli di "Cambio widget".
+  // nello stesso riquadro, divisi da un filo.
   const renderModule = (id: string) => {
     switch (id) {
       case 'weekDots': {
@@ -284,7 +281,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
     }
   }
 
-  const activeModules = modules.filter(m => m.on)
+  const MODULI = ['weekDots', 'bodyMap', 'maxLifts']
 
   return (
     <>
@@ -294,17 +291,9 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
           textTransform: 'uppercase', color: 'var(--fg)', paddingBottom: 4,
         }}>{t('Riepilogo complessivo')}</div>
 
-        {activeModules.length === 0 ? (
-          <div style={{
-            marginTop: 10, padding: 18, textAlign: 'center', color: 'var(--fg-mute)',
-            fontFamily: NUC.label, fontSize: 10, letterSpacing: '.12em',
-            border: `1px dashed var(--hairline)`, borderRadius: 0,
-          }}>
-            {t('Nessun modulo attivo. Riaccendili da Impostazioni · Cambio widget.')}
-          </div>
-        ) : activeModules.map((m, i) => (
-          <div key={m.id} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--divider)' }}>
-            {renderModule(m.id)}
+        {MODULI.map((id, i) => (
+          <div key={id} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--divider)' }}>
+            {renderModule(id)}
           </div>
         ))}
       </NucCard>

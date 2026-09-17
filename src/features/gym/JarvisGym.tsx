@@ -20,7 +20,6 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  TECHNIQUE_LABELS,
   displayMuscle, exColor, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
   effectiveLoad, entryVolume, sortedHistory,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
@@ -114,19 +113,20 @@ function GymModeTabs({ value, onChange }: { value: 'palestra' | 'hyrox'; onChang
   )
 }
 
-// Le quattro cose che si fanno sull'allenamento, quadrate e affiancate sotto i tab.
-// Quadrate perché sono destinazioni di pari peso. Personal Coach è la prima: stava
+// Le tre cose che si fanno sull'allenamento, quadrate e affiancate sotto i tab.
+// Quadrate perché sono destinazioni di pari peso. "Cerca" non c'è più: la lente
+// in testata cerca già ovunque, e due ricerche una sopra l'altra erano un doppione.
+// Personal Coach è la prima: stava
 // in home fra le scorciatoie, ma è una cosa che riguarda l'allenamento, e qui
 // sta accanto alle schede che un allenatore ti assegna.
-function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
-  attiva: 'cerca' | 'stats' | null
+function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
+  attiva: 'stats' | null
   onCoach: () => void
   onSchede: () => void
-  onCerca: () => void
   onStats: () => void
 }) {
   const t = useT()
-  const card = (id: 'coach' | 'schede' | 'cerca' | 'stats', label: string, icon: JSX.Element, onClick: () => void) => {
+  const card = (id: 'coach' | 'schede' | 'stats', label: string, icon: JSX.Element, onClick: () => void) => {
     const on = id === attiva
     return (
       <button
@@ -134,12 +134,11 @@ function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
         aria-pressed={id === 'schede' || id === 'coach' ? undefined : on}
         className="j-hard"
         style={{
-          // `aspectRatio` e non un'altezza fissa: la card resta quadrata dal
-          // telefono stretto al desktop, dove la colonna è il doppio. Il tetto in
-          // `dvh` la smussa in rettangolo dove l'altezza è la risorsa scarsa: su un
-          // telefono largo quattro card quadrate mangiavano novanta pixel di
-          // schermo prima ancora di arrivare ai gruppi muscolari.
-          aspectRatio: '1 / 1', maxHeight: 'clamp(54px, 9dvh, 92px)',
+          // Un'altezza e non `aspectRatio`: con tre card, quadrate non riempivano
+          // la riga e lasciavano un buco a destra. In `dvh` con un tetto, perché
+          // su un telefono basso l'altezza è la risorsa scarsa e queste card
+          // vengono prima dei gruppi muscolari.
+          height: 'clamp(54px, 9dvh, 92px)',
           minWidth: 0, borderRadius: 0, cursor: 'pointer',
           background: on ? 'var(--j-accent)' : 'var(--surface)',
           border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
@@ -159,10 +158,9 @@ function AzioniGym({ attiva, onCoach, onSchede, onCerca, onStats }: {
     )
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'clamp(6px, 2vw, 8px)', marginTop: 10, maxWidth: 520 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(6px, 2vw, 8px)', marginTop: 10, maxWidth: 520 }}>
       {card('coach',  t('Personal Coach'), <Icons.dumbbell size={24} stroke={1.5} style={ICONA_AZIONE}/>, onCoach)}
       {card('schede', t('Schede'), <Icons.bookOpen size={24} stroke={1.5} style={ICONA_AZIONE}/>, onSchede)}
-      {card('cerca',  t('Cerca'),  <Icons.search   size={24} stroke={1.5} style={ICONA_AZIONE}/>, onCerca)}
       {card('stats',  t('Stats'),  <Icons.chart    size={24} stroke={1.5} style={ICONA_AZIONE}/>, onStats)}
     </div>
   )
@@ -391,74 +389,6 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
   )
 }
 
-// ── Card di un esercizio di palestra (elenco e griglia) ────────
-function PalestraCard({ ex, onNavigate, muscleColors, compact = false }: {
-  ex: PalestraExercise; onNavigate: () => void
-  muscleColors: Record<string, string>
-  compact?: boolean
-}) {
-  const t = useT()
-  const tData = useTData()
-  const dark = useIsDark()
-  // ordinato: `last` dev'essere la sessione più recente per data, non l'ultima inserita
-  const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
-  const last = hist[hist.length - 1]
-  const muscleLabel = ex.muscle2 ? `${tData(displayMuscle(ex.muscle))} · ${tData(displayMuscle(ex.muscle2))}` : tData(displayMuscle(ex.muscle))
-  const color = exColor(ex, muscleColors)
-
-  // Variante compatta usata sotto il gruppo muscolare nell'accordion:
-  // più piccola e rientrata a destra, così si legge come "figlia" del gruppo.
-  if (compact) {
-    return (
-      <div onClick={onNavigate} className="cursor-pointer" style={{ marginBottom: 6, marginLeft: 28 }}>
-        <NucCard pad={11} style={{ borderLeft: `3px solid ${color}` }}>
-          <div className="flex justify-between items-center gap-2.5">
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: NUC.font, fontSize: 14, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
-              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 0.4, color: NUC.faint, marginTop: 2 }}>
-                {last ? `${last.sets_n}×${fmtReps(last)} · ${fmtKg(last)}` : t('Nessuna alzata')}
-              </div>
-            </div>
-            <div style={{ color: NUC.faint, display: 'flex', flexShrink: 0 }}><Icons.chev size={14} stroke={1.6}/></div>
-          </div>
-        </NucCard>
-      </div>
-    )
-  }
-
-  return (
-    <div onClick={onNavigate} className="mb-2 cursor-pointer">
-      <NucCard pad={14} style={{ borderLeft: `3px solid ${color}` }}>
-        <div className="flex justify-between items-center gap-3">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 500, lineHeight: 1.2, letterSpacing: 0, color: NUC.ink, marginBottom: 3 }}>{tData(ex.n)}</div>
-            <div className="j-eyebrow" style={{ color: accentInkFor(color, dark) }}>{muscleLabel}</div>
-            {ex.note && (
-              <div style={{
-                fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 4,
-                lineHeight: 1.45, letterSpacing: 0.1,
-                overflow: 'hidden', display: '-webkit-box',
-                WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-              }}>
-                {ex.note}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2.5" style={{ flexShrink: 0 }}>
-            <div className="text-right">
-              <div style={{ fontFamily: NUC.label, fontSize: 15, color: last ? NUC.accentSoft : NUC.faint, letterSpacing: -0.5 }}>
-                {last ? fmtKg(last) : '—'}
-              </div>
-              {last && <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1, color: NUC.faint }}>{last.sets_n}×{fmtReps(last)}</div>}
-            </div>
-            <div style={{ color: NUC.faint, display: 'flex' }}><Icons.chev size={16} stroke={1.6}/></div>
-          </div>
-        </div>
-      </NucCard>
-    </div>
-  )
-}
-
 // ── Traguardi ──────────────────────────────────────────────────
 // Le medaglie sono DERIVATE dallo storico (vedi gymStrength): niente da salvare,
 // niente da sincronizzare, e una medaglia non può mai contraddire i dati che la
@@ -678,7 +608,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{ex.muscle2 ? `${tData(displayMuscle(ex.muscle))} · ${tData(displayMuscle(ex.muscle2))}` : tData(displayMuscle(ex.muscle))}</div>
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
-            <button onClick={() => setShowEdit(true)} style={{
+            <button onClick={() => setShowEdit(true)} aria-label={t('Modifica esercizio')} style={{
               width: 34, height: 34, borderRadius: 0,
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               color: NUC.faint, cursor: 'pointer',
@@ -686,7 +616,19 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             }}>
               <Icons.pencil size={14} stroke={1.8}/>
             </button>
-            <button onClick={() => confirmDelete(onDelete, ex.n)} style={{
+            {/* Il reset sta quassù, accanto al cestino, e non più sotto "Nuova
+                alzata": a un pollice di distanza dal tasto che si preme a ogni
+                serie era troppo facile da prendere per sbaglio. Rosso come il
+                cestino, perché come il cestino cancella; chiede comunque conferma. */}
+            {hist.length > 0 && (
+              <button onClick={clearHistory} title={t('Svuota lo storico, tieni l’esercizio')} aria-label={t('Reset alzate')} style={{
+                width: 34, height: 34, borderRadius: 0,
+                background: 'rgba(var(--segnale-giu-rgb),0.08)', border: '1px solid rgba(var(--segnale-giu-rgb),0.45)',
+                color: 'var(--segnale-giu)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}><Icons.refresh size={14} stroke={1.8}/></button>
+            )}
+            <button onClick={() => confirmDelete(onDelete, ex.n)} aria-label={t('Elimina esercizio')} style={{
               width: 34, height: 34, borderRadius: 0,
               background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
               color: 'var(--danger)', cursor: 'pointer',
@@ -716,7 +658,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           // restava il busto, senza testa né ginocchia. La misura la dà l'altezza
           // dello schermo, con un tetto perché è pur sempre decorazione: sotto c'è
           // lo storico, che è il contenuto.
-          width: 'min(100%, clamp(112px, 24dvh, 220px))',
+          // Un po' più piccola di com'era (24dvh, fino a 220px): è una conferma
+          // di essere nel posto giusto, e lo storico sotto deve salire.
+          width: 'min(100%, clamp(96px, 19dvh, 176px))',
           aspectRatio: '1 / 1',
           margin: '0 auto 10px',
           background: 'var(--surface-2)', border: '1px solid var(--hairline)',
@@ -731,21 +675,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             : <MuscleIcon muscle={ex.muscle} size={96} style={{ height: '78%', width: 'auto', maxWidth: '60%' }}/>}
         </div>
 
-        <button onClick={onLog} className="j-btn-accent" style={{ width: '100%', marginBottom: hist.length > 0 ? 6 : 16 }}>
+        <button onClick={onLog} className="j-btn-accent" style={{ width: '100%', marginBottom: 16 }}>
           <Icons.plus size={16} stroke={2}/> {t('Nuova alzata')}
         </button>
-        {hist.length > 0 && (
-          <button onClick={clearHistory} title={t('Svuota lo storico, tieni l’esercizio')} aria-label={t('Reset alzate')} className="j-hard j-hard-sm" style={{
-            width: '100%', height: 16, marginBottom: 16, borderRadius: 0,
-            background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.25)',
-            color: 'var(--danger)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase',
-            padding: 0,
-          }}>
-            <Icons.refresh size={10} stroke={2}/> {t('Reset alzate')}
-          </button>
-        )}
 
         <button onClick={() => setHistOpen(o => !o)} className="w-full flex items-center justify-between px-0.5 bg-transparent border-none cursor-pointer" style={{ marginBottom: histOpen ? 10 : 16 }}>
           <div className="j-eyebrow">{t('Storico')}</div>
@@ -757,11 +689,12 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           </div>
         </button>
 
+        {histOpen && hist.length > 0 && <TrendAlzate valori={hist.map(h => entry1RM(h, bodyWeight))}/>}
+
         {histOpen && hist.length === 0 && <div className="j-empty">{t('Nessuna sessione registrata')}</div>}
 
         {histOpen && [...hist].reverse().map((h, i) => {
           const realIdx = hist.length - 1 - i
-          const techLabels = (h.techniques ?? []).map(tec => t(TECHNIQUE_LABELS[tec])).join(' · ')
           const dateStr = h.date ? fmtShortDate(h.date) : h.d
           return (
             <div key={i} className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
@@ -771,7 +704,6 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                 </div>
                 <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
                 {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
-                {techLabels && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{techLabels}</div>}
               </div>
               <div className="text-right flex-shrink-0">
                 {/* `--j-accent-ink` e non `NUC.accentSoft`: quest'ultimo è tarato per
@@ -854,6 +786,46 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   )
 }
 
+// ── Trend delle alzate ─────────────────────────────────────────
+// Una freccia sola sotto lo storico, per capire a colpo d'occhio se si sta
+// salendo o scendendo senza leggere le righe una per una.
+//
+// Si guarda il massimale stimato — l'unico numero che mette sullo stesso piano
+// 80 kg × 5 e 70 kg × 10 — e si confronta l'ultima alzata con la media delle tre
+// prima. Una sola alzata di confronto farebbe cambiare la freccia a ogni giornata
+// storta. Sotto l'1,5% di differenza è "invariato": un chilo in più o in meno su
+// un massimale da 100 è rumore, non una tendenza.
+const TREND_SOGLIA = 0.015
+const TREND_MIN_SESSIONI = 3
+
+export function trendAlzate(valori: number[]): 'su' | 'giu' | 'piatto' {
+  const v = valori.filter(x => x > 0)
+  if (v.length < TREND_MIN_SESSIONI) return 'piatto'
+  const ultima = v[v.length - 1]
+  const prima = v.slice(-4, -1)
+  const media = prima.reduce((s, x) => s + x, 0) / prima.length
+  const delta = (ultima - media) / media
+  return delta > TREND_SOGLIA ? 'su' : delta < -TREND_SOGLIA ? 'giu' : 'piatto'
+}
+
+function TrendAlzate({ valori }: { valori: number[] }) {
+  const t = useT()
+  const verso = trendAlzate(valori)
+  const colore = verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.faint
+  const rotazione = verso === 'su' ? -90 : verso === 'giu' ? 90 : 0
+  const descrizione = verso === 'su' ? t('in miglioramento') : verso === 'giu' ? t('in calo')
+    : valori.length < TREND_MIN_SESSIONI ? t('servono almeno 3 alzate') : t('invariato')
+  return (
+    <div className="flex items-center gap-2 px-0.5" style={{ marginTop: -4, marginBottom: 8 }} aria-label={`${t('Trend')}: ${descrizione}`}>
+      <span style={{ color: colore, display: 'flex', transform: `rotate(${rotazione}deg)` }}>
+        <Icons.arrow size={16} stroke={2.2}/>
+      </span>
+      <span style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: colore }}>{t('Trend')}</span>
+      <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{descrizione}</span>
+    </div>
+  )
+}
+
 // Le note dell'esercizio: l'appunto che si tiene per sé — la posizione del
 // sedile, la presa, "scendere lento". Stava nell'intestazione, minuscolo e in
 // sola lettura: si vedeva ma non si poteva scrivere se non entrando in modifica
@@ -884,8 +856,12 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
 
   return (
     <div style={{ marginTop: 4 }}>
-      <NucEyebrow>{t('Note')}</NucEyebrow>
-      <div style={{ display: 'grid', gridTemplateColumns: conCoach ? '1fr 1fr' : '1fr', gap: 10, alignItems: 'start' }}>
+      {/* L'etichetta e il campo sulla stessa riga: un appunto è una riga o due,
+          e un riquadro alto tre righe sotto un titolo occupava mezza schermata
+          vuota. Alto fisso e senza maniglia: la dimensione non si tira, il testo
+          lungo scorre dentro. */}
+      <div style={{ display: 'grid', gridTemplateColumns: conCoach ? 'auto 1fr 1fr' : 'auto 1fr', gap: 10, alignItems: 'start' }}>
+        <div className="j-eyebrow" style={{ paddingTop: conCoach ? 24 : 12 }}>{t('Note')}</div>
         <div>
           {conCoach && (
             <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: NUC.faint, marginBottom: 5 }}>
@@ -899,12 +875,12 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
             onBlur={() => { setAttivo(false); if (testo !== nota) onSalva(testo.trim()) }}
             placeholder={t('Un promemoria per la prossima volta: presa, sedile, tempi…')}
             aria-label={t('Note dell’esercizio')}
-            rows={3}
+            rows={1}
             className="j-field"
             style={{
-              width: '100%', height: 'auto', minHeight: 76, padding: '10px 12px',
-              resize: 'vertical', lineHeight: 1.5, fontSize: 14,
-              fontFamily: NUC.font,
+              width: '100%', height: 38, minHeight: 38, maxHeight: 38, padding: '8px 12px',
+              resize: 'none', overflowY: 'auto', lineHeight: 1.45, fontSize: 14,
+              fontFamily: NUC.font, display: 'block',
             }}
           />
         </div>
@@ -917,7 +893,7 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
             {/* Non è un campo: è la voce di qualcun altro. Il fondo acceso e il
                 bordo accent lo dicono senza doverlo scrivere. */}
             <div style={{
-              minHeight: 76, padding: '10px 12px', boxSizing: 'border-box',
+              minHeight: 38, padding: '8px 12px', boxSizing: 'border-box',
               background: 'color-mix(in srgb, var(--j-accent) 7%, var(--surface))',
               border: '1px solid var(--j-accent)',
               fontFamily: NUC.font, fontSize: 14, lineHeight: 1.5,
@@ -1399,7 +1375,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const [tab, setTab] = useState<'palestra' | 'hyrox'>('palestra')
   const [stats, setStats] = useState(false)
   const [statsTab, setStatsTab] = useState<'pesi' | 'hyrox'>('pesi')
-  const [ricerca, setRicerca] = useState(false)
   const mode: GymMode = stats ? 'stats' : tab
   const [hyroxSubTab, setHyroxSubTab] = useState<'gara' | 'esercizi'>('esercizi')
   const [logHyrox, setLogHyrox] = useState<HyroxExercise | null>(null)
@@ -1423,7 +1398,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const [selectedHyrox, setSelectedHyrox] = useState<HyroxExercise | null>(null)
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null)
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
   const [showSchede, setShowSchede] = useState(false)
   const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
   const [formatoHyrox, setFormatoHyrox] = useFormatoHyrox()
@@ -1530,17 +1504,9 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
 
   const filteredPalestra = useMemo(() => {
     let list = s.palestraExercises
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      list = list.filter(e =>
-        e.n.toLowerCase().includes(q) ||
-        e.muscle.toLowerCase().includes(q) ||
-        (e.muscle2 ?? '').toLowerCase().includes(q)
-      )
-    }
     if (muscleFilter) list = list.filter(e => displayMuscle(e.muscle) === muscleFilter)
     return list
-  }, [s.palestraExercises, muscleFilter, searchQuery])
+  }, [s.palestraExercises, muscleFilter])
 
   // Group filtered exercises by muscle for the collapsible accordion view
   const hasAny = s.palestraExercises.length > 0
@@ -1577,14 +1543,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     history: s.hyroxExercises.find(e => e.id === RUNNING_STATION.id)?.history ?? [],
   }), [s.hyroxExercises])
 
-  const customHyrox = useMemo(() =>
-    s.hyroxExercises.filter(e => !RACE_IDS.has(e.id)),
-    [s.hyroxExercises]
-  )
-
-  // Gli esercizi hyrox filtrati dalla stessa ricerca: la card "Cerca" sta sotto i
-  // tab, quindi è accesa anche su Hyrox, e un campo che non trova niente è peggio
-  // di un campo che non c'è.
   // Quanti esercizi del catalogo non ci sono ancora. Si ricalcola dallo store, non
   // da un flag "catalogo importato": chi ne cancella uno lo rivede offerto, che è
   // ciò che ci si aspetta da una riga che dice "ne mancano N".
@@ -1592,11 +1550,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const aggiungiCatalogo = () =>
     set(st => ({ palestraExercises: [...st.palestraExercises, ...esercizidaCatalogo(st.palestraExercises)] }))
 
-  const filteredHyrox = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return []
-    return [runStationData, ...raceStationData, ...customHyrox].filter(e => e.n.toLowerCase().includes(q))
-  }, [searchQuery, runStationData, raceStationData, customHyrox])
 
   // Modali di log/aggiunta: uno solo per tipo, condiviso da tutti i rami di render
   // sotto. Erano ricopiati in ognuno — quattro punti da tenere allineati a mano per
@@ -1717,56 +1670,21 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           onUser={onOpenUser}
           onSettings={onOpenProfile}
         />
-        <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setRicerca(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null); setSearchQuery('') }}/>
-        {/* Cerca e Stats sono interruttori: si ripreme la card per tornare alla
-            lista. Non si escludono per principio ma per senso — cercare dentro le
-            statistiche non vuol dire niente — quindi accenderne una spegne l'altra. */}
+        <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
+        {/* Stats è un interruttore: si ripreme la card per tornare alla lista. */}
         <AzioniGym
-          attiva={stats ? 'stats' : ricerca ? 'cerca' : null}
+          attiva={stats ? 'stats' : null}
           onCoach={onOpenCoach}
           onSchede={() => setShowSchede(true)}
-          onCerca={() => {
-            if (ricerca) { setRicerca(false); setSearchQuery('') }
-            else { setRicerca(true); setStats(false) }
-          }}
           onStats={() => {
             if (stats) setStats(false)
             // Stats si apre sul mondo da cui si arriva: da Hyrox, sui numeri Hyrox.
-            else { setStats(true); setStatsTab(tab === 'hyrox' ? 'hyrox' : 'pesi'); setRicerca(false); setSearchQuery('') }
+            else { setStats(true); setStatsTab(tab === 'hyrox' ? 'hyrox' : 'pesi') }
           }}
         />
       </div>
 
       <div className="j-scroll-area">
-        {/* Il campo vive qui, sopra i rami: la ricerca è una vista che si apre su
-            qualunque tab, e duplicarlo dentro pesi e hyrox avrebbe voluto dire due
-            campi da tenere allineati. */}
-        {ricerca && (
-          <div style={{ position: 'relative', marginBottom: 12 }}>
-            <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: NUC.faint, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
-              <Icons.search size={14} stroke={1.8}/>
-            </div>
-            <input
-              autoFocus
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder={mode === 'hyrox' ? t('Cerca stazione…') : t('Cerca esercizio…')}
-              aria-label={t('Cerca esercizio')}
-              className="j-field"
-              style={{ paddingLeft: 36 }}
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} aria-label={t('Svuota la ricerca')} style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer', color: NUC.faint,
-                display: 'flex', alignItems: 'center', padding: 2,
-              }}>
-                <Icons.x size={13} stroke={2}/>
-              </button>
-            )}
-          </div>
-        )}
-
         {mode === 'stats' && (
           <>
             {/* Il riepilogo complessivo è qui, aperto. Era la schermata d'ingresso
@@ -1791,18 +1709,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           </>
         )}
 
-        {mode === 'hyrox' && searchQuery.trim() && (
-          <>
-            <NucEyebrow right={`${filteredHyrox.length}`}>{t('Risultati')}</NucEyebrow>
-            {filteredHyrox.map(ex => (
-              <div key={ex.id} onClick={() => setSelectedHyrox(ex)} style={{ cursor: 'pointer' }}>
-                <HyroxCard ex={ex} formato={formatoHyrox} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
-              </div>
-            ))}
-            {filteredHyrox.length === 0 && <div className="j-empty">{t('Nessuna stazione')}</div>}
-          </>
-        )}
-        {mode === 'hyrox' && !searchQuery.trim() && (
+        {mode === 'hyrox' && (
           <>
             {/* Sub-tab bar */}
             <NucSubTabs
@@ -1842,21 +1749,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         )}
         {mode === 'palestra' && (
           <>
-            {searchQuery.trim() ? (
-              <>
-                <NucEyebrow right={`${filteredPalestra.length}/${s.palestraExercises.length}`}>{t('Risultati')}</NucEyebrow>
-                {filteredPalestra.map((ex, i) => (
-                  <div key={ex.id} className="j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}>
-                    <PalestraCard
-                      ex={ex}
-                      onNavigate={() => setSelectedExercise(ex)}
-                      muscleColors={muscleColors}
-                    />
-                  </div>
-                ))}
-                {filteredPalestra.length === 0 && <div className="j-empty">{t('Nessun esercizio')}</div>}
-              </>
-            ) : (
               <>
                 {/* La riga larga "Schede d'allenamento" non è più qui: era in mezzo
                     alla lista degli esercizi, cioè dentro il contenuto invece che
@@ -1907,7 +1799,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
                   />
                 )}
               </>
-            )}
           </>
         )}
       </div>

@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, cleanup, within } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from '@/features/coach/CoachAthlete'
+import { CoachSessioni } from '@/features/coach/CoachSessioni'
 import type { AthleteData, NotaCoach } from '@/lib/coach'
-import type { PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
+import type { GymScheda, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 // La scheda di un allievo serve a rispondere a "sta calando?". Il volume
 // settimanale non lo diceva — un numero in chili senza un metro con cui
@@ -34,51 +35,68 @@ describe('CoachAthlete — il riepilogo dell’allievo', () => {
     expect(screen.getByText('Ultimo')).toBeInTheDocument()
   })
 
-  it('le sezioni lunghe stanno dietro un bottone, non in pagina', async () => {
+  it('sessioni e note stanno dietro un bottone, non in pagina', async () => {
     const user = userEvent.setup()
-    const onUltimo = vi.fn()
+    const onSessioni = vi.fn()
     const onNote = vi.fn()
     render(
       <CoachAthlete
         data={dati([ex('Panca piana', [h({ date: '2026-08-20' }), h({ date: '2026-08-27' })])])}
         note={2}
-        onApriUltimo={onUltimo}
+        onApriSessioni={onSessioni}
         onApriNote={onNote}
       />,
     )
-    // La tabella del confronto non è in questa pagina: c'è il bottone che la apre.
+    // Né la tabella del confronto né la tendina delle sessioni sono qui.
     expect(screen.queryByText(/di solito/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Scegli la sessione')).not.toBeInTheDocument()
     expect(screen.getByText('2 scritte')).toBeInTheDocument()
+    expect(screen.getByText('2 giornate')).toBeInTheDocument()
 
-    // Il confronto è sceso di fianco a Sessioni e si chiama "Confronto", non
-    // "Ultimo": quella parola è già sulla tile dei giorni dall'ultima volta, e
-    // due cose diverse con lo stesso nome sulla stessa schermata sono una sola
-    // cosa letta male. `getByText` fallirebbe da solo se tornassero a coincidere.
-    await user.click(screen.getByText('Confronto'))
-    expect(onUltimo).toHaveBeenCalledOnce()
+    await user.click(screen.getByText('Sessioni'))
+    expect(onSessioni).toHaveBeenCalledOnce()
     await user.click(screen.getByText('Note sugli esercizi'))
     expect(onNote).toHaveBeenCalledOnce()
   })
+})
 
-  it('le sessioni si scelgono una per volta invece di sfilare tutte', async () => {
+describe('CoachSessioni — le giornate confrontate con la scheda', () => {
+  const scheda: GymScheda = {
+    id: 'sA', title: 'Scheda A', createdAt: '', updatedAt: '',
+    exercises: [
+      { id: 'e1', name: 'Panca piana', sets: 3, reps: '10' },
+      { id: 'e2', name: 'Squat', sets: 3, reps: '8' },
+    ],
+  }
+  const daScheda = { id: 'sA', nome: 'Scheda A' }
+
+  it('ogni giornata dice cosa non torna, e il dettaglio lo segna in rosso', async () => {
     const user = userEvent.setup()
-    render(<CoachAthlete data={dati([
-      ex('Panca piana', [h({ date: '2026-08-20' })]),
-      ex('Squat', [h({ date: '2026-08-27', kg: 90 })]),
-    ])}/>)
+    const onConfronto = vi.fn()
+    render(<CoachSessioni
+      data={dati([
+        ex('Panca piana', [
+          h({ date: '2026-08-20', scheda: daScheda }),
+          // Due serie invece di tre, 2,5 kg in meno.
+          h({ date: '2026-08-27', kg: 57.5, sets_n: 2, scheda: daScheda }),
+        ]),
+        ex('Squat', [h({ date: '2026-08-20', kg: 90, reps: 8, scheda: daScheda })]),
+      ])}
+      schedeAssegnate={[scheda]}
+      onConfronto={onConfronto}
+    />)
 
-    // I nomi degli esercizi compaiono anche in "Migliori alzate": qui interessa
-    // solo cosa mostra la sezione delle sessioni.
-    const tendina = screen.getByLabelText('Scegli la sessione')
-    const sezione = within(tendina.parentElement!)
+    // La più recente, chiusa, riassume i problemi…
+    expect(screen.getByText('1 esercizio saltato · 1 serie in meno · 1 carico sceso')).toBeInTheDocument()
+    // …e la precedente è a posto.
+    expect(screen.getByText('scheda rispettata')).toBeInTheDocument()
 
-    // Si apre sulla più recente, e l'altra giornata NON è a schermo.
-    expect(sezione.getByText('Squat')).toBeInTheDocument()
-    expect(sezione.queryByText('Panca piana')).not.toBeInTheDocument()
+    // La più recente è già aperta: lo Squat saltato e il calo di carico.
+    expect(screen.getByText('Saltato')).toBeInTheDocument()
+    expect(screen.getByText(/−2,5 kg/)).toBeInTheDocument()
 
-    await user.selectOptions(tendina, '2026-08-20')
-    expect(sezione.getByText('Panca piana')).toBeInTheDocument()
-    expect(sezione.queryByText('Squat')).not.toBeInTheDocument()
+    await user.click(screen.getByText('Confronto'))
+    expect(onConfronto).toHaveBeenCalledOnce()
   })
 })
 

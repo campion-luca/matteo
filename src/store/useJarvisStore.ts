@@ -16,8 +16,6 @@ export interface HyroxExercise {
   history: HyroxHistoryEntry[]
 }
 
-export type GymTechnique = 'slowEccentric' | 'slowConcentric' | 'peakHold' | 'dropSet'
-
 export interface PalestraHistoryEntry {
   d: string; date?: string; kg: number; reps: number; sets_n: number
   // Peso per singola serie (opzionale): consente serie a carico variabile.
@@ -30,7 +28,6 @@ export interface PalestraHistoryEntry {
   // c'è stato. Se presente, `reps` resta il valore rappresentativo (i colpi
   // della serie più pesante), mentre volume e 1RM si calcolano serie per serie.
   setReps?: number[]
-  techniques?: GymTechnique[]
   machineModel?: 'panatta'
   bodyweight?: true
   // L'alzata è un MASSIMALE dichiarato: una singola ripetizione al carico massimo,

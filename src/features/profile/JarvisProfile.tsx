@@ -1,14 +1,12 @@
 // Le due schermate personali, in un overlay solo: il PROFILO (nome, dati del
-// corpo, peso) e le IMPOSTAZIONI (lingua, aspetto, widget, account). Quale delle
+// corpo, peso) e le IMPOSTAZIONI (lingua, aspetto, account). Quale delle
 // due lo dice la prop `sezione`; le aprono le due icone in cima all'app, la
 // persona e la rotella (vedi SalutoHeader).
 //
 // Erano un elenco solo, e i propri dati stavano in cima a una pagina che parla di
 // temi e password.
 //
-// Ogni interruttore qui scrive nello store, cioè nel blob che va in cloud — tranne
-// i widget del riepilogo, che sono una preferenza del dispositivo (vedi
-// homeModules).
+// Ogni interruttore qui scrive nello store, cioè nel blob che va in cloud.
 // Le anteprime (LayoutSwatch) sono disegnate a mano invece che con screenshot:
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
@@ -18,7 +16,6 @@ import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
 import { Icons } from '@/components/ui/Icons'
-import { HomeModulesManager } from '@/features/dashboard/HomeModulesManager'
 import { supabase } from '@/lib/supabase'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
@@ -162,13 +159,13 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   const t = useT()
   const [name, setName] = useState(s.userName || '')
   const [editingBody, setEditingBody] = useState(false)
-  // I due pannelli dell'aspetto e dei widget. Sono PAGINE dentro le impostazioni,
+  // Il pannello dell'aspetto. È una PAGINA dentro le impostazioni,
   // non modali: il modale si apre a z-index 90 e le impostazioni sono un overlay a
   // 95, quindi finiva sotto la pagina che l'aveva aperto — si vedevano le due
   // schermate una dentro l'altra. Alzare lo z-index del modale avrebbe spostato il
   // problema sul prossimo overlay; una pagina non ce l'ha proprio, e per due
   // pannelli grandi come questi è anche la forma giusta.
-  const [pannello, setPannello] = useState<null | 'tema' | 'widget'>(null)
+  const [pannello, setPannello] = useState<null | 'tema'>(null)
   const mieiDati = sezione === 'utente'
   const [age, setAge]       = useState(s.userAge ? String(s.userAge) : '')
   const [sex, setSex]       = useState<'M' | 'F' | ''>(s.userSex ?? '')
@@ -294,7 +291,6 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         </button>
         <div className="j-eyebrow" style={{ letterSpacing: '.18em' }}>
           {pannello === 'tema' ? t('Cambio tema')
-            : pannello === 'widget' ? t('Cambio widget')
             : mieiDati ? t('Profilo') : t('Impostazioni')}
         </div>
         {/* "Salva" vale per i campi dell'elenco (nome, dati). Dentro i pannelli non
@@ -420,8 +416,6 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         />
 
         </div>
-      ) : pannello === 'widget' ? (
-        <HomeModulesManager/>
       ) : (
         <>
 
@@ -558,22 +552,16 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         {/* Lingua */}
         <LinguaSection/>
 
-        {/* Aspetto e widget: due card affiancate, ognuna apre il suo pannello.
-            Erano tre sezioni impilate (dark mode, tema colore, layout) più, in un
-            altro posto ancora, la rotella dei moduli in cima alla home: quattro
-            schermate diverse per decidere che aspetto ha l'app. */}
-        <div className="j-profile-sec" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {/* L'aspetto: una card che apre il suo pannello. Erano tre sezioni
+            impilate (dark mode, tema colore, layout). Accanto c'era "Cambio
+            widget", tolto: il riepilogo ha tre sezioni fisse e niente da
+            riordinare. */}
+        <div className="j-profile-sec" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
           <CardImpostazione
             icon={<Icons.book size={20} stroke={1.6}/>}
             label={t('Cambio tema')}
             sotto={monoOn ? t('Premium') : `${t(PALETTE_LABELS[current] ?? current)}${s.darkMode ? ` · ${t('scuro')}` : ''}`}
             onClick={() => setPannello('tema')}
-          />
-          <CardImpostazione
-            icon={<Icons.settings size={20} stroke={1.6}/>}
-            label={t('Cambio widget')}
-            sotto={t('Ordina il riepilogo')}
-            onClick={() => setPannello('widget')}
           />
         </div>
 

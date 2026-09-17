@@ -32,6 +32,7 @@ import {
   type CoachLink, type CoachInvite, type AthleteData,
 } from '@/lib/coach'
 import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from './CoachAthlete'
+import { CoachSessioni } from './CoachSessioni'
 import { SchedaFormPage } from '@/features/gym/GymSchede'
 import type { GymScheda } from '@/store/useJarvisStore'
 
@@ -367,7 +368,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // CoachAthlete perché l'intestazione con la freccia è di questo livello: da
   // là sotto, cambiare contenuto senza cambiare header avrebbe lasciato un back
   // che esce dall'allievo invece di tornare al suo riepilogo.
-  const [sotto, setSotto] = useState<null | 'ultimo' | 'note'>(null)
+  const [sotto, setSotto] = useState<null | 'ultimo' | 'note' | 'sessioni'>(null)
 
   useEffect(() => {
     let vivo = true
@@ -423,10 +424,24 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     )
   }
 
+  // "Confronto" si apre dalle sessioni e ci torna: è una lettura delle stesse
+  // giornate, e uscirne sulla scheda allievo farebbe perdere il segno.
   if (sotto === 'ultimo') {
     return (
-      <Pagina titolo="Ultimo allenamento" onBack={() => setSotto(null)} isDesktop={isDesktop}>
+      <Pagina titolo={t('Ultimo allenamento')} onBack={() => setSotto('sessioni')} isDesktop={isDesktop}>
         <UltimoAllenamento palestra={dati?.palestraExercises ?? []}/>
+      </Pagina>
+    )
+  }
+
+  if (sotto === 'sessioni' && dati) {
+    return (
+      <Pagina titolo={t('Sessioni')} onBack={() => setSotto(null)} isDesktop={isDesktop}>
+        <CoachSessioni
+          data={dati}
+          schedeAssegnate={assegnate.map(r => r.scheda)}
+          onConfronto={() => setSotto('ultimo')}
+        />
       </Pagina>
     )
   }
@@ -458,7 +473,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           <CoachAthlete
             data={dati}
             note={note.length}
-            onApriUltimo={() => setSotto('ultimo')}
+            onApriSessioni={() => setSotto('sessioni')}
             onApriNote={() => { setSalvataggio(null); setSotto('note') }}
             slotSchede={
               <SchedeAssegnate
@@ -493,6 +508,10 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
   onElimina: (r: CoachScheda) => void
 }) {
   const t = useT()
+  // Una tendina, chiusa all'apertura: le schede si scrivono una volta e si
+  // ritoccano di rado, mentre la pagina dell'allievo si apre per guardare come
+  // sta andando. Aperte, spingevano sotto la piega tutto il resto.
+  const [aperte, setAperte] = useState(false)
   return (
     <div>
       <NucEyebrow right={
@@ -506,10 +525,22 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
           border: '1px solid var(--hairline)', borderRadius: 0,
           cursor: 'pointer', padding: '4px 9px',
         }}>+ {t('Nuova')}</button>
-      }>{t('Schede assegnate')}</NucEyebrow>
+      }>
+        <button onClick={() => setAperte(a => !a)} aria-expanded={aperte} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0,
+          background: 'none', border: 'none', cursor: 'pointer',
+          font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', color: 'inherit',
+        }}>
+          {t('Schede assegnate')} · {righe.length}
+          <span style={{ display: 'flex', transform: aperte ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
+            <Icons.chev size={12} stroke={2}/>
+          </span>
+        </button>
+      </NucEyebrow>
 
       {errore && <Avviso testo={errore} tono="errore"/>}
 
+      {aperte && (
       <NucCard pad={0}>
         {righe.length === 0 ? (
           <div style={{ padding: '16px 14px', fontFamily: NUC.label, fontSize: 11, letterSpacing: '.04em', color: 'var(--fg-mute)', lineHeight: 1.6 }}>
@@ -550,6 +581,7 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
           </div>
         ))}
       </NucCard>
+      )}
     </div>
   )
 }
@@ -558,18 +590,22 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
 function Pagina({ titolo, onBack, isDesktop, children }: {
   titolo: string; onBack: () => void; isDesktop: boolean; children: React.ReactNode
 }) {
+  // La barra del titolo sta FUORI dall'area che scorre. Era `sticky` dentro di
+  // essa, con fondo `--surface`: nel tema premium quel fondo è quasi trasparente
+  // (bianco al 4,5%), e scorrendo le righe passavano sotto la barra e si leggevano
+  // attraverso il titolo e il tasto indietro. Fuori dallo scroll non c'è niente
+  // che le passi sotto, qualunque sia il tema.
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 97,
       background: 'var(--bg)', backgroundImage: 'var(--paper-grain)',
-      display: 'flex', flexDirection: 'column',
-      fontFamily: NUC.font, color: NUC.ink, overflowY: 'auto',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      fontFamily: NUC.font, color: NUC.ink,
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '14px 18px 12px', flexShrink: 0,
         borderBottom: '1px solid var(--divider)', background: 'var(--surface)',
-        position: 'sticky', top: 0, zIndex: 10,
       }}>
         <button onClick={onBack} className="j-btn-back" style={{ width: 34, height: 34 }}>
           <Icons.chevL size={15}/>
@@ -578,11 +614,13 @@ function Pagina({ titolo, onBack, isDesktop, children }: {
         <div style={{ width: 34, flexShrink: 0 }}/>
       </div>
 
-      <div style={{
-        padding: isDesktop ? '24px 24px 120px' : '16px 16px 120px',
-        width: '100%', maxWidth: isDesktop ? 720 : '100%', alignSelf: 'center', boxSizing: 'border-box',
-      }}>
-        {children}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <div style={{
+          padding: isDesktop ? '24px 24px 120px' : '16px 16px 120px',
+          width: '100%', maxWidth: isDesktop ? 720 : '100%', margin: '0 auto', boxSizing: 'border-box',
+        }}>
+          {children}
+        </div>
       </div>
     </div>
   )

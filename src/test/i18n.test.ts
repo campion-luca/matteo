@@ -35,7 +35,6 @@ const QUALSIASI = /'([^'\n]*)'/g
 // visibile nella chiamata: sta nella costante, e va raccolta da quella.
 const COSTANTI = [
   '/src/features/auth/FirstSetup.tsx',
-  '/src/features/dashboard/homeModules.ts',
   '/src/features/gym/gymMaxLifts.ts',
   '/src/features/gym/gymModel.ts',
   '/src/features/gym/gymStrength.ts',

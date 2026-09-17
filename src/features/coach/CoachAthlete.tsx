@@ -9,7 +9,7 @@
 // I calcoli sono gli STESSI della propria scheda (gymModel, gymStrength): due
 // formule diverse per "quanto sei forte" a seconda di chi guarda sarebbero due
 // app che non si parlano.
-import { useMemo, useState, useEffect, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
@@ -17,7 +17,7 @@ import { LineChart } from '@/features/gym/gymShared'
 import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle } from '@/features/gym/gymModel'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
-import { fmtDayMonth, fmtShortDate, daysShort } from '@/lib/dateFormat'
+import { fmtDayMonth, daysShort } from '@/lib/dateFormat'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { NotaCoach } from '@/lib/coach'
@@ -30,7 +30,7 @@ interface Sessione {
   alzate: Array<{ ex: string; muscle: string; h: PalestraHistoryEntry }>
 }
 
-export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriNote }: {
+export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApriNote }: {
   data: AthleteData
   /** Le schede assegnate, già montate da chi le sa scrivere. Arrivano come slot e
    *  non come dati perché questa è una vista: legge e disegna, non salva niente.
@@ -39,7 +39,8 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
   slotSchede?: ReactNode
   /** Quante note ho scritto: sta sul bottone, così si sa se dentro c'è qualcosa. */
   note?: number
-  onApriUltimo?: () => void
+  /** Apre la pagina delle sessioni, giornata per giornata. */
+  onApriSessioni?: () => void
   onApriNote?: () => void
 }) {
   const t = useT()
@@ -134,15 +135,6 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
       .slice(0, 5)
   }, [palestra, peso])
 
-  // La sessione aperta nella tendina. Parte dalla più recente, ed è una DATA e
-  // non un indice: la lista si ricarica quando arrivano dati nuovi, e un indice
-  // punterebbe a un altro giorno senza che nessuno l'abbia chiesto.
-  const [giornoScelto, setGiornoScelto] = useState('')
-  const sessione = sessioni.find(x => x.date === giornoScelto) ?? sessioni[0]
-  useEffect(() => {
-    if (sessioni.length && !sessioni.some(x => x.date === giornoScelto)) setGiornoScelto(sessioni[0].date)
-  }, [sessioni, giornoScelto])
-
   const ultimoAllenamento = sessioni[0]?.date
   const giorniFa = ultimoAllenamento
     ? Math.round((Date.now() - new Date(`${ultimoAllenamento}T12:00:00`).getTime()) / 86_400_000)
@@ -203,13 +195,28 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
           Qui accanto c'era anche "Ultimo allenamento", ed è sceso in fondo, di
           fianco a Sessioni: è una lettura del diario, non una scheda a parte, e
           in cima competeva per lo sguardo con le note, che sono una scrittura. */}
-      {onApriNote && (
-        <BottonePagina
-          icon={<Icons.pencil size={20} stroke={1.6}/>}
-          label={t('Note sugli esercizi')}
-          sotto={note === 0 ? t('Nessuna scritta') : note === 1 ? t('1 scritta') : t('{n} scritte', { n: note })}
-          onClick={onApriNote}
-        />
+      {/* Sessioni e note, due porte affiancate. Le sessioni erano una tendina
+          in fondo alla pagina che mostrava una giornata per volta: adesso hanno
+          una pagina loro, dove ogni giornata si confronta con la sua scheda. */}
+      {(onApriSessioni || onApriNote) && (
+        <div style={{ display: 'grid', gridTemplateColumns: onApriSessioni && onApriNote ? '1fr 1fr' : '1fr', gap: 10 }}>
+          {onApriSessioni && (
+            <BottonePagina
+              icon={<Icons.list size={20} stroke={1.6}/>}
+              label={t('Sessioni')}
+              sotto={sessioni.length === 0 ? t('Nessuna sessione') : sessioni.length === 1 ? t('1 giornata') : t('{n} giornate', { n: sessioni.length })}
+              onClick={onApriSessioni}
+            />
+          )}
+          {onApriNote && (
+            <BottonePagina
+              icon={<Icons.pencil size={20} stroke={1.6}/>}
+              label={t('Note sugli esercizi')}
+              sotto={note === 0 ? t('Nessuna scritta') : note === 1 ? t('1 scritta') : t('{n} scritte', { n: note })}
+              onClick={onApriNote}
+            />
+          )}
+        </div>
       )}
 
       {/* ── Volume nel tempo ───────────────────────────────── */}
@@ -268,73 +275,6 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriUltimo, onApriN
               ))}
             </div>
           </NucCard>
-        </div>
-      )}
-
-      {/* Diario. Una sessione per volta, scelta da una tendina: le ultime otto in
-          fila erano già uno schermo pieno con un allievo che si allena tre volte
-          a settimana, e a un anno di distanza sarebbero un muro. Si guarda
-          sempre UNA giornata — "cosa ha fatto giovedì" — non otto insieme. */}
-      {sessioni.length > 0 && (
-        <div>
-          <NucEyebrow right={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, textTransform: 'none' }}>
-              <span>{t('{n} in tutto', { n: sessioni.length })}</span>
-              {onApriUltimo && (
-                <button
-                  onClick={onApriUltimo}
-                  className="j-hard-sm"
-                  style={{
-                    padding: '4px 9px', borderRadius: 0, cursor: 'pointer',
-                    background: 'var(--surface)', border: '1px solid var(--hairline)',
-                    fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
-                    textTransform: 'uppercase', color: 'var(--j-accent-ink)',
-                  }}
-                >
-                  {/* Non "Ultimo": quella parola è già sulla tile dei giorni
-                      dall'ultima volta, in cima alla stessa schermata. Qui si apre
-                      il confronto con le medie, ed è quello il nome della cosa. */}
-                  {t('Confronto')}
-                </button>
-              )}
-            </span>
-          }>{t('Sessioni')}</NucEyebrow>
-          {/* `value` segue la sessione MOSTRATA, non `giornoScelto`.
-
-              Sono due cose diverse finché nessuno ha scelto: `giornoScelto` parte
-              vuoto e la card sotto ripiega sulla più recente, quindi il menù non
-              corrispondeva a nulla e si disegnava vuoto. Con la lista piena sotto
-              e il menù in bianco sopra, la lettura ovvia è che non ci sia niente
-              finché non si apre la tendina — che è esattamente quello che
-              succedeva. Legandolo a `sessione` i due non possono più discordare. */}
-          <select
-            value={sessione?.date ?? ''}
-            onChange={e => setGiornoScelto(e.target.value)}
-            aria-label={t('Scegli la sessione')}
-            className="j-field"
-            style={{ marginBottom: 10 }}
-          >
-            {sessioni.map(x => (
-              <option key={x.date} value={x.date}>
-                {fmtShortDate(x.date)} · {fmtVol(x.volume)} kg
-              </option>
-            ))}
-          </select>
-          {sessione && (
-            <NucCard pad={14}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {sessione.alzate.map((a, j) => (
-                  <div key={j} style={{ display: 'flex', gap: 8, fontFamily: NUC.font, fontSize: 13, color: 'var(--fg-soft)' }}>
-                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(a.ex)}</span>
-                    <span style={{ flexShrink: 0, color: 'var(--fg-mute)' }}>{a.h.sets_n} × {fmtReps(a.h)} — {fmtKg(a.h)}</span>
-                  </div>
-                ))}
-                {sessione.alzate.length === 0 && (
-                  <span style={{ fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)' }}>{t('Solo hyrox, nessuna alzata di pesi.')}</span>
-                )}
-              </div>
-            </NucCard>
-          )}
         </div>
       )}
 

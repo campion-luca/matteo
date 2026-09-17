@@ -43,6 +43,13 @@
 
   /* Stato (readiness, avvisi). Anche questi hanno override in `.dark`. */
   --ok:            #35674c;
+  /* I segnali di andamento: freccia su/giù, serie mancanti, reset. Separati da
+     --ok/--danger perché il tema premium quelli li porta a grigio e bianco, e una
+     freccia "in calo" bianca non si distingue da una "in crescita". Questi restano
+     verde e rosso in ogni tema. */
+  --segnale-su:      #2f7a4c;
+  --segnale-giu:     #b3401f;
+  --segnale-giu-rgb: 179,64,31;
   --ok-soft:       #47775f;
   --warn:          #8a5e1e;
   --danger:        #ae3f25;
@@ -694,6 +701,9 @@
   --chart-2:   #d99aae;
 
   --ok:            #7fc98d;
+  --segnale-su:      #7fc98d;
+  --segnale-giu:     #ec8168;
+  --segnale-giu-rgb: 236,129,104;
   --ok-soft:       #8fd39a;
   --warn:          #e2a85e;
   --danger:        #ec8168;
@@ -755,6 +765,9 @@
   /* Su fondo nero la scala si ribalta: "grida" il chiaro, non lo scuro. */
 
   --ok:            #b5b5b5;
+  --segnale-su:      #6fd08a;
+  --segnale-giu:     #f06a55;
+  --segnale-giu-rgb: 240,106,85;
   --ok-soft:       #9e9e9e;
   --warn:          #dedede;
   --danger:        #ffffff;

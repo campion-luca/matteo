@@ -62,9 +62,12 @@ interface JModalProps {
   /** Un controllo nella riga del titolo, prima della ×. Per il campo che
    *  appartiene all'intestazione e non al form: la data dell'alzata. */
   headerRight?: ReactNode
+  /** Una riga sotto il titolo: la data dell'alzata, che si legge prima di
+   *  toccarla. */
+  subtitle?: ReactNode
 }
 
-export function JModal({ open, onClose, children, title, leading, headerRight, width = 320, maxHeight = 'calc(100% - 28px)' }: JModalProps) {
+export function JModal({ open, onClose, children, title, leading, headerRight, subtitle, width = 320, maxHeight = 'calc(100% - 28px)' }: JModalProps) {
   const t = useT()
   const [mount, setMount] = useState(open)
   const [visible, setVisible] = useState(false)
@@ -136,7 +139,10 @@ export function JModal({ open, onClose, children, title, leading, headerRight, w
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
               {leading}
-              <div id={titleId} style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, letterSpacing: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--fg)' }}>{title}</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div id={titleId} style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, letterSpacing: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--fg)' }}>{title}</div>
+                {subtitle && <div style={{ marginTop: 4 }}>{subtitle}</div>}
+              </div>
             </div>
             {headerRight && <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{headerRight}</div>}
             <button onClick={onClose} aria-label={t('Chiudi')} style={{
