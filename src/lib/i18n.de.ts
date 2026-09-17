@@ -610,6 +610,7 @@ export const DE_UI: Record<string, string> = {
   'Modifica la data': 'Datum ändern',
   'ripetizioni': 'Wiederholungen',
   'chili': 'Kilo',
+  'Superset · nessun recupero': 'Supersatz · keine Pause',
   'Salva': 'Speichern',
   'Modifica sessione': 'Einheit bearbeiten',
   'Quantità': 'Menge',

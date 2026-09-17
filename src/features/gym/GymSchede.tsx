@@ -835,6 +835,42 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
 
 // ── Dettaglio scheda ───────────────────────────────────────────
 // ── La faccia di un esercizio dentro una scheda ────────────────
+// ── Superset ───────────────────────────────────────────────────
+// Due esercizi in superset si fanno uno dopo l'altro senza recupero, e in
+// allenamento è l'informazione che cambia cosa fai dopo aver chiuso una serie.
+// Era una riga piccola nel colore accent, che nel tema premium è bianco come
+// tutto il resto: si perdeva. Adesso è arancione e sta AL CENTRO fra le due
+// card, e i due bordi che si guardano — il fondo di quella sopra, la cima di
+// quella sotto — sono arancioni anche loro: le due card si leggono come un
+// blocco solo.
+const ARANCIO_SUPERSET = 'var(--tertiary-ink)'
+
+function bordiSuperset(legatoAlPrecedente: boolean | undefined, legatoAlSuccessivo: boolean): CSSProperties {
+  return {
+    ...(legatoAlPrecedente ? { borderTop: `2px solid ${ARANCIO_SUPERSET}` } : {}),
+    ...(legatoAlSuccessivo ? { borderBottom: `2px solid ${ARANCIO_SUPERSET}` } : {}),
+  }
+}
+
+function PonteSuperset() {
+  const t = useT()
+  const filo = <span aria-hidden="true" style={{ flex: 1, height: 1, background: ARANCIO_SUPERSET, opacity: 0.45 }}/>
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', color: ARANCIO_SUPERSET }}>
+      {filo}
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px',
+        border: `1px solid ${ARANCIO_SUPERSET}`,
+        fontFamily: NUC.label, fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
+      }}>
+        <Icons.repeat size={12} stroke={2}/>
+        {t('Superset · nessun recupero')}
+      </span>
+      {filo}
+    </div>
+  )
+}
+
 // L'illustrazione se ce l'ha, il disegno del gruppo muscolare se no: la stessa
 // regola della griglia della palestra, e per la stessa ragione — il disegno è
 // l'unica figura garantita per OGNI esercizio, compreso quello che uno scrive a
@@ -927,14 +963,9 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
             const color = muscleColor(e.muscle, muscleColors)
             const linkedToPrev = i > 0 && scheda.exercises[i - 1].supersetWithNext
             return (
-              <div key={e.id} className="j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms`, marginBottom: e.supersetWithNext ? 4 : 8 }}>
-                {linkedToPrev && (
-                  <div className="flex items-center gap-1.5" style={{ padding: '0 4px 4px', color: 'var(--j-accent-ink)' }}>
-                    <Icons.repeat size={11} stroke={1.8}/>
-                    <span style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase' }}>Superset · nessun recupero</span>
-                  </div>
-                )}
-                <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
+              <div key={e.id} className="j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms`, marginBottom: e.supersetWithNext ? 0 : 8 }}>
+                {linkedToPrev && <PonteSuperset/>}
+                <NucCard pad={13} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(linkedToPrev, !!e.supersetWithNext) }}>
                   <div className="flex items-center justify-between gap-3">
                     <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={44}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1274,14 +1305,9 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
           const exDone = p.checks.length > 0 && p.checks.every(Boolean)
           const linkedToPrev = idx > 0 && scheda.exercises[idx - 1].supersetWithNext
           return (
-            <div key={e.id} style={{ marginBottom: e.supersetWithNext ? 4 : 10 }}>
-            {linkedToPrev && (
-              <div className="flex items-center gap-1.5" style={{ padding: '0 4px 4px', color: 'var(--j-accent-ink)' }}>
-                <Icons.repeat size={11} stroke={1.8}/>
-                <span style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase' }}>Superset · nessun recupero</span>
-              </div>
-            )}
-            <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
+            <div key={e.id} style={{ marginBottom: e.supersetWithNext ? 0 : 10 }}>
+            {linkedToPrev && <PonteSuperset/>}
+            <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(linkedToPrev, !!e.supersetWithNext), opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
               <div className="flex items-start justify-between gap-3" style={{ marginBottom: 10 }}>
                 <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
