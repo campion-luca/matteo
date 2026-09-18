@@ -90,7 +90,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
           </div>
           {!isRace && onDelete && (
             <button onClick={() => confirmDelete(onDelete, tData(ex.n))} style={{
-              width: 34, height: 34, borderRadius: 0,
+              width: 34, height: 34, borderRadius: 'var(--radius-sm)',
               background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
               color: 'var(--danger)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -163,7 +163,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
-                  width: 26, height: 26, borderRadius: 0,
+                  width: 26, height: 26, borderRadius: 'var(--radius-sm)',
                   background: 'var(--surface)', border: '1px solid var(--hairline)',
                   color: NUC.faint, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -171,7 +171,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
                   <Icons.pencil size={10} stroke={1.8}/>
                 </button>
                 <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Sessione'))} style={{
-                  width: 26, height: 26, borderRadius: 0,
+                  width: 26, height: 26, borderRadius: 'var(--radius-sm)',
                   background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
                   color: 'var(--danger)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',

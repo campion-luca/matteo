@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
-import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, MONO_DARK } from '@/lib/jarvis-tokens'
+import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
 import { NucGrain } from '@/components/ui/NucComponents'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { UpdateToast } from '@/components/UpdateToast'
@@ -19,6 +19,7 @@ import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
 import { readStorage, writeStorage, removeStorage } from '@/lib/safeStorage'
+import { avviaMessaggi, fermaMessaggi } from '@/lib/messaggiLive'
 
 // ── Lazy-loaded features ───────────────────────────────────────
 const JarvisBoot      = lazy(() => import('@/features/boot/JarvisBoot').then(m => ({ default: m.JarvisBoot })))
@@ -192,7 +193,7 @@ const PILL_STYLE: React.CSSProperties = {
   position: 'fixed', top: 'calc(env(safe-area-inset-top) + 10px)', left: '50%',
   transform: 'translateX(-50%)', zIndex: 200,
   display: 'flex', alignItems: 'center', gap: 8,
-  padding: '7px 14px', borderRadius: 0,
+  padding: '7px 14px', borderRadius: 'var(--radius)',
   background: 'var(--surface-pop)', border: '1px solid var(--hairline)',
   color: NUC.ink, fontFamily: NUC.font, fontSize: 10.5,
   letterSpacing: '.12em', textTransform: 'uppercase',
@@ -212,7 +213,7 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
 
   if (loadFailed) {
     return (
-      <button onClick={onRetryLoad} className="j-glass-pop" style={{ ...PILL_STYLE, cursor: 'pointer' }}>
+      <button onClick={onRetryLoad} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
         {PILL_DOT}
         {t('Dati cloud non caricati — tocca per riprovare')}
       </button>
@@ -220,7 +221,7 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
   }
   if (status === 'error') {
     return (
-      <button onClick={() => retry?.()} className="j-glass-pop" style={{ ...PILL_STYLE, cursor: 'pointer' }}>
+      <button onClick={() => retry?.()} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
         {PILL_DOT}
         {t('Non sincronizzato — tocca per riprovare')}
       </button>
@@ -228,7 +229,7 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
   }
   if (notice) {
     return (
-      <div role="status" className="j-glass-pop" style={PILL_STYLE}>
+      <div role="status" style={PILL_STYLE}>
         {PILL_DOT}
         {notice}
       </div>
@@ -335,6 +336,18 @@ export default function App() {
     return true
   }
 
+  // Le richieste sulle schede condivise girano per conto loro, fuori dal blob:
+  // vedi lib/messaggiLive. Si accendono con la sessione perché il badge rosso in
+  // home deve esserci anche senza aver aperto il Personal Coach, e si spengono al
+  // logout — i messaggi sono dell'ACCOUNT, non del dispositivo, e lasciarli in
+  // memoria li mostrerebbe a chi entra dopo.
+  useEffect(() => {
+    const id = session?.user?.id
+    if (!id) { fermaMessaggi(); return }
+    avviaMessaggi(id)
+    return () => fermaMessaggi()
+  }, [session?.user?.id])
+
   useEffect(() => {
     if (!session?.user) return
 
@@ -420,7 +433,7 @@ export default function App() {
   // `accentColor` resta intatto nello store e torna in vigore con il layout standard.
   const basePalette = paletteFor(s.accentColor, s.customAccentHex)
   const palette = premium
-    ? MONO_DARK                                        // accent bianco, sempre
+    ? PREMIUM_ACCENT                                   // terracotta, sempre
     : (s.darkMode ? adjustPaletteForDark(basePalette) : basePalette)
 
   const handleBoot = () => {
@@ -448,10 +461,11 @@ export default function App() {
     // Accent come TESTO: spinto lontano dalla superficie corrente fino ad AA (≥4.5:1).
     '--j-accent-ink': accentInkFor(palette.accent, fondoScuro),
     // Inchiostro SOPRA l'accent: crema sugli accent scuri, scuro su quelli chiari.
-    // In Premium va forzato neutro: `accentFgFor` sceglie fra una crema calda e un
-    // inchiostro caldo, e su un accent bianco restituiva tinte appena brune — poco,
-    // ma non è bianco/nero.
-    '--j-accent-fg': premium ? '#0a0a0a' : accentFgFor(palette.accent),
+    // Premium non è più un caso a parte: qui c'era un `#0a0a0a` forzato perché
+    // l'accent era BIANCO, e su un fondo bianco `accentFgFor` restituiva un
+    // inchiostro appena bruno invece che nero. Con la terracotta la funzione fa
+    // il suo mestiere e sceglie la crema, che è quello che serve.
+    '--j-accent-fg': accentFgFor(palette.accent),
     '--j-accent-soft': palette.accentSoft,
     '--j-accent-deep': palette.accentDeep,
     '--j-rgb': palette.rgb,

@@ -116,13 +116,13 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
         onClick={(e) => e.stopPropagation()}
         // PROTOTIPO ombra hard — vedi .j-hard in globals.css. Sui modali è statica:
         // un modale non si preme.
-        className="j-hard-static j-glass-pop"
+        className="j-hard-static"
         style={{
         width: '100%', maxWidth: width, maxHeight,
         background: 'var(--surface-pop)',
-        backgroundImage: 'var(--paper-grain), var(--glass-sheen)',
+        backgroundImage: 'var(--paper-grain)',
         border: `1px solid var(--fg)`,
-        borderRadius: 0,
+        borderRadius: 'var(--radius-lg)',
         color: 'var(--fg)', fontFamily: NUC.font,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         opacity: visible ? 1 : 0,
@@ -146,7 +146,7 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
             </div>
             {headerRight && <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{headerRight}</div>}
             <button onClick={onClose} aria-label={t('Chiudi')} style={{
-              width: 36, height: 36, borderRadius: 0, flexShrink: 0,
+              width: 36, height: 36, borderRadius: 'var(--radius)', flexShrink: 0,
               background: 'var(--surface-2)', border: `1px solid var(--hairline)`,
               color: 'var(--fg-mute)', cursor: 'pointer', fontSize: 18, lineHeight: '1',
               display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -4,8 +4,9 @@
 // sia il modale di registrazione, e GymHyrox importa già i modali: tenerlo lì
 // avrebbe creato un giro di import gymModals → GymHyrox → gymModals.
 import type React from 'react'
-import { NUC } from '@/lib/jarvis-tokens'
+import { NUC, cursore } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
+
 import type { FormatoHyrox } from './hyroxStima'
 
 // ── Intera / mezza ─────────────────────────────────────────────
@@ -32,23 +33,20 @@ export function FormatoSwitch<T extends string = FormatoHyrox>({ valore, onChang
   const [a, b] = valori ?? (['intero', 'mezzo'] as [T, T])
   const opts: Array<[T, string]> = [[a, etichette[0]], [b, etichette[1]]]
   return (
-    <div role="group" aria-label={etichettaGruppo ?? t('Distanza')} style={{
-      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, padding: 3,
-      border: '1px solid var(--hairline)', background: 'var(--surface-2)',
+    <div role="group" aria-label={etichettaGruppo ?? t('Distanza')} className="j-switch" style={{
+      ...cursore(opts.findIndex(([id]) => id === valore), opts.length),
+      display: 'grid', gridTemplateColumns: '1fr 1fr',
       ...style,
     }}>
       {opts.map(([id, label]) => {
         const on = id === valore
         return (
-          <button key={id} type="button" onClick={() => onChange(id)} aria-pressed={on} className="j-focus" style={{
-            minHeight: 'clamp(34px, 5dvh, 40px)', borderRadius: 0, cursor: 'pointer',
-            background: on ? 'var(--surface)' : 'transparent',
-            border: `1px solid ${on ? 'var(--j-accent)' : 'transparent'}`,
-            color: on ? 'var(--j-accent-ink)' : NUC.faint,
-            fontFamily: NUC.label, fontSize: 'clamp(10px, 2.8vw, 11px)', fontWeight: on ? 700 : 500,
-            letterSpacing: '.14em', textTransform: 'uppercase',
-            transition: 'all 180ms',
-          }}>{label}</button>
+          <button key={id} type="button" onClick={() => onChange(id)} aria-pressed={on}
+            className="j-switch-cell j-focus" style={{
+              minHeight: 'clamp(34px, 5dvh, 40px)',
+              fontFamily: NUC.label, fontSize: 'clamp(10px, 2.8vw, 11px)', fontWeight: on ? 700 : 500,
+              letterSpacing: '.14em', textTransform: 'uppercase',
+            }}>{label}</button>
         )
       })}
     </div>

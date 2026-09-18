@@ -32,11 +32,17 @@ import {
   type CoachLink, type CoachInvite, type AthleteData,
 } from '@/lib/coach'
 import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from './CoachAthlete'
+import { CoachMessaggi } from './CoachMessaggi'
+import { BadgeNonLetti } from './messaggiUI'
+import { useNonLetti } from '@/lib/messaggiLive'
 import { CoachSessioni } from './CoachSessioni'
 import { SchedaFormPage } from '@/features/gym/GymSchede'
 import type { GymScheda } from '@/store/useJarvisStore'
 
-type Ruolo = 'seguito' | 'allenatore'
+// Le tre sezioni del Personal Coach. "messaggi" è la terza e sta a destra: le
+// prime due sono i due lati del collegamento (chi ti segue, chi segui), la terza
+// è quello che succede DOPO che il collegamento c'è.
+type Ruolo = 'seguito' | 'allenatore' | 'messaggi'
 
 export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => void }) {
   const t = useT()
@@ -45,6 +51,7 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
   const { confirmDelete } = useConfirmDelete()
 
   const [ruolo, setRuolo] = useState<Ruolo>('seguito')
+  const daLeggere = useNonLetti()
   const [invito, setInvito] = useState<CoachInvite | null>(null)
   const [allenatori, setAllenatori] = useState<CoachLink[]>([])
   const [atleti, setAtleti] = useState<CoachLink[]>([])
@@ -99,6 +106,7 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
         options={[
           { id: 'seguito', label: t('Ti seguono') },
           { id: 'allenatore', label: t('Segui') },
+          { id: 'messaggi', label: t('Messaggi'), badge: <BadgeNonLetti n={daLeggere}/> },
         ]}
         value={ruolo}
         onChange={v => setRuolo(v as Ruolo)}
@@ -137,6 +145,13 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
           )}
         />
         </div>
+        {/* I messaggi invece si smontano chiudendo la sezione, al contrario dei
+            due lati qui sotto: lì si tengono vivi per non ricreare il vetro a
+            ogni tocco, ma questo tiene aperta una conversazione e il ritmo
+            svelto delle richieste al server (vedi messaggiLive). Lasciarlo
+            montato dietro un `hidden` significherebbe interrogare il server ogni
+            tre secondi stando a guardare tutt'altro. */}
+        {ruolo === 'messaggi' && <CoachMessaggi userId={userId} userName={userName}/>}
         <div hidden={ruolo !== 'allenatore'}>
         <LatoAllenatore
           userName={userName}
@@ -217,7 +232,7 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
                 si legge da lontano perché spesso si detta o si fotografa. */}
             <button onClick={copia} className="j-focus" style={{
               width: '100%', padding: '14px 12px', cursor: 'pointer',
-              background: 'var(--surface-2)', border: '1px solid var(--fg)', borderRadius: 0,
+              background: 'var(--surface-2)', border: '1px solid var(--fg)', borderRadius: 'var(--radius)',
               fontFamily: NUC.font, fontSize: 32, fontWeight: 500,
               letterSpacing: '.22em', textIndent: '.22em',
               color: 'var(--fg)',
@@ -308,7 +323,7 @@ function LatoAllenatore({ userName, atleti, onCollegato, onApri, onRimuovi }: {
           maxLength={12}
           style={{
             width: '100%', boxSizing: 'border-box', minHeight: 52, padding: '0 14px',
-            background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 0,
+            background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)',
             outline: 'none', textAlign: 'center',
             fontFamily: NUC.font, fontSize: 24, fontWeight: 500,
             letterSpacing: '.2em', textIndent: '.2em', color: 'var(--fg)',
@@ -522,7 +537,7 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
         <button onClick={onNuova} className="j-hard-sm" style={{
           fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase',
           color: 'var(--j-accent-ink)', background: 'var(--surface)',
-          border: '1px solid var(--hairline)', borderRadius: 0,
+          border: '1px solid var(--hairline)', borderRadius: 'var(--radius)',
           cursor: 'pointer', padding: '4px 9px',
         }}>+ {t('Nuova')}</button>
       }>
@@ -570,7 +585,7 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
               onClick={() => onElimina(r)}
               aria-label={t('Elimina {cosa}', { cosa: r.scheda.title })}
               style={{
-                width: 30, height: 30, flexShrink: 0, borderRadius: 0,
+                width: 30, height: 30, flexShrink: 0, borderRadius: 'var(--radius-sm)',
                 background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
                 color: 'var(--danger)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -647,7 +662,7 @@ function RigaPersona({ nome, sotto, primo, onApri, onRimuovi }: {
       </div>
       {onApri && <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', flexShrink: 0 }}/>}
       <button onClick={onRimuovi} aria-label={t('Scollega {chi}', { chi: nome })} style={{
-        width: 28, height: 28, flexShrink: 0, borderRadius: 0,
+        width: 28, height: 28, flexShrink: 0, borderRadius: 'var(--radius-sm)',
         background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
         color: 'var(--danger)', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -668,7 +683,7 @@ function Bottone({ children, onClick, disabled, variante = 'accent' }: {
   const accent = variante === 'accent' && !disabled
   return (
     <button onClick={onClick} disabled={disabled} className="j-hard" style={{
-      flex: 1, width: '100%', minHeight: 44, borderRadius: 0,
+      flex: 1, width: '100%', minHeight: 44, borderRadius: 'var(--radius)',
       background: accent ? 'var(--j-accent)' : 'var(--surface-2)',
       border: accent ? 'none' : '1px solid var(--hairline)',
       color: accent ? 'var(--j-accent-fg)' : disabled ? 'var(--fg-mute)' : 'var(--fg)',

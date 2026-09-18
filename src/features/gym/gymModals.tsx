@@ -212,7 +212,7 @@ function DataModificabile({ valore, onChange, aperta, onApri, etichetta }: {
   const t = useT()
   const oggi = valore === todayISO()
   const bottone: React.CSSProperties = {
-    width: 26, height: 26, borderRadius: 0, flexShrink: 0, padding: 0,
+    width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0, padding: 0,
     background: 'var(--surface)', border: '1px solid var(--hairline)',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   }
@@ -259,7 +259,7 @@ function ColonnaScelta({ titolo, opzioni, spenta }: {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {opzioni.map(o => (
           <button key={o.label} type="button" disabled={spenta} onClick={o.onClick} aria-pressed={o.on} style={{
-            height: 32, borderRadius: 0, padding: '0 4px', minWidth: 0,
+            height: 32, borderRadius: 'var(--radius-sm)', padding: '0 4px', minWidth: 0,
             background: o.on ? 'var(--surface-2)' : 'var(--surface)',
             border: `1px solid ${o.on ? 'var(--j-accent)' : NUC.hairline}`,
             color: o.on ? 'var(--j-accent-ink)' : NUC.dim,
@@ -880,14 +880,14 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
           <button onClick={() => setColor('')} style={{
-            width: 28, height: 28, borderRadius: 0, cursor: 'pointer', padding: 0,
+            width: 28, height: 28, borderRadius: 'var(--radius-sm)', cursor: 'pointer', padding: 0,
             background: 'var(--surface-2)', border: `2px solid ${!color ? 'var(--fg)' : 'var(--hairline)'}`,
             fontFamily: NUC.label, fontSize: 10, color: NUC.faint,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>A</button>
           {COLOR_PALETTE.map(c => (
             <button key={c} onClick={() => setColor(color === c ? '' : c)} style={{
-              width: 28, height: 28, borderRadius: 0, background: c, cursor: 'pointer', padding: 0,
+              width: 28, height: 28, borderRadius: 'var(--radius-sm)', background: c, cursor: 'pointer', padding: 0,
               border: `2px solid ${activeColor === c && color === c ? 'var(--surface)' : 'transparent'}`,
               outline: activeColor === c && color === c ? `2px solid ${c}` : 'none',
               transition: 'outline 120ms',
@@ -1004,7 +1004,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
         <div className="flex gap-2">
           {([false, true] as const).map(bw => (
             <button key={String(bw)} onClick={() => { setIsBodyweight(bw); setZavorra(''); setKg('') }} style={{
-              flex: 1, height: 36, borderRadius: 0,
+              flex: 1, height: 36, borderRadius: 'var(--radius)',
               background: isBodyweight === bw ? 'var(--surface-2)' : 'var(--surface)',
               border: `1px solid ${isBodyweight === bw ? 'var(--j-accent)' : NUC.hairline}`,
               color: isBodyweight === bw ? 'var(--j-accent-ink)' : NUC.dim,
@@ -1020,7 +1020,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
         <div className="flex gap-2">
           {([false, true] as const).map(v => (
             <button key={String(v)} onClick={() => { setIsMax(v); if (v) setPerSet(false) }} style={{
-              flex: 1, height: 36, borderRadius: 0,
+              flex: 1, height: 36, borderRadius: 'var(--radius)',
               background: isMax === v ? 'var(--surface-2)' : 'var(--surface)',
               border: `1px solid ${isMax === v ? 'var(--j-accent)' : NUC.hairline}`,
               color: isMax === v ? 'var(--j-accent-ink)' : NUC.dim,
@@ -1116,7 +1116,7 @@ export function RecordModal({ records, onClose }: { records: RecordItem[]; onClo
         {records.map(r => (
           <div key={r.name} style={{
             background: 'var(--surface-2)', border: '1px solid var(--hairline)',
-            borderRadius: 0, padding: '12px 14px',
+            borderRadius: 'var(--radius)', padding: '12px 14px',
           }}>
             <div style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink, marginBottom: 6 }}>{tData(r.name)}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -1191,7 +1191,7 @@ export function NuovoGruppoModal({ open, onClose, onCrea, esistenti }: {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(26px, 8vw, 34px), 1fr))', gap: 6 }}>
           {COLOR_PALETTE.map(c => (
             <button key={c} onClick={() => setColor(c)} aria-label={c} aria-pressed={color === c} style={{
-              aspectRatio: '1 / 1', width: '100%', borderRadius: 0, background: c, cursor: 'pointer', padding: 0,
+              aspectRatio: '1 / 1', width: '100%', borderRadius: 'var(--radius)', background: c, cursor: 'pointer', padding: 0,
               border: `2px solid ${color === c ? 'var(--surface)' : 'transparent'}`,
               outline: color === c ? `2px solid ${c}` : 'none',
               transition: 'outline 120ms',
@@ -1205,7 +1205,7 @@ export function NuovoGruppoModal({ open, onClose, onCrea, esistenti }: {
             const on = icon === f
             return (
               <button key={f} onClick={() => setIcon(f)} aria-label={tData(f)} aria-pressed={on} style={{
-                aspectRatio: '3 / 4', width: '100%', minWidth: 0, borderRadius: 0, cursor: 'pointer', padding: 4,
+                aspectRatio: '3 / 4', width: '100%', minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', padding: 4,
                 background: 'var(--surface-2)',
                 border: `2px solid ${on ? color : 'transparent'}`,
                 outline: on ? 'none' : '1px solid var(--hairline)', outlineOffset: -1,
@@ -1213,7 +1213,9 @@ export function NuovoGruppoModal({ open, onClose, onCrea, esistenti }: {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'border-color 160ms, color 160ms',
               }}>
-                <MuscleIcon muscle={f} size={40} style={{ height: '82%', width: 'auto', maxWidth: '100%' }}/>
+                {/* `acceso="currentColor"`: qui si sta scegliendo un colore, e
+                    un'anteprima che non lo mostra sul pieno non serve a niente. */}
+                <MuscleIcon muscle={f} acceso="currentColor" size={40} style={{ height: '82%', width: 'auto', maxWidth: '100%' }}/>
               </button>
             )
           })}

@@ -1,6 +1,8 @@
 import { useId } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
+import { fotoEsercizio } from './eserciziFoto'
+import { MuscleIcon } from './MuscleIcons'
 
 // Componenti di disegno condivisi fra i pezzi della scheda Allenamento.
 // Stavano in cima a JarvisGym, ma li usano modali, hyrox e statistiche: tenerli
@@ -189,6 +191,38 @@ export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, l
           )
         ))}
       </svg>
+    </div>
+  )
+}
+
+// L'illustrazione se ce l'ha, il disegno del gruppo muscolare se no: la stessa
+// regola della griglia della palestra, e per la stessa ragione — il disegno è
+// l'unica figura garantita per OGNI esercizio, compreso quello che uno scrive a
+// mano nella scheda e che nessuna fotografia può coprire in anticipo.
+//
+// Non torna mai `null`: un quadrato vuoto è meglio di righe che si allineano in
+// due modi diversi a seconda che la foto ci sia.
+//
+// L'aggancio è per NOME, che nella scheda è l'unica cosa che si ha: la riga
+// porta `name`, e `linkedExerciseId` può mancare (scheda arrivata da un
+// allenatore, esercizio digitato e non ancora collegato). È lo stesso nome su
+// cui si aggancia la griglia, quindi le due schermate mostrano la stessa figura.
+export function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo?: string; lato: number }) {
+  const foto = fotoEsercizio(nome)
+  const cornice = {
+    // `-sm` e non il raggio pieno: il riquadro è quadrato e sta fra i 40 e i 48px,
+    // dove 16px di raggio se ne mangiano gli angoli e la figura dentro comincia a
+    // sembrare ritagliata in tondo.
+    width: lato, height: lato, flexShrink: 0, borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--hairline)', background: 'var(--surface-2)',
+  } as const
+  if (foto) {
+    return <img src={foto} alt="" loading="lazy" decoding="async"
+      style={{ ...cornice, objectFit: 'cover', display: 'block' }}/>
+  }
+  return (
+    <div style={{ ...cornice, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-mute)' }}>
+      <MuscleIcon muscle={muscolo || 'Altro'} size={Math.round(lato * 0.7)} stroke={1.5}/>
     </div>
   )
 }

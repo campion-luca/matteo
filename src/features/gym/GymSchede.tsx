@@ -18,17 +18,19 @@ import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEnt
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum } from './gymModel'
 import { useT, useTData } from '@/lib/i18n'
-import { RecordModal, type RecordItem } from './gymModals'
+import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { leggiSessione, salvaSessione, scartaSessione } from './sessioneInCorso'
 import { useMuscleColors } from './useMuscleColors'
-import { fotoEsercizio } from './eserciziFoto'
-import { MuscleIcon } from './MuscleIcons'
+import { FacciaEsercizio } from './gymShared'
 import { todayISO } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
 import { supabase } from '@/lib/supabase'
 import { schedeRicevute, eliminaSchedaAssegnata, myAthletes, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
+import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
+import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
+import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
 
 // Colore del gruppo muscolare. `muscleColors` arriva risolto da `useMuscleColors()`
 // (default + override utente, desaturato in layout "Notte"): 'Altro' fa da fallback,
@@ -64,13 +66,26 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
   return (
     <div className="flex flex-col h-full overflow-hidden j-page-in">
       <div className="j-page-header">
-        <div className="flex items-center gap-3">
+        {/* `flex-wrap` + un minimo garantito al titolo.
+            Senza, con tre comandi a destra il titolo si stringeva a 156px mentre
+            "Schede d'allenamento" a 26px ne chiede 172: il testo sforava dalla
+            propria casella e finiva a passare SOTTO il primo bottone. Non era il
+            titolo a essere lungo — su un telefono da 412px quella riga non ci sta
+            e basta. Con un minimo di 190px la riga non può comprimersi oltre, e
+            quando non ci sta è il gruppo dei comandi ad andare a capo, che è la
+            cosa giusta da spostare: si legge prima dove si è e poi cosa si può
+            fare. Sulle pagine con uno o due comandi resta tutto su una riga. */}
+        <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
           <button onClick={onBack} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: '1 1 auto', minWidth: 190 }}>
             <div className="j-page-title" style={tronca ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}>{title}</div>
             <div className="j-eyebrow mt-0.5">{sub}</div>
           </div>
-          {azioni}
+          {azioni && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
+              {azioni}
+            </div>
+          )}
         </div>
         {extra}
       </div>
@@ -83,7 +98,7 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
 // forma per tutti, il colore lo passa chi lo usa.
 // `size`: 40 accanto al bottone "+" dell'elenco (stessa altezza), 36 altrove.
 const iconBtn = (danger = false, size = 36): CSSProperties => ({
-  width: size, height: size, borderRadius: 0, cursor: 'pointer',
+  width: size, height: size, borderRadius: 'var(--radius)', cursor: 'pointer',
   background: danger ? 'rgba(var(--danger-rgb),0.06)' : 'var(--surface)',
   border: danger ? '1px solid rgba(var(--danger-rgb),0.18)' : `1px solid ${NUC.hairline}`,
   color: danger ? 'var(--danger)' : NUC.dim,
@@ -136,6 +151,23 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
   }, [])
 
   const [records, setRecords] = useState<RecordItem[]>([])
+  // Le alzate che l'ULTIMO allenamento ha appena scritto nello storico.
+  //
+  // Serve a una cosa sola: poterle correggere da dove si è quando si finisce.
+  // Modificarle si poteva già — il modale c'è, sta nella pagina dell'esercizio —
+  // ma per arrivarci da qui bisognava uscire dalla scheda, tornare in home,
+  // aprire il gruppo muscolare, l'esercizio, lo storico: sei passaggi per
+  // aggiustare un 80 scritto al posto di un 85, subito dopo averlo scritto. Chi
+  // finisce un allenamento e vuole correggere un carico non li fa, e quel
+  // numero sbagliato resta nello storico per sempre.
+  //
+  // L'aggancio all'alzata è il RIFERIMENTO all'oggetto, non un indice: lo
+  // storico viene riordinato per data a ogni scrittura (`sortedHistory`) e un
+  // indice preso adesso punterebbe a un'altra riga dopo la prima correzione.
+  // Vive quanto la pagina: uscendo dalla scheda sparisce, ed è giusto — non è
+  // un archivio, è "quello che hai appena fatto".
+  const [appenaSalvate, setAppenaSalvate] = useState<AlzataSalvata[]>([])
+  const [correggo, setCorreggo] = useState<AlzataSalvata | null>(null)
   const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>('list')
   const [editing, setEditing] = useState<GymScheda | null>(null) // scheda in modifica nel form (null = nuova)
   const [active, setActive] = useState<GymScheda | null>(null)    // scheda aperta in dettaglio/allenamento
@@ -230,6 +262,9 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
     // Una scheda salva più alzate in un colpo: i record si raccolgono e si
     // mostrano tutti insieme a fine sessione, non uno alla volta.
     const recs: RecordItem[] = []
+    // Quello che finisce nello storico, esercizio per esercizio: serve alla
+    // striscia "appena salvato" del dettaglio (vedi `appenaSalvate`).
+    const salvate: AlzataSalvata[] = []
 
     scheda.exercises.forEach(se => {
       const r = results.find(x => x.id === se.id)
@@ -272,6 +307,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
           ? { ...e, history: sortedHistory([...e.history, entry]), current: { kg: entry.kg, reps: entry.reps, sets_n: entry.sets_n } }
           : e)
         linkMap[se.id] = tid
+        salvate.push({ exerciseId: tid, nome: target.n, entry })
       } else {
         const newId = uid('px')
         exs.push({
@@ -280,6 +316,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
           history: [entry],
         })
         linkMap[se.id] = newId
+        salvate.push({ exerciseId: newId, nome: se.name.trim(), entry })
       }
     })
 
@@ -292,6 +329,27 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
     setActive(updatedScheda)
     setView('detail')
     setRecords(recs)
+    setAppenaSalvate(salvate)
+  }
+
+  /** Riscrive un'alzata già salvata, trovandola per riferimento dentro lo storico
+   *  del suo esercizio. Tiene allineato anche `current`, che è il precompilato del
+   *  prossimo log: senza, correggere l'ultima alzata lascerebbe il campo sul
+   *  valore sbagliato. */
+  const correggiAlzata = (vecchia: AlzataSalvata, nuova: PalestraHistoryEntry) => {
+    set(st => ({
+      palestraExercises: (st.palestraExercises ?? []).map(e => {
+        if (e.id !== vecchia.exerciseId) return e
+        const history = sortedHistory(e.history.map(h => (h === vecchia.entry ? nuova : h)))
+        const last = history[history.length - 1]
+        return last
+          ? { ...e, history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
+          : { ...e, history }
+      }),
+    }))
+    // La striscia deve puntare alla riga NUOVA, o la correzione dopo cercherebbe
+    // un oggetto che nello storico non c'è più.
+    setAppenaSalvate(list => list.map(a => (a === vecchia ? { ...a, entry: nuova } : a)))
   }
 
   const renderView = () => {
@@ -301,6 +359,9 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         scheda={editing}
         palestraExercises={palestraExercises}
         onCancel={() => setView(editing ? 'detail' : 'list')}
+        // Solo su una scheda che esiste già: su una nuova non c'è niente da
+        // eliminare, e il tasto sarebbe un "annulla" travestito da cestino.
+        onDelete={editing ? () => { removeScheda(editing.id); setEditing(null); setActive(null); setView('list') } : undefined}
         onSave={sc => {
           reconcileAndPersist({ ...sc, draft: false })
           const saved = useJarvisStore.getState().gymSchede?.find(s => s.id === sc.id) ?? sc
@@ -341,12 +402,18 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
       <SchedaDetailPage
         scheda={current}
         muscleColors={muscleColors}
-        daCoach={daCoach.get(current.id)}
+        // La riga intera e non il solo nome dell'allenatore: per scrivergli
+        // servono i due id, e sono lì dentro.
+        assegnata={assegnate.find(r => r.scheda.id === current.id)}
+        ioId={ioId}
+        mioNome={userName}
         allievi={allievi}
         onCondividi={ioId
           ? (athleteId: string) => condividiScheda(ioId, athleteId, userName ?? '', current)
           : undefined}
-        onBack={() => { setActive(null); setView('list') }}
+        appenaSalvate={appenaSalvate}
+        onCorreggi={setCorreggo}
+        onBack={() => { setActive(null); setAppenaSalvate([]); setView('list') }}
         onEdit={() => { setEditing(current); setView('form') }}
         onDelete={() => { removeScheda(current.id); setActive(null); setView('list') }}
         onStart={() => { setActive(current); setView('training') }}
@@ -373,8 +440,24 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
     <>
       {renderView()}
       <RecordModal records={records} onClose={() => setRecords([])}/>
+      {correggo && (
+        <EditHistoryModal
+          entry={correggo.entry}
+          onClose={() => setCorreggo(null)}
+          onSave={nuova => { correggiAlzata(correggo, nuova); setCorreggo(null) }}
+        />
+      )}
     </>
   )
+}
+
+/** Un'alzata appena scritta nello storico da un allenamento. `entry` è lo STESSO
+ *  oggetto che sta dentro `palestraExercises`, e la correzione lo ritrova da lì:
+ *  vedi `appenaSalvate`. */
+interface AlzataSalvata {
+  exerciseId: string
+  nome: string
+  entry: PalestraHistoryEntry
 }
 
 // ── Lista schede ───────────────────────────────────────────────
@@ -394,6 +477,13 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
 }) {
   const t = useT()
   const hasExercises = schede.some(s => s.exercises.length > 0)
+  // Riordinare e cancellare sono gesti rari; aprire una scheda è il gesto di
+  // ogni giorno. Tenendo le frecce e il cestino sempre accesi, ogni riga
+  // dell'elenco portava tre bersagli da non colpire per arrivare all'unico da
+  // colpire. Adesso stanno dietro la matita in testata, come l'"Edit" degli
+  // elenchi di iOS: acceso quando si sistema l'elenco, spento quando ci si
+  // allena.
+  const [modifica, setModifica] = useState(false)
   // Le frecce: stessa forma di quelle del form della scheda. Il tocco non deve
   // arrivare alla card, che aprirebbe la scheda.
   const freccia = (id: string, dir: -1 | 1, attiva: boolean) => (
@@ -404,7 +494,7 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
       title={dir < 0 ? t('Sposta su') : t('Sposta giù')}
       className="flex items-center justify-center"
       style={{
-        width: 30, height: 30, borderRadius: 0,
+        width: 30, height: 30, borderRadius: 'var(--radius-sm)',
         background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
         cursor: attiva ? 'pointer' : 'default', opacity: attiva ? 1 : 0.3,
       }}
@@ -421,6 +511,26 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
         {hasExercises && (
           <button onClick={onReport} title={t('Report gruppi muscolari')} className="flex items-center justify-center" style={iconBtn(false, 40)}>
             <Icons.chart size={17} stroke={1.8}/>
+          </button>
+        )}
+        {/* Niente matita su un elenco vuoto: non c'è niente da sistemare. */}
+        {schede.length > 0 && (
+          <button
+            onClick={() => setModifica(m => !m)}
+            aria-pressed={modifica}
+            aria-label={modifica ? t('Fine') : t('Modifica elenco')}
+            title={modifica ? t('Fine') : t('Modifica elenco')}
+            className="j-hard flex items-center justify-center"
+            style={{
+              ...iconBtn(false, 40),
+              ...(modifica ? {
+                background: 'var(--j-accent)',
+                border: '1px solid var(--j-accent)',
+                color: 'var(--j-accent-fg)',
+              } : {}),
+            }}
+          >
+            {modifica ? <Icons.check size={17} stroke={2.4}/> : <Icons.pencil size={16} stroke={1.8}/>}
           </button>
         )}
         <button onClick={onNew} className="j-btn-add"><Icons.plus size={18} stroke={2}/></button>
@@ -451,20 +561,23 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
                   </div>
                 </div>
                 <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
-                  {/* Su e giù solo per le proprie schede, e solo se ce n'è più di una. */}
-                  {mie.length > 1 && mie.includes(s.id) && (
-                    <>
-                      {freccia(s.id, -1, mie.indexOf(s.id) > 0)}
-                      {freccia(s.id, 1, mie.indexOf(s.id) < mie.length - 1)}
-                    </>
-                  )}
-                  <button
-                    onClick={e => { e.stopPropagation(); onDelete(s.id) }}
-                    className="flex items-center justify-center"
-                    style={{ width: 30, height: 30, borderRadius: 0, background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer' }}
-                  >
-                    <Icons.trash size={13} stroke={1.6}/>
-                  </button>
+                  {modifica && <>
+                    {/* Su e giù solo per le proprie schede, e solo se ce n'è più di una. */}
+                    {mie.length > 1 && mie.includes(s.id) && (
+                      <>
+                        {freccia(s.id, -1, mie.indexOf(s.id) > 0)}
+                        {freccia(s.id, 1, mie.indexOf(s.id) < mie.length - 1)}
+                      </>
+                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); onDelete(s.id) }}
+                      aria-label={t('Elimina {cosa}', { cosa: s.title })}
+                      className="flex items-center justify-center"
+                      style={{ width: 30, height: 30, borderRadius: 'var(--radius-sm)', background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer' }}
+                    >
+                      <Icons.trash size={13} stroke={1.6}/>
+                    </button>
+                  </>}
                   <div style={{ color: NUC.faint, display: 'flex' }}><Icons.chev size={15} stroke={1.6}/></div>
                 </div>
               </div>
@@ -479,12 +592,20 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
 // ── Form creazione / modifica scheda (pagina a parte) ──────────
 interface FormRow { id: string; name: string; sets: string; reps: string; linkedExerciseId?: string; muscle: string; note: string; supersetWithNext: boolean }
 
-export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, onSaveDraft }: {
+export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, onSaveDraft, onDelete }: {
   scheda: GymScheda | null
   palestraExercises: PalestraExercise[]
   onCancel: () => void
   onSave: (s: GymScheda) => void
   onSaveDraft: (s: GymScheda) => void
+  /** Eliminare la scheda. È QUI e non nella testata del dettaglio: il cestino
+   *  accanto alla matita era un bersaglio da 36px a fianco di quello che si
+   *  voleva premere davvero, e sopra una scheda scritta in mezz'ora. Dentro la
+   *  modifica sta insieme alle altre cose che cambiano la scheda, in fondo,
+   *  dopo il salvataggio — cioè dopo tutto quello che si viene a fare qui.
+   *  Manca su una scheda nuova (non c'è ancora niente da eliminare) e sulle
+   *  schede scritte per un allievo, che si tolgono dalla lista dell'allievo. */
+  onDelete?: () => void
 }) {
   const t = useT()
   const tData = useTData()
@@ -650,14 +771,14 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => move(r.id, -1)} disabled={idx === 0} title={t('Sposta su')} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 0, background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1 }}>
+                  <button onClick={() => move(r.id, -1)} disabled={idx === 0} title={t('Sposta su')} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1 }}>
                     <span style={{ display: 'flex', transform: 'rotate(-90deg)' }}><Icons.chev size={13} stroke={2}/></span>
                   </button>
-                  <button onClick={() => move(r.id, 1)} disabled={idx === rows.length - 1} title={t('Sposta giù')} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 0, background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === rows.length - 1 ? 'default' : 'pointer', opacity: idx === rows.length - 1 ? 0.3 : 1 }}>
+                  <button onClick={() => move(r.id, 1)} disabled={idx === rows.length - 1} title={t('Sposta giù')} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === rows.length - 1 ? 'default' : 'pointer', opacity: idx === rows.length - 1 ? 0.3 : 1 }}>
                     <span style={{ display: 'flex', transform: 'rotate(90deg)' }}><Icons.chev size={13} stroke={2}/></span>
                   </button>
                   {rows.length > 1 && (
-                    <button onClick={() => removeRow(r.id)} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 0, background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer' }}>
+                    <button onClick={() => removeRow(r.id)} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 'var(--radius-sm)', background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer' }}>
                       <Icons.trash size={12} stroke={1.6}/>
                     </button>
                   )}
@@ -682,7 +803,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   // non funziona, perché la card intorno è già di vetro.
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4,
-                    background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 0,
+                    background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 'var(--radius)',
                     boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
                   }}>
                     {suggestions.map((ex, i) => (
@@ -734,7 +855,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                       onClick={() => patch(r.id, { reps: r.reps.trim().toLowerCase() === 'max' ? '' : 'max' })}
                       aria-pressed={r.reps.trim().toLowerCase() === 'max'}
                       style={{
-                        flexShrink: 0, padding: '0 10px', borderRadius: 0, cursor: 'pointer',
+                        flexShrink: 0, padding: '0 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
                         background: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : 'var(--surface-2)',
                         border: `1px solid ${r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : NUC.hairline}`,
                         color: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent-fg)' : NUC.dim,
@@ -769,7 +890,10 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                 <textarea
                   value={r.note}
                   onChange={e => patch(r.id, { note: e.target.value })}
-                  placeholder={t('Es. presa larga, tempo 3-1-1, RIR 2…')}
+                  // Una parola sola. L'esempio lungo ("Es. presa larga, tempo
+                  // 3-1-1, RIR 2…") andava a capo dentro un campo alto due righe e
+                  // se ne mangiava metà prima ancora di scriverci dentro.
+                  placeholder={t('Testo')}
                   className="j-field"
                   rows={2}
                   style={{ resize: 'none', lineHeight: 1.5 }}
@@ -783,7 +907,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                 onClick={() => patch(r.id, { supersetWithNext: !r.supersetWithNext })}
                 className="flex items-center justify-center gap-1.5 w-full"
                 style={{
-                  height: 30, borderRadius: 0, marginBottom: 10, cursor: 'pointer',
+                  height: 30, borderRadius: 'var(--radius-sm)', marginBottom: 10, cursor: 'pointer',
                   background: r.supersetWithNext ? 'var(--surface-2)' : 'transparent',
                   border: `1px ${r.supersetWithNext ? 'solid var(--j-accent)' : `dashed ${NUC.hairline}`}`,
                   color: r.supersetWithNext ? 'var(--j-accent-ink)' : NUC.faint,
@@ -800,7 +924,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         })}
 
         <button onClick={addRow} className="flex items-center justify-center gap-2 w-full" style={{
-          height: 44, borderRadius: 0, background: 'var(--surface)', border: `1px dashed ${NUC.hairline}`,
+          height: 44, borderRadius: 'var(--radius)', background: 'var(--surface)', border: `1px dashed ${NUC.hairline}`,
           color: NUC.dim, cursor: 'pointer', fontFamily: NUC.label, fontSize: 11, letterSpacing: '.06em', marginBottom: 16,
         }}>
           <Icons.plus size={15} stroke={2}/> {t('Aggiungi esercizio')}
@@ -828,6 +952,29 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         <div style={{ fontFamily: NUC.label, fontSize: 9.5, color: NUC.faint, letterSpacing: '.03em', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
           {t('Se manca qualcosa la scheda viene comunque salvata come bozza, senza perdere il lavoro.')}
         </div>
+
+        {/* Staccato dal salvataggio da un divisore e da tutto lo spazio che ci
+            sta: sono le due uniche cose in fondo alla pagina, e se si toccassero
+            un pollice che punta la prima prenderebbe la seconda. */}
+        {onDelete && (
+          <>
+            <div style={{ height: 1, background: 'var(--divider)', margin: '22px 0 14px' }}/>
+            <button
+              onClick={onDelete}
+              className="j-hard flex items-center justify-center gap-2 w-full"
+              style={{
+                height: 44, borderRadius: 'var(--radius)', cursor: 'pointer',
+                background: 'rgba(var(--danger-rgb),0.06)',
+                border: '1px solid rgba(var(--danger-rgb),0.25)',
+                color: 'var(--danger)',
+                fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
+                letterSpacing: '.14em', textTransform: 'uppercase',
+              }}
+            >
+              <Icons.trash size={14} stroke={1.7}/> {t('Elimina scheda')}
+            </button>
+          </>
+        )}
       </div>
     </SchedaPage>
   )
@@ -871,42 +1018,25 @@ function PonteSuperset() {
   )
 }
 
-// L'illustrazione se ce l'ha, il disegno del gruppo muscolare se no: la stessa
-// regola della griglia della palestra, e per la stessa ragione — il disegno è
-// l'unica figura garantita per OGNI esercizio, compreso quello che uno scrive a
-// mano nella scheda e che nessuna fotografia può coprire in anticipo.
-//
-// Non torna mai `null`: un quadrato vuoto è meglio di righe che si allineano in
-// due modi diversi a seconda che la foto ci sia.
-//
-// L'aggancio è per NOME, che nella scheda è l'unica cosa che si ha: la riga
-// porta `name`, e `linkedExerciseId` può mancare (scheda arrivata da un
-// allenatore, esercizio digitato e non ancora collegato). È lo stesso nome su
-// cui si aggancia la griglia, quindi le due schermate mostrano la stessa figura.
-function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo?: string; lato: number }) {
-  const foto = fotoEsercizio(nome)
-  const cornice = {
-    width: lato, height: lato, flexShrink: 0, borderRadius: 0,
-    border: '1px solid var(--hairline)', background: 'var(--surface-2)',
-  } as const
-  if (foto) {
-    return <img src={foto} alt="" loading="lazy" decoding="async"
-      style={{ ...cornice, objectFit: 'cover', display: 'block' }}/>
-  }
-  return (
-    <div style={{ ...cornice, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-mute)' }}>
-      <MuscleIcon muscle={muscolo || 'Altro'} size={Math.round(lato * 0.7)} stroke={1.5}/>
-    </div>
-  )
-}
-
-function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi, onBack, onEdit, onDelete, onStart }: {
+function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, allievi, appenaSalvate = [], onCorreggi, onCondividi, onBack, onEdit, onDelete, onStart }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
-  /** Nome dell'allenatore, se è lui ad aver assegnato questa scheda. */
-  daCoach?: string
+  /** La riga di `coach_schede` da cui arriva questa scheda, se è stata assegnata.
+   *  Non è solo il nome dell'allenatore: porta le due identità (chi l'ha scritta,
+   *  a chi) senza le quali non si può scrivergli. */
+  assegnata?: CoachScheda
+  /** Chi sono io. Manca finché la sessione non ha risposto, e senza non si
+   *  scrive niente a nessuno. */
+  ioId?: string | null
+  /** Il mio nome, copiato dentro il messaggio: l'altro non ha modo di leggere la
+   *  mia anagrafica (vedi coach_schema.sql), quindi il nome viaggia col testo. */
+  mioNome?: string
   /** Chi alleno. Vuoto = non seguo nessuno, e il tasto condividi non compare. */
   allievi?: CoachLink[]
+  /** Le alzate che l'allenamento appena finito ha scritto nello storico. Vuoto
+   *  in ogni altro caso: la striscia compare solo al ritorno da una sessione. */
+  appenaSalvate?: AlzataSalvata[]
+  onCorreggi?: (a: AlzataSalvata) => void
   /** Manca finché non si sa chi sono: senza sessione non si condivide niente. */
   onCondividi?: (athleteId: string) => Promise<void>
   onBack: () => void
@@ -917,21 +1047,128 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
+  const { confirmDelete } = useConfirmDelete()
   const [condividiAperto, setCondividiAperto] = useState(false)
+  // La seconda faccia della scheda. Gli esercizi sono gli stessi, ma invece di
+  // dire cosa fare oggi diventano il posto dove chiedere: la domanda resta
+  // attaccata alla riga di cui parla, e la risposta torna lì. È tutta la
+  // differenza con lo stesso scambio fatto in chat, dove dopo tre giorni nessuno
+  // sa più di quale esercizio si stesse parlando.
+  const [richieste, setRichieste] = useState(false)
+  const [chiedi, setChiedi] = useState<null | { esercizio?: GymSchedaExercise; tipo: TipoMessaggio }>(null)
+
+  const daCoach = assegnata ? (assegnata.coach_name?.trim() || t('Allenatore')) : undefined
+  // Si chiede solo su una scheda che qualcuno ti ha mandato, e solo sapendo chi
+  // sei: una richiesta senza mittente non ha un posto dove ricevere la risposta.
+  const puoiChiedere = !!assegnata && !!ioId
+
+  // Ritmo svelto solo con la conversazione davanti agli occhi (vedi messaggiLive):
+  // chiusa, questa pagina si accontenta del giro di fondo che tiene il badge.
+  const { messaggi } = useMessaggi(richieste ? RITMO_APERTO : RITMO_FONDO)
+  const filo = useMemo(
+    () => assegnata ? messaggi.filter(m => m.scheda_id === assegnata.id) : [],
+    [messaggi, assegnata],
+  )
+  const daLeggere = ioId ? nonLetti(filo, ioId).length : 0
+
+  // Aperta la vista, quello che c'è dentro è stato letto: il badge si spegne
+  // adesso, non al prossimo giro. Vale anche per un messaggio che arriva mentre
+  // la si sta guardando — è già sotto gli occhi.
+  useEffect(() => {
+    if (richieste && ioId && daLeggere > 0) segnaLettiOra(filo, ioId)
+  }, [richieste, ioId, daLeggere, filo])
+
+  const mandaRichiesta = async (testo: string) => {
+    if (!assegnata || !ioId || !chiedi) return
+    await invia({
+      scheda_id: assegnata.id,
+      scheda_titolo: scheda.title,
+      coach_id: assegnata.coach_id,
+      athlete_id: assegnata.athlete_id,
+      autore: ioId,
+      autore_nome: mioNome?.trim() || null,
+      esercizio_id: chiedi.esercizio?.id ?? null,
+      esercizio_nome: chiedi.esercizio?.name ?? null,
+      tipo: chiedi.tipo,
+      testo,
+    })
+    setChiedi(null)
+  }
+
+  const togliMessaggio = (m: Messaggio) => confirmDelete(
+    () => { void elimina(m.id).catch(() => { /* torna da sé al giro dopo */ }) },
+    t('questo messaggio'),
+    { eyebrow: t('Elimina'), title: t('Togliere il messaggio?'), cta: t('Elimina') },
+  )
 
   // Il tasto c'è solo se c'è davvero qualcosa da fare: la scheda è mia (una
   // assegnata è il lavoro di un altro), è finita (una bozza chi la riceve non la
   // vedrebbe nemmeno, l'elenco delle assegnate le filtra), e qualcuno da seguire
   // c'è.
   const puoiCondividere = !daCoach && !scheda.draft && !!onCondividi && (allievi?.length ?? 0) > 0
+
+  // I due tasti sotto ogni esercizio, e quello sulla scheda intera: stessa forma,
+  // cambia solo cosa chiedono.
+  const tastoChiedi = (
+    tipo: TipoMessaggio,
+    esercizio: GymSchedaExercise | undefined,
+    etichetta: string,
+    icona: ReactNode,
+    // Sotto un esercizio i due tasti si dividono la riga; accanto all'occhiello
+    // "Sulla scheda" il tasto è uno solo, e stirato occuperebbe mezza card per
+    // una parola.
+    largo = true,
+  ) => (
+    <button
+      onClick={() => setChiedi({ esercizio, tipo })}
+      className="j-hard-sm flex items-center justify-center gap-1.5"
+      style={{
+        ...(largo ? { flex: 1, minWidth: 0 } : { flexShrink: 0, padding: '0 12px' }),
+        height: 32, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+        background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
+        fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase',
+      }}
+    >
+      {icona}{etichetta}
+    </button>
+  )
+
   return (
     <SchedaPage
-      onBack={onBack} tronca
+      onBack={richieste ? () => setRichieste(false) : onBack} tronca
       title={scheda.title}
-      sub={daCoach
-        ? t('da {chi}', { chi: daCoach })
-        : scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: scheda.exercises.length })}
+      sub={richieste
+        ? t('Richieste a {chi}', { chi: daCoach ?? '' })
+        : daCoach
+          ? t('da {chi}', { chi: daCoach })
+          : scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: scheda.exercises.length })}
       azioni={<>
+        {/* Il punto interrogativo: la porta fra le due facce della scheda. Sta a
+            sinistra degli altri perché è l'unico che non fa niente di definitivo,
+            e perché quando c'è un messaggio da leggere è il primo da vedere. */}
+        {puoiChiedere && (
+          <button
+            onClick={() => setRichieste(r => !r)}
+            aria-pressed={richieste}
+            aria-label={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
+            title={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
+            className="j-hard flex items-center justify-center"
+            style={{
+              ...iconBtn(),
+              position: 'relative',
+              ...(richieste ? {
+                background: 'var(--j-accent)',
+                border: '1px solid var(--j-accent)',
+                color: 'var(--j-accent-fg)',
+              } : {}),
+            }}
+          >
+            <Icons.help size={17} stroke={1.9}/>
+            {/* Aperta la vista il badge sparisce perché i messaggi sono appena
+                stati letti: lasciarlo lì sarebbe un contatore di cose già viste. */}
+            {!richieste && <BadgeNonLetti n={daLeggere} style={{ position: 'absolute', top: -6, right: -6 }}/>}
+          </button>
+        )}
         {puoiCondividere && (
           <button
             onClick={() => setCondividiAperto(true)}
@@ -941,21 +1178,123 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
             <Icons.share size={15} stroke={1.8}/>
           </button>
         )}
-        {/* La matita non c'è sulle schede assegnate: sono il lavoro dell'allenatore,
-            e lasciarle riscrivere qui vorrebbe dire che i due si allenano su due
-            versioni diverse senza saperlo. Il cestino resta — rifiutarla si può. */}
-        {!daCoach && (
-          <button onClick={onEdit} className="flex items-center justify-center" style={iconBtn()}>
+        {/* Matita O cestino, mai tutti e due.
+            Sulle schede MIE c'è la matita, e l'eliminazione sta là dentro (vedi
+            `onDelete` di SchedaFormPage): un cestino a fianco della matita era il
+            vicino di casa del tasto che si preme più spesso.
+            Sulle schede ASSEGNATE la matita non c'è — sono il lavoro
+            dell'allenatore, e riscriverle qui vorrebbe dire che i due si allenano
+            su due versioni diverse senza saperlo — quindi il cestino resta in
+            testata: rifiutarla si può, e senza matita non ha un altro posto dove
+            stare. */}
+        {daCoach ? (
+          <button onClick={onDelete} aria-label={t('Elimina scheda')} className="flex items-center justify-center" style={iconBtn(true)}>
+            <Icons.trash size={15} stroke={1.6}/>
+          </button>
+        ) : (
+          <button onClick={onEdit} aria-label={t('Modifica')} className="flex items-center justify-center" style={iconBtn()}>
             <Icons.pencil size={15} stroke={1.8}/>
           </button>
         )}
-        <button onClick={onDelete} className="flex items-center justify-center" style={iconBtn(true)}>
-          <Icons.trash size={15} stroke={1.6}/>
-        </button>
       </>}
     >
 
+      {richieste && ioId ? (
+        <div className="j-scroll-area">
+          <div style={{
+            marginBottom: 12, padding: '10px 12px',
+            borderRadius: 'var(--radius)',
+            background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`,
+            fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.6, letterSpacing: '.02em', color: NUC.dim,
+          }}>
+            {t('Chiedi quello che ti serve sotto l’esercizio che riguarda: {chi} lo legge e risponde da qui. La scheda resta com’è finché non la cambia chi te l’ha mandata.', { chi: daCoach ?? '' })}
+          </div>
+
+          {/* Le domande che non sono di un esercizio in particolare. Sta in cima
+              e non in fondo: "quante volte la faccio a settimana" è la prima cosa
+              che si chiede su una scheda nuova, non l'ultima. */}
+          <NucCard pad={13} style={{ marginBottom: 10 }}>
+            <div className="flex items-center justify-between gap-2">
+              <div style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--tertiary-ink)' }}>
+                {t('Sulla scheda')}
+              </div>
+              {tastoChiedi('info', undefined, t('Chiedi'), <Icons.help size={11} stroke={2}/>, false)}
+            </div>
+            {filo.some(m => !m.esercizio_id) && (
+              <div style={{ marginTop: 10 }}>
+                <Filo messaggi={filo.filter(m => !m.esercizio_id)} io={ioId} onElimina={togliMessaggio}/>
+              </div>
+            )}
+          </NucCard>
+
+          {scheda.exercises.map(e => {
+            const color = muscleColor(e.muscle, muscleColors)
+            const suoi = filo.filter(m => m.esercizio_id === e.id)
+            return (
+              <div key={e.id} style={{ marginBottom: 8 }}>
+                <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={40}/>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
+                      <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
+                        {e.sets} × {e.reps}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2" style={{ marginTop: 10 }}>
+                    {tastoChiedi('info', e, t('Chiedi info'), <Icons.help size={11} stroke={2}/>)}
+                    {tastoChiedi('sostituzione', e, t('Sostituisci'), <Icons.repeat size={11} stroke={2}/>)}
+                  </div>
+
+                  {suoi.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <Filo messaggi={suoi} io={ioId} onElimina={togliMessaggio}/>
+                    </div>
+                  )}
+                </NucCard>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
       <div className="j-scroll-area">
+        {/* Quello che l'allenamento ha appena scritto, e la strada per correggerlo.
+            È in cima perché arrivando qui da "Salva e chiudi" è l'unica cosa nuova
+            della pagina: il resto è la scheda, che si sa già com'è. */}
+        {appenaSalvate.length > 0 && onCorreggi && (
+          <NucCard pad={13} style={{ marginBottom: 12, borderLeft: '3px solid var(--j-accent)' }}>
+            <div style={{
+              fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em',
+              textTransform: 'uppercase', color: 'var(--tertiary-ink)', marginBottom: 2,
+            }}>{t('Allenamento salvato')}</div>
+            <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 10 }}>
+              {t('Tocca un’alzata per correggere i chili o i colpi.')}
+            </div>
+            {appenaSalvate.map((a, i) => (
+              <button
+                key={a.exerciseId}
+                onClick={() => onCorreggi(a)}
+                className="flex items-center justify-between gap-3 w-full j-riga-gruppo"
+                style={{
+                  padding: '9px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  background: 'transparent', border: 'none', textAlign: 'left',
+                  borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {tData(a.nome)}
+                </span>
+                <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.2 }}>
+                  {a.entry.sets_n} × {a.entry.reps} – {fmtNum(a.entry.kg)} kg
+                </span>
+                <span style={{ flexShrink: 0, color: NUC.faint, display: 'flex' }}><Icons.pencil size={12} stroke={1.8}/></span>
+              </button>
+            ))}
+          </NucCard>
+        )}
+
         {scheda.exercises.length === 0 ? (
           <div className="j-empty">{t('Scheda vuota — modificala per aggiungere esercizi')}</div>
         ) : (
@@ -989,11 +1328,14 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
           })
         )}
       </div>
+      )}
 
-      {scheda.exercises.length > 0 && (
+      {/* Il tasto per allenarsi non c'è nella vista delle richieste: lì si sta
+          scrivendo, non ci si sta preparando a partire. */}
+      {!richieste && scheda.exercises.length > 0 && (
         <div className="j-page-cta">
           <button onClick={onStart} className="j-hard j-accent-key j-focus flex items-center justify-center gap-2 w-full" style={{
-            height: 52, borderRadius: 0, backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)',
+            height: 52, borderRadius: 'var(--radius)', backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)',
             color: 'var(--j-accent-fg)', cursor: 'pointer', fontFamily: NUC.font, fontSize: 15, fontWeight: 500,
           }}>
             <Icons.play size={18}/> {t('Inizia allenamento')}
@@ -1010,6 +1352,29 @@ function SchedaDetailPage({ scheda, muscleColors, daCoach, allievi, onCondividi,
           onCondividi={onCondividi}
         />
       )}
+
+      <JModal
+        open={!!chiedi}
+        onClose={() => setChiedi(null)}
+        title={chiedi?.tipo === 'sostituzione' ? t('Chiedi una sostituzione') : t('Chiedi info')}
+        width={360}
+      >
+        <Composer
+          autoFocus
+          placeholder={chiedi?.tipo === 'sostituzione'
+            ? t('Es. la pressa è sempre occupata, cosa metto al posto?')
+            : t('Es. quanto recupero fra le serie?')}
+          etichetta={t('Manda a {chi}', { chi: daCoach ?? '' })}
+          onInvia={mandaRichiesta}
+          intestazione={
+            <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--fg-mute)' }}>
+              {chiedi?.esercizio
+                ? t('Su «{esercizio}», nella scheda «{scheda}».', { esercizio: tData(chiedi.esercizio.name), scheda: scheda.title })
+                : t('Sulla scheda «{scheda}».', { scheda: scheda.title })}
+            </div>
+          }
+        />
+      </JModal>
     </SchedaPage>
   )
 }
@@ -1067,7 +1432,7 @@ function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
               disabled={attesa}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                width: '100%', padding: '11px 13px', borderRadius: 0,
+                width: '100%', padding: '11px 13px', borderRadius: 'var(--radius)',
                 background: 'var(--surface)', border: '1px solid var(--hairline)',
                 cursor: attesa ? 'default' : 'pointer', textAlign: 'left',
               }}
@@ -1288,7 +1653,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       title={scheda.title}
       sub={t('{fatti}/{tot} esercizi completati', { fatti: doneEx, tot: totalEx })}
       extra={
-        <div style={{ height: 4, borderRadius: 0, background: 'var(--surface-2)', marginTop: 12, overflow: 'hidden' }}>
+        <div style={{ height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--surface-2)', marginTop: 12, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${totalEx ? (doneEx / totalEx) * 100 : 0}%`, background: 'var(--j-accent)', transition: 'width 200ms' }}/>
         </div>
       }
@@ -1331,7 +1696,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                 </div>
                 {nSets > 1 && (
                   <button onClick={() => applyFirstToAll(e.id)} className="flex items-center gap-1" style={{
-                    flexShrink: 0, height: 26, padding: '0 8px', borderRadius: 0, cursor: 'pointer',
+                    flexShrink: 0, height: 26, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                     background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
                     fontFamily: NUC.label, fontSize: 9, letterSpacing: '.04em', textTransform: 'uppercase',
                   }}>
@@ -1356,7 +1721,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                         aria-pressed={on}
                         className="flex items-center gap-1.5"
                         style={{
-                          height: 44, padding: '0 9px', borderRadius: 0, cursor: 'pointer', flexShrink: 0, minWidth: 82,
+                          height: 44, padding: '0 9px', borderRadius: 'var(--radius)', cursor: 'pointer', flexShrink: 0, minWidth: 82,
                           background: on ? color : 'var(--surface-2)',
                           border: `1px solid ${on ? color : NUC.hairline}`,
                           color: on ? onMuscleColor(color) : NUC.dim,
@@ -1364,7 +1729,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                           transition: 'background 120ms',
                         }}
                       >
-                        {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 0, border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
+                        {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-sm)', border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
                         {t('Serie {n}', { n: i + 1 })}
                       </button>
                       <CampoSerie

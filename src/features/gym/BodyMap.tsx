@@ -151,7 +151,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
       <div style={{ display: 'flex', gap: 0, marginBottom: 'clamp(8px, 1.3dvh, 12px)', border: '1px solid var(--hairline)', width: 'fit-content' }}>
         {(['front', 'back'] as const).map(v => (
           <button key={v} onClick={() => { setSide(v); setPicked(null) }} style={{
-            padding: '5px 12px', borderRadius: 0, border: 'none', cursor: 'pointer',
+            padding: '5px 12px', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
             background: side === v ? 'var(--j-accent)' : 'transparent',
             color: side === v ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
             fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase',
@@ -184,7 +184,7 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
                 padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
               }}>
                 <span style={{
-                  width: 9, height: 9, flexShrink: 0, borderRadius: 0,
+                  width: 9, height: 9, flexShrink: 0, borderRadius: 'var(--radius-sm)',
                   background: d.level === 0 ? 'var(--surface-2)' : 'var(--j-accent)',
                   opacity: d.level === 0 ? 1 : LEVEL_OPACITY[d.level],
                   border: '1px solid var(--hairline)',

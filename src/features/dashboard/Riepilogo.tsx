@@ -120,7 +120,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
             style={{
               display: 'block', width: 'calc(100% + 16px)', margin: '0 -8px', padding: `${SEZ} 8px`,
               background: 'transparent', border: 'none',
-              borderRadius: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit',
+              borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left', color: 'inherit',
             }}
           >
             <NucEyebrow right={
@@ -145,7 +145,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
                       tratteggiati: un quadrato vuoto pieno di bordo li avrebbe fatti
                       leggere come "saltato", che non è ancora vero. */}
                   <div style={{
-                    width: 30, height: 30, borderRadius: 0,
+                    width: 30, height: 30, borderRadius: 'var(--radius-sm)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: d.trained ? 'var(--j-accent)' : 'transparent',
                     border: d.trained
@@ -189,7 +189,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
               className="j-focus"
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                padding: 0, background: 'transparent', border: 'none', borderRadius: 0,
+                padding: 0, background: 'transparent', border: 'none', borderRadius: 'var(--radius)',
                 cursor: qualcosa ? 'pointer' : 'default', textAlign: 'left', color: 'inherit',
               }}
             >

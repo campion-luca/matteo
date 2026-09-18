@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 // Office / Paper design tokens
 export const NUC = {
   bg:         'var(--bg)',
@@ -175,15 +177,24 @@ export function accentFgFor(hex: string): string {
 }
 
 // ── Layout "Premium" ───────────────────────────────────────────
-// Non è una palette accent fra le altre: spegne il colore in tutta l'app, e per
-// questo vive in "Cambio layout" e non in "Tema colore". Il resto dei token sta nel
+// L'accent del layout di default. Non è una palette fra quelle del picker: in
+// Premium si usa SEMPRE questa, qualunque cosa ci sia in `accentColor` (che resta
+// salvato e torna in vigore tornando a Standard). Il resto dei token sta nel
 // blocco `.premium` di globals.css.
+//
+// Era `MONO_DARK`, bianco: Premium spegneva il colore ovunque, azione compresa.
+// Il colore dell'AZIONE è tornato — terracotta `#A64B32`, scelto dall'utente —
+// mentre tutto il resto resta in scala di grigi, colori dei gruppi muscolari
+// compresi (vedi `toMono`). È la stessa divisione di prima, spostata di un passo:
+// non "niente colore", ma "colore solo dove si tocca". Su nero è anche l'unica
+// tinta che non deve competere con nient'altro, e questo la rende leggibile come
+// segnale invece che come decorazione.
 //
 // Attenzione: questa palette NON va passata ad `adjustPaletteForDark` — la si sceglie
 // a monte, in App.tsx.
-export const MONO_DARK: AccentPalette = {
-  accent:     '#ededed', accentSoft: '#bdbdbd', accentDeep: '#ffffff',
-  rgb:        '237,237,237', softRgb: '189,189,189', deepRgb: '255,255,255',
+export const PREMIUM_ACCENT: AccentPalette = {
+  accent:     '#A64B32', accentSoft: '#C46950', accentDeep: '#882D14',
+  rgb:        '166,75,50', softRgb: '196,105,80', deepRgb: '136,45,20',
 }
 
 // Hex dei DATI utente (colore del gruppo muscolare) → grigio.
@@ -209,4 +220,13 @@ export function adjustPaletteForDark(p: AccentPalette): AccentPalette {
   const brightness = (r * 299 + g * 587 + b * 114) / 1000
   if (brightness >= 70) return p
   return buildCustomPalette(lighten(p.accent, Math.round(110 - brightness)))
+}
+
+// ── Interruttori a segmenti ──────────────────────────────
+/** Le due variabili che fanno scorrere il cursore di `.j-switch` (globals.css):
+ *  quale cella è scelta e quante sono. Una funzione e non due prop scritte a
+ *  mano in ogni interruttore, perché scritte a mano si sbaglia l'indice e il
+ *  cursore si ferma sulla cella sbagliata senza che niente segnali l'errore. */
+export function cursore(indice: number, quante: number): CSSProperties {
+  return { '--i': Math.max(0, indice), '--n': quante } as CSSProperties
 }

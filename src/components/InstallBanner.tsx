@@ -44,7 +44,7 @@ export function InstallBanner() {
   return (
     <div style={{
       position: 'absolute', left: 14, right: 14, bottom: 90, zIndex: 50,
-      borderRadius: 0,
+      borderRadius: 'var(--radius)',
       background: 'var(--surface-pop)',
       backdropFilter: 'blur(10px)',
       WebkitBackdropFilter: 'blur(10px)',

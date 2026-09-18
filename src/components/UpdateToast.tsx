@@ -21,11 +21,11 @@ export function UpdateToast() {
   if (!needRefresh) return null
 
   return (
-    <div className="j-glass-pop" style={{
+    <div style={{
       position: 'fixed', left: '50%', transform: 'translateX(-50%)',
       bottom: 'calc(env(safe-area-inset-bottom) + 84px)', zIndex: 300,
       display: 'flex', alignItems: 'center', gap: 12,
-      padding: '10px 12px 10px 16px', borderRadius: 0,
+      padding: '10px 12px 10px 16px', borderRadius: 'var(--radius)',
       background: 'var(--surface-pop)', border: '1px solid var(--hairline)',
       boxShadow: '0 6px 20px -8px rgba(42,36,24,.35)',
       fontFamily: NUC.font, color: NUC.ink,
@@ -36,7 +36,7 @@ export function UpdateToast() {
       <button
         onClick={() => updateSW.current?.(true)}
         style={{
-          height: 30, padding: '0 14px', borderRadius: 0, border: 'none',
+          height: 30, padding: '0 14px', borderRadius: 'var(--radius-sm)', border: 'none',
           background: 'var(--j-accent)', color: 'var(--j-accent-fg)',
           fontFamily: NUC.font, fontSize: 11, fontWeight: 500,
           letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer',

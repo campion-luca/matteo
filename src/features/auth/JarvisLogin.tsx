@@ -201,7 +201,7 @@ export function JarvisLogin({ onAuth, recovery = false, onRecoveryDone }: Jarvis
               type="button"
               onClick={() => setRememberMe(v => !v)}
               style={{
-                width: 16, height: 16, borderRadius: 0, padding: 0, flexShrink: 0,
+                width: 16, height: 16, borderRadius: 'var(--radius-sm)', padding: 0, flexShrink: 0,
                 background: rememberMe ? 'var(--j-accent)' : 'transparent',
                 border: `1px solid ${rememberMe ? 'var(--j-accent)' : 'var(--fg-mute)'}`,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -255,7 +255,7 @@ export function JarvisLogin({ onAuth, recovery = false, onRecoveryDone }: Jarvis
               padding: '12px 0',
               background: 'var(--j-accent)',
               border: 'none',
-              borderRadius: 0,
+              borderRadius: 'var(--radius)',
               fontFamily: 'var(--font-body)',
               fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
               color: 'var(--bg)',

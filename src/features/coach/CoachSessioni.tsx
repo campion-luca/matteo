@@ -47,7 +47,7 @@ export function CoachSessioni({ data, schedeAssegnate, onConfronto }: {
           <span>{t('{n} in tutto', { n: giornate.length })}</span>
           {onConfronto && (
             <button onClick={onConfronto} className="j-hard-sm" style={{
-              padding: '4px 9px', borderRadius: 0, cursor: 'pointer',
+              padding: '4px 9px', borderRadius: 'var(--radius)', cursor: 'pointer',
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
               textTransform: 'uppercase', color: 'var(--j-accent-ink)',

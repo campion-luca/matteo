@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { accentFgFor, accentInkFor, ACCENT_PALETTES, paletteFor } from '@/lib/jarvis-tokens'
+import { accentFgFor, accentInkFor, ACCENT_PALETTES, paletteFor, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
 
 const LIGHT_CARD = '#f7f3e8'
 const DARK_CARD = '#1c1c1c'
@@ -54,6 +54,24 @@ describe('accentFgFor — inchiostro sopra un fondo accent', () => {
   it('sceglie l\'inchiostro scuro sugli accent chiari', () => {
     expect(accentFgFor('#E7CBC4')).toBe('#26221b')  // "Cipria" — la crema vi spariva
     expect(accentFgFor('#C58A7C')).toBe('#26221b')  // "Rosa"
+  })
+})
+
+describe('accent di Premium', () => {
+  // Premium è il layout di DEFAULT: il suo accent non passa dal picker (App.tsx
+  // lo sceglie a monte) e quindi non finisce in PALETTE_KEYS. È però il colore
+  // che vede quasi tutti, ed è quello che nessun test copriva quando era bianco.
+  it('come fondo di un tasto regge il testo sopra', () => {
+    expect(contrast(accentFgFor(PREMIUM_ACCENT.accent), PREMIUM_ACCENT.accent)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('come testo su fondo scuro raggiunge AA', () => {
+    expect(contrast(accentInkFor(PREMIUM_ACCENT.accent, true), DARK_CARD)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('sceglie la crema e non l’inchiostro scuro', () => {
+    // La terracotta è scura: con l'inchiostro caldo sopra si leggerebbe appena.
+    expect(accentFgFor(PREMIUM_ACCENT.accent)).toBe('#f2f7f0')
   })
 })
 

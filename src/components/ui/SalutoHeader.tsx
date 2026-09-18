@@ -37,7 +37,7 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
   // elastica ma non scende sotto i 34px — sotto non si centra più il pollice.
   const tasto = (label: string, onClick: () => void, icona: JSX.Element) => (
     <button onClick={onClick} aria-label={label} title={label} className="j-hard j-hard-sm j-focus" style={{
-      width: 'clamp(34px, 9.5vw, 42px)', aspectRatio: '1 / 1', borderRadius: 0, flexShrink: 0,
+      width: 'clamp(34px, 9.5vw, 42px)', aspectRatio: '1 / 1', borderRadius: 'var(--radius)', flexShrink: 0,
       background: 'var(--surface)', border: '1px solid var(--hairline)',
       color: 'var(--fg-soft)', cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -50,12 +50,10 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
         aria-labelledby={titleId}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
-        className="j-glass-pop"
         style={{
           width: '100%', maxWidth: 320,
           background: 'var(--surface-pop)',
-          backgroundImage: 'var(--glass-sheen)',
-          borderRadius: 0,
+          borderRadius: 'var(--radius-lg)',
           padding: '24px 20px 20px',
           boxShadow: '0 24px 64px rgba(42,36,24,0.45)',
           border: '1px solid var(--hairline)',
@@ -81,7 +79,7 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
           <button
             onClick={onCancel}
             style={{
-              flex: 1, height: 44, borderRadius: 0,
+              flex: 1, height: 44, borderRadius: 'var(--radius)',
               background: 'var(--surface-2)', border: '1px solid var(--hairline)',
               fontFamily: NUC.font, fontSize: 13, color: NUC.dim,
               cursor: 'pointer', transition: 'border-color 160ms',
@@ -94,7 +92,7 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
           <button
             onClick={onConfirm}
             style={{
-              flex: 1, height: 44, borderRadius: 0,
+              flex: 1, height: 44, borderRadius: 'var(--radius)',
               ...okStyle,
               fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
               cursor: 'pointer', transition: 'opacity 160ms',

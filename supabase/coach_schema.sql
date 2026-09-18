@@ -333,3 +333,95 @@ CREATE POLICY "note_updated_by_coach" ON public.coach_note
 DROP POLICY IF EXISTS "note_deletable_by_both" ON public.coach_note;
 CREATE POLICY "note_deletable_by_both" ON public.coach_note
   FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+
+-- ── I messaggi su una scheda condivisa ─────────────────────────
+-- Chi riceve una scheda non può riscriverla (vedi le policy qui sopra: la
+-- modifica resta dell'allenatore) ma deve poter DIRE qualcosa su una riga —
+-- "questo esercizio non so farlo", "la macchina non c'è, cosa metto al posto?".
+-- Senza un posto dove dirlo, quella domanda finisce su WhatsApp e la risposta
+-- non torna mai dentro la scheda a cui si riferisce.
+--
+-- Una tabella a parte, per la stessa ragione di schede e note: nessuno dei due
+-- blob si lascia scrivere dall'altra parte senza essere cancellato al primo
+-- salvataggio.
+--
+-- Qui però scrivono ENTRAMBI, ed è la differenza con `coach_schede` e
+-- `coach_note`: l'allievo apre la conversazione, l'allenatore risponde.
+CREATE TABLE IF NOT EXISTS public.coach_messaggi (
+  -- Testo come per le schede: l'id è generato dal client (vedi src/lib/uid.ts).
+  id             text PRIMARY KEY,
+  -- La riga di `coach_schede` a cui il messaggio si riferisce. NON è una foreign
+  -- key: cancellando la scheda la conversazione resta leggibile invece di
+  -- sparire in cascata, che è quello che serve a chi voleva rileggere perché un
+  -- esercizio era stato sostituito.
+  scheda_id      text NOT NULL,
+  -- Copiato al momento dell'invio: la scheda può essere rinominata o eliminata,
+  -- e il messaggio deve continuare a dire di cosa parlava.
+  scheda_titolo  text,
+  coach_id       uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  athlete_id     uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  -- Chi ha scritto: è uno dei due di sopra, e la policy di INSERT lo impone.
+  autore         uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  autore_nome    text,
+  -- L'esercizio della scheda, se il messaggio riguarda una riga sola. NULL =
+  -- domanda sulla scheda intera.
+  esercizio_id   text,
+  esercizio_nome text,
+  -- 'info' = una domanda · 'sostituzione' = chiede di cambiare l'esercizio ·
+  -- 'risposta' = l'allenatore che risponde. Serve a dare all'elenco
+  -- dell'allenatore la forma di una lista di cose da fare, non di una chat.
+  tipo           text NOT NULL DEFAULT 'info',
+  testo          text NOT NULL,
+  -- Una spunta per parte: il badge rosso in home è "c'è qualcosa che non ho
+  -- ancora letto io", e con un flag solo il messaggio letto da uno sparirebbe
+  -- anche all'altro.
+  letto_coach    boolean NOT NULL DEFAULT false,
+  letto_atleta   boolean NOT NULL DEFAULT false,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT autore_e_una_delle_due_parti CHECK (autore = coach_id OR autore = athlete_id)
+);
+
+CREATE INDEX IF NOT EXISTS coach_messaggi_athlete_idx ON public.coach_messaggi (athlete_id);
+CREATE INDEX IF NOT EXISTS coach_messaggi_coach_idx   ON public.coach_messaggi (coach_id);
+CREATE INDEX IF NOT EXISTS coach_messaggi_scheda_idx  ON public.coach_messaggi (scheda_id);
+
+ALTER TABLE public.coach_messaggi ENABLE ROW LEVEL SECURITY;
+
+-- Visibile alle due parti e a nessun altro.
+DROP POLICY IF EXISTS "messaggi_visible_to_both" ON public.coach_messaggi;
+CREATE POLICY "messaggi_visible_to_both" ON public.coach_messaggi
+  FOR SELECT USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+-- Scrivono tutte e due, ma solo A NOME PROPRIO e solo finché il collegamento
+-- esiste: sciolto quello, la conversazione resta leggibile e non si riapre.
+DROP POLICY IF EXISTS "messaggi_written_by_parties" ON public.coach_messaggi;
+CREATE POLICY "messaggi_written_by_parties" ON public.coach_messaggi
+  FOR INSERT WITH CHECK (
+    auth.uid() = autore
+    AND (auth.uid() = coach_id OR auth.uid() = athlete_id)
+    AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = coach_messaggi.coach_id
+         AND l.athlete_id = coach_messaggi.athlete_id
+    )
+  );
+
+-- L'UPDATE serve a UNA cosa sola: mettere la spunta di letto. La RLS però lavora
+-- per riga e non sa distinguere le colonne, quindi da sola lascerebbe a ciascuna
+-- delle due parti la possibilità di riscrivere il TESTO dell'altra — cioè di
+-- cambiare cosa risulta aver detto. Il taglio per colonna si fa con i GRANT, ed
+-- è il motivo per cui qui sotto c'è una REVOKE.
+DROP POLICY IF EXISTS "messaggi_read_flag_by_both" ON public.coach_messaggi;
+CREATE POLICY "messaggi_read_flag_by_both" ON public.coach_messaggi
+  FOR UPDATE USING (auth.uid() = coach_id OR auth.uid() = athlete_id)
+          WITH CHECK (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+REVOKE UPDATE ON public.coach_messaggi FROM authenticated;
+GRANT UPDATE (letto_coach, letto_atleta) ON public.coach_messaggi TO authenticated;
+
+-- Cancellabile da entrambi, come tutto il resto di questo schema: quello che
+-- compare in casa di qualcuno, quel qualcuno deve poterlo togliere.
+DROP POLICY IF EXISTS "messaggi_deletable_by_both" ON public.coach_messaggi;
+CREATE POLICY "messaggi_deletable_by_both" ON public.coach_messaggi
+  FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);

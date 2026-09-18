@@ -7,6 +7,9 @@ import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 
 // Le schede si riordinano con le frecce accanto al cestino. L'ordine è quello
 // dell'array nello store, quindi è anche quello che viaggia sul cloud.
+//
+// Frecce e cestino stanno dietro la matita in testata: fuori dalla modalità
+// modifica l'elenco è solo da leggere e da aprire.
 
 const scheda = (id: string, title: string) => ({
   id, title, exercises: [], createdAt: '2026-09-01', updatedAt: '2026-09-01',
@@ -25,10 +28,15 @@ afterEach(cleanup)
 // La card della scheda: il contenitore cliccabile che porta il titolo.
 const card = (title: string) => screen.getByText(title).closest('.cursor-pointer') as HTMLElement
 
+/** Accende la modalità modifica: senza, frecce e cestino non sono in pagina. */
+const apriModifica = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: 'Modifica elenco' }))
+
 describe('ordine delle schede', () => {
   it('le frecce spostano la scheda su e giù, senza aprirla', async () => {
     const user = userEvent.setup()
     render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/></ConfirmDeleteProvider>)
+    await apriModifica(user)
 
     await user.click(within(card('Scheda C')).getByRole('button', { name: 'Sposta su' }))
     expect(ordine()).toEqual(['Scheda A', 'Scheda C', 'Scheda B'])
@@ -41,9 +49,27 @@ describe('ordine delle schede', () => {
     expect(screen.queryByRole('button', { name: /inizia allenamento/i })).not.toBeInTheDocument()
   })
 
-  it('la prima non sale e l’ultima non scende', () => {
+  it('la prima non sale e l’ultima non scende', async () => {
+    const user = userEvent.setup()
     render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/></ConfirmDeleteProvider>)
+    await apriModifica(user)
     expect(within(card('Scheda A')).getByRole('button', { name: 'Sposta su' })).toBeDisabled()
     expect(within(card('Scheda C')).getByRole('button', { name: 'Sposta giù' })).toBeDisabled()
+  })
+
+  it('a riposo l’elenco non mostra né frecce né cestino', async () => {
+    // Il guasto che questo previene: rimettere i comandi sempre accesi, e con
+    // loro tre bersagli da schivare su ogni riga per arrivare alla scheda.
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/></ConfirmDeleteProvider>)
+    expect(screen.queryByRole('button', { name: 'Sposta su' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Elimina Scheda A' })).not.toBeInTheDocument()
+
+    await apriModifica(user)
+    expect(screen.getByRole('button', { name: 'Elimina Scheda A' })).toBeInTheDocument()
+
+    // E si richiude: la matita è un interruttore, non un viaggio di sola andata.
+    await user.click(screen.getByRole('button', { name: 'Fine' }))
+    expect(screen.queryByRole('button', { name: 'Sposta su' })).not.toBeInTheDocument()
   })
 })

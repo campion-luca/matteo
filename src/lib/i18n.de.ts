@@ -140,6 +140,9 @@ export const DE_UI: Record<string, string> = {
   'Allenamento': 'Training',
   'Gruppo muscolare': 'Muskelgruppe',
   'Schede': 'Pläne',
+  // Le tre destinazioni sotto i tab dell'allenamento.
+  'Coach': 'Coach',
+  'Statistiche': 'Statistiken',
   'Mappa della forza': 'Kraftkarte',
   'Personal Coach': 'Personal Coach',
 
@@ -382,7 +385,6 @@ export const DE_UI: Record<string, string> = {
   // ── Palestra ─────────────────────────────────────────────────
   'Pesi': 'Gewichte',
   'Hyrox': 'Hyrox',
-  'Stats': 'Statistik',
   'Esercizi': 'Übungen',
   'Gara': 'Wettkampf',
   'Gruppi muscolari': 'Muskelgruppen',
@@ -485,7 +487,10 @@ export const DE_UI: Record<string, string> = {
   'Scegli il gruppo…': 'Gruppe wählen…',
   'Nota': 'Notiz',
   '(opzionale)': '(optional)',
-  'Es. presa larga, tempo 3-1-1, RIR 2…': 'z. B. weiter Griff, Tempo 3-1-1, RIR 2…',
+  'Testo': 'Text',
+  // Dopo un allenamento, nel dettaglio della scheda: cosa è finito nello storico.
+  'Allenamento salvato': 'Training gespeichert',
+  'Tocca un’alzata per correggere i chili o i colpi.': 'Tippe auf einen Satz, um Gewicht oder Wiederholungen zu korrigieren.',
   'In superset con il prossimo': 'Im Supersatz mit der nächsten',
   'Superset con il prossimo': 'Supersatz mit der nächsten',
   'Aggiungi esercizio': 'Übung hinzufügen',
@@ -774,4 +779,45 @@ export const DE_UI: Record<string, string> = {
   'Massimali ipotetici': 'Geschätzte Maximalwerte',
   'Il total compare con tutte e tre le alzate': 'Das Total erscheint mit allen drei Übungen',
   'Riepilogo complessivo': 'Gesamtübersicht',
+
+  // ── Schede: modalità modifica ────────────────────────────────
+  'Modifica elenco': 'Liste bearbeiten',
+  'Fine': 'Fertig',
+  'Elimina scheda': 'Plan löschen',
+
+  // ── Richieste su una scheda condivisa ────────────────────────
+  'Messaggi': 'Nachrichten',
+  'Richieste': 'Anfragen',
+  'Richieste a {chi}': 'Anfragen an {chi}',
+  'Chiedi all’allenatore': 'Trainer fragen',
+  'Torna alla scheda': 'Zurück zum Plan',
+  'Chiedi quello che ti serve sotto l’esercizio che riguarda: {chi} lo legge e risponde da qui. La scheda resta com’è finché non la cambia chi te l’ha mandata.':
+    'Frag direkt unter der betreffenden Übung: {chi} liest es und antwortet hier. Der Plan bleibt unverändert, bis die Person, die ihn geschickt hat, ihn ändert.',
+  'Sulla scheda': 'Zum Plan',
+  'sulla scheda': 'zum Plan',
+  'la scheda': 'den Plan',
+  'Chiedi': 'Fragen',
+  'Chiedi info': 'Info fragen',
+  'Sostituisci': 'Ersetzen',
+  'Chiedi una sostituzione': 'Ersatz anfragen',
+  'Es. quanto recupero fra le serie?': 'Z. B.: Wie lange Pause zwischen den Sätzen?',
+  'Es. la pressa è sempre occupata, cosa metto al posto?': 'Z. B.: Die Beinpresse ist immer besetzt, was nehme ich stattdessen?',
+  'Manda a {chi}': 'An {chi} senden',
+  'Su «{esercizio}», nella scheda «{scheda}».': 'Zu «{esercizio}» im Plan «{scheda}».',
+  'Sulla scheda «{scheda}».': 'Zum Plan «{scheda}».',
+  'Rispondi': 'Antworten',
+  'Rispondi su': 'Antworten zu',
+  'Scrivi la risposta…': 'Antwort schreiben…',
+  'Le richieste non si possono leggere adesso. Riprova più tardi.': 'Die Anfragen lassen sich gerade nicht laden. Versuch es später noch einmal.',
+  'Nessuna richiesta. Chi riceve una tua scheda può chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
+    'Keine Anfragen. Wer einen Plan von dir bekommt, kann über das Fragezeichen oben im Plan Infos oder einen Ersatz anfragen.',
+  // Minuscolo: sta dentro la bolla al posto del nome ("tu: ...") e in tedesco
+  // "du" come pronome resta minuscolo.
+  'tu': 'du',
+  'info': 'Info',
+  'sostituzione': 'Ersatz',
+  '{n} da leggere': '{n} ungelesen',
+  'Elimina messaggio': 'Nachricht löschen',
+  'Togliere il messaggio?': 'Nachricht entfernen?',
+  'questo messaggio': 'diese Nachricht',
 }

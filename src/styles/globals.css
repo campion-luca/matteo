@@ -96,8 +96,6 @@
      esercizi): pieno in ogni tema. Il vetro qui non basta — dentro una card già
      di vetro la sfocatura non si applica, e i campi sotto si leggono attraverso. */
   --surface-menu:  #f7f3e8;
-  /* Riflesso del vetro sopra le card: sulla carta non esiste. */
-  --glass-sheen:   none;
   /* Contorno dei tasti pieni d'accent: sulla carta nessuno (trasparente, così
      l'ingombro è lo stesso in ogni tema), sul vetro bianco come tutto il resto. */
   --accent-edge:   transparent;
@@ -111,8 +109,23 @@
   --tertiary:      #C58B64;
   --tertiary-ink:  #7D5840;
 
-  /* Misc */
-  --radius:      0px;
+  /* ── Raggi ─────────────────────────────────────────────────────
+     L'app è nata squadrata: angoli vivi ovunque, e questo token valeva 0. Adesso
+     gli angoli sono smussati come li si aspetta su un telefono.
+     Quattro misure e non una, perché il raggio non è una costante ma una
+     proporzione: 20px su una card la ammorbidiscono, gli stessi 20px su un tasto
+     quadrato da 26px ne fanno un cerchio. Il passo è quello che si legge nelle
+     app di iOS — più o meno un quinto del lato corto — e la regola per scegliere
+     è la TAGLIA dell'elemento, non il suo ruolo:
+       lg  superfici (card, modali, riquadri di pagina, tile)
+       md  il default: campi, CTA, tasti da 40 a 52px, immagini grandi
+       sm  controlli piccoli (26–36px), chip, miniature
+       pill  ciò che È una pillola — barre di avanzamento, badge, levette —
+             dove il raggio deve seguire l'altezza qualunque essa sia. */
+  --radius-lg:   20px;
+  --radius:      16px;
+  --radius-sm:   12px;
+  --radius-pill: 999px;
   /* Elevazione unica, calda e quasi invisibile (l'inchiostro carta, non il nero freddo). */
   --shadow-card: 0 1px 2px rgba(42,36,24,.06), 0 4px 12px rgba(42,36,24,.05);
   --shadow-pop:  0 8px 18px -8px rgba(42,36,24,.5);
@@ -125,7 +138,7 @@
      ciò che le dà il carattere da stampa a caratteri mobili. Una versione
      precedente l'aveva velata e sfocata per non farla leggere come "un blocco nero
      incollato dietro il tasto": il prezzo era che a metà degli elementi non si
-     vedeva più se fossero premibili. Con lo spigolo vivo il rilievo si legge, e a
+     vedeva più se fossero premibili. Senza sfocatura il rilievo si legge, e a
      tenerla lontana dal blocco nero è la tinta — il bruno dell'inchiostro, non il
      nero — e la profondità corta.
      Deve comunque stare più scura del fondo su cui cade: in `.dark` un nero puro
@@ -316,7 +329,7 @@
     );
     background-size: 200% 100%;
     animation: j-shimmer 1.4s linear infinite;
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
   }
 
   /* Dot del loader cloud con pulse morbido */
@@ -360,7 +373,7 @@
 
   /* ── Focus da tastiera ─────────────────────────────────────────
      `:focus-visible`, non `:focus`: il contorno deve comparire per chi naviga da
-     tastiera e restare invisibile a chi tocca o clicca. Squadrato come il resto.
+     tastiera e restare invisibile a chi tocca o clicca.
      `.j-focus-in` è la variante per gli elementi a filo (le celle del calendario,
      che non hanno margine attorno): lì l'outline va disegnato DENTRO, altrimenti
      lo tagliano le celle vicine. */
@@ -382,8 +395,10 @@
   }
 
   /* ── Ombra "hard" ──────────────────────────────────────────────
-     Ombra offsettata: con borderRadius 0 e la carta legge come stampa a caratteri
-     mobili. A riposo l'elemento è sollevato; premendolo scende.
+     Ombra offsettata: a riposo l'elemento è sollevato, premendolo scende. Nasceva
+     sugli angoli vivi, dove leggeva come stampa a caratteri mobili; con gli angoli
+     smussati resta esatta perché `box-shadow` segue il `border-radius` — l'ombra
+     si arrotonda insieme all'elemento invece di spuntare da sotto i suoi angoli.
      La sfocatura (`--j-hard-b`) segue la profondità: senza, il blocco di tinta
      piena pesava più dell'elemento che stava sollevando.
 
@@ -593,7 +608,7 @@
     text-align: center;
     background: var(--surface);
     border: 1px solid var(--hairline);
-    border-radius: var(--radius); padding: 10px 6px;
+    border-radius: var(--radius-lg); padding: 10px 6px;
     box-shadow: var(--shadow-card);
   }
 
@@ -601,13 +616,13 @@
   .j-chart-box {
     background: var(--surface);
     border: 1px solid var(--hairline);
-    border-radius: var(--radius); padding: 10px;
+    border-radius: var(--radius-lg); padding: 10px;
     box-shadow: var(--shadow-card);
   }
 
   /* Progress track (5px, paper style) */
   .j-progress-track {
-    height: 5px; border-radius: 0;
+    height: 5px; border-radius: var(--radius-pill);
     background: var(--track);
     overflow: hidden;
   }
@@ -653,6 +668,72 @@
     width: 100%;
     max-width: 720px;
     margin-inline: auto;
+  }
+
+  /* ── Interruttori a segmenti ──────────────────────────────
+     Griglia/elenco, Kg/Volte, intera/mezza. Una regola sola perché sono la stessa
+     cosa vista in tre posti, e finché lo stile stava scritto inline in ognuno erano
+     tre cose che si assomigliavano.
+
+     Il contrasto fra scelto e non scelto è di LUMINOSITÀ, non di colore: il guscio
+     è la superficie di base, la cella attiva è quella sollevata. Era il contrario
+     — cella attiva più SCURA del guscio, con un contorno d'accent a dire che era
+     lei — e su fondo scuro un contorno colorato si legge come rifinitura, non come
+     "sei qui". L'accent resta dov'è un'azione; qui si sta solo dicendo cosa si
+     guarda. */
+  .j-switch {
+    position: relative;
+    display: flex;
+    gap: 3px; padding: 3px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    /* `--i` = indice della cella scelta, `--n` = quante sono. Li scrive chi usa
+       l'interruttore: sono l'unica cosa che deve sapere per far scorrere il
+       cursore qui sotto. */
+    --i: 0;
+    --n: 2;
+  }
+
+  /* Il cursore. Uno solo, e si SPOSTA: è quello che fa vedere il passaggio da
+     una cella all'altra invece di farle accendere e spegnere sul posto — due
+     fondi che sfumano dicono "è cambiato qualcosa", un blocco che scivola dice
+     "sono passato di là".
+     La larghezza è quella di UNA cella: tolti i 3px di padding per lato e i
+     (n-1) spazi in mezzo, diviso n. Il passo è la propria larghezza più uno
+     spazio — in `translateX` il 100% è dell'elemento, non del contenitore. */
+  .j-switch::before {
+    content: '';
+    position: absolute;
+    top: 3px; bottom: 3px; left: 3px;
+    width: calc((100% - 6px - (var(--n) - 1) * 3px) / var(--n));
+    transform: translateX(calc(var(--i) * (100% + 3px)));
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    transition: transform var(--motion-smooth) var(--ease);
+    pointer-events: none;
+  }
+  /* Variante piena d'accent: i due modi di allenarsi (Pesi / Hyrox), dove la
+     scelta non è "come guardo" ma "dove sono". */
+  .j-switch-accent::before { background: var(--j-accent); }
+
+  .j-switch-cell {
+    /* Sopra al cursore, e tutte della stessa larghezza: il cursore ne vale una,
+       e con celle di misure diverse si fermerebbe sempre un po' più in là. */
+    position: relative; z-index: 1;
+    flex: 1; min-width: 0;
+    border: none; background: transparent;
+    color: var(--fg-mute);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color var(--motion-fast) var(--ease);
+  }
+  /* Il fondo non sta più qui: ce l'ha il cursore. Alla cella resta l'inchiostro. */
+  .j-switch-cell[aria-pressed="true"] { color: var(--fg); }
+  .j-switch-accent .j-switch-cell[aria-pressed="true"] { color: var(--j-accent-fg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .j-switch::before { transition: none; }
   }
 
   /* Page header — il respiro sopra e sotto segue l'altezza dello schermo. Su un
@@ -794,20 +875,35 @@
   --border:             0 0% 20%;
 }
 
-/* ── Vetro ────────────────────────────────────────────────────────
-   Il restyle dei temi scuri (set 2026): nero pieno con aloni bianchi sul fondo,
-   superfici di vetro smerigliato, contorni bianchi, angoli vivi.
+/* ── Superfici piene ──────────────────────────────────────────────
+   I temi scuri (`.dark` e `.premium`): nero pieno con aloni caldi sul FONDO, e
+   sopra superfici opache. Scavalca i token di superficie, bordo e ombra di
+   entrambi; colori di stato e accent restano quelli di ciascun tema.
 
-   Vale per tutti i fondi neri — `.dark` e `.premium` — e scavalca i loro token di
-   superficie, bordo e ombra. Colori di stato e accent restano quelli di ciascun
-   tema. Premium in più toglie ogni ombra: vedi il blocco subito sotto.
+   ── Cos'era prima, e perché è cambiato ──────────────────────────
+   Era vetro: le superfici erano bianco VELATO (`rgba(255,255,255,.045)`) sopra
+   `backdrop-filter: blur()`, e il contorno bianco quasi pieno (.62) perché con un
+   fondo semitrasparente il bordo era l'unica cosa che disegnasse i blocchi.
+   L'utente ha chiesto tasti pieni, senza trasparenza. È una sola decisione con tre
+   conseguenze, e vanno insieme o il risultato è peggio del punto di partenza:
 
-   Come si regge il vetro: le superfici sono BIANCO velato, non grigi. Su un fondo
-   uniforme non ci sarebbe niente da smerigliare, per questo il fondo porta gli
-   aloni (`--paper-grain`, che nei contenitori di pagina è già agganciato): la card
-   che ci scorre sopra ne raccoglie la luce e cambia tono. */
+    1. superfici OPACHE — grigi caldi, non bianco velato;
+    2. niente `backdrop-filter` — sotto una superficie opaca non sfoca niente e
+       costa comunque un layer GPU per elemento;
+    3. contorno TENUE (.14 invece di .62) — è la conseguenza meno ovvia e la più
+       importante: il bordo bianco serviva a separare un blocco che da solo non si
+       vedeva. Una superficie opaca si stacca dal nero per conto suo, e lasciando
+       il bordo a .62 ogni tasto resta disegnato due volte.
+
+   Gli aloni caldi sul fondo restano: non passano più attraverso le card, ma il
+   fondo della pagina è ancora una stanza con una luce di sbieco invece di un
+   piano nero. */
 .dark, .premium {
-  --bg:          #000000;
+  /* Non nero pieno: un grigio bruno appena sopra lo zero. Il nero assoluto su uno
+     schermo OLED spegne il pixel, e il salto fra fondo e prima superficie diventa
+     un bordo netto invece di un piano continuo. Qui il fondo resta il piano più
+     scuro di tutti — sotto `--surface` — ma è un colore, non l'assenza di uno. */
+  --bg:          #0d0c0b;
   /* Due aloni arancioni agli angoli opposti (in alto a sinistra, in basso a
      destra) danno profondità: il fondo non è più un piano ma una stanza con una
      luce calda che entra di sbieco. Un terzo, più leggero e più largo, sta al
@@ -829,20 +925,23 @@
   --paper-grain: var(--grain-freddo), var(--grain-caldo);
   --tertiary-ink: #C58B64;
 
-  --surface:     rgba(255,255,255,.045);
-  --surface-2:   rgba(255,255,255,.085);
-  --input-bg:    rgba(255,255,255,.055);
-  --surface-pop: rgba(14,14,14,.78);
-  --surface-menu: #111111;
-  --glass-sheen: linear-gradient(155deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,.015) 38%, transparent 62%, rgba(255,255,255,.035) 100%);
-  --glass-blur:  16px;
+  /* Grigi caldissimi, non neutri: il fondo porta aloni arancioni e un grigio
+     freddo sopra ci stona. Tre gradini, come prima — fondo, superficie, superficie
+     sollevata — ma adesso sono tinte vere e non veli. */
+  --surface:      #1c1916;
+  --surface-2:    #272320;
+  --input-bg:     #211d1a;
+  /* Ciò che GALLEGGIA (modali, pill, toast) sta un gradino più su del resto: sotto
+     non c'è il fondo ma testo che non deve trasparire. */
+  --surface-pop:  #241f1c;
+  --surface-menu: #2b2622;
 
-  /* Il contorno è bianco: è lui a disegnare ogni blocco. Non pieno al 100% — sul
-     nero un filo bianco puro vibra e fa sembrare più spesso l'intero layout. */
-  --hairline:      rgba(255,255,255,.62);
-  --hairline-soft: rgba(255,255,255,.13);
-  --divider:       rgba(255,255,255,.16);
-  --border:        0 0% 62%;
+  /* Tenue: il contorno non deve più disegnare i blocchi (lo fa la superficie), gli
+     rifinisce solo il bordo. Vedi il punto 3 qui sopra. */
+  --hairline:      rgba(255,255,255,.14);
+  --hairline-soft: rgba(255,255,255,.08);
+  --divider:       rgba(255,255,255,.10);
+  --border:        0 0% 18%;
 
   --track:  rgba(255,255,255,.12);
   --scrim:  rgba(0,0,0,.6);
@@ -853,10 +952,12 @@
   --shadow-pop:  inset 0 1px 0 rgba(255,255,255,.16), 0 24px 48px -16px rgba(0,0,0,.95);
 
   /* Spessore del tasto: il bordo che si vede SOTTO un controllo a riposo e che
-     sparisce quando lo si preme. Bianco velato, perché sul nero un bordo scuro non
-     esiste; sui tasti accent diventa l'accent profondo (vedi sotto). */
-  --key-edge: rgba(255,255,255,.26);
-  --accent-edge: rgba(255,255,255,.62);
+     sparisce quando lo si preme. Adesso che le superfici sono opache è un'ombra
+     vera — scura — e non più un filo di luce: un tasto pieno che poggia su un
+     piano proietta, non brilla. Sui tasti accent diventa l'accent profondo. */
+  --key-edge: rgba(0,0,0,.75);
+  /* I tasti pieni d'accent non portano contorno: il colore basta a staccarli. */
+  --accent-edge: transparent;
   --nav-lift: rgba(255,255,255,.24);
 }
 
@@ -864,35 +965,24 @@
    velato lì non ha niente sotto e diventa trasparente sul bianco del menù. */
 :is(.dark, .premium) select option { background: #111; color: #fff; }
 
-/* Smerigliatura. Classe e non token perché `backdrop-filter` non si può spegnere
-   con un valore neutro senza costare comunque un layer GPU a elemento. */
-:is(.dark, .premium) .j-glass {
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-          backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-}
-/* Safari su iPhone, alla prima pittura di un elemento con `backdrop-filter`,
-   lo mostra per un attimo senza fondo — un lampo chiaro. `backface-visibility`
-   lo mette subito su un livello suo, già pronto quando compare. Non `transform`:
-   i tasti lo usano per la pressione, e un valore di base lo sovrascriverebbe. */
-:is(.dark, .premium) :is(.j-glass, .j-glass-pop, .j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
-  -webkit-backface-visibility: hidden;
-          backface-visibility: hidden;
-}
-:is(.dark, .premium) .j-glass-pop {
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-          backdrop-filter: blur(22px) saturate(160%);
-}
+/* Qui stavano `.j-glass` e `.j-glass-pop`, che smerigliavano il fondo dietro card
+   e modali. Sono sparite con le superfici opache: sotto una tinta piena il
+   `backdrop-filter` non ha niente da sfocare e costa comunque un layer GPU per
+   elemento — su un elenco di trenta esercizi, trenta layer per zero pixel di
+   differenza. Con loro se n'è andato anche `backface-visibility`, che serviva solo
+   a evitare il lampo chiaro di Safari alla prima pittura del filtro.
+   Il velo DIETRO ai modali resta, ed è un'altra cosa: quello sfoca la pagina, non
+   la superficie di sé stesso (vedi lo scrim in Primitives/ConfirmModal). */
 
-/* I campi sono vetro anche loro, con la luce sullo spigolo alto. */
+/* I campi: contorno tenue e un filo di luce sullo spigolo alto, che su una
+   superficie piena legge come incavo. */
 :is(.dark, .premium) .j-field, :is(.dark, .premium) .j-field-lg {
   border-color: var(--hairline);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
-  -webkit-backdrop-filter: blur(10px);
-          backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
 }
 :is(.dark, .premium) .j-field:focus, :is(.dark, .premium) .j-field-lg:focus {
-  border-color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 3px rgba(255,255,255,.12);
+  border-color: var(--j-accent);
+  box-shadow: 0 0 0 3px rgba(var(--j-rgb), .25);
 }
 
 /* ── Tasti a pressione (vetro) ──────────────────────────────────
@@ -900,26 +990,27 @@
    costante), ma in verticale e con lo spessore di un tasto vero invece dell'ombra
    da stampa in diagonale, che sul nero non si vedeva affatto.
 
-   A riposo: luce sullo spigolo alto, spessore `--key-edge` sotto, ombra lunga.
-   Premuto: il tasto scende di tutto lo spessore, lo spessore sparisce e al suo
-   posto compare un'ombra INTERNA — la superficie sembra affondare, non spostarsi. */
+   A riposo: un filo di luce sullo spigolo alto, spessore `--key-edge` sotto, ombra
+   lunga. Premuto: il tasto scende di tutto lo spessore, lo spessore sparisce e al
+   suo posto compare un'ombra INTERNA — la superficie sembra affondare, non
+   spostarsi.
+
+   La luce sullo spigolo è scesa da .22 a .07 passando alle superfici piene: su un
+   velo trasparente serviva a dire dove finiva il tasto, su una tinta piena a .22
+   disegna una riga chiara in cima a ogni bottone. */
 :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
   --j-hard-d: 4px;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.22),
-    inset 0 -1px 0 rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.07),
     0 var(--j-hard-d) 0 0 var(--key-edge),
     0 calc(var(--j-hard-d) + 12px) 22px -12px rgba(0,0,0,.95);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-          backdrop-filter: blur(var(--glass-blur)) saturate(150%);
 }
 :is(.dark, .premium) .j-hard-sm { --j-hard-d: 2px; }
 @media (hover: hover) {
   :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
     --j-hard-h: calc(var(--j-hard-d) / 2);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.26),
-      inset 0 -1px 0 rgba(0,0,0,.35),
+      inset 0 1px 0 rgba(255,255,255,.09),
       0 var(--j-hard-h) 0 0 var(--key-edge),
       0 calc(var(--j-hard-h) + 10px) 20px -12px rgba(0,0,0,.95);
     transform: translateY(var(--j-hard-h));
@@ -940,14 +1031,16 @@
   :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):is(:hover, :active) { transform: none; }
 }
 
-/* Tasti pieni d'accent: lo spessore è l'accent profondo, e sopra al colore passa
-   un riflesso che scende dallo spigolo — è ciò che lo fa leggere come vetro
-   colorato invece che come un rettangolo di tinta. `.j-accent-key` è per i tasti
-   accent scritti inline (Alleniamoci, la nav, Inizia allenamento). */
+/* Tasti pieni d'accent: tinta piena e basta. Lo spessore sotto è l'accent
+   profondo, così il tasto poggia sulla propria ombra invece che su un nero
+   generico. `.j-accent-key` è per i tasti accent scritti inline (la nav, Inizia
+   allenamento).
+   Qui passava anche un riflesso in gradiente che li faceva leggere come vetro
+   colorato: è esattamente l'effetto che l'utente ha chiesto di togliere. */
 :is(.dark, .premium) :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
-  --key-edge: color-mix(in srgb, var(--j-accent-deep) 55%, #000);
+  --key-edge: color-mix(in srgb, var(--j-accent-deep) 70%, #000);
   border: 1px solid var(--accent-edge);
-  background-image: linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.1) 100%);
+  background-image: none;
 }
 
 

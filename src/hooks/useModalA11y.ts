@@ -45,7 +45,14 @@ export function useFocusTrap(ref: RefObject<HTMLElement>, active: boolean, onEsc
     const focusFirst = () => {
       const el = ref.current
       if (!el) { raf = requestAnimationFrame(focusFirst); return }
-      ;(el.querySelector<HTMLElement>(FOCUSABLE_SEL) ?? el).focus()
+      // `preventScroll`: il dialog copre già tutto il contenitore (inset: 0), non
+      // c'è niente da portare in vista. Senza, il browser porta il campo appena
+      // messo a fuoco dentro l'area visibile scorrendo il primo antenato
+      // scrollabile — che è la card dell'app — e `overflow: hidden` non glielo
+      // impedisce: quel blocco vale per il dito, non per uno scroll deciso dal
+      // browser. Chiuso il dialog la pagina restava spostata di qualche decina di
+      // pixel, col titolo tagliato in cima.
+      ;(el.querySelector<HTMLElement>(FOCUSABLE_SEL) ?? el).focus({ preventScroll: true })
     }
     raf = requestAnimationFrame(focusFirst)
     return () => { cancelAnimationFrame(raf); prevFocus.current?.focus?.() }
@@ -74,12 +81,24 @@ export function useFocusTrap(ref: RefObject<HTMLElement>, active: boolean, onEsc
   }, [ref, active, onEscape])
 }
 
-/** Congela lo scroll del contenitore ospite finché il dialog è aperto. */
+/** Congela lo scroll del contenitore ospite finché il dialog è aperto, e lo
+ *  rimette dov'era alla chiusura.
+ *
+ *  Il ripristino è la rete di sicurezza di `preventScroll` qui sopra: `overflow:
+ *  hidden` ferma il dito, non uno scroll deciso dal browser, e di occasioni per
+ *  farne uno mentre un dialog è aperto ce n'è più d'una — il focus su un campo,
+ *  la tastiera del telefono che sale, un `scrollIntoView` dentro il dialog. Basta
+ *  che ne passi una e la pagina sotto resta spostata per sempre. */
 export function useScrollLock(host: HTMLElement | null, active: boolean): void {
   useEffect(() => {
     if (!active || !host) return
     const prev = host.style.overflow
+    const { scrollTop, scrollLeft } = host
     host.style.overflow = 'hidden'
-    return () => { host.style.overflow = prev }
+    return () => {
+      host.style.overflow = prev
+      host.scrollTop = scrollTop
+      host.scrollLeft = scrollLeft
+    }
   }, [host, active])
 }

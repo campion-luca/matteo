@@ -150,7 +150,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
               aria-pressed={futuro ? undefined : sel}
               aria-label={fmtDayMonthFull(iso)}
               style={{
-                aspectRatio: '1 / 1', minWidth: 0, padding: 0, borderRadius: 0,
+                aspectRatio: '1 / 1', minWidth: 0, padding: 0, borderRadius: 'var(--radius)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: fatto ? 'var(--j-accent)' : 'transparent',
                 border: sel
@@ -199,7 +199,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                       padding: '10px 0', background: 'transparent', border: 'none',
-                      borderTop: '1px solid var(--hairline-soft)', borderRadius: 0,
+                      borderTop: '1px solid var(--hairline-soft)', borderRadius: 'var(--radius)',
                       cursor: 'pointer', textAlign: 'left', color: 'var(--fg)',
                     }}
                   >

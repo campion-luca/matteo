@@ -54,6 +54,15 @@ export const Icons = {
   // I pallini sono pieni perché a 15px un cerchio vuoto di 2 unità di raggio
   // diventa un anello grigio, e tre anelli grigi non sono più tre nodi.
   share:     (p: IconProps = {}) => ic(<><circle cx="18" cy="5" r="2.6" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="2.6" fill="currentColor" stroke="none"/><circle cx="18" cy="19" r="2.6" fill="currentColor" stroke="none"/><path d="M8.4 10.8 15.6 6.4M8.4 13.2l7.2 4.4"/></>, p),
+  // Nuvoletta: "qui si parla con qualcuno". È l'icona del Personal Coach da
+  // quando quella sezione ha dentro i messaggi — il manubrio diceva "pesi", che è
+  // la cosa che il Personal Coach NON è (la tab Pesi ce l'ha già, identica).
+  chat:      (p: IconProps = {}) => ic(<><path d="M20.5 11.5a7.5 7.5 0 0 1-10.9 6.7L4 20l1.9-5.3A7.5 7.5 0 1 1 20.5 11.5z"/></>, p),
+  // Punto interrogativo in tondo: "ho una domanda su questo", il tasto con cui
+  // chi riceve una scheda scrive a chi gliel'ha mandata. Il gambo è staccato dal
+  // punto e il punto è un tratto di lunghezza zero (linecap tondo): a 15px un
+  // cerchietto pieno disegnato a parte diventava una macchia attaccata al gambo.
+  help:      (p: IconProps = {}) => ic(<><circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 1 1 3.4 2.8c-.6.2-1 .8-1 1.5v.3"/><path d="M11.9 16.8h.01"/></>, p),
   // Fiamma con la lingua interna: la serie di settimane di allenamento di fila.
   flame:     (p: IconProps = {}) => ic(<><path d="M12 22c4 0 7-2.9 7-7 0-3.2-2-5.6-3.6-7.4-.3 1.8-1.2 3-2.4 3.4C13.4 7.6 12 4.6 9.5 2c.2 3.1-1.3 5.3-3 7.3C5.1 11 5 12.6 5 15c0 4.1 3 7 7 7z"/><path d="M12 22c-1.9 0-3.2-1.4-3.2-3.3 0-1.8 1.3-3 2.1-4.2.3 1 .9 1.6 1.6 1.8.3-1.2 1-2.3 2-3.1.3 2 1 2.9 1 4.9 0 2.4-1.5 3.9-3.5 3.9z"/></>, p),
 }

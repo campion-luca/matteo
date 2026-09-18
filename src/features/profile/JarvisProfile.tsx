@@ -10,7 +10,7 @@
 // Le anteprime (LayoutSwatch) sono disegnate a mano invece che con screenshot:
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
-import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, MONO_DARK } from '@/lib/jarvis-tokens'
+import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
 import { useStore, useJarvisStore, type LayoutMode } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
@@ -82,13 +82,13 @@ function Section({ title, hint, action, right, children }: {
 function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => void; disabled?: boolean; label: string }) {
   return (
     <button onClick={onClick} disabled={disabled} role="switch" aria-checked={on} aria-label={label} style={{
-      width: 42, height: 24, borderRadius: 0, padding: 0, flexShrink: 0,
+      width: 42, height: 24, borderRadius: 'var(--radius-pill)', padding: 0, flexShrink: 0,
       background: on ? 'var(--j-accent)' : 'var(--surface-2)',
       border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
       cursor: disabled ? 'default' : 'pointer', position: 'relative', opacity: disabled ? 0.6 : 1,
       transition: 'all 220ms',
     }}>
-      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 0, background: 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
+      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 'var(--radius-pill)', background: 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
     </button>
   )
 }
@@ -99,7 +99,7 @@ function EditToggle({ editing, onToggle }: { editing: boolean; onToggle: () => v
     <button
       onClick={onToggle}
       style={{
-        width: 20, height: 20, borderRadius: 0,
+        width: 20, height: 20, borderRadius: 'var(--radius-sm)',
         background: editing ? 'var(--j-accent)' : 'transparent',
         border: `1px solid ${editing ? 'var(--j-accent)' : 'var(--hairline)'}`,
         color: editing ? 'var(--j-accent-fg)' : 'var(--fg-mute)',
@@ -147,7 +147,7 @@ function StaticField({ label, value }: { label?: string; value: string }) {
       {/* Corpo e spaziatura elastici: sono quattro campi affiancati, e su un
           telefono stretto "180 cm" andava a capo — una casella cresceva di una riga
           e la fila si sfalsava. */}
-      <div style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(13px, 3.4vw, 15px)', color: value === '—' ? 'var(--fg-mute)' : 'var(--fg)', padding: '10px clamp(7px, 2.4vw, 12px)', background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 0, minHeight: 44, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+      <div style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(13px, 3.4vw, 15px)', color: value === '—' ? 'var(--fg-mute)' : 'var(--fg)', padding: '10px clamp(7px, 2.4vw, 12px)', background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)', minHeight: 44, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
         {value}
       </div>
     </div>
@@ -251,7 +251,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // Stessa risoluzione di App.tsx, altrimenti l'avatar mente: leggeva ACCENT_PALETTES
   // diretto, senza `paletteFor` né `adjustPaletteForDark`, e restava verde in dark mode
   // mentre tutta l'app passava all'oro (e cadeva sul verde con accentColor 'custom').
-  const base = monoOn ? MONO_DARK : paletteFor(current, s.customAccentHex)
+  const base = monoOn ? PREMIUM_ACCENT : paletteFor(current, s.customAccentHex)
   const pal  = (!monoOn && s.darkMode) ? adjustPaletteForDark(base) : base
 
   if (!mount) return null
@@ -302,7 +302,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         ) : (
           /* PROTOTIPO ombra hard — vedi .j-hard in globals.css */
           <button onClick={handleSave} className="j-hard" style={{
-            height: 34, padding: '0 14px', borderRadius: 0,
+            height: 34, padding: '0 14px', borderRadius: 'var(--radius-sm)',
             background: 'var(--j-accent)', border: 'none',
             color: 'var(--j-accent-fg)', fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
             cursor: 'pointer',
@@ -333,7 +333,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               const active = current === c && !monoOn
               return (
                 <button key={c} onClick={() => set({ accentColor: c })} style={{
-                  height: 68, borderRadius: 0,
+                  height: 68, borderRadius: 'var(--radius)',
                   background: 'var(--surface)',
                   // Bordo sempre 2px (trasparente da spento): a 1px→2px il bottone
                   // sobbalzava di un pixel al click.
@@ -348,7 +348,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                   {active && (
                     <div style={{
                       position: 'absolute', top: 6, right: 6,
-                      width: 14, height: 14, borderRadius: 0,
+                      width: 14, height: 14, borderRadius: 'var(--radius-sm)',
                       background: p.accent,
                       // la spunta usa currentColor: senza questo eredita l'inchiostro
                       // di pagina e sparisce dentro i pallini scuri.
@@ -358,7 +358,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                       <Icons.check size={8} stroke={3}/>
                     </div>
                   )}
-                  <div style={{ width: 22, height: 22, borderRadius: 0, background: p.accent }}/>
+                  <div style={{ width: 22, height: 22, borderRadius: 'var(--radius-sm)', background: p.accent }}/>
                   <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: active ? 'var(--fg)' : 'var(--fg-mute)', textTransform: 'uppercase' }}>
                     {t(PALETTE_LABELS[c] ?? c)}
                   </div>
@@ -375,7 +375,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               const active = (s.layout ?? 'premium') === opt.id
               return (
                 <button key={opt.id} onClick={() => set({ layout: opt.id })} style={{
-                  minHeight: 78, padding: '12px 10px', borderRadius: 0,
+                  minHeight: 78, padding: '12px 10px', borderRadius: 'var(--radius)',
                   background: 'var(--surface)',
                   border: `2px solid ${active ? 'var(--j-accent)' : 'transparent'}`,
                   outline: active ? 'none' : '1px solid var(--hairline)',
@@ -431,7 +431,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
             click per un campo da dieci caratteri. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
-            width: 72, height: 72, borderRadius: 0, flexShrink: 0,
+            width: 72, height: 72, borderRadius: 'var(--radius)', flexShrink: 0,
             background: pal.accentSoft,
             border: `2px solid var(--hairline)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -474,7 +474,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(['M', 'F'] as const).map(v => (
                     <button key={v} onClick={() => setSex(sex === v ? '' : v)} style={{
-                      flex: 1, height: 40, borderRadius: 0,
+                      flex: 1, height: 40, borderRadius: 'var(--radius)',
                       background: sex === v ? 'var(--surface-2)' : 'var(--surface)',
                       border: `1px solid ${sex === v ? 'var(--j-accent)' : 'var(--hairline)'}`,
                       color: sex === v ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
@@ -571,7 +571,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         {/* Change password */}
         <div className="j-profile-sec" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button onClick={() => { setShowChangePwd(v => !v); setPwdError(null); setPwdOk(false) }} style={{
-            width: '100%', padding: '13px 16px', borderRadius: 0,
+            width: '100%', padding: '13px 16px', borderRadius: 'var(--radius)',
             background: 'var(--surface)', border: `1px solid var(--hairline)`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             cursor: 'pointer', transition: 'border-color 180ms',
@@ -611,7 +611,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                   setPwdOk(true); setOldPwd(''); setNewPwd(''); setPwdLoading(false)
                 }}
                 style={{
-                  width: '100%', height: 40, borderRadius: 0,
+                  width: '100%', height: 40, borderRadius: 'var(--radius)',
                   background: pwdLoading ? 'var(--surface-2)' : 'var(--j-accent)',
                   border: 'none', color: 'var(--j-accent-fg)',
                   fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
@@ -632,7 +632,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           <button
             onClick={handleLogout}
             style={{
-              width: '100%', padding: '11px 0', borderRadius: 0,
+              width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
               background: 'none', border: '1px solid var(--hairline)',
               fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
               color: 'var(--fg-mute)', cursor: 'pointer',
@@ -730,7 +730,7 @@ function LinguaSection() {
               aria-checked={on}
               className="j-hard"
               style={{
-                padding: '14px 12px', borderRadius: 0, cursor: on ? 'default' : 'pointer',
+                padding: '14px 12px', borderRadius: 'var(--radius)', cursor: on ? 'default' : 'pointer',
                 background: 'var(--surface)',
                 border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9,
@@ -771,7 +771,7 @@ function CardImpostazione({ icon, label, sotto, onClick }: {
 }) {
   return (
     <button onClick={onClick} className="j-hard" style={{
-      padding: '14px 12px', borderRadius: 0, textAlign: 'left',
+      padding: '14px 12px', borderRadius: 'var(--radius)', textAlign: 'left',
       background: 'var(--surface)', border: '1px solid var(--hairline)',
       display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0,
       cursor: 'pointer',
@@ -842,7 +842,7 @@ function PesoSection() {
             controllo neutro, che è anche più onesto — non è un tasto acceso a
             metà, è un tasto che aspetta un numero. */}
         <button onClick={registra} disabled={!kg} className={kg ? 'j-hard' : undefined} style={{
-          flexShrink: 0, minHeight: 44, padding: '0 16px', borderRadius: 0,
+          flexShrink: 0, minHeight: 44, padding: '0 16px', borderRadius: 'var(--radius)',
           background: kg ? 'var(--j-accent)' : 'var(--surface-2)',
           border: kg ? 'none' : '1px solid var(--hairline)',
           color: kg ? 'var(--j-accent-fg)' : 'var(--fg-mute)',
@@ -927,7 +927,7 @@ function SvuotaAlzateSection() {
         onClick={svuota}
         disabled={totale === 0}
         style={{
-          width: '100%', padding: '11px 0', borderRadius: 0,
+          width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
           background: 'none',
           border: `1px solid ${totale === 0 ? 'var(--hairline)' : 'rgba(var(--danger-rgb),0.35)'}`,
           fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',

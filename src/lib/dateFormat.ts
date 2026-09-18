@@ -121,3 +121,29 @@ export function fmtDayMonth(iso: string): string {
 }
 
 
+
+/** "14:32" · "ieri 14:32" · "19/08 14:32" — quando è arrivato un messaggio.
+ *
+ *  Tre forme e non una perché in una conversazione la distanza che conta cambia
+ *  col tempo: di oggi si vuole l'ora, di ieri si vuole sapere che era ieri, e più
+ *  indietro l'ora non dice più niente ma il giorno sì. Una data intera su ogni
+ *  riga di oggi sarebbe rumore su tutte le righe che si leggono davvero.
+ *
+ *  Prende un timestamp completo (quello che scrive Postgres), non una "YYYY-MM-DD":
+ *  qui il fuso serve, ed è quello del telefono — l'ora di un messaggio è l'ora in
+ *  cui lo si è ricevuto, non l'ora UTC. */
+export function fmtQuando(iso: string, adesso = new Date()): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const ora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  // Il confronto è fra GIORNI di calendario, non fra "meno di 24 ore fa": un
+  // messaggio dell'una di notte non è "ieri" alle due di notte.
+  const giorno = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const scarto = Math.round((giorno(adesso) - giorno(d)) / 86_400_000)
+  if (scarto === 0) return ora
+  if (scarto === 1) return `${getLang() === 'de' ? 'gestern' : 'ieri'} ${ora}`
+  const gm = getLang() === 'de'
+    ? `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`
+    : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+  return `${gm} ${ora}`
+}

@@ -98,14 +98,14 @@ export function GlobalSearch({ open, onClose, onOpenGym }: GlobalSearchProps) {
                 onClick={() => pick(r)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left',
-                  padding: '9px 10px', borderRadius: 0, cursor: 'pointer',
+                  padding: '9px 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
                   background: 'var(--surface)', border: `1px solid ${NUC.hairline}`,
                   transition: 'background var(--motion-fast) var(--ease)',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-2)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface)' }}
               >
-                <span style={{ width: 30, height: 30, borderRadius: 0, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim }}>
+                <span style={{ width: 30, height: 30, borderRadius: 'var(--radius-sm)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim }}>
                   <Icons.weight size={15} stroke={1.7}/>
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>

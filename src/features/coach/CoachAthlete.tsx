@@ -160,7 +160,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
               <div key={g.iso} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
                 <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: 'var(--fg-mute)', textTransform: 'uppercase' }}>{g.dow}</div>
                 <div style={{
-                  width: 26, height: 26, borderRadius: 0,
+                  width: 26, height: 26, borderRadius: 'var(--radius-sm)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: g.trained ? 'var(--j-accent)' : 'transparent',
                   border: `1px solid ${g.trained ? 'var(--j-accent)' : 'var(--hairline)'}`,
@@ -408,7 +408,7 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
                       <button
                         onClick={() => setAperto(null)}
                         style={{
-                          padding: '7px 13px', borderRadius: 0, cursor: 'pointer',
+                          padding: '7px 13px', borderRadius: 'var(--radius)', cursor: 'pointer',
                           background: 'none', border: '1px solid var(--hairline)',
                           fontFamily: NUC.label, fontSize: 10, letterSpacing: '.12em',
                           textTransform: 'uppercase', color: 'var(--fg-mute)',
@@ -420,7 +420,7 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
                         onClick={() => salva(ex.id)}
                         disabled={invariata}
                         style={{
-                          padding: '7px 15px', borderRadius: 0,
+                          padding: '7px 15px', borderRadius: 'var(--radius)',
                           cursor: invariata ? 'default' : 'pointer',
                           background: invariata ? 'var(--surface-2)' : 'var(--j-accent)',
                           border: 'none',
@@ -539,7 +539,7 @@ function BottonePagina({ icon, label, sotto, onClick }: {
 }) {
   return (
     <button onClick={onClick} className="j-hard" style={{
-      padding: '14px 12px', borderRadius: 0, textAlign: 'left',
+      padding: '14px 12px', borderRadius: 'var(--radius)', textAlign: 'left',
       background: 'var(--surface)', border: '1px solid var(--hairline)',
       display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, cursor: 'pointer',
     }}>

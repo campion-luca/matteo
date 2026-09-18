@@ -10,7 +10,7 @@
 // gymModel.ts, che è puro e testato.
 import { useState, useMemo, useEffect } from 'react'
 import type React from 'react'
-import { NUC, accentInkFor } from '@/lib/jarvis-tokens'
+import { NUC, accentInkFor, cursore } from '@/lib/jarvis-tokens'
 import { NucCard, NucSubTabs, NucEyebrow } from '@/components/ui/NucComponents'
 import { SalutoHeader } from '@/components/ui/SalutoHeader'
 import { SplitPane, SplitVuoto } from '@/components/ui/SplitPane'
@@ -35,7 +35,9 @@ import { fotoEsercizio } from './eserciziFoto'
 import { vistaIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi } from './vistaEsercizi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
-import { LineChart } from './gymShared'
+import { useNonLetti } from '@/lib/messaggiLive'
+import { BadgeNonLetti } from '@/features/coach/messaggiUI'
+import { LineChart, FacciaEsercizio } from './gymShared'
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
@@ -56,19 +58,16 @@ function MetricSwitch({ value, onChange }: { value: MuscleView; onChange: (v: Mu
   const t = useT()
   const opts: Array<[MuscleView, string]> = [['vol', t('Kg')], ['sessioni', t('Volte')]]
   return (
-    <div style={{ display: 'flex', border: '1px solid var(--hairline)', background: 'var(--surface-2)' }}>
+    <div className="j-switch" style={cursore(opts.findIndex(([id]) => id === value), opts.length)}>
       {opts.map(([id, label]) => {
         const on = id === value
         return (
-          <button key={id} type="button" onClick={() => onChange(id)} aria-pressed={on} style={{
-            padding: '3px 9px', borderRadius: 0,
-            background: on ? 'var(--surface)' : 'transparent',
-            border: `1px solid ${on ? 'var(--j-accent)' : 'transparent'}`,
-            color: on ? 'var(--j-accent-ink)' : NUC.faint,
-            fontFamily: NUC.label, fontSize: 9.5, fontWeight: on ? 600 : 500,
-            letterSpacing: '.12em', textTransform: 'uppercase', cursor: 'pointer',
-            transition: 'all 180ms',
-          }}>{label}</button>
+          <button key={id} type="button" onClick={() => onChange(id)} aria-pressed={on}
+            className="j-switch-cell" style={{
+              padding: '4px 10px',
+              fontFamily: NUC.label, fontSize: 9.5, fontWeight: on ? 600 : 500,
+              letterSpacing: '.12em', textTransform: 'uppercase',
+            }}>{label}</button>
         )
       })}
     </div>
@@ -83,42 +82,55 @@ type GymMode = 'palestra' | 'hyrox' | 'stats'
 // sono anche loro cose che si FANNO sui pesi — non modi di allenarsi.
 function GymModeTabs({ value, onChange }: { value: 'palestra' | 'hyrox'; onChange: (m: 'palestra' | 'hyrox') => void }) {
   const t = useT()
+  // Quello scelto è PIENO d'accent, non una cella con un contorno colorato.
+  // Su due sole voci il contorno non bastava a dire qual era quella attiva — a
+  // colpo d'occhio si leggevano come due tasti uguali — e il colore dell'azione
+  // in tutta l'app è uno solo: dove si è adesso è un'informazione, non una
+  // rifinitura.
+  //
+  // Stesso `.j-switch` degli altri interruttori, con il cursore pieno d'accent:
+  // così anche qui il colore SCIVOLA da una voce all'altra. Era la sola cosa che
+  // faceva di questo un pezzo a sé — stessa forma, codice diverso — e adesso non
+  // lo è più.
   const cell = (id: 'palestra' | 'hyrox', label: string, icon: JSX.Element) => {
     const on = id === value
     return (
-      <button key={id} onClick={() => onChange(id)} aria-current={on ? 'page' : undefined} style={{
-        height: 36, borderRadius: 0, minWidth: 0,
-        background: on ? 'var(--surface)' : 'transparent',
-        border: `1px solid ${on ? 'var(--j-accent)' : 'transparent'}`,
-        boxShadow: on ? 'var(--shadow-card)' : 'none',
-        color: on ? 'var(--j-accent-ink)' : NUC.faint,
-        fontFamily: NUC.label, fontSize: 10, fontWeight: on ? 600 : 500,
-        letterSpacing: '.14em', textTransform: 'uppercase', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        transition: 'color 220ms, background 220ms, border-color 220ms',
-      }}>
+      <button key={id} onClick={() => onChange(id)} aria-pressed={on} aria-current={on ? 'page' : undefined}
+        className="j-switch-cell" style={{
+          height: 38,
+          fontFamily: NUC.label, fontSize: 12, fontWeight: on ? 600 : 500,
+          letterSpacing: '.02em', gap: 7,
+        }}>
         {icon}{label}
       </button>
     )
   }
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3,
-      background: 'var(--surface-2)', border: '1px solid var(--hairline)',
-      borderRadius: 0, padding: 3,
+    <div className="j-switch j-switch-accent" style={{
+      ...cursore(value === 'palestra' ? 0 : 1, 2),
+      gap: 4, padding: 4,
     }}>
-      {cell('palestra', t('Pesi'),  <Icons.dumbbell size={14}/>)}
-      {cell('hyrox',    t('Hyrox'), <Icons.run size={14}/>)}
+      {cell('palestra', t('Pesi'),  <Icons.dumbbell size={15} stroke={1.9}/>)}
+      {cell('hyrox',    t('Hyrox'), <Icons.run size={15} stroke={1.9}/>)}
     </div>
   )
 }
 
-// Le tre cose che si fanno sull'allenamento, quadrate e affiancate sotto i tab.
-// Quadrate perché sono destinazioni di pari peso. "Cerca" non c'è più: la lente
-// in testata cerca già ovunque, e due ricerche una sopra l'altra erano un doppione.
-// Personal Coach è la prima: stava
-// in home fra le scorciatoie, ma è una cosa che riguarda l'allenamento, e qui
-// sta accanto alle schede che un allenatore ti assegna.
+// Le tre cose che si fanno sull'allenamento, affiancate sotto i tab: figura
+// sopra, nome sotto, stessa forma e stessa larghezza per tutte e tre, perché sono
+// destinazioni di pari peso.
+// "Cerca" non c'è: la lente in testata cerca già ovunque, e due ricerche una
+// sopra l'altra sono un doppione — chi non trova nella prima non prova la
+// seconda, prova un'altra parola.
+// Personal Coach è la prima: stava in home fra le scorciatoie, ma è una cosa
+// che riguarda l'allenamento, e qui sta accanto alle schede che un allenatore ti
+// assegna. Si chiama "Coach" e non "Personal Coach" perché le tre etichette
+// stanno su una riga sola e la più lunga decide il corpo del carattere di tutte
+// e tre; "Statistiche" al posto di "Stats" per il motivo opposto — lì lo spazio
+// c'è, e una parola intera si legge invece di doverla decifrare.
+// L'icona è una nuvoletta e non più un manubrio: il manubrio è già la tab Pesi
+// qui sopra, identico, e diceva comunque la cosa sbagliata — il Personal Coach è
+// il posto dove si parla con una persona.
 function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
   attiva: 'stats' | null
   onCoach: () => void
@@ -126,42 +138,55 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
   onStats: () => void
 }) {
   const t = useT()
+  // Le richieste non lette. Sta qui e non dentro il Personal Coach perché il
+  // punto del badge è farsi vedere da chi il Personal Coach NON lo sta aprendo:
+  // se per accorgersi di un messaggio bisognasse entrare, il badge non servirebbe.
+  const daLeggere = useNonLetti()
   const card = (id: 'coach' | 'schede' | 'stats', label: string, icon: JSX.Element, onClick: () => void) => {
     const on = id === attiva
+    const badge = id === 'coach' ? daLeggere : 0
     return (
       <button
         onClick={onClick}
         aria-pressed={id === 'schede' || id === 'coach' ? undefined : on}
+        aria-label={badge > 0 ? `${label} — ${t('{n} da leggere', { n: badge })}` : undefined}
         className="j-hard"
         style={{
+          position: 'relative',
           // Un'altezza e non `aspectRatio`: con tre card, quadrate non riempivano
           // la riga e lasciavano un buco a destra. In `dvh` con un tetto, perché
           // su un telefono basso l'altezza è la risorsa scarsa e queste card
           // vengono prima dei gruppi muscolari.
-          height: 'clamp(54px, 9dvh, 92px)',
-          minWidth: 0, borderRadius: 0, cursor: 'pointer',
-          background: on ? 'var(--j-accent)' : 'var(--surface)',
+          height: 'clamp(56px, 8.5dvh, 78px)',
+          minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer',
+          backgroundColor: on ? 'var(--j-accent)' : 'var(--surface)',
           border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
           color: on ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 'clamp(4px, 0.8dvh, 7px)',
+          gap: 'clamp(3px, 0.7dvh, 6px)',
           padding: '0 4px',
-          transition: 'background 200ms, border-color 200ms, color 200ms',
+          transition: 'background-color 200ms, border-color 200ms, color 200ms',
         }}
       >
         {icon}
+        {/* Non più in maiuscoletto spaziato: sono nomi di posti dove si va, e
+            in maiuscolo a 9px "STATISTICHE" si decifra invece di leggersi. */}
         <span style={{
-          fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.1em',
-          textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2,
+          fontFamily: NUC.label, fontSize: 'clamp(10px, 2.9vw, 12px)', fontWeight: 500,
+          letterSpacing: '.01em', textAlign: 'center', lineHeight: 1.2,
         }}>{label}</span>
+        {/* A cavallo dell'angolo, non dentro: la card è alta poco più di
+            cinquanta pixel su un telefono basso, e un badge messo dentro il
+            bordo mangerebbe lo spazio dell'icona. */}
+        <BadgeNonLetti n={badge} style={{ position: 'absolute', top: -7, right: -7 }}/>
       </button>
     )
   }
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(6px, 2vw, 8px)', marginTop: 10, maxWidth: 520 }}>
-      {card('coach',  t('Personal Coach'), <Icons.dumbbell size={24} stroke={1.5} style={ICONA_AZIONE}/>, onCoach)}
-      {card('schede', t('Schede'), <Icons.bookOpen size={24} stroke={1.5} style={ICONA_AZIONE}/>, onSchede)}
-      {card('stats',  t('Stats'),  <Icons.chart    size={24} stroke={1.5} style={ICONA_AZIONE}/>, onStats)}
+      {card('coach',  t('Coach'),       <Icons.chat     size={22} stroke={1.7} style={ICONA_AZIONE}/>, onCoach)}
+      {card('schede', t('Schede'),      <Icons.bookOpen size={22} stroke={1.7} style={ICONA_AZIONE}/>, onSchede)}
+      {card('stats',  t('Statistiche'), <Icons.chart    size={22} stroke={1.7} style={ICONA_AZIONE}/>, onStats)}
     </div>
   )
 }
@@ -290,7 +315,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
                         <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{label}</span>
                       </div>
                       <div className="j-progress-track">
-                        <div style={{ height: '100%', width: `${(value / muscleMax) * 100}%`, borderRadius: 0, background: 'var(--j-accent)' }}/>
+                        <div style={{ height: '100%', width: `${(value / muscleMax) * 100}%`, borderRadius: 'var(--radius)', background: 'var(--j-accent)' }}/>
                       </div>
                     </div>
                   ))}
@@ -409,7 +434,7 @@ function AchievementsSection({ exercises, bodyWeight }: { exercises: PalestraExe
             <NucCard key={a.id} pad={14}>
               <div className="flex items-center gap-3.5">
                 <div style={{
-                  width: 52, height: 52, flexShrink: 0, borderRadius: 0,
+                  width: 52, height: 52, flexShrink: 0, borderRadius: 'var(--radius)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: on ? 'var(--surface-2)' : 'transparent',
                   border: `1px ${on ? 'solid' : 'dashed'} ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
@@ -609,7 +634,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           </div>
           <div className="flex gap-1.5 flex-shrink-0">
             <button onClick={() => setShowEdit(true)} aria-label={t('Modifica esercizio')} style={{
-              width: 34, height: 34, borderRadius: 0,
+              width: 34, height: 34, borderRadius: 'var(--radius-sm)',
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               color: NUC.faint, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -622,14 +647,14 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                 cestino, perché come il cestino cancella; chiede comunque conferma. */}
             {hist.length > 0 && (
               <button onClick={clearHistory} title={t('Svuota lo storico, tieni l’esercizio')} aria-label={t('Reset alzate')} style={{
-                width: 34, height: 34, borderRadius: 0,
+                width: 34, height: 34, borderRadius: 'var(--radius-sm)',
                 background: 'rgba(var(--segnale-giu-rgb),0.08)', border: '1px solid rgba(var(--segnale-giu-rgb),0.45)',
                 color: 'var(--segnale-giu)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}><Icons.refresh size={14} stroke={1.8}/></button>
             )}
             <button onClick={() => confirmDelete(onDelete, ex.n)} aria-label={t('Elimina esercizio')} style={{
-              width: 34, height: 34, borderRadius: 0,
+              width: 34, height: 34, borderRadius: 'var(--radius-sm)',
               background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
               color: 'var(--danger)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -663,8 +688,11 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           width: 'min(100%, clamp(96px, 19dvh, 176px))',
           aspectRatio: '1 / 1',
           margin: '0 auto 10px',
+          borderRadius: 'var(--radius)',
           background: 'var(--surface-2)', border: '1px solid var(--hairline)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          // `overflow: hidden` non è solo per la figura troppo grande: è quello
+          // che fa seguire alla fotografia gli angoli smussati del riquadro.
           overflow: 'hidden', color,
         }}>
           {foto
@@ -715,7 +743,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
-                  width: 26, height: 26, borderRadius: 0, flexShrink: 0,
+                  width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
                   background: 'var(--surface)', border: '1px solid var(--hairline)',
                   color: NUC.faint, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -723,7 +751,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                   <Icons.pencil size={10} stroke={1.8}/>
                 </button>
                 <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Alzata'))} style={{
-                  width: 26, height: 26, borderRadius: 0, flexShrink: 0,
+                  width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
                   background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
                   color: 'var(--danger)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -747,7 +775,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 padding: '5px 10px',
                 background: 'var(--surface)', border: '1px solid var(--fg-mute)',
-                borderRadius: 0, cursor: 'pointer',
+                borderRadius: 'var(--radius)', cursor: 'pointer',
                 fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
                 letterSpacing: '.1em', textTransform: 'uppercase',
                 color: 'var(--j-accent-ink)',
@@ -938,21 +966,20 @@ function VistaSwitch({ valore, onChange }: { valore: VistaEsercizi; onChange: (v
   const cella = (v: VistaEsercizi, etichetta: string, icona: JSX.Element) => {
     const on = v === valore
     return (
-      <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={on} aria-label={etichetta} style={{
-        width: 'clamp(26px, 7.5vw, 32px)', height: 'clamp(22px, 6.5vw, 27px)', borderRadius: 0, padding: 0,
-        background: on ? 'var(--surface)' : 'transparent',
-        border: `1px solid ${on ? 'var(--j-accent)' : 'transparent'}`,
-        color: on ? 'var(--j-accent-ink)' : NUC.faint,
-        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: 'all 180ms',
-      }}>{icona}</button>
+      <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={on} aria-label={etichetta}
+        className="j-switch-cell" style={{
+          // `minWidth` e non `width`: le celle sono `flex: 1` (tutte larghe
+          // uguale, o il cursore non si fermerebbe mai dove deve), e una
+          // larghezza fissa verrebbe ignorata senza nemmeno dare la misura.
+          minWidth: 'clamp(26px, 7.5vw, 32px)', height: 'clamp(22px, 6.5vw, 27px)', padding: 0,
+        }}>{icona}</button>
     )
   }
   return (
     // La griglia sta a SINISTRA perché è la vista di partenza: in un interruttore a
     // due stati il primo posto è di quello predefinito, e leggere da sinistra
     // l'alternativa prima della norma faceva sembrare l'elenco la scelta normale.
-    <div style={{ display: 'flex', border: '1px solid var(--hairline)', background: 'var(--surface-2)' }}>
+    <div className="j-switch" style={cursore(valore === 'griglia' ? 0 : 1, 2)}>
       {cella('griglia', t('Vedi in griglia'), <Icons.grid size={13} stroke={1.9}/>)}
       {cella('elenco',  t('Vedi in elenco'),  <Icons.list size={13} stroke={1.9}/>)}
     </div>
@@ -1025,7 +1052,7 @@ function CardNuovo({ label, onClick }: { label: string; onClick: () => void }) {
       className="j-hard j-rise-in j-focus"
       aria-label={label}
       style={{
-        minWidth: 0, borderRadius: 0, cursor: 'pointer', overflow: 'hidden',
+        minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', overflow: 'hidden',
         background: 'var(--surface-2)',
         // Tratteggiato: è un posto vuoto da riempire, non una cosa che c'è già.
         border: '1px dashed var(--hairline)',
@@ -1050,16 +1077,19 @@ function CardNuovo({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-function RigaNuovo({ label, onClick }: { label: string; onClick: () => void }) {
+function RigaNuovo({ label, onClick, inFondo = false }: { label: string; onClick: () => void; inFondo?: boolean }) {
   return (
     <button
       onClick={onClick}
       className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo j-focus"
       aria-label={label}
       style={{
-        padding: '11px 12px', borderRadius: 0, textAlign: 'left', cursor: 'pointer',
+        padding: '11px 12px', borderRadius: 'var(--radius)', textAlign: 'left', cursor: 'pointer',
         background: 'transparent', border: 'none',
-        borderBottom: '1px dashed var(--hairline)',
+        // Il tratteggio sta fra la riga "+" e l'elenco, quindi cambia lato con lei.
+        ...(inFondo
+          ? { borderTop: '1px dashed var(--hairline)' }
+          : { borderBottom: '1px dashed var(--hairline)' }),
         color: 'var(--j-accent-ink)',
       }}
     >
@@ -1086,7 +1116,7 @@ function ElencoEsercizi({ esercizi, color, onApri, onNuovo }: {
   const tData = useTData()
   return (
     <div className="j-hard-flat" style={{
-      background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 0, overflow: 'hidden',
+      background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)', overflow: 'hidden',
     }}>
       <RigaNuovo label={t('Nuovo esercizio')} onClick={onNuovo}/>
       {esercizi.map((ex, i) => {
@@ -1099,12 +1129,19 @@ function ElencoEsercizi({ esercizi, color, onApri, onNuovo }: {
             className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo"
             style={{
               animationDelay: `${Math.min(i * 35, 300)}ms`,
-              padding: '11px 12px', borderRadius: 0, textAlign: 'left', cursor: 'pointer',
+              padding: '11px 12px', borderRadius: 'var(--radius)', textAlign: 'left', cursor: 'pointer',
               background: 'transparent', border: 'none',
               borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
               borderLeft: `3px solid ${color}`,
             }}
           >
+            {/* La figura anche in elenco, a sinistra del nome. In griglia c'era
+                già (è la fascia in cima alla card) e qui no: fra le due viste
+                cambiava cosa si RICONOSCE — in griglia la foto, in elenco solo
+                una fila di nomi — e su trenta esercizi il nome è la cosa più
+                lenta da leggere. È la stessa `FacciaEsercizio` della scheda,
+                quindi ovunque compaia un esercizio compare la stessa immagine. */}
+            <FacciaEsercizio nome={ex.n} muscolo={ex.muscle} lato={40}/>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, marginTop: 2 }}>
@@ -1155,7 +1192,7 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
             className="j-hard j-rise-in"
             style={{
               animationDelay: `${Math.min(i * 35, 300)}ms`,
-              minWidth: 0, borderRadius: 0, cursor: 'pointer', overflow: 'hidden',
+              minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', overflow: 'hidden',
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               borderLeft: `3px solid ${color}`,
               padding: 0, display: 'flex', flexDirection: 'column', textAlign: 'left',
@@ -1212,10 +1249,9 @@ function ElencoGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
   const tData = useTData()
   return (
     <div className="j-hard-flat" style={{
-      background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 0,
+      background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)',
       overflow: 'hidden',
     }}>
-      <RigaNuovo label={t('Nuovo gruppo')} onClick={onNuovo}/>
       {gruppi.map(({ muscle, items }, i) => {
         const color = muscleColors[muscle] ?? muscleColors.Altro
         return (
@@ -1225,7 +1261,7 @@ function ElencoGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
             className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo"
             style={{
               animationDelay: `${Math.min(i * 40, 320)}ms`,
-              padding: '11px 12px', borderRadius: 0, textAlign: 'left', cursor: 'pointer',
+              padding: '11px 12px', borderRadius: 'var(--radius)', textAlign: 'left', cursor: 'pointer',
               background: 'transparent',
               border: 'none',
               borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
@@ -1247,6 +1283,12 @@ function ElencoGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
           </button>
         )
       })}
+      {/* In fondo, non in cima. Qui non vale la ragione per cui "Nuovo esercizio"
+          sta in testa (in fondo a trentotto esercizi non lo trova nessuno): i
+          gruppi sono otto o poco più e si vedono tutti senza scorrere, quindi
+          messo per primo era solo una riga da scavalcare ogni volta per arrivare
+          al gruppo che si cercava davvero. */}
+      <RigaNuovo label={t('Nuovo gruppo')} onClick={onNuovo} inFondo={gruppi.length > 0}/>
     </div>
   )
 }
@@ -1264,7 +1306,6 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
   const tData = useTData()
   return (
     <div style={GRIGLIA}>
-      <CardNuovo label={t('Nuovo gruppo')} onClick={onNuovo}/>
       {gruppi.map(({ muscle, items }, i) => {
         const color = muscleColors[muscle] ?? muscleColors.Altro
         return (
@@ -1274,7 +1315,7 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
             className="j-hard j-rise-in"
             style={{
               animationDelay: `${Math.min(i * 35, 300)}ms`,
-              minWidth: 0, borderRadius: 0, cursor: 'pointer', overflow: 'hidden',
+              minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', overflow: 'hidden',
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               borderLeft: `3px solid ${color}`,
               padding: 0, display: 'flex', flexDirection: 'column', textAlign: 'left',
@@ -1305,6 +1346,8 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
           </button>
         )
       })}
+      {/* Ultima, come nell'elenco: vedi il commento lì sopra. */}
+      <CardNuovo label={t('Nuovo gruppo')} onClick={onNuovo}/>
     </div>
   )
 }
@@ -1763,7 +1806,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
                     uno e sparisce quando non manca più niente. */}
                 {mancanti > 0 && (
                   <button onClick={aggiungiCatalogo} className="j-hard" style={{
-                    width: '100%', marginBottom: 12, padding: '11px 13px', borderRadius: 0,
+                    width: '100%', marginBottom: 12, padding: '11px 13px', borderRadius: 'var(--radius)',
                     background: 'var(--surface)', border: '1px solid var(--hairline)',
                     display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', textAlign: 'left',
                   }}>

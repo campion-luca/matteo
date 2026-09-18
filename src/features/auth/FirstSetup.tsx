@@ -163,7 +163,7 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
           <div style={{ display: 'flex', gap: 10 }}>
             {([['M', 'Uomo'], ['F', 'Donna']] as const).map(([v, label]) => (
               <button key={v} onClick={() => setSex(v)} style={{
-                flex: 1, minHeight: 56, borderRadius: 0, cursor: 'pointer',
+                flex: 1, minHeight: 56, borderRadius: 'var(--radius)', cursor: 'pointer',
                 background: sex === v ? 'var(--j-accent)' : 'var(--surface)',
                 border: `1px solid ${sex === v ? 'var(--j-accent)' : 'var(--hairline)'}`,
                 color: sex === v ? 'var(--j-accent-fg)' : 'var(--fg)',
@@ -212,7 +212,7 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
           disabled={!valido}
           className="j-hard"
           style={{
-            flex: 1, minHeight: 46, borderRadius: 0, border: 'none',
+            flex: 1, minHeight: 46, borderRadius: 'var(--radius)', border: 'none',
             background: 'var(--j-accent)', color: 'var(--j-accent-fg)',
             fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
             letterSpacing: '.16em', textTransform: 'uppercase',
@@ -258,7 +258,7 @@ const inputStyle: React.CSSProperties = {
   padding: '0 14px',
   background: 'var(--surface)',
   border: '1px solid var(--hairline)',
-  borderRadius: 0, outline: 'none',
+  borderRadius: 'var(--radius)', outline: 'none',
   fontFamily: NUC.font, fontSize: 22, fontWeight: 500,
   letterSpacing: -0.3, color: 'var(--fg)',
 }
