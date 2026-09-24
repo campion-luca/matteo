@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { vistaIniziale, VISTA_KEY } from '@/features/gym/vistaEsercizi'
+import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY } from '@/features/gym/vistaEsercizi'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 
 // Come si aprono gli esercizi di un gruppo. Due regole sole, ma è la prima cosa
@@ -44,5 +44,16 @@ describe('vista di partenza degli esercizi', () => {
     writeStorage('local', VISTA_KEY, 'elenco')
     localStorage.removeItem('jarvis-store-v4')
     expect(vistaIniziale(readStorage('local', VISTA_KEY))).toBe('elenco')
+  })
+})
+
+describe('vista di partenza dei gruppi muscolari', () => {
+  it('è il carosello per chi non ha mai scelto, o per un valore sconosciuto', () => {
+    for (const v of [null, '', 'grid', 'carosello']) expect(vistaGruppiIniziale(v), String(v)).toBe('carosello')
+  })
+
+  it('rispetta la vista vecchio stile scelta a mano', () => {
+    expect(vistaGruppiIniziale('griglia')).toBe('griglia')
+    expect(vistaGruppiIniziale('elenco')).toBe('elenco')
   })
 })

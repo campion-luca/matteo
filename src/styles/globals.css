@@ -729,6 +729,13 @@
     .j-switch::before { transition: none; }
   }
 
+  /* Card del carosello dei gruppi: la pressione è una stretta appena accennata.
+     Niente ombra a spessore: è una superficie grande e piena di colore, e un
+     rilievo sotto la farebbe sembrare un tasto gigante. */
+  .j-carosello-card { transition: transform 120ms var(--ease); }
+  .j-carosello-card:active { transform: scale(.98); }
+  @media (prefers-reduced-motion: reduce) { .j-carosello-card:active { transform: none; } }
+
   /* Page header — il respiro sopra e sotto segue l'altezza dello schermo. Su un
      telefono basso quaranta pixel di vuoto in cima sono quaranta pixel tolti alla
      griglia, che è la ragione per cui si è aperta l'app. */

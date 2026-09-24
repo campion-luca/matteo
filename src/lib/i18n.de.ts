@@ -836,4 +836,8 @@ export const DE_UI: Record<string, string> = {
   'Aggiungi nota': 'Notiz hinzufügen',
   'nota': 'Notiz',
   'Nota su questa sessione…': 'Notiz zu dieser Einheit…',
+
+  // ── Carosello dei gruppi muscolari ──
+  'Ultima volta: {data}': 'Zuletzt: {data}',
+  'Vedi a carosello': 'Als Karussell anzeigen',
 }

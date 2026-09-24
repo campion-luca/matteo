@@ -20,7 +20,7 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  displayMuscle, exColor, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
+  displayMuscle, exColor, MUSCLE_COLORS, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
   effectiveLoad, entryVolume, sortedHistory,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
@@ -32,7 +32,8 @@ import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
 import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
-import { vistaIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi } from './vistaEsercizi'
+import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi, type VistaGruppi } from './vistaEsercizi'
+import { CaroselloGruppi } from './CaroselloGruppi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { useNonLetti } from '@/lib/messaggiLive'
@@ -987,6 +988,32 @@ function VistaSwitch({ valore, onChange }: { valore: VistaEsercizi; onChange: (v
   )
 }
 
+// I gruppi hanno tre viste: il carosello (la nuova, di partenza) e le due
+// "vecchio stile", griglia ed elenco. Stesso interruttore, una cella in più.
+function useVistaGruppi(): [VistaGruppi, (v: VistaGruppi) => void] {
+  const [vista, setVista] = useState<VistaGruppi>(() => vistaGruppiIniziale(readStorage('local', VISTA_GRUPPI_KEY)))
+  const cambia = (v: VistaGruppi) => { setVista(v); writeStorage('local', VISTA_GRUPPI_KEY, v) }
+  return [vista, cambia]
+}
+function VistaGruppiSwitch({ valore, onChange }: { valore: VistaGruppi; onChange: (v: VistaGruppi) => void }) {
+  const t = useT()
+  const opts: Array<[VistaGruppi, string, JSX.Element]> = [
+    ['carosello', t('Vedi a carosello'), <Icons.carosello key="c" size={13} stroke={1.9}/>],
+    ['griglia',   t('Vedi in griglia'),  <Icons.grid key="g" size={13} stroke={1.9}/>],
+    ['elenco',    t('Vedi in elenco'),   <Icons.list key="l" size={13} stroke={1.9}/>],
+  ]
+  return (
+    <div className="j-switch" style={cursore(opts.findIndex(([v]) => v === valore), opts.length)}>
+      {opts.map(([v, etichetta, icona]) => (
+        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={v === valore} aria-label={etichetta}
+          className="j-switch-cell" style={{ minWidth: 'clamp(26px, 7.5vw, 32px)', height: 'clamp(22px, 6.5vw, 27px)', padding: 0 }}>
+          {icona}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // La griglia delle card, una sola per gruppi ed esercizi: hanno la stessa forma e
 // devono avere lo stesso passo. La colonna minima è a sua volta elastica — su un
 // telefono stretto scende a 88px e ne entrano tre, su uno schermo grande sale a
@@ -1444,11 +1471,16 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
   const [formatoHyrox, setFormatoHyrox] = useFormatoHyrox()
   const [showRicercaGlobale, setShowRicercaGlobale] = useState(false)
-  const [vistaGruppi, setVistaGruppi] = useVistaEsercizi(VISTA_GRUPPI_KEY)
+  const [vistaGruppi, setVistaGruppi] = useVistaGruppi()
+  // La card del carosello in vista: sta qui perché il "1 / 8" si scrive accanto
+  // al titolo della sezione, fuori dal carosello.
+  const [cardGruppo, setCardGruppo] = useState(0)
 
   // Mappa risolta (default + override utente, desaturata in layout "Notte"). Il picker
   // di EditExModal riceve invece `s.muscleColors` raw: vedi sotto.
   const muscleColors = useMuscleColors()
+  // Il carosello li vuole pieni anche in Premium: vedi CaroselloGruppi.
+  const coloriPieni = useMemo(() => ({ ...MUSCLE_COLORS, ...(s.muscleColors ?? {}) }), [s.muscleColors])
   // Gli otto di serie più quelli creati qui dentro, e la figura che ciascuno dei
   // nuovi ha scelto di accendere.
   const gruppiNoti = useGruppiMuscolari()
@@ -1795,8 +1827,19 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
                 {/* La riga larga "Schede d'allenamento" non è più qui: era in mezzo
                     alla lista degli esercizi, cioè dentro il contenuto invece che
                     fra i comandi. Adesso è la prima delle tre card sopra. */}
-                <NucEyebrow right={<VistaSwitch valore={vistaGruppi} onChange={setVistaGruppi}/>}>
-                  {t('Gruppi muscolari')} · {t('{n} esercizi', { n: s.palestraExercises.length })}
+                <NucEyebrow right={
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {vistaGruppi === 'carosello' && groupedPalestra.length > 0 && (
+                      <span aria-live="polite" style={{ letterSpacing: '.08em' }}>
+                        {Math.min(cardGruppo, groupedPalestra.length - 1) + 1} / {groupedPalestra.length}
+                      </span>
+                    )}
+                    <VistaGruppiSwitch valore={vistaGruppi} onChange={setVistaGruppi}/>
+                  </span>
+                }>
+                  {vistaGruppi === 'carosello'
+                    ? t('Gruppi muscolari')
+                    : <>{t('Gruppi muscolari')} · {t('{n} esercizi', { n: s.palestraExercises.length })}</>}
                 </NucEyebrow>
                 {/* Il catalogo entra da solo al primo accesso, ma chi aveva già un
                     profilo quel passaggio non lo rivede più: senza questa riga i
@@ -1823,7 +1866,17 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
                     <Icons.chev size={15} stroke={1.6} color={NUC.faint}/>
                   </button>
                 )}
-                {vistaGruppi === 'elenco' ? (
+                {vistaGruppi === 'carosello' ? (
+                  <CaroselloGruppi
+                    gruppi={groupedPalestra}
+                    colori={coloriPieni}
+                    icone={iconeGruppi}
+                    indice={cardGruppo}
+                    onIndice={setCardGruppo}
+                    onApri={muscle => setSelectedMuscle(muscle)}
+                    onNuovo={() => setShowNuovoGruppo(true)}
+                  />
+                ) : vistaGruppi === 'elenco' ? (
                   <ElencoGruppi
                     gruppi={groupedPalestra}
                     muscleColors={muscleColors}

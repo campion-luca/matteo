@@ -43,6 +43,8 @@ export const Icons = {
   // quadrati sono quattro: a 13px è quella differenza a distinguerle, non il
   // dettaglio.
   list:      (p: IconProps = {}) => ic(<><path d="M4 6h16M4 12h16M4 18h11"/></>, p),
+  // Una card piena al centro e le due vicine che spuntano ai lati: il carosello.
+  carosello: (p: IconProps = {}) => ic(<><rect x="7" y="4" width="10" height="16" rx="2"/><path d="M3.5 7v10M20.5 7v10"/></>, p),
   grid:      (p: IconProps = {}) => ic(<><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></>, p),
   book:      (p: IconProps = {}) => ic(<><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></>, p),
   bookOpen:  (p: IconProps = {}) => ic(<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>, p),

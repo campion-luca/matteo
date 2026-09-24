@@ -10,10 +10,20 @@ export type VistaEsercizi = 'elenco' | 'griglia'
 // griglia non aveva ancora le immagini non va trascinata avanti.
 export const VISTA_KEY = 'jarvis-vista-esercizi-v2'
 
-// Stessa scelta, ma per l'elenco dei gruppi muscolari: una chiave a parte perché
-// si può volere la griglia degli esercizi (con le foto) e l'elenco compatto dei
-// gruppi, o viceversa.
-export const VISTA_GRUPPI_KEY = 'jarvis-vista-gruppi'
+// Stessa scelta, ma per i gruppi muscolari: una chiave a parte perché si può
+// volere la griglia degli esercizi (con le foto) e l'elenco compatto dei gruppi,
+// o viceversa. I gruppi hanno in più il CAROSELLO — una card grande e colorata
+// per gruppo, che si sfoglia di lato — ed è il loro default dal 24 set 2026.
+// La `-v2` fa ripartire tutti dal carosello: una griglia salvata prima che il
+// carosello esistesse non era una scelta contro di lui.
+export const VISTA_GRUPPI_KEY = 'jarvis-vista-gruppi-v2'
+
+export type VistaGruppi = 'carosello' | VistaEsercizi
+
+/** Come si aprono i gruppi: il carosello, salvo griglia o elenco scelti a mano. */
+export function vistaGruppiIniziale(salvato: string | null): VistaGruppi {
+  return salvato === 'griglia' || salvato === 'elenco' ? salvato : 'carosello'
+}
 
 /** La vista con cui si apre la palestra, dato quello che c'è in memoria.
  *
