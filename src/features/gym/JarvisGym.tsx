@@ -28,6 +28,7 @@ import { useMuscleColors } from './useMuscleColors'
 import { achievements } from './gymStrength'
 import { GymSchede } from './GymSchede'
 import { Riepilogo } from '@/features/dashboard/Riepilogo'
+import { SettimanaStrip } from '@/features/dashboard/SettimanaStrip'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
@@ -1744,6 +1745,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           onUser={onOpenUser}
           onSettings={onOpenProfile}
         />
+        <SettimanaStrip/>
         <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
         {/* Stats è un interruttore: si ripreme la card per tornare alla lista. */}
         <AzioniGym
