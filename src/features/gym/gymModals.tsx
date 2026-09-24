@@ -942,6 +942,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
   // toglie da qui, altrimenti l'unico modo sarebbe cancellarla e riscriverla.
   const [isMax, setIsMax] = useState(entry.maxLift === true)
   const [date, setDate] = useState(entry.date ?? '')
+  const [nota, setNota] = useState(entry.note ?? '')
 
   const nSets = Math.max(1, parseInt(sets) || 1)
   const updateSetWeight = (i: number, v: string) =>
@@ -988,6 +989,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
       bodyweight: isBodyweight ? true : undefined,
       maxLift: isMax ? true : undefined,
       machineModel: undefined,
+      note: nota.trim() || undefined,
     })
     onClose()
   }
@@ -1083,6 +1085,15 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
         )}
 
         <div>
+          <div className="j-eyebrow mb-1">{t('Nota')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
+          <textarea
+            value={nota}
+            onChange={e => setNota(e.target.value)}
+            rows={2}
+            placeholder={t('Nota su questa sessione…')}
+            className="j-field"
+            style={{ height: 'auto', minHeight: 56, padding: '9px 12px', resize: 'vertical', lineHeight: 1.45 }}
+          />
         </div>
 
         <button onClick={save} className="j-btn-accent" style={{ marginTop: 4 }}>{t('Salva')}</button>

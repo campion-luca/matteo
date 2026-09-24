@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { GymSchede } from '@/features/gym/GymSchede'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
+import { ConfirmModal } from '@/components/ConfirmModal'
 
 // Eseguire una scheda è il modo in cui la maggior parte delle alzate finisce
 // nello storico: quello che si spunta qui diventa un dato su cui poggiano volume,
@@ -32,7 +33,7 @@ afterEach(cleanup)
 
 // Lista → dettaglio → allenamento.
 async function apriAllenamento(user: ReturnType<typeof userEvent.setup>) {
-  render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/></ConfirmDeleteProvider>)
+  render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
   await user.click(screen.getByText('Spinta A'))
   await user.click(screen.getByRole('button', { name: /inizia allenamento/i }))
 }
@@ -142,5 +143,72 @@ describe('una scheda con obiettivo «max»', () => {
     const h = useJarvisStore.getState().palestraExercises.find(e => e.n === 'Piegamenti')?.history ?? []
     expect(h).toHaveLength(1)
     expect(h[0].reps).toBe(14)
+  })
+})
+
+// ── Nota, ordine dei campi, carico consigliato, storico ────────
+describe('allenamento: le aggiunte di settembre', () => {
+  it('i colpi vengono prima dei chili in ogni serie', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    const colpi = screen.getByLabelText('Panca piana · serie 1 · colpi')
+    const kg = screen.getByLabelText('Panca piana · serie 1 · kg')
+    // DOCUMENT_POSITION_FOLLOWING: `kg` sta dopo `colpi` nel documento.
+    expect(colpi.compareDocumentPosition(kg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('la nota scritta in allenamento finisce nell’alzata', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.click(screen.getByRole('button', { name: 'Panca piana · Aggiungi nota' }))
+    await user.type(screen.getByLabelText('Panca piana · nota'), 'sedile al 4')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate()[0].note).toBe('sedile al 4')
+  })
+
+  it('consiglia di salire dopo un allenamento completo, e «Usa» lo scrive', async () => {
+    useJarvisStore.setState({
+      palestraExercises: [{
+        id: 'px1', n: 'Panca piana', muscle: 'Petto',
+        current: { kg: 60, reps: 10, sets_n: 3 },
+        history: [{ d: 'W37', date: '2026-09-10', kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
+      }],
+    })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    expect(screen.getByText('Carico consigliato')).toBeInTheDocument()
+    expect(screen.getByText(/62,5 kg/)).toBeInTheDocument()
+    // Precompilato sull'ultima volta: il consiglio non si impone da solo.
+    expect(screen.getByLabelText('Panca piana · serie 1 · kg')).toHaveValue('60')
+    await user.click(screen.getByRole('button', { name: 'Usa' }))
+    expect(screen.getByLabelText('Panca piana · serie 3 · kg')).toHaveValue('62,5')
+  })
+
+  it('lo storico della scheda mostra gli allenamenti fatti, li corregge e li toglie', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    // Di ritorno sul dettaglio: l'orologio in testata apre lo storico.
+    const tasti = screen.getAllByRole('button', { name: 'Storico allenamenti' })
+    await user.click(tasti[0])
+    expect(screen.getByText(/Tocca un’alzata/)).toBeInTheDocument()
+
+    // Toccare l'alzata apre la correzione, con la nota fra i campi.
+    await user.click(screen.getByRole('button', { name: /Panca piana3 × 10 – 60 kg/ }))
+    await user.type(screen.getByPlaceholderText('Nota su questa sessione…'), 'presa larga')
+    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    expect(alzate()[0].note).toBe('presa larga')
+
+    // Il cestino la toglie, dopo la conferma.
+    await user.click(screen.getByRole('button', { name: 'Elimina alzata' }))
+    await user.click(screen.getByRole('button', { name: /sì, elimina/i }))
+    expect(alzate()).toHaveLength(0)
   })
 })

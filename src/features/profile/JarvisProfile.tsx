@@ -245,7 +245,6 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   const monoOn  = s.layout === 'premium'
   // Assenti = accese: stesso patto di App.tsx, che è chi legge davvero i due campi.
   const bgFuso  = s.bgFuso ?? true
-  const bgAnim  = s.bgAnim ?? true
   const initial = (name.trim() || '?')[0].toUpperCase()
 
   // Stessa risoluzione di App.tsx, altrimenti l'avatar mente: leggeva ACCENT_PALETTES
@@ -399,20 +398,12 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           </div>
         </Section>
 
-        {/* Sfondo — due prove sul fondo dei temi scuri, entrambe reversibili da
-            qui. Assenti dallo stato valgono ACCESE (vedi App.tsx): sono il fondo
-            con cui l'app si presenta ora, e questi due interruttori servono a
-            tornare indietro se non convince. */}
+        {/* Sfondo — la prova sul fondo dei temi scuri, reversibile da qui.
+            Assente dallo stato vale ACCESA (vedi App.tsx). */}
         <Section
           title={t('Sfondo fuso')}
           hint={t('Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.')}
           right={<Toggle on={bgFuso} onClick={() => set({ bgFuso: !bgFuso })} label={t('Sfondo fuso')}/>}
-        />
-
-        <Section
-          title={t('Sfondo in movimento')}
-          hint={t('Gli aloni scorrono lentamente e non si fermano mai. Si muove solo il fondo, il resto della pagina non si ridisegna.')}
-          right={<Toggle on={bgAnim} onClick={() => set({ bgAnim: !bgAnim })} label={t('Sfondo in movimento')}/>}
         />
 
         </div>

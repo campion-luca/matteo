@@ -243,14 +243,6 @@
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes j-page-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes j-rise-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
 @keyframes undo-bar {
   from { transform: scaleX(1); }
@@ -314,11 +306,13 @@
     transition: transform var(--motion-smooth) var(--ease);
   }
 
-  /* Premium motion — solo transform/opacity (GPU), disattivate con reduced-motion */
-  .j-page-in { animation: j-page-in 280ms cubic-bezier(.2,.8,.2,1) both; }
-  .j-rise-in { animation: j-rise-in 360ms cubic-bezier(.2,.8,.2,1) both; }
+  /* Qui stavano `.j-page-in` e `.j-rise-in`: ogni pagina entrava in dissolvenza
+     (280ms) e ogni card di un elenco saliva in fila, una dopo l'altra, fino a
+     un terzo di secondo di ritardo sull'ultima. Belle da vedere una volta, ma a
+     ogni tocco la schermata nuova arrivava "dopo": è l'input lag che si sentiva
+     aprendo i menù, e le foto sembravano lente perché comparivano dentro card
+     ancora trasparenti. Tolte: la pagina c'è appena la tocchi. */
 
-  
   /* Skeleton shimmer — placeholder durante i caricamenti */
   .j-skeleton {
     background: linear-gradient(
@@ -341,7 +335,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .nuc-seg-pill { transition: none; }
-    .j-page-in, .j-rise-in { animation: none; }
     .j-skeleton { animation: none; }
     .j-loader-dot { animation: none; }
     .j-btn-add svg, .j-btn-add:hover svg { transition: none; transform: none; }
@@ -710,7 +703,7 @@
     transform: translateX(calc(var(--i) * (100% + 3px)));
     background: var(--surface-2);
     border-radius: var(--radius-sm);
-    transition: transform var(--motion-smooth) var(--ease);
+    transition: transform var(--motion-fast) var(--ease);
     pointer-events: none;
   }
   /* Variante piena d'accent: i due modi di allenarsi (Pesi / Hyrox), dove la
@@ -909,11 +902,8 @@
      luce calda che entra di sbieco. Un terzo, più leggero e più largo, sta al
      centro e lega i due angoli, così il caldo non resta confinato ai bordi.
      Stanno SOTTO a quelli bianchi nell'elenco, che restano la luce principale. */
-  /* Il fondo è diviso in due METÀ, non perché serva a chi lo guarda fermo — unite
-     danno esattamente l'elenco di prima — ma perché animato ognuna va per conto
-     suo: la luce fredda scorre da una parte, il caldo dall'altra, e le tinte si
-     rimescolano invece di scivolare tutte insieme come un adesivo. Ferme, le due
-     metà si sommano in `--paper-grain` e nessuno vede la differenza. */
+  /* Due metà (fredda e calda) sommate in `--paper-grain`: erano separate per lo
+     sfondo in movimento, che non c'è più. */
   --grain-freddo:
     radial-gradient(70% 38% at 50% -4%, rgba(255,255,255,.17), transparent 72%),
     radial-gradient(55% 32% at 104% 42%, rgba(255,255,255,.075), transparent 70%),
@@ -1117,10 +1107,7 @@
    senza bisogno di !important. */
 :is(.dark, .premium).bg-fusione {
   /* Stessa divisione in due metà del fondo di serie (vedi lì): il grigio-azzurro
-     sta col bianco nella metà FREDDA, l'arancione col suo legante nella CALDA.
-     È questa spartizione a far funzionare il movimento — le due metà si
-     attraversano, e la fascia in cui i colori si fondono si sposta invece di
-     restare inchiodata a metà schermo. */
+     sta col bianco nella metà FREDDA, l'arancione col suo legante nella CALDA. */
   --grain-freddo:
     radial-gradient(70% 38% at 50% -6%, rgba(255,255,255,.14), transparent 72%),
     radial-gradient(72% 46% at 6% 34%, rgba(133,147,164,.30), rgba(133,147,164,.08) 48%, transparent 78%),
@@ -1134,84 +1121,9 @@
   --paper-grain: var(--grain-freddo), var(--grain-caldo);
 }
 
-/* ── Sfondo in movimento (opzionale) ─────────────────────────────
-   Gli aloni scorrono lentamente e non si fermano mai.
-
-   Quello che NON si anima: `background-image` non è interpolabile, e
-   `background-position` costringe il browser a ridipingere l'intero fondo a ogni
-   fotogramma — su una pagina a tutto schermo è il modo più caro di ottenere il
-   risultato più modesto. Qui la pittura resta ferma e a muoversi è un livello a
-   parte, con `transform`: il compositor lo sposta sulla GPU senza ridisegnare
-   niente. Costo: un layer, e zero lavoro per fotogramma sulla CPU.
-
-   Il livello è un `::before` a z-index negativo: si infila fra il fondo pieno del
-   contenitore e il suo contenuto, quindi non serve toccare lo z-index di nulla
-   di ciò che sta sopra. È in scala 1.15 perché scorrendo non deve mai scoprire
-   un bordo, e il ciclo dura poco più di un minuto: sotto, il movimento si nota
-   mentre si legge, ed è esattamente ciò che uno sfondo non deve fare. */
-/* Il contenitore che PORTA il fondo dell'app. La pittura sta qui e non più in uno
-   stile inline apposta: da inline nessuna regola potrebbe spostarla sul livello
-   animato qui sotto (uno stile inline batte il foglio in silenzio). */
+/* Il contenitore che PORTA il fondo dell'app. Qui c'era anche lo "Sfondo in
+   movimento": due livelli grandi una volta e mezza lo schermo che ruotavano senza
+   fermarsi mai. Costavano poco alla CPU ma tenevano il compositor al lavoro a ogni
+   fotogramma, e su iPhone era il motivo per cui i tocchi arrivavano in ritardo.
+   Tolto su richiesta: il fondo è fermo. */
 .j-bg-fondo { background-image: var(--paper-grain); }
-
-/* Le due corse sono OPPOSTE e di durata diversa (54s e 73s, che non sono multipli
-   l'una dell'altra): il disegno complessivo non si ripete prima di una decina di
-   minuti, quindi guardandolo non si riconosce mai "il punto da cui era partito".
-
-   L'ampiezza è quella che è per un motivo preciso: la prima versione spostava il
-   fondo del 2,5% e a metà ciclo due fotogrammi erano indistinguibili — l'animazione
-   c'era, girava, e non la vedeva nessuno. Gli aloni sono grandi e sfumati, e una
-   macchia larga mezzo schermo va spostata di un ottavo di schermo perché l'occhio
-   registri che si è mossa. La rotazione fa il resto del lavoro: su un livello già
-   ingrandito, tre gradi trascinano gli angoli molto più di quanto costino in
-   velocità apparente al centro.
-
-   La scala minima non scende sotto ~1,25: ruotando, un livello a filo dei bordi
-   scoprirebbe gli angoli. A 3° su uno schermo da telefono ne basterebbe 1,15;
-   il margine serve ai formati larghi. */
-@keyframes j-bg-caldo {
-  0%   { transform: translate3d(-8%, -5%, 0) scale(1.36) rotate(-3deg); }
-  50%  { transform: translate3d(7%, 6%, 0)   scale(1.46) rotate(3deg); }
-  100% { transform: translate3d(-8%, -5%, 0) scale(1.36) rotate(-3deg); }
-}
-@keyframes j-bg-freddo {
-  0%   { transform: translate3d(7%, 4%, 0)   scale(1.42) rotate(2.5deg); }
-  50%  { transform: translate3d(-6%, -7%, 0) scale(1.32) rotate(-2.5deg); }
-  100% { transform: translate3d(7%, 4%, 0)   scale(1.42) rotate(2.5deg); }
-}
-:is(.dark, .premium).bg-anim .j-bg-fondo {
-  /* La pittura passa ai livelli animati: lasciandola anche qui resterebbe una
-     copia ferma sotto quelle in movimento. */
-  background-image: none;
-  /* `isolation` non è cosmesi ed è la riga che fa funzionare tutto il blocco: un
-     figlio a z-index negativo si dipinge dentro il primo antenato che è un
-     contesto di impilamento, e `position: relative` da solo non lo è. Senza,
-     i livelli finirebbero DIETRO al nero di questo contenitore — cioè invisibili.
-     Con l'isolamento il contesto è qui, e si infilano esattamente dove devono:
-     sopra il fondo pieno, sotto tutto il contenuto. */
-  position: relative;
-  isolation: isolate;
-}
-:is(.dark, .premium).bg-anim .j-bg-fondo::before,
-:is(.dark, .premium).bg-anim .j-bg-fondo::after {
-  content: '';
-  position: absolute; inset: 0; z-index: -1;
-  transform-origin: 50% 50%;
-  will-change: transform;
-  pointer-events: none;
-}
-:is(.dark, .premium).bg-anim .j-bg-fondo::before {
-  background-image: var(--grain-caldo);
-  animation: j-bg-caldo 54s cubic-bezier(.45,0,.55,1) infinite;
-}
-:is(.dark, .premium).bg-anim .j-bg-fondo::after {
-  background-image: var(--grain-freddo);
-  animation: j-bg-freddo 73s cubic-bezier(.45,0,.55,1) infinite;
-}
-/* Chi ha chiesto meno animazioni ritrova il fondo fermo, non un fondo assente. */
-@media (prefers-reduced-motion: reduce) {
-  :is(.dark, .premium).bg-anim .j-bg-fondo { background-image: var(--paper-grain); }
-  :is(.dark, .premium).bg-anim .j-bg-fondo::before,
-  :is(.dark, .premium).bg-anim .j-bg-fondo::after { display: none; }
-}
-

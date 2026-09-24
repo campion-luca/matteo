@@ -202,6 +202,13 @@ function RigaEsercizio({ e, primo }: { e: EsitoEsercizio; primo: boolean }) {
           <span>{t('prima {kg} kg', { kg: fmtNum(e.carico.prima) })}</span>
         )}
       </div>
+      {/* La nota che l'atleta ha scritto mentre si allenava: spesso spiega il
+          rosso qui sopra ("spalla che tirava") meglio di qualunque numero. */}
+      {e.fatto?.note && (
+        <div style={{ marginTop: 3, fontFamily: NUC.label, fontSize: 11, lineHeight: 1.45, color: 'var(--fg-soft)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+          {e.fatto.note}
+        </div>
+      )}
     </div>
   )
 }

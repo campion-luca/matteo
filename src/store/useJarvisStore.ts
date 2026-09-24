@@ -39,6 +39,10 @@ export interface PalestraHistoryEntry {
   // riscrivere com'era chiamato l'allenamento di quel giorno. Serve al calendario
   // degli allenamenti, che raggruppa il giorno per scheda.
   scheda?: { id: string; nome: string }
+  // Un appunto sulla sessione, scritto mentre ci si allena ("spalla che tira",
+  // "sedile al 4"). Resta attaccato a QUESTA alzata, e alla successiva sullo
+  // stesso esercizio si rilegge come "nota dell'ultima volta".
+  note?: string
 }
 export interface PalestraExercise {
   // Il colore non è per esercizio: deriva dal gruppo muscolare (vedi `muscleColors`).
@@ -121,8 +125,6 @@ export interface JarvisState {
   /** Sfondo "fuso": nero, arancione e grigio-azzurro sovrapposti invece dei due
    *  soli aloni caldi di serie. In prova — assente = acceso, vedi globals.css. */
   bgFuso?: boolean
-  /** Gli aloni del fondo scorrono lentamente, senza fermarsi. Assente = acceso. */
-  bgAnim?: boolean
   accentColor: AccentColor
   customAccentHex?: string
   hyroxExercises: HyroxExercise[]
@@ -169,7 +171,7 @@ export const EMPTY_STATE: JarvisState = {
 // per sempre.
 const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
-  'darkMode', 'layout', 'bgFuso', 'bgAnim', 'accentColor', 'customAccentHex',
+  'darkMode', 'layout', 'bgFuso', 'accentColor', 'customAccentHex',
   'hyroxExercises', 'palestraExercises', 'muscleColors', 'customMuscles', 'gymSchede',
   'weightLog', 'catalogoReset', 'temaVersione',
 ]

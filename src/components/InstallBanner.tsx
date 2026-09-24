@@ -46,8 +46,6 @@ export function InstallBanner() {
       position: 'absolute', left: 14, right: 14, bottom: 90, zIndex: 50,
       borderRadius: 'var(--radius)',
       background: 'var(--surface-pop)',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
       borderTop: `1px solid ${NUC.hairline}`,
       borderBottom: `1px solid ${NUC.hairline}`,
       padding: '10px 14px',

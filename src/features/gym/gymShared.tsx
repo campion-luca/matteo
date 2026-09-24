@@ -217,7 +217,7 @@ export function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo
     border: '1px solid var(--hairline)', background: 'var(--surface-2)',
   } as const
   if (foto) {
-    return <img src={foto} alt="" loading="lazy" decoding="async"
+    return <img src={foto} alt="" decoding="async"
       style={{ ...cornice, objectFit: 'cover', display: 'block' }}/>
   }
   return (

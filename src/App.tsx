@@ -3,13 +3,13 @@ import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
 import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
-import { NucGrain } from '@/components/ui/NucComponents'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { UpdateToast } from '@/components/UpdateToast'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { InstallBanner } from '@/components/InstallBanner'
-import { useStore, useJarvisStore, EMPTY_STATE, JARVIS_STORE_KEY, applyRemoteState } from '@/store/useJarvisStore'
+import { useShallow } from 'zustand/react/shallow'
+import { useJarvisStore, EMPTY_STATE, JARVIS_STORE_KEY, applyRemoteState } from '@/store/useJarvisStore'
 import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
 import { supabase } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoteUpdatedAt, senzaRete } from '@/lib/cloudSync'
@@ -240,7 +240,15 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
 
 // ── App shell ──────────────────────────────────────────────────
 export default function App() {
-  const [s] = useStore()
+  // Solo i campi che l'involucro legge davvero. Con lo store intero ogni
+  // scrittura — una serie registrata, una scheda spostata — ridisegnava l'app
+  // da cima a fondo, compresa la pagina che si stava toccando.
+  const s = useJarvisStore(useShallow(st => ({
+    darkMode: st.darkMode, lang: st.lang, layout: st.layout, bgFuso: st.bgFuso,
+    accentColor: st.accentColor, customAccentHex: st.customAccentHex,
+    userName: st.userName, userSex: st.userSex, userWeight: st.userWeight,
+    userHeight: st.userHeight, userDob: st.userDob,
+  })))
   const isDesktop = useIsDesktop()
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [recovering, setRecovering] = useState(false)
@@ -282,17 +290,16 @@ export default function App() {
     document.documentElement.classList.toggle('premium', premium)
   }, [premium])
 
-  // Le due prove sul fondo (vedi "Sfondo fuso" e "Sfondo in movimento" in
-  // globals.css). Assenti dallo stato = accese: sono il fondo con cui l'app si
-  // presenta ora, e chi non le vuole le spegne da Impostazioni · Aspetto.
+  // Lo "Sfondo fuso" (vedi globals.css). Assente dallo stato = acceso: è il fondo
+  // con cui l'app si presenta ora, e chi non lo vuole lo spegne da Impostazioni.
+  // Lo "Sfondo in movimento" che gli stava accanto non c'è più: due livelli
+  // grandi una volta e mezza lo schermo, ruotati di continuo, costringevano il
+  // telefono a ricomporre tutta la pagina a ogni fotogramma — ed è lì che i tocchi
+  // arrivavano in ritardo.
   const bgFuso  = s.bgFuso  ?? true
-  const bgAnim  = s.bgAnim  ?? true
   useEffect(() => {
     document.documentElement.classList.toggle('bg-fusione', bgFuso)
   }, [bgFuso])
-  useEffect(() => {
-    document.documentElement.classList.toggle('bg-anim', bgAnim)
-  }, [bgAnim])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -481,9 +488,6 @@ export default function App() {
   // Shared content that lives inside the content area (both layouts)
   const innerContent = (
     <>
-      <NucGrain/>
-
-
       {(!session || recovering) && (
         <Suspense fallback={null}>
           <JarvisLogin onAuth={() => {}} recovery={recovering} onRecoveryDone={() => setRecovering(false)}/>

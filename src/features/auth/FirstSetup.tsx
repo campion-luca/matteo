@@ -141,7 +141,7 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
       {/* `key` sul contenitore: cambiando passo React rimonta il blocco e
           l'animazione d'ingresso riparte. Senza, la domanda successiva
           apparirebbe già ferma al suo posto. */}
-      <div key={step} className="j-rise-in" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div key={step} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div style={{
           fontFamily: NUC.font, fontSize: 28, fontWeight: 500,
           letterSpacing: -0.6, lineHeight: 1.15, marginBottom: 8,

@@ -216,7 +216,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
                       <Icons.chev size={15} stroke={1.8}/>
                     </span>
                   </button>
-                  {aperta && <div className="j-rise-in">{sc.voci.map(v => riga(v, true))}</div>}
+                  {aperta && <div>{sc.voci.map(v => riga(v, true))}</div>}
                 </div>
               )
             })}

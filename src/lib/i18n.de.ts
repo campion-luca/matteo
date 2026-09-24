@@ -717,9 +717,6 @@ export const DE_UI: Record<string, string> = {
   'Sfondo fuso': 'Verschmolzener Hintergrund',
   'Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.':
     'Schwarz, Orange und Blaugrau ineinander verlaufend statt nur warmer Lichthöfe. Gilt für die dunklen Themen.',
-  'Sfondo in movimento': 'Hintergrund in Bewegung',
-  'Gli aloni scorrono lentamente e non si fermano mai. Si muove solo il fondo, il resto della pagina non si ridisegna.':
-    'Die Lichthöfe ziehen langsam und ohne Unterbrechung. Nur der Hintergrund bewegt sich, der Rest der Seite wird nicht neu gezeichnet.',
   'Standard': 'Standard',
   'I colori del tema scelto sopra.': 'Die Farben des oben gewählten Themas.',
   'Premium': 'Premium',
@@ -820,4 +817,23 @@ export const DE_UI: Record<string, string> = {
   'Elimina messaggio': 'Nachricht löschen',
   'Togliere il messaggio?': 'Nachricht entfernen?',
   'questo messaggio': 'diese Nachricht',
+
+  // ── Allenamento: nota, carico consigliato, storico della scheda ──
+  'Elimina alzata': 'Satz löschen',
+  'Storico allenamenti': 'Trainingsverlauf',
+  'Tocca un’alzata per correggere chili, colpi o nota.': 'Tippe auf einen Eintrag, um Kilo, Wiederholungen oder Notiz zu korrigieren.',
+  'ultimo {giorno}': 'zuletzt {giorno}',
+  'Tutte le serie a {n} colpi: si può salire.': 'Alle Sätze mit {n} Wiederholungen: Du kannst steigern.',
+  'Due settimane allo stesso peso: prova a salire.': 'Zwei Wochen mit demselben Gewicht: Versuch zu steigern.',
+  'L’ultima volta {fatte} serie su {serie}: meglio scendere.': 'Letztes Mal {fatte} von {serie} Sätzen: besser reduzieren.',
+  'L’ultima volta una serie sotto i {n} colpi: meglio scendere.': 'Letztes Mal ein Satz unter {n} Wiederholungen: besser reduzieren.',
+  'L’ultima volta hai dovuto alleggerire: riparti più basso.': 'Letztes Mal musstest du reduzieren: Fang niedriger an.',
+  'Resta a questo peso finché non fai {n} colpi su tutte le serie.': 'Bleib bei diesem Gewicht, bis du in allen Sätzen {n} Wiederholungen schaffst.',
+  'Resta a questo peso.': 'Bleib bei diesem Gewicht.',
+  'Carico consigliato': 'Empfohlenes Gewicht',
+  'Usa': 'Übernehmen',
+  'Nota dell’ultima volta:': 'Notiz vom letzten Mal:',
+  'Aggiungi nota': 'Notiz hinzufügen',
+  'nota': 'Notiz',
+  'Nota su questa sessione…': 'Notiz zu dieser Einheit…',
 }

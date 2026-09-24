@@ -87,7 +87,7 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
       requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
     } else if (mount) {
       setVisible(false)
-      const timer = setTimeout(() => setMount(false), 180)
+      const timer = setTimeout(() => setMount(false), 150)
       return () => clearTimeout(timer)
     }
     // Reagisce solo all'apertura/chiusura: `mount` è letto ma non deve ritriggerare.
@@ -101,10 +101,11 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
     <div onClick={onClose} style={{
       position: 'absolute', inset: 0, zIndex: 90,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
+      // Solo il velo, senza sfocatura: `backdrop-filter` su tutto lo schermo
+      // costringeva il telefono a ridipingere la pagina sotto proprio nell'istante
+      // in cui il modale si apriva, e il tocco sembrava arrivare in ritardo.
       background: visible ? 'var(--scrim)' : 'transparent',
-      backdropFilter: visible ? 'blur(6px)' : 'none',
-      WebkitBackdropFilter: visible ? 'blur(6px)' : 'none',
-      transition: 'background 180ms ease, backdrop-filter 180ms ease',
+      transition: 'background 140ms ease',
       padding: 14,
     }}>
       <div
@@ -127,7 +128,7 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         opacity: visible ? 1 : 0,
         transform: visible ? 'scale(1) translateY(0)' : 'scale(0.97) translateY(8px)',
-        transition: 'opacity 180ms ease, transform 220ms cubic-bezier(.2,.9,.25,1.1)',
+        transition: 'opacity 140ms ease, transform 160ms cubic-bezier(.2,.9,.25,1.1)',
         position: 'relative',
         outline: 'none',
       }}>

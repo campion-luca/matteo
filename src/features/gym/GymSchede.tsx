@@ -16,13 +16,15 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtReps } from './gymModel'
+import { fmtDayMonthFull } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { leggiSessione, salvaSessione, scartaSessione } from './sessioneInCorso'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio } from './gymShared'
+import { caricoConsigliato, type Consiglio } from './caricoConsigliato'
 import { todayISO } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
@@ -64,7 +66,7 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-col h-full overflow-hidden j-page-in">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="j-page-header">
         {/* `flex-wrap` + un minimo garantito al titolo.
             Senza, con tre comandi a destra il titolo si stringeva a 156px mentre
@@ -254,7 +256,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
 
   // Alla fine dell'allenamento: registra un'"alzata" per ogni esercizio eseguito,
   // collegandolo (o creandolo) tra gli esercizi dei gruppi muscolari.
-  const finishTraining = (scheda: GymScheda, results: { id: string; checks: boolean[]; weights: string[]; reps: string[] }[]) => {
+  const finishTraining = (scheda: GymScheda, results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string }[]) => {
     const today = todayISO()
     const wl = weekLabel(today)
     let exs = [...palestraExercises]
@@ -293,6 +295,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         scheda: { id: scheda.id, nome: scheda.title },
         ...(variesKg ? { setWeights: doneWeights } : {}),
         ...(variesReps ? { setReps: doneReps } : {}),
+        ...(r.note?.trim() ? { note: r.note.trim() } : {}),
       }
 
       let target = se.linkedExerciseId ? exs.find(e => e.id === se.linkedExerciseId) : undefined
@@ -350,6 +353,23 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
     // La striscia deve puntare alla riga NUOVA, o la correzione dopo cercherebbe
     // un oggetto che nello storico non c'è più.
     setAppenaSalvate(list => list.map(a => (a === vecchia ? { ...a, entry: nuova } : a)))
+  }
+
+  /** Toglie dallo storico un'alzata registrata da una scheda (l'allenamento
+   *  salvato due volte, l'esercizio spuntato per sbaglio). Per riferimento, come
+   *  la correzione. */
+  const eliminaAlzata = (a: AlzataSalvata) => {
+    confirmDelete(() => {
+      set(st => ({
+        palestraExercises: (st.palestraExercises ?? []).map(e => {
+          if (e.id !== a.exerciseId) return e
+          const history = e.history.filter(h => h !== a.entry)
+          const last = sortedHistory(history)[history.length - 1]
+          return { ...e, history, current: last ? { kg: last.kg, reps: last.reps, sets_n: last.sets_n } : e.current }
+        }),
+      }))
+      setAppenaSalvate(list => list.filter(x => x !== a))
+    }, t('Alzata'))
   }
 
   const renderView = () => {
@@ -412,7 +432,9 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
           ? (athleteId: string) => condividiScheda(ioId, athleteId, userName ?? '', current)
           : undefined}
         appenaSalvate={appenaSalvate}
+        palestraExercises={palestraExercises}
         onCorreggi={setCorreggo}
+        onElimina={eliminaAlzata}
         onBack={() => { setActive(null); setAppenaSalvate([]); setView('list') }}
         onEdit={() => { setEditing(current); setView('form') }}
         onDelete={() => { removeScheda(current.id); setActive(null); setView('list') }}
@@ -541,8 +563,8 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
         {schede.length === 0 && (
           <div className="j-empty">{t('Nessuna scheda — creane una con +')}</div>
         )}
-        {schede.map((s, i) => (
-          <div key={s.id} onClick={() => onOpen(s)} className="mb-2.5 cursor-pointer j-rise-in" style={{ animationDelay: `${Math.min(i * 45, 360)}ms` }}>
+        {schede.map(s => (
+          <div key={s.id} onClick={() => onOpen(s)} className="mb-2.5 cursor-pointer">
             <NucCard pad={14}>
               <div className="flex items-center justify-between gap-3">
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1018,7 +1040,100 @@ function PonteSuperset() {
   )
 }
 
-function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, allievi, appenaSalvate = [], onCorreggi, onCondividi, onBack, onEdit, onDelete, onStart }: {
+// ── Gli allenamenti fatti con una scheda ───────────────────────
+// Non c'è un archivio delle sessioni: ogni allenamento finisce come alzate
+// separate nello storico dei singoli esercizi, ognuna con la scheda da cui
+// viene (`entry.scheda`). Una sessione si ricompone raccogliendo le alzate di
+// questa scheda e raggruppandole per giorno. Le alzate sono gli OGGETTI dello
+// store, non copie: correggerle e toglierle passa dal riferimento (vedi
+// `correggiAlzata`).
+interface Sessione { giorno: string; alzate: AlzataSalvata[] }
+
+function sessioniDellaScheda(scheda: GymScheda, esercizi: PalestraExercise[]): Sessione[] {
+  // L'ordine dentro la giornata è quello della scheda, non quello dello store.
+  const posto = (exId: string, nome: string) => {
+    const i = scheda.exercises.findIndex(e => e.linkedExerciseId === exId || e.name.trim().toLowerCase() === nome.trim().toLowerCase())
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i
+  }
+  const perGiorno = new Map<string, AlzataSalvata[]>()
+  for (const ex of esercizi) {
+    for (const h of ex.history) {
+      if (h.scheda?.id !== scheda.id) continue
+      const giorno = h.date ?? h.d
+      const lista = perGiorno.get(giorno) ?? []
+      lista.push({ exerciseId: ex.id, nome: ex.n, entry: h })
+      perGiorno.set(giorno, lista)
+    }
+  }
+  return [...perGiorno.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([giorno, alzate]) => ({
+      giorno,
+      alzate: alzate.sort((a, b) => posto(a.exerciseId, a.nome) - posto(b.exerciseId, b.nome)),
+    }))
+}
+
+/** "23 settembre", con l'anno solo se non è quello in corso. */
+function giornoSessione(giorno: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(giorno)) return giorno
+  const anno = giorno.slice(0, 4)
+  return anno === String(new Date().getFullYear()) ? fmtDayMonthFull(giorno) : `${fmtDayMonthFull(giorno)} ${anno}`
+}
+
+// Una riga di alzata registrata: nome, colpi × chili, la nota se c'è. Toccata
+// si corregge; il cestino, dove c'è, la toglie.
+function RigaAlzata({ a, primo, onCorreggi, onElimina }: {
+  a: AlzataSalvata
+  primo: boolean
+  onCorreggi?: (a: AlzataSalvata) => void
+  onElimina?: (a: AlzataSalvata) => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const h = a.entry
+  return (
+    <div className="flex items-center gap-2" style={{ borderTop: primo ? 'none' : '1px solid var(--hairline-soft)' }}>
+      <button
+        onClick={() => onCorreggi?.(a)}
+        className="flex items-center justify-between gap-3 j-riga-gruppo"
+        style={{
+          flex: 1, minWidth: 0, padding: '9px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+          background: 'transparent', border: 'none', textAlign: 'left',
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {tData(a.nome)}
+          </span>
+          {h.note && (
+            <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 2, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {h.note}
+            </span>
+          )}
+        </span>
+        <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.2 }}>
+          {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
+        </span>
+        <span style={{ flexShrink: 0, color: NUC.faint, display: 'flex' }}><Icons.pencil size={12} stroke={1.8}/></span>
+      </button>
+      {onElimina && (
+        <button
+          onClick={() => onElimina(a)}
+          aria-label={t('Elimina alzata')}
+          className="j-hit flex items-center justify-center"
+          style={{
+            width: 28, height: 28, borderRadius: 'var(--radius-sm)', flexShrink: 0, cursor: 'pointer',
+            background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)',
+          }}
+        >
+          <Icons.trash size={11} stroke={1.6}/>
+        </button>
+      )}
+    </div>
+  )
+}
+
+function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, allievi, appenaSalvate = [], palestraExercises = [], onCorreggi, onElimina, onCondividi, onBack, onEdit, onDelete, onStart }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
   /** La riga di `coach_schede` da cui arriva questa scheda, se è stata assegnata.
@@ -1036,7 +1151,11 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
   /** Le alzate che l'allenamento appena finito ha scritto nello storico. Vuoto
    *  in ogni altro caso: la striscia compare solo al ritorno da una sessione. */
   appenaSalvate?: AlzataSalvata[]
+  /** Gli esercizi con il loro storico: da lì si ricostruiscono gli allenamenti
+   *  fatti con questa scheda. */
+  palestraExercises?: PalestraExercise[]
   onCorreggi?: (a: AlzataSalvata) => void
+  onElimina?: (a: AlzataSalvata) => void
   /** Manca finché non si sa chi sono: senza sessione non si condivide niente. */
   onCondividi?: (athleteId: string) => Promise<void>
   onBack: () => void
@@ -1055,6 +1174,9 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
   // differenza con lo stesso scambio fatto in chat, dove dopo tre giorni nessuno
   // sa più di quale esercizio si stesse parlando.
   const [richieste, setRichieste] = useState(false)
+  // La terza faccia: gli allenamenti già fatti con questa scheda, uno per giorno.
+  const [storico, setStorico] = useState(false)
+  const sessioni = useMemo(() => sessioniDellaScheda(scheda, palestraExercises), [scheda, palestraExercises])
   const [chiedi, setChiedi] = useState<null | { esercizio?: GymSchedaExercise; tipo: TipoMessaggio }>(null)
 
   const daCoach = assegnata ? (assegnata.coach_name?.trim() || t('Allenatore')) : undefined
@@ -1135,10 +1257,12 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
 
   return (
     <SchedaPage
-      onBack={richieste ? () => setRichieste(false) : onBack} tronca
+      onBack={richieste ? () => setRichieste(false) : storico ? () => setStorico(false) : onBack} tronca
       title={scheda.title}
       sub={richieste
         ? t('Richieste a {chi}', { chi: daCoach ?? '' })
+        : storico
+          ? t('Storico allenamenti')
         : daCoach
           ? t('da {chi}', { chi: daCoach })
           : scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: scheda.exercises.length })}
@@ -1146,7 +1270,28 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
         {/* Il punto interrogativo: la porta fra le due facce della scheda. Sta a
             sinistra degli altri perché è l'unico che non fa niente di definitivo,
             e perché quando c'è un messaggio da leggere è il primo da vedere. */}
-        {puoiChiedere && (
+        {/* L'orologio: gli allenamenti già fatti. Solo se ce n'è almeno uno —
+            un tasto che apre una pagina vuota è una promessa non mantenuta. */}
+        {sessioni.length > 0 && !richieste && (
+          <button
+            onClick={() => setStorico(v => !v)}
+            aria-pressed={storico}
+            aria-label={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
+            title={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
+            className="j-hard flex items-center justify-center"
+            style={{
+              ...iconBtn(),
+              ...(storico ? {
+                background: 'var(--j-accent)',
+                border: '1px solid var(--j-accent)',
+                color: 'var(--j-accent-fg)',
+              } : {}),
+            }}
+          >
+            <Icons.clock size={16} stroke={1.9}/>
+          </button>
+        )}
+        {puoiChiedere && !storico && (
           <button
             onClick={() => setRichieste(r => !r)}
             aria-pressed={richieste}
@@ -1199,7 +1344,28 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
       </>}
     >
 
-      {richieste && ioId ? (
+      {storico ? (
+        <div className="j-scroll-area">
+          <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 12 }}>
+            {t('Tocca un’alzata per correggere chili, colpi o nota.')}
+          </div>
+          {sessioni.map(s => (
+            <NucCard key={s.giorno} pad={13} style={{ marginBottom: 10 }}>
+              <div className="flex items-baseline justify-between gap-2" style={{ marginBottom: 6 }}>
+                <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>
+                  {giornoSessione(s.giorno)}
+                </div>
+                <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>
+                  {s.alzate.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.alzate.length })}
+                </div>
+              </div>
+              {s.alzate.map((a, i) => (
+                <RigaAlzata key={`${a.exerciseId}-${i}`} a={a} primo={i === 0} onCorreggi={onCorreggi} onElimina={onElimina}/>
+              ))}
+            </NucCard>
+          ))}
+        </div>
+      ) : richieste && ioId ? (
         <div className="j-scroll-area">
           <div style={{
             marginBottom: 12, padding: '10px 12px',
@@ -1273,24 +1439,7 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
               {t('Tocca un’alzata per correggere i chili o i colpi.')}
             </div>
             {appenaSalvate.map((a, i) => (
-              <button
-                key={a.exerciseId}
-                onClick={() => onCorreggi(a)}
-                className="flex items-center justify-between gap-3 w-full j-riga-gruppo"
-                style={{
-                  padding: '9px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                  background: 'transparent', border: 'none', textAlign: 'left',
-                  borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
-                }}
-              >
-                <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {tData(a.nome)}
-                </span>
-                <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.2 }}>
-                  {a.entry.sets_n} × {a.entry.reps} – {fmtNum(a.entry.kg)} kg
-                </span>
-                <span style={{ flexShrink: 0, color: NUC.faint, display: 'flex' }}><Icons.pencil size={12} stroke={1.8}/></span>
-              </button>
+              <RigaAlzata key={a.exerciseId} a={a} primo={i === 0} onCorreggi={onCorreggi}/>
             ))}
           </NucCard>
         )}
@@ -1302,7 +1451,7 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
             const color = muscleColor(e.muscle, muscleColors)
             const linkedToPrev = i > 0 && scheda.exercises[i - 1].supersetWithNext
             return (
-              <div key={e.id} className="j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms`, marginBottom: e.supersetWithNext ? 0 : 8 }}>
+              <div key={e.id} style={{ marginBottom: e.supersetWithNext ? 0 : 8 }}>
                 {linkedToPrev && <PonteSuperset/>}
                 <NucCard pad={13} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(linkedToPrev, !!e.supersetWithNext) }}>
                   <div className="flex items-center justify-between gap-3">
@@ -1327,12 +1476,34 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
             )
           })
         )}
+
+        {/* La porta per lo storico anche in fondo alla scheda, oltre all'orologio
+            in testata: è qui che si guarda dopo aver letto gli esercizi. */}
+        {sessioni.length > 0 && (
+          <button
+            onClick={() => setStorico(true)}
+            className="j-riga-gruppo flex items-center justify-between gap-3 w-full"
+            style={{
+              marginTop: 6, padding: '12px 14px', borderRadius: 'var(--radius)', cursor: 'pointer',
+              background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, textAlign: 'left',
+            }}
+          >
+            <span className="flex items-center gap-2.5" style={{ minWidth: 0, color: NUC.ink }}>
+              <Icons.clock size={16} stroke={1.8}/>
+              <span style={{ fontFamily: NUC.font, fontSize: 14 }}>{t('Storico allenamenti')}</span>
+            </span>
+            <span className="flex items-center gap-1.5" style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint }}>
+              {t('ultimo {giorno}', { giorno: giornoSessione(sessioni[0].giorno) })}
+              <Icons.chev size={12} stroke={2}/>
+            </span>
+          </button>
+        )}
       </div>
       )}
 
       {/* Il tasto per allenarsi non c'è nella vista delle richieste: lì si sta
           scrivendo, non ci si sta preparando a partire. */}
-      {!richieste && scheda.exercises.length > 0 && (
+      {!richieste && !storico && scheda.exercises.length > 0 && (
         <div className="j-page-cta">
           <button onClick={onStart} className="j-hard j-accent-key j-focus flex items-center justify-center gap-2 w-full" style={{
             height: 52, borderRadius: 'var(--radius)', backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)',
@@ -1495,12 +1666,68 @@ function CampoSerie({ value, onChange, unita, mode, etichetta, allarme }: {
   )
 }
 
+// I tastini nell'angolo della card di un esercizio ("uguale", "nota").
+const TASTINO: CSSProperties = {
+  height: 26, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+  background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
+  fontFamily: NUC.label, fontSize: 9, letterSpacing: '.04em', textTransform: 'uppercase',
+}
+
+// ── Il carico consigliato, dentro la card di un esercizio ──────
+// Una riga sola: verso, peso, perché. Il colore dice il verso (verde si sale,
+// rosso si scende) e il perché sta scritto, perché un consiglio senza motivo
+// si ignora — o peggio si segue senza sapere che la volta prima si era saltata
+// una serie. "Usa" scrive il peso sulle serie ancora da fare.
+function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
+  consiglio: Consiglio
+  serie: number
+  applicabile: boolean
+  onUsa: () => void
+}) {
+  const t = useT()
+  const { verso, kg, motivo, fatte, cima } = consiglio
+  const colore = verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.dim
+  const freccia = verso === 'su' ? '↑' : verso === 'giu' ? '↓' : '='
+  const perche =
+    motivo === 'completo' ? t('Tutte le serie a {n} colpi: si può salire.', { n: cima ?? '' })
+    : motivo === 'dueSettimane' ? t('Due settimane allo stesso peso: prova a salire.')
+    : motivo === 'serieMancanti' ? t('L’ultima volta {fatte} serie su {serie}: meglio scendere.', { fatte: fatte ?? 0, serie })
+    : motivo === 'colpiCorti' ? t('L’ultima volta una serie sotto i {n} colpi: meglio scendere.', { n: cima ?? '' })
+    : motivo === 'pesoCalato' ? t('L’ultima volta hai dovuto alleggerire: riparti più basso.')
+    : cima ? t('Resta a questo peso finché non fai {n} colpi su tutte le serie.', { n: cima })
+    : t('Resta a questo peso.')
+  return (
+    <div className="flex items-center gap-2.5" style={{
+      marginBottom: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+      background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`,
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: NUC.faint }}>
+          {t('Carico consigliato')}
+        </div>
+        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: colore, marginTop: 1 }}>
+          <span aria-hidden>{freccia} </span>{fmtNum(kg)} kg
+        </div>
+        <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.4, color: NUC.dim, marginTop: 2 }}>{perche}</div>
+      </div>
+      {applicabile && (
+        <button onClick={onUsa} className="j-hard-sm" style={{
+          ...TASTINO, flexShrink: 0, height: 32, padding: '0 12px', fontSize: 10, fontWeight: 600,
+          color: 'var(--j-accent-ink)',
+        }}>
+          {t('Usa')}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Allenamento (esecuzione scheda) ────────────────────────────
 // Un peso E un numero di colpi per ogni serie: la scheda è il programma, non il
 // verbale. Le ultime serie calano quasi sempre, e prima l'allenamento veniva
 // salvato con i colpi PREVISTI su tutte — tre serie da 10 anche quando erano
 // state 10, 8, 6, con il volume gonfiato di conseguenza.
-interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[] }
+interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; note?: string }
 
 // L'obiettivo di colpi di un esercizio della scheda. `reps` è una stringa perché
 // ammette gli intervalli ("8-10"): l'obiettivo è il MINIMO dell'intervallo, cioè
@@ -1515,11 +1742,14 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   palestraExercises: PalestraExercise[]
   muscleColors: Record<string, string>
   onExit: () => void
-  onFinish: (results: { id: string; checks: boolean[]; weights: string[]; reps: string[] }[]) => void
+  onFinish: (results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string }[]) => void
 }) {
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
+  // Gli esercizi con il campo della nota aperto. Quelli che una nota ce l'hanno
+  // già la mostrano comunque: si apre a mano solo per cominciarne una.
+  const [noteAperte, setNoteAperte] = useState<Set<string>>(() => new Set())
   // Il riepilogo prima di salvare. Aperto, non subito confermato: è lÌ che le
   // serie mancanti diventano leggibili come mancanti — durante la sessione ogni
   // esercizio parte a zero, e un rosso che compare a metà del primo esercizio
@@ -1578,6 +1808,18 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       return { ...p, [exId]: { ...cur, weights } }
     })
 
+  const setNote = (exId: string, note: string) =>
+    setProgress(p => ({ ...p, [exId]: { ...p[exId], note } }))
+
+  // Il carico consigliato scritto su tutte le serie non ancora spuntate: quelle
+  // già fatte sono andate con il peso che avevano, e riscriverle falserebbe lo
+  // storico.
+  const usaConsiglio = (exId: string, kg: number) =>
+    setProgress(p => {
+      const cur = p[exId]
+      return { ...p, [exId]: { ...cur, weights: cur.weights.map((w, i) => cur.checks[i] ? w : fmtNum(kg)) } }
+    })
+
   const setSetReps = (exId: string, setIdx: number, reps: string) =>
     setProgress(p => {
       const cur = p[exId]
@@ -1595,6 +1837,16 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       const rp = cur.reps[0] ?? ''
       return { ...p, [exId]: { ...cur, weights: cur.weights.map(() => kg), reps: cur.reps.map(() => rp) } }
     })
+
+  // Il consiglio di ogni esercizio si calcola una volta sola per sessione: dipende
+  // dallo storico, che durante l'allenamento non cambia, e non dai tasti premuti.
+  const consigli = useMemo(() => {
+    const out: Record<string, Consiglio | null> = {}
+    for (const e of scheda.exercises) out[e.id] = caricoConsigliato(resolveLinked(e)?.history ?? [], e, scheda.id)
+    return out
+    // `resolveLinked` legge solo `palestraExercises`, che è già fra le dipendenze.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheda, palestraExercises])
 
   // L'avanzamento conta gli ESERCIZI completati (tutte le serie flaggate), non le
   // singole serie: una volta spuntate tutte le serie l'esercizio è "fatto".
@@ -1621,6 +1873,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       checks: progress[e.id].checks,
       weights: progress[e.id].weights,
       reps: progress[e.id].reps,
+      note: progress[e.id].note,
     })))
   }
 
@@ -1667,6 +1920,11 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
           const target = obiettivoColpi(e.reps)
           const last = resolveLinked(e)
           const hasLast = !!last && last.history.length > 0
+          // La nota dell'ultima volta: si rilegge prima di cominciare, che è
+          // quando serve ("sedile al 4", "la spalla tirava").
+          const notaPrima = hasLast ? sortedHistory(last!.history)[last!.history.length - 1]?.note : undefined
+          const consiglio = consigli[e.id]
+          const notaVisibile = noteAperte.has(e.id) || !!p.note
           const exDone = p.checks.length > 0 && p.checks.every(Boolean)
           const linkedToPrev = idx > 0 && scheda.exercises[idx - 1].supersetWithNext
           return (
@@ -1685,7 +1943,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                   </div>
                   {hasLast && (
                     <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.accentSoft, marginTop: 3 }}>
-                      {t('ultima volta')} {fmtNum(last!.current.kg)} kg × {last!.current.reps}
+                      {t('ultima volta')} {last!.current.reps} × {fmtNum(last!.current.kg)} kg
+                    </div>
+                  )}
+                  {notaPrima && (
+                    <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                      {t('Nota dell’ultima volta:')} {notaPrima}
                     </div>
                   )}
                   {e.note && (
@@ -1694,16 +1957,34 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                     </div>
                   )}
                 </div>
-                {nSets > 1 && (
-                  <button onClick={() => applyFirstToAll(e.id)} className="flex items-center gap-1" style={{
-                    flexShrink: 0, height: 26, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                    background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
-                    fontFamily: NUC.label, fontSize: 9, letterSpacing: '.04em', textTransform: 'uppercase',
-                  }}>
-                    <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
-                  </button>
-                )}
+                <div className="flex flex-col gap-1.5" style={{ flexShrink: 0, alignItems: 'flex-end' }}>
+                  {nSets > 1 && (
+                    <button onClick={() => applyFirstToAll(e.id)} className="flex items-center gap-1" style={TASTINO}>
+                      <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
+                    </button>
+                  )}
+                  {!notaVisibile && (
+                    <button
+                      onClick={() => setNoteAperte(s => new Set(s).add(e.id))}
+                      aria-label={`${tData(e.name)} · ${t('Aggiungi nota')}`}
+                      className="flex items-center gap-1" style={TASTINO}
+                    >
+                      <Icons.pencil size={10} stroke={1.8}/> {t('nota')}
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {consiglio && (
+                <ConsiglioCarico
+                  consiglio={consiglio}
+                  serie={nSets}
+                  // Il tasto serve solo se c'è qualcosa da cambiare: con il
+                  // consiglio già scritto su ogni serie da fare sarebbe un no-op.
+                  applicabile={p.weights.some((w, i) => !p.checks[i] && parseNum(w) !== consiglio.kg)}
+                  onUsa={() => usaConsiglio(e.id, consiglio.kg)}
+                />
+              )}
 
               {/* Una riga per serie: spunta + peso + colpi della singola serie.
                   I colpi stanno accanto al peso e non in cima all'esercizio
@@ -1732,12 +2013,9 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                         {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-sm)', border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
                         {t('Serie {n}', { n: i + 1 })}
                       </button>
-                      <CampoSerie
-                        value={p.weights[i] ?? ''}
-                        onChange={v => setSetWeight(e.id, i, v)}
-                        unita="kg" mode="decimal"
-                        etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · kg`}
-                      />
+                      {/* Prima i colpi, poi i chili: è l'ordine in cui la serie si
+                          racconta ("10 per 60") e quello in cui si scrive a fine
+                          serie — il peso di solito è già lì dalla volta prima. */}
                       <CampoSerie
                         value={p.reps[i] ?? ''}
                         onChange={v => setSetReps(e.id, i, v)}
@@ -1745,10 +2023,30 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                         etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · ${t('colpi')}`}
                         allarme={corta}
                       />
+                      <CampoSerie
+                        value={p.weights[i] ?? ''}
+                        onChange={v => setSetWeight(e.id, i, v)}
+                        unita="kg" mode="decimal"
+                        etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · kg`}
+                      />
                     </div>
                   )
                 })}
               </div>
+
+              {notaVisibile && (
+                <textarea
+                  value={p.note ?? ''}
+                  onChange={ev => setNote(e.id, ev.target.value)}
+                  // Aperta a mano, il campo è quello che si voleva: si scrive subito.
+                  autoFocus={!p.note}
+                  rows={2}
+                  aria-label={`${tData(e.name)} · ${t('nota')}`}
+                  placeholder={t('Nota su questa sessione…')}
+                  className="j-field"
+                  style={{ height: 'auto', minHeight: 56, marginTop: 10, padding: '9px 12px', resize: 'vertical', lineHeight: 1.45 }}
+                />
+              )}
             </NucCard>
             </div>
           )
@@ -1864,10 +2162,10 @@ function SchedaReportPage({ schede, muscleColors, onBack }: {
             <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 12, lineHeight: 1.5 }}>
               {t('Distribuzione dei gruppi muscolari su tutte le schede: quante volte ogni gruppo viene colpito e la sua quota sul totale.')}
             </div>
-            {rows.map((r, i) => {
+            {rows.map(r => {
               const color = muscleColor(r.muscle, muscleColors)
               return (
-                <div key={r.muscle} className="mb-2.5 j-rise-in" style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}>
+                <div key={r.muscle} className="mb-2.5">
                   <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
                     <div className="flex items-center justify-between gap-3" style={{ marginBottom: 8 }}>
                       <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, color: muscleTextColor(color, dark) }}>{tData(r.muscle)}</div>

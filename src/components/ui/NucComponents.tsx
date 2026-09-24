@@ -3,19 +3,6 @@ import { NUC } from '@/lib/jarvis-tokens'
 
 
 
-// ── Grain overlay (paper texture, very subtle) ─────────────────
-export function NucGrain() {
-  return (
-    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.06, mixBlendMode: 'multiply', pointerEvents: 'none', zIndex: 70 }}>
-      <filter id="nuc-grain">
-        <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves={3} stitchTiles="stitch"/>
-        <feColorMatrix values="0 0 0 0 0.24  0 0 0 0 0.16  0 0 0 0 0.08  0 0 0 0.6 0"/>
-      </filter>
-      <rect width="100%" height="100%" filter="url(#nuc-grain)"/>
-    </svg>
-  )
-}
-
 // ── Paper card ─────────────────────────────────────────────────
 interface NucCardProps {
   children: ReactNode; style?: CSSProperties; strong?: boolean; pad?: number
@@ -61,9 +48,12 @@ export function NucCard({ children, style = {}, strong = false, pad = 18, onPres
       onKeyDown={isControl ? e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPress?.() }
       } : undefined}
-      onMouseDown={() => setPressed(true)}
-      onMouseUp={() => { setPressed(false); onPress?.() }}
-      onMouseLeave={() => setPressed(false)}
+      // Lo stato "premuto" serve solo alla scala delle card piatte che si
+      // premono. Prima lo scrivevano tutte, a ogni tocco: una spunta dentro la
+      // card di un esercizio ridisegnava due volte la card intera, campi compresi.
+      onMouseDown={onPress && soft ? () => setPressed(true) : undefined}
+      onMouseUp={onPress ? () => { if (soft) setPressed(false); onPress() } : undefined}
+      onMouseLeave={onPress && soft ? () => setPressed(false) : undefined}
       style={{
         position: 'relative',
         borderRadius: 'var(--radius-lg)', padding: pad,

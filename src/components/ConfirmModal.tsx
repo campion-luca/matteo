@@ -37,8 +37,8 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
       onClick={onCancel}
       style={{
         position: 'absolute', inset: 0, zIndex: 300,
+        // Niente sfocatura: vedi il velo del JModal.
         background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '0 28px',
       }}

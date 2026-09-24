@@ -48,3 +48,27 @@ export function fotoEsercizio(nome: string): string | undefined {
 /** Gli slug che una foto ce l'hanno. Serve ai test e a chi deve capire perché
  *  un'immagine non compare (di solito: il file si chiama diversamente). */
 export const SLUG_CON_FOTO: string[] = Object.keys(PER_SLUG).sort()
+
+// ── Pre-caricamento ─────────────────────────────────────────────
+// Le foto sono poche e leggere (una quarantina di webp da ~15 KB), ma aspettare
+// di vederle per chiederle vuol dire vederle comparire in ritardo: prima la card
+// vuota, poi l'immagine. Qui si chiedono tutte appena l'app è ferma, così quando
+// la griglia o una scheda le mostra sono già in memoria.
+// Gli oggetti restano referenziati nel modulo: un `Image` lasciato andare può
+// essere raccolto, e con lui la copia decodificata che si voleva tenere pronta.
+const precaricate: HTMLImageElement[] = []
+
+export function precaricaFoto(): void {
+  if (precaricate.length || typeof window === 'undefined' || typeof Image === 'undefined') return
+  const via = () => {
+    for (const url of Object.values(PER_SLUG)) {
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = url
+      precaricate.push(img)
+    }
+  }
+  const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }
+  if (w.requestIdleCallback) w.requestIdleCallback(via, { timeout: 2000 })
+  else setTimeout(via, 300)
+}

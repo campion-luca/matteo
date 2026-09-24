@@ -31,7 +31,7 @@ import { Riepilogo } from '@/features/dashboard/Riepilogo'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo } from './catalogo'
-import { fotoEsercizio } from './eserciziFoto'
+import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
 import { vistaIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi } from './vistaEsercizi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
@@ -513,7 +513,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
     : null
 
   return (
-    <div className="flex flex-col h-full overflow-hidden j-page-in">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
@@ -622,7 +622,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
 
   return (
     <>
-    <div className="flex flex-col h-full overflow-hidden j-page-in">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div className="flex items-center gap-3">
                     <button onClick={onBack} className="j-btn-back">
@@ -698,7 +698,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           {foto
             // alt vuoto: il nome dell'esercizio è il titolo qui sopra, e ripeterlo
             // farebbe sentire la stessa cosa due volte a chi usa il lettore di schermo.
-            ? <img src={foto} alt="" loading="lazy" decoding="async"
+            ? <img src={foto} alt="" decoding="async"
                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
             : <MuscleIcon muscle={ex.muscle} size={96} style={{ height: '78%', width: 'auto', maxWidth: '60%' }}/>}
         </div>
@@ -731,6 +731,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                   {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
                 </div>
                 <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
+                {h.note && <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.dim, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{h.note}</div>}
                 {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
               </div>
               <div className="text-right flex-shrink-0">
@@ -1049,7 +1050,7 @@ function CardNuovo({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="j-hard j-rise-in j-focus"
+      className="j-hard j-focus"
       aria-label={label}
       style={{
         minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', overflow: 'hidden',
@@ -1081,7 +1082,7 @@ function RigaNuovo({ label, onClick, inFondo = false }: { label: string; onClick
   return (
     <button
       onClick={onClick}
-      className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo j-focus"
+      className="flex items-center gap-3 w-full j-riga-gruppo j-focus"
       aria-label={label}
       style={{
         padding: '11px 12px', borderRadius: 'var(--radius)', textAlign: 'left', cursor: 'pointer',
@@ -1126,9 +1127,8 @@ function ElencoEsercizi({ esercizi, color, onApri, onNuovo }: {
           <button
             key={ex.id}
             onClick={() => onApri(ex)}
-            className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo"
+            className="flex items-center gap-3 w-full j-riga-gruppo"
             style={{
-              animationDelay: `${Math.min(i * 35, 300)}ms`,
               padding: '11px 12px', borderRadius: 'var(--radius)', textAlign: 'left', cursor: 'pointer',
               background: 'transparent', border: 'none',
               borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
@@ -1181,7 +1181,7 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
   return (
     <div style={GRIGLIA}>
       <CardNuovo label={t('Nuovo esercizio')} onClick={onNuovo}/>
-      {esercizi.map((ex, i) => {
+      {esercizi.map(ex => {
         const hist = sortedHistory(ex.history)
         const last = hist[hist.length - 1]
         const foto = fotoEsercizio(ex.n)
@@ -1189,9 +1189,8 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
           <button
             key={ex.id}
             onClick={() => onApri(ex)}
-            className="j-hard j-rise-in"
+            className="j-hard"
             style={{
-              animationDelay: `${Math.min(i * 35, 300)}ms`,
               minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', overflow: 'hidden',
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               borderLeft: `3px solid ${color}`,
@@ -1203,7 +1202,7 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
                 // alt vuoto di proposito: il nome dell'esercizio è scritto qui
                 // sotto: con l'alt pieno chi usa il lettore di schermo se lo
                 // sentirebbe due volte di fila.
-                ? <img src={foto} alt="" loading="lazy" decoding="async"
+                ? <img src={foto} alt="" decoding="async"
                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
                 // Stessa regola della griglia dei gruppi: la figura è una quota del
                 // riquadro, non una misura fissa. Qui sta più bassa perché è un
@@ -1258,9 +1257,8 @@ function ElencoGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
           <button
             key={muscle}
             onClick={() => onApri(muscle)}
-            className="j-rise-in flex items-center gap-3 w-full j-riga-gruppo"
+            className="flex items-center gap-3 w-full j-riga-gruppo"
             style={{
-              animationDelay: `${Math.min(i * 40, 320)}ms`,
               padding: '11px 12px', borderRadius: 'var(--radius)', textAlign: 'left', cursor: 'pointer',
               background: 'transparent',
               border: 'none',
@@ -1306,15 +1304,14 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
   const tData = useTData()
   return (
     <div style={GRIGLIA}>
-      {gruppi.map(({ muscle, items }, i) => {
+      {gruppi.map(({ muscle, items }) => {
         const color = muscleColors[muscle] ?? muscleColors.Altro
         return (
           <button
             key={muscle}
             onClick={() => onApri(muscle)}
-            className="j-hard j-rise-in"
+            className="j-hard"
             style={{
-              animationDelay: `${Math.min(i * 35, 300)}ms`,
               minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer', overflow: 'hidden',
               background: 'var(--surface)', border: '1px solid var(--hairline)',
               borderLeft: `3px solid ${color}`,
@@ -1367,7 +1364,7 @@ function MuscleDetailPage({ muscle, color, icona, exercises, onBack, onSelectExe
   // sul desktop si abbraccia — non un dato da portarsi dietro fra dispositivi.
   const [vista, setVista] = useVistaEsercizi()
   return (
-    <div className="flex flex-col h-full overflow-hidden j-page-in">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
@@ -1412,6 +1409,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const set = useJarvisStore.setState
   const t = useT()
   const bodyWeight = useBodyWeight()
+  // Le foto degli esercizi, chieste in anticipo: vedi `precaricaFoto`.
+  useEffect(() => { precaricaFoto() }, [])
   // `tab` è il mondo in cui si sta (pesi o hyrox), `stats` e `ricerca` sono due
   // viste che ci si aprono sopra. Prima era un'enum sola, e per questo "Stats"
   // doveva per forza essere un terzo tab: entrarci significava USCIRE da pesi.

@@ -28,6 +28,8 @@ export interface SerieInCorso {
   checks: boolean[]
   weights: string[]
   reps: string[]
+  /** L'appunto sull'esercizio scritto durante la sessione. */
+  note?: string
 }
 
 interface Salvata {

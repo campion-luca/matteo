@@ -221,7 +221,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
                 </div>
 
                 {maxAperti && (
-                  <div className="j-rise-in" style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
                     {massimali.map(l => {
                       // Da dove viene il numero sta SEMPRE scritto: "dichiarato" è una
                       // singola provata davvero, "stimato" viene da una serie a
