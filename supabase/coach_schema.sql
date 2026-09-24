@@ -425,3 +425,8 @@ GRANT UPDATE (letto_coach, letto_atleta) ON public.coach_messaggi TO authenticat
 DROP POLICY IF EXISTS "messaggi_deletable_by_both" ON public.coach_messaggi;
 CREATE POLICY "messaggi_deletable_by_both" ON public.coach_messaggi
   FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+-- ── Rende visibili subito le tabelle nuove all'API ─────────────────
+-- Senza, PostgREST può continuare per un po' a rispondere "tabella non
+-- trovata" anche a schema appena eseguito.
+NOTIFY pgrst, 'reload schema';
