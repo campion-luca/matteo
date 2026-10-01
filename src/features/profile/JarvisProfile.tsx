@@ -203,6 +203,13 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // Una pesata registrata più in basso cambia il peso nello store mentre questa
+  // pagina è aperta: il campo deve seguirla. Senza, "Salva" rimetteva il peso
+  // letto all'apertura, e la pesata appena fatta spariva dal profilo.
+  useEffect(() => {
+    setWeight(s.userWeight ? String(s.userWeight) : '')
+  }, [s.userWeight])
+
   const saveName = () => set({ userName: name.trim() })
 
   const saveBody = () => {

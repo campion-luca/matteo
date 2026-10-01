@@ -4,6 +4,7 @@ import type { AccentColor } from '@/lib/jarvis-tokens'
 // Solo il tipo: `import type` sparisce alla compilazione, quindi il fatto che
 // `i18n` importi a sua volta lo store non crea un ciclo a runtime.
 import type { Lang } from '@/lib/i18n'
+import { corpoLibero } from '@/features/gym/catalogo'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -39,6 +40,11 @@ export interface PalestraHistoryEntry {
   // riscrivere com'era chiamato l'allenamento di quel giorno. Serve al calendario
   // degli allenamenti, che raggruppa il giorno per scheda.
   scheda?: { id: string; nome: string }
+  // Cosa chiedeva la scheda QUEL giorno. La scheda si modifica — una serie in
+  // più, i colpi da 8 a 10 — e senza questo l'alzata di ieri verrebbe giudicata
+  // col programma di oggi: tre serie su tre diventano "tre su quattro, meglio
+  // scendere" (vedi caricoConsigliato).
+  piano?: { sets: number; reps: string }
   // Un appunto sulla sessione, scritto mentre ci si allena ("spalla che tira",
   // "sedile al 4"). Resta attaccato a QUESTA alzata, e alla successiva sullo
   // stesso esercizio si rilegge come "nota dell'ultima volta".
@@ -47,6 +53,11 @@ export interface PalestraHistoryEntry {
 export interface PalestraExercise {
   // Il colore non è per esercizio: deriva dal gruppo muscolare (vedi `muscleColors`).
   id: string; n: string; muscle: string; muscle2?: string; note?: string
+  // A corpo libero (piegamenti, trazioni): il carico è il proprio peso e i chili
+  // scritti sono la sola zavorra. Si sceglie creando l'esercizio. Assente = non
+  // ancora scelto, e decide il catalogo (vedi `corpoLibero`); `false` è una
+  // scelta, e il catalogo non la ribalta.
+  bodyweight?: boolean
   current: { kg: number; reps: number; sets_n: number }
   history: PalestraHistoryEntry[]
 }
@@ -58,6 +69,7 @@ export interface GymSchedaExercise {
   reps: string             // numero di colpi/ripetizioni (stringa: consente es. "8-10")
   linkedExerciseId?: string // id del PalestraExercise collegato (scelto dai suggerimenti o creato all'esecuzione)
   muscle?: string          // gruppo muscolare — usato per creare l'esercizio in automatico se nuovo
+  bodyweight?: boolean     // a corpo libero — come `muscle`, serve a creare l'esercizio se è nuovo
   note?: string            // appunto libero (es. "presa larga", "tempo 3-1-1"): mostrato anche in allenamento
   supersetWithNext?: boolean // questo esercizio è in superset con il SUCCESSIVO (nessun rest tra i due)
 }
@@ -206,15 +218,24 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   // mano agli esercizi: le foto non ci sono più, e un nome di file che punta a
   // niente è peggio di un campo assente — il giorno che le immagini tornassero,
   // riapparirebbero scelte fatte mesi prima su un catalogo diverso.
+  //
+  // E le alzate a 0 kg di un esercizio a corpo libero prendono il segno che gli
+  // manca. Eseguendo una scheda, fino a ott 2026, trazioni e piegamenti venivano
+  // salvati come "0 kg" e basta: volume zero, massimale zero — e la prima alzata
+  // segnata bene dopo avrebbe annunciato un record di +99 kg su uno zero. Solo a
+  // 0 kg: con dei chili scritti non si sa se fossero zavorra o altro, e quelle
+  // restano come sono.
   if (out.palestraExercises) {
     out.palestraExercises = out.palestraExercises.map(ex => {
       const copia = { ...ex } as PalestraExercise & { img?: string }
       delete copia.img
+      const corpo = corpoLibero(ex)
       return {
         ...copia,
         history: (ex.history ?? []).map(h => {
           const copy = { ...h } as PalestraHistoryEntry & { rir?: number }
           delete copy.rir
+          if (corpo && !copy.bodyweight && !copy.kg && !copy.setWeights?.some(w => w > 0)) copy.bodyweight = true
           return copy as PalestraHistoryEntry
         }),
       } as PalestraExercise

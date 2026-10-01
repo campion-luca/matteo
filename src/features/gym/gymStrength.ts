@@ -11,6 +11,7 @@
 // sulle braccia. Solo così "verde ovunque" vuol dire davvero equilibrato.
 import type { PalestraExercise } from '@/store/useJarvisStore'
 import { displayMuscle, effectiveLoad, entry1RM } from './gymModel'
+import { quotaCorpo } from './catalogo'
 
 // ── Soglie ─────────────────────────────────────────────────────
 // Multipli del peso corporeo, sull'alzata rappresentativa del distretto (panca
@@ -135,7 +136,8 @@ export function districtStrength(
   }
   for (const ex of exercises) {
     if (!ex.history.length) continue
-    const top = Math.max(...ex.history.map(h => entry1RM(h, bodyWeightKg)))
+    const corpo = bodyWeightKg * quotaCorpo(ex)
+    const top = Math.max(...ex.history.map(h => entry1RM(h, corpo)))
     consider(ex.muscle, top)
     consider(ex.muscle2, top * SECONDARY_SHARE)
   }
@@ -185,10 +187,11 @@ export function achievements(exercises: PalestraExercise[], bodyWeightKg: number
   // Con pesi diversi per serie vale la serie più pesante.
   let firstHundred: string | null = null
   for (const ex of exercises) {
+    const corpo = bodyWeightKg * quotaCorpo(ex)
     for (const h of ex.history) {
       const top = h.setWeights?.length
-        ? Math.max(...h.setWeights.map(w => effectiveLoad({ kg: w, bodyweight: h.bodyweight }, bodyWeightKg)))
-        : effectiveLoad(h, bodyWeightKg)
+        ? Math.max(...h.setWeights.map(w => effectiveLoad({ kg: w, bodyweight: h.bodyweight }, corpo)))
+        : effectiveLoad(h, corpo)
       if (top < HUNDRED_KG) continue
       const date = h.date ?? ''
       // La più VECCHIA che li ha centrati: è quella la prima volta. Le voci senza

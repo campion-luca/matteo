@@ -58,16 +58,45 @@ function combacia(s: Salvata, scheda: GymScheda): boolean {
 /** La sessione lasciata a metà su QUESTA scheda, se c'è ed è ancora valida.
  *  `null` in ogni altro caso: scheda diversa, scaduta, modificata, o illeggibile. */
 export function leggiSessione(scheda: GymScheda, ora = Date.now()): Record<string, SerieInCorso> | null {
+  const s = leggiSalvata(ora)
+  return s && combacia(s, scheda) ? s.progress : null
+}
+
+function leggiSalvata(ora: number): Salvata | null {
   const raw = readStorage('local', KEY)
   if (!raw) return null
   try {
     const s = JSON.parse(raw) as Salvata
-    if (typeof s?.salvataA !== 'number' || ora - s.salvataA > VALIDA_PER_MS) return null
+    if (typeof s?.schedaId !== 'string' || typeof s.salvataA !== 'number' || ora - s.salvataA > VALIDA_PER_MS) return null
     if (!s.progress || typeof s.progress !== 'object') return null
-    return combacia(s, scheda) ? s.progress : null
+    return s
   } catch {
     return null
   }
+}
+
+/** C'è dentro del lavoro: almeno una serie spuntata o una nota scritta. Una
+ *  sessione appena aperta e mai toccata non è "un allenamento in corso". */
+function haLavoro(progress: Record<string, SerieInCorso>): boolean {
+  return Object.values(progress).some(p => p?.checks?.some(Boolean) || !!p?.note?.trim())
+}
+
+/** L'allenamento lasciato a metà, qualunque sia la scheda: serve a dirlo fuori
+ *  dalla pagina dell'allenamento ("Riprendi"), che è dove lo si cerca dopo
+ *  essere usciti. `null` se non c'è, se è scaduto o se non è mai stato toccato. */
+export function sessioneAperta(ora = Date.now()): { schedaId: string; fatte: number; totali: number } | null {
+  const s = leggiSalvata(ora)
+  if (!s || !haLavoro(s.progress)) return null
+  const tutte = Object.values(s.progress).flatMap(p => p?.checks ?? [])
+  return { schedaId: s.schedaId, fatte: tutte.filter(Boolean).length, totali: tutte.length }
+}
+
+/** Salvare questa sessione cancellerebbe quella, già cominciata, di un'altra
+ *  scheda? Succede aprendo un'altra scheda solo per guardarla: finché qui non
+ *  si spunta niente, l'allenamento vero resta quello di prima. */
+export function copreAltra(schedaId: string, progress: Record<string, SerieInCorso>, ora = Date.now()): boolean {
+  const s = leggiSalvata(ora)
+  return !!s && s.schedaId !== schedaId && haLavoro(s.progress) && !haLavoro(progress)
 }
 
 export function salvaSessione(schedaId: string, progress: Record<string, SerieInCorso>, ora = Date.now()): void {

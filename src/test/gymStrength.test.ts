@@ -169,3 +169,22 @@ describe('recordFor — il momento del record', () => {
     expect(r.next).toBe(89)
   })
 })
+
+// In un piegamento i piedi restano a terra: si spinge circa due terzi del
+// proprio peso, non tutto. Contarlo per intero dava a chi fa 3 × 20 piegamenti
+// un petto da 130 kg.
+describe('corpo libero: quanta parte del peso si solleva', () => {
+  const piegamenti = ex({ n: 'Piegamenti', muscle: 'Petto', history: [h({ reps: 20, bodyweight: true })] })
+  const trazioni = ex({ n: 'Trazioni', muscle: 'Dorso', history: [h({ reps: 8, bodyweight: true })] })
+
+  it('i piegamenti contano il 65% del peso corporeo', () => {
+    const petto = districtStrength([piegamenti], 78, 'M').find(d => d.muscle === 'Petto')
+    // 78 × 0,65 = 50,7 kg, × Epley a 20 colpi = 84,5. Non i 130 di prima.
+    expect(Math.round(petto?.best ?? 0)).toBe(85)
+  })
+
+  it('le trazioni contano per intero', () => {
+    const dorso = districtStrength([trazioni], 78, 'M').find(d => d.muscle === 'Dorso')
+    expect(Math.round(dorso?.best ?? 0)).toBe(99)
+  })
+})

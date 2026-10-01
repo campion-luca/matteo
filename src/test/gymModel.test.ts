@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, weekSortKey, weekLabel } from '@/features/gym/gymModel'
-import { isoWeek } from '@/lib/isoDate'
+import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa } from '@/features/gym/gymModel'
+import { isoWeek, giorniTra } from '@/lib/isoDate'
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 const entry = (o: Partial<PalestraHistoryEntry>): PalestraHistoryEntry => ({
@@ -184,5 +184,35 @@ describe('numeri decimali scritti a mano', () => {
     expect(fmtNum(70)).toBe('70')       // non "70,0"
     expect(fmtNum(62.5)).toBe('62,5')
     expect(fmtKg({ kg: 62.5 })).toBe('62,5 kg')
+  })
+})
+
+describe('da quanto non ci si allena', () => {
+  const es = (date: string, schedaId?: string) => ({
+    id: 'x', n: 'Es', muscle: 'Petto', current: { kg: 0, reps: 0, sets_n: 0 },
+    history: [{ d: 'W', date, kg: 60, reps: 8, sets_n: 3, ...(schedaId ? { scheda: { id: schedaId, nome: schedaId } } : {}) }],
+  })
+
+  it('i giorni si contano sul calendario, anche a cavallo del cambio d’ora', () => {
+    expect(giorniTra('2026-09-20', '2026-10-01')).toBe(11)
+    expect(giorniTra('2026-10-24', '2026-10-26')).toBe(2)   // la notte del 25 dura 25 ore
+    expect(giorniTra('2026-10-01', '2026-10-01')).toBe(0)
+  })
+
+  it('l’ultimo allenamento è il giorno più recente fra pesi e hyrox', () => {
+    expect(ultimoAllenamento([es('2026-09-10'), es('2026-09-20')], [{ history: [{ date: '2026-09-25' }] }])).toBe('2026-09-25')
+    expect(ultimoAllenamento([], [])).toBeNull()
+  })
+
+  it('ogni scheda ha la sua ultima volta', () => {
+    const m = ultimaVoltaPerScheda([es('2026-09-10', 'a'), es('2026-09-20', 'a'), es('2026-09-15', 'b'), es('2026-09-28')])
+    expect(m.get('a')).toBe('2026-09-20')
+    expect(m.get('b')).toBe('2026-09-15')
+    expect(m.size).toBe(2)
+  })
+
+  it('oggi, ieri, poi i giorni', () => {
+    const t = (s: string, v?: Record<string, string | number>) => s.replace('{n}', String(v?.n))
+    expect([0, 1, 12].map(n => quantoFa(n, t))).toEqual(['oggi', 'ieri', '12 giorni fa'])
   })
 })

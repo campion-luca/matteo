@@ -64,6 +64,30 @@ describe('filtro delle chiavi di stato', () => {
 
   // Il filtro lavora sul primo livello: questi due campi stanno più in basso e
   // servono due potature esplicite (vedi `migrateNested`).
+  it('le alzate a 0 kg di un esercizio a corpo libero prendono il segno che manca', () => {
+    // Trazioni fatte da scheda prima che il corpo libero esistesse sull'esercizio:
+    // "0 kg" e basta. Senza il segno la prossima batterebbe uno zero, da record.
+    applyRemoteState({
+      palestraExercises: [
+        { id: 'p1', n: 'Trazioni', muscle: 'Dorso', current: { kg: 0, reps: 8, sets_n: 3 },
+          history: [
+            { d: 'W37', date: '2026-09-10', kg: 0, reps: 8, sets_n: 3 },
+            // Con dei chili scritti non si sa cosa fossero: resta com'è.
+            { d: 'W38', date: '2026-09-17', kg: 10, reps: 6, sets_n: 3 },
+          ] },
+        // Chi l'ha voluto "con attrezzo" lo tiene così.
+        { id: 'p2', n: 'Piegamenti', muscle: 'Petto', bodyweight: false, current: { kg: 0, reps: 8, sets_n: 3 },
+          history: [{ d: 'W37', date: '2026-09-10', kg: 0, reps: 20, sets_n: 2 }] },
+        { id: 'p3', n: 'Panca', muscle: 'Petto', current: { kg: 0, reps: 8, sets_n: 3 },
+          history: [{ d: 'W37', date: '2026-09-10', kg: 0, reps: 8, sets_n: 3 }] },
+      ],
+    } as unknown as Partial<JarvisState>)
+    const [trazioni, piegamenti, panca] = get().palestraExercises
+    expect(trazioni.history.map(h => h.bodyweight)).toEqual([true, undefined])
+    expect(piegamenti.history[0].bodyweight).toBeUndefined()
+    expect(panca.history[0].bodyweight).toBeUndefined()
+  })
+
   it('pota il RIR dalle voci di storico, senza toccare il resto dell’alzata', () => {
     applyRemoteState({
       palestraExercises: [{

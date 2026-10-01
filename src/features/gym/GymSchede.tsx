@@ -16,20 +16,21 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtReps } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtReps, ultimaVoltaPerScheda, quantoFa } from './gymModel'
 import { fmtDayMonthFull } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
-import { leggiSessione, salvaSessione, scartaSessione } from './sessioneInCorso'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, copreAltra } from './sessioneInCorso'
+import { corpoLibero, quotaCorpo } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio } from './gymShared'
-import { caricoConsigliato, type Consiglio } from './caricoConsigliato'
-import { todayISO } from '@/lib/isoDate'
+import { caricoConsigliato, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
+import { todayISO, giorniTra } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
 import { supabase } from '@/lib/supabase'
-import { schedeRicevute, eliminaSchedaAssegnata, myAthletes, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
+import { schedeRicevute, schedeRicevuteInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
 import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
@@ -108,7 +109,11 @@ const iconBtn = (danger = false, size = 36): CSSProperties => ({
 
 
 // ── Container: gestisce la navigazione interna della sezione Schede ──
-export function GymSchede({ onBack }: { onBack: () => void }) {
+export function GymSchede({ onBack, apri }: {
+  onBack: () => void
+  /** L'id di una propria scheda da aprire subito sul dettaglio (dalla ricerca). */
+  apri?: string
+}) {
   const t = useT()
   const { gymSchede, palestraExercises, userName } = useJarvisStore(useShallow(st => ({
     gymSchede: st.gymSchede,
@@ -139,9 +144,16 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
       setIoId(io)
       // Le bozze dell'allenatore restano sue: sono schede che ha salvato
       // incomplete per non perdere il lavoro, non cose da allenarci.
+      // Subito quelle dell'ultima volta, poi la rete le aggiorna: senza segnale
+      // la scheda dell'allenatore c'è lo stesso (vedi `ricordaSchedeRicevute`).
+      const visibili = (righe: CoachScheda[]) => righe.filter(r => !r.scheda.draft)
+      setAssegnate(visibili(schedeRicevuteInCache(io)))
       schedeRicevute(io)
-        .then(righe => { if (vivo) setAssegnate(righe.filter(r => !r.scheda.draft)) })
-        .catch(() => { /* nessuna scheda assegnata: è il caso normale, non un errore */ })
+        .then(righe => {
+          ricordaSchedeRicevute(io, righe)
+          if (vivo) setAssegnate(visibili(righe))
+        })
+        .catch(() => { /* senza rete o senza tabella: restano quelle in memoria */ })
       // Chi alleno. Serve solo a decidere se il tasto "condividi" ha senso:
       // senza nessuno da seguire non c'è niente da condividere, e un tasto che
       // apre un elenco vuoto è una promessa non mantenuta.
@@ -170,9 +182,17 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
   // un archivio, è "quello che hai appena fatto".
   const [appenaSalvate, setAppenaSalvate] = useState<AlzataSalvata[]>([])
   const [correggo, setCorreggo] = useState<AlzataSalvata | null>(null)
-  const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>('list')
+  // Con `apri` si parte già dentro la scheda: letta una volta sola, all'ingresso.
+  const [active, setActive] = useState<GymScheda | null>(() => (apri ? gymSchede?.find(x => x.id === apri) : undefined) ?? null) // scheda aperta in dettaglio/allenamento
+  const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>(active ? 'detail' : 'list')
   const [editing, setEditing] = useState<GymScheda | null>(null) // scheda in modifica nel form (null = nuova)
-  const [active, setActive] = useState<GymScheda | null>(null)    // scheda aperta in dettaglio/allenamento
+
+  // L'allenamento lasciato a metà (vedi sessioneInCorso). Si rilegge a ogni
+  // giro: sono poche centinaia di byte, e cambia solo entrando e uscendo
+  // dall'allenamento, che è proprio quando la pagina si ridisegna. `ridisegna`
+  // serve allo "Scarta", che lo toglie senza cambiare vista.
+  const [, ridisegna] = useState(0)
+  const aperta = view === 'training' ? null : sessioneAperta()
 
   const mie = useMemo(() => gymSchede ?? [], [gymSchede])
   // Chi ha assegnato cosa. Una mappa a parte e non un campo dentro GymScheda:
@@ -184,6 +204,14 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
   )
   // In cima: sono quelle che qualcun altro si aspetta che tu faccia.
   const schede = useMemo(() => [...assegnate.map(r => r.scheda), ...mie], [assegnate, mie])
+  // "In corso" solo se si può riprendere davvero: una scheda cancellata, o
+  // modificata dopo aver cominciato (un esercizio in più, una serie in meno),
+  // non combacia più con quello che era stato spuntato, e promettere "riprendi"
+  // per poi ripartire da zero sarebbe peggio di non dire niente.
+  const schedaAperta = aperta ? schede.find(x => x.id === aperta.schedaId) : undefined
+  const inCorso = aperta && schedaAperta && leggiSessione(schedaAperta)
+    ? { scheda: schedaAperta, fatte: aperta.fatte, totali: aperta.totali }
+    : undefined
 
   const persistScheda = (sc: GymScheda) => {
     set(st => {
@@ -209,6 +237,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         const newId = uid('px')
         exs.push({
           id: newId, n: name, muscle: displayMuscle(se.muscle || 'Altro'),
+          ...(se.bodyweight ? { bodyweight: true } : {}),
           current: { kg: 0, reps: parseInt(se.reps) || 0, sets_n: se.sets || 0 },
           history: [],
         })
@@ -239,19 +268,50 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
     })
   }
 
-  const removeScheda = (id: string) => {
+  // Da quanti giorni non si fa ciascuna scheda: nell'elenco, accanto al nome.
+  const ultimaVolta = useMemo(() => {
+    const oggi = todayISO()
+    const out = new Map<string, number>()
+    for (const [id, giorno] of ultimaVoltaPerScheda(palestraExercises)) out.set(id, Math.max(0, giorniTra(giorno, oggi)))
+    return out
+  }, [palestraExercises])
+
+  const scartaAperta = () => confirmDelete(
+    () => { scartaSessione(); ridisegna(n => n + 1) },
+    t('Allenamento in corso'),
+    {
+      eyebrow: t('Allenamento in corso'),
+      title: t('Scartare l’allenamento?'),
+      body: t('Le serie spuntate finora non vengono salvate. La prossima volta la scheda riparte da zero.'),
+      cta: t('Scarta'),
+    },
+  )
+
+  // `dopo` parte solo a eliminazione confermata: chi chiama ci mette il cambio
+  // di pagina. Farlo subito, mentre il dialogo chiede ancora "sei sicuro?",
+  // chiudeva il form anche a chi rispondeva no — con le modifiche non salvate.
+  const removeScheda = (id: string, dopo?: () => void) => {
     const target = schede.find(s => s.id === id)
     // Una scheda assegnata non è nello store: toglierla dal blob non farebbe
     // nulla, e alla ricarica successiva sarebbe di nuovo lì. Va cancellata la riga.
     if (daCoach.has(id)) {
       confirmDelete(() => {
         eliminaSchedaAssegnata(id)
-          .then(() => setAssegnate(a => a.filter(r => r.scheda.id !== id)))
+          .then(() => {
+            setAssegnate(a => a.filter(r => r.scheda.id !== id))
+            // Anche dalla copia sul telefono, o al prossimo ingresso senza rete
+            // la scheda tolta sarebbe di nuovo lì.
+            if (ioId) ricordaSchedeRicevute(ioId, schedeRicevuteInCache(ioId).filter(r => r.scheda.id !== id))
+          })
           .catch(() => { /* resta in lista: meglio di una sparizione che non ha avuto luogo */ })
+        dopo?.()
       }, target?.title ?? t('Scheda'))
       return
     }
-    confirmDelete(() => set(st => ({ gymSchede: (st.gymSchede ?? []).filter(s => s.id !== id) })), target?.title ?? t('Scheda'))
+    confirmDelete(() => {
+      set(st => ({ gymSchede: (st.gymSchede ?? []).filter(s => s.id !== id) }))
+      dopo?.()
+    }, target?.title ?? t('Scheda'))
   }
 
   // Alla fine dell'allenamento: registra un'"alzata" per ogni esercizio eseguito,
@@ -290,21 +350,28 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
       const kg = doneWeights[top]
       const variesKg = new Set(doneWeights).size > 1
       const variesReps = new Set(doneReps).size > 1
-      const entry: PalestraHistoryEntry = {
-        d: wl, date: today, kg, reps: doneReps[top] || 0, sets_n: doneIdx.length,
-        scheda: { id: scheda.id, nome: scheda.title },
-        ...(variesKg ? { setWeights: doneWeights } : {}),
-        ...(variesReps ? { setReps: doneReps } : {}),
-        ...(r.note?.trim() ? { note: r.note.trim() } : {}),
-      }
 
       let target = se.linkedExerciseId ? exs.find(e => e.id === se.linkedExerciseId) : undefined
       if (!target) target = exs.find(e => e.n.trim().toLowerCase() === se.name.trim().toLowerCase())
 
+      const entry: PalestraHistoryEntry = {
+        d: wl, date: today, kg, reps: doneReps[top] || 0, sets_n: doneIdx.length,
+        scheda: { id: scheda.id, nome: scheda.title },
+        // Cosa chiedeva la scheda oggi: serve a non giudicare questa alzata
+        // con il programma di domani, se la scheda cambia.
+        piano: { sets: Math.max(1, se.sets), reps: se.reps },
+        ...(variesKg ? { setWeights: doneWeights } : {}),
+        ...(variesReps ? { setReps: doneReps } : {}),
+        // A corpo libero i chili scritti sono la zavorra: senza il segno, dieci
+        // trazioni senza zavorra finirebbero nello storico come "0 kg".
+        ...(corpoLibero(target ?? { n: se.name, bodyweight: se.bodyweight }) ? { bodyweight: true as const } : {}),
+        ...(r.note?.trim() ? { note: r.note.trim() } : {}),
+      }
+
       if (target) {
         const tid = target.id
         // Confronto con lo storico PRIMA di accodare: dopo, l'alzata batterebbe sé stessa.
-        const rec = recordFor(target.history, entry, bodyWeight)
+        const rec = recordFor(target.history, entry, bodyWeight * quotaCorpo(target))
         if (rec) recs.push({ name: target.n, ...rec })
         exs = exs.map(e => e.id === tid
           ? { ...e, history: sortedHistory([...e.history, entry]), current: { kg: entry.kg, reps: entry.reps, sets_n: entry.sets_n } }
@@ -315,6 +382,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         const newId = uid('px')
         exs.push({
           id: newId, n: se.name.trim(), muscle: se.muscle || 'Altro',
+          ...(se.bodyweight ? { bodyweight: true } : {}),
           current: { kg: entry.kg, reps: entry.reps, sets_n: entry.sets_n },
           history: [entry],
         })
@@ -381,7 +449,7 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         onCancel={() => setView(editing ? 'detail' : 'list')}
         // Solo su una scheda che esiste già: su una nuova non c'è niente da
         // eliminare, e il tasto sarebbe un "annulla" travestito da cestino.
-        onDelete={editing ? () => { removeScheda(editing.id); setEditing(null); setActive(null); setView('list') } : undefined}
+        onDelete={editing ? () => removeScheda(editing.id, () => { setEditing(null); setActive(null); setView('list') }) : undefined}
         onSave={sc => {
           reconcileAndPersist({ ...sc, draft: false })
           const saved = useJarvisStore.getState().gymSchede?.find(s => s.id === sc.id) ?? sc
@@ -429,7 +497,15 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         mioNome={userName}
         allievi={allievi}
         onCondividi={ioId
-          ? (athleteId: string) => condividiScheda(ioId, athleteId, userName ?? '', current)
+          // Il corpo libero viaggia sulla riga: l'allievo non ha i miei
+          // esercizi, e il suo "Dip" nascerebbe con attrezzo.
+          ? (athleteId: string) => condividiScheda(ioId, athleteId, userName ?? '', {
+            ...current,
+            exercises: current.exercises.map(e => {
+              const mio = e.linkedExerciseId ? palestraExercises.find(p => p.id === e.linkedExerciseId) : undefined
+              return mio && corpoLibero(mio) ? { ...e, bodyweight: true } : e
+            }),
+          })
           : undefined}
         appenaSalvate={appenaSalvate}
         palestraExercises={palestraExercises}
@@ -437,7 +513,8 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
         onElimina={eliminaAlzata}
         onBack={() => { setActive(null); setAppenaSalvate([]); setView('list') }}
         onEdit={() => { setEditing(current); setView('form') }}
-        onDelete={() => { removeScheda(current.id); setActive(null); setView('list') }}
+        onDelete={() => removeScheda(current.id, () => { setActive(null); setView('list') })}
+        inCorso={inCorso?.scheda.id === current.id}
         onStart={() => { setActive(current); setView('training') }}
       />
     )
@@ -453,7 +530,11 @@ export function GymSchede({ onBack }: { onBack: () => void }) {
       onDelete={removeScheda}
       onMove={moveScheda}
       mie={mie.map(x => x.id)}
+      ultimaVolta={ultimaVolta}
       onReport={() => setView('report')}
+      inCorso={inCorso}
+      onRiprendi={sc => { setActive(sc); setView('training') }}
+      onScarta={scartaAperta}
     />
   )
   }
@@ -483,7 +564,7 @@ interface AlzataSalvata {
 }
 
 // ── Lista schede ───────────────────────────────────────────────
-function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onReport, onMove, mie }: {
+function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onReport, onMove, mie, ultimaVolta, inCorso, onRiprendi, onScarta }: {
   schede: GymScheda[]
   /** id scheda → nome dell'allenatore che l'ha assegnata. */
   daCoach: Map<string, string>
@@ -496,6 +577,12 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
   onMove: (id: string, dir: -1 | 1) => void
   /** Gli id delle proprie schede, nell'ordine dello store: solo queste si spostano. */
   mie: string[]
+  /** id scheda → da quanti giorni non la si fa. Assente = mai fatta. */
+  ultimaVolta: Map<string, number>
+  /** L'allenamento lasciato a metà, se c'è. */
+  inCorso?: { scheda: GymScheda; fatte: number; totali: number }
+  onRiprendi: (s: GymScheda) => void
+  onScarta: () => void
 }) {
   const t = useT()
   const hasExercises = schede.some(s => s.exercises.length > 0)
@@ -560,6 +647,37 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
     >
 
       <div className="j-scroll-area">
+        {/* In cima a tutto: chi esce a metà allenamento e torna qui sta
+            cercando questo, non l'elenco. Un tocco e si è dove si era. */}
+        {inCorso && (
+          <div className="mb-2.5 flex items-center gap-2" style={{
+            padding: '10px 10px 10px 14px', borderRadius: 'var(--radius)',
+            background: 'color-mix(in srgb, var(--j-accent) 10%, var(--surface))', border: '1px solid var(--j-accent)',
+          }}>
+            <button onClick={() => onRiprendi(inCorso.scheda)} className="flex items-center gap-3" style={{
+              flex: 1, minWidth: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ display: 'flex', flexShrink: 0, color: 'var(--j-accent-ink)' }}><Icons.play size={18}/></span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
+                  {t('Allenamento in corso')}
+                </span>
+                <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                  {inCorso.scheda.title}
+                </span>
+                <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>
+                  {t('{fatte}/{totali} serie fatte · tocca per riprendere', { fatte: inCorso.fatte, totali: inCorso.totali })}
+                </span>
+              </span>
+            </button>
+            <button onClick={onScarta} aria-label={t('Scarta allenamento in corso')} title={t('Scarta allenamento in corso')} className="flex items-center justify-center" style={{
+              width: 32, height: 32, flexShrink: 0, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
+            }}>
+              <Icons.trash size={13} stroke={1.6}/>
+            </button>
+          </div>
+        )}
         {schede.length === 0 && (
           <div className="j-empty">{t('Nessuna scheda — creane una con +')}</div>
         )}
@@ -580,6 +698,13 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
                   <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 0.4, color: NUC.faint, marginTop: 3 }}>
                     {s.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.exercises.length })}
                     {daCoach.has(s.id) && ` · ${t('da {chi}', { chi: daCoach.get(s.id) ?? '' })}`}
+                    {/* Da quanto non la si fa. Oltre i dieci giorni cambia
+                        colore: è la soglia da cui i carichi pesano di più. */}
+                    {ultimaVolta.has(s.id) && (
+                      <span style={(ultimaVolta.get(s.id) ?? 0) > GIORNI_DI_STOP ? { color: 'var(--warn)', fontWeight: 600 } : undefined}>
+                        {' · '}{quantoFa(ultimaVolta.get(s.id) ?? 0, t)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
@@ -612,7 +737,7 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
 }
 
 // ── Form creazione / modifica scheda (pagina a parte) ──────────
-interface FormRow { id: string; name: string; sets: string; reps: string; linkedExerciseId?: string; muscle: string; note: string; supersetWithNext: boolean }
+interface FormRow { id: string; name: string; sets: string; reps: string; linkedExerciseId?: string; muscle: string; bodyweight: boolean; note: string; supersetWithNext: boolean }
 
 export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, onSaveDraft, onDelete }: {
   scheda: GymScheda | null
@@ -643,8 +768,8 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const [title, setTitle] = useState(scheda?.title ?? '')
   const [rows, setRows] = useState<FormRow[]>(
     scheda?.exercises.length
-      ? scheda.exercises.map(e => ({ id: e.id, name: e.name, sets: String(e.sets), reps: e.reps, linkedExerciseId: e.linkedExerciseId, muscle: e.muscle ?? '', note: e.note ?? '', supersetWithNext: !!e.supersetWithNext }))
-      : [{ id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', note: '', supersetWithNext: false }]
+      ? scheda.exercises.map(e => ({ id: e.id, name: e.name, sets: String(e.sets), reps: e.reps, linkedExerciseId: e.linkedExerciseId, muscle: e.muscle ?? '', bodyweight: !!e.bodyweight, note: e.note ?? '', supersetWithNext: !!e.supersetWithNext }))
+      : [{ id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', bodyweight: false, note: '', supersetWithNext: false }]
   )
   const [focused, setFocused] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
@@ -663,7 +788,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
     setRows(rs => rs.map(r => r.id === id ? { ...r, ...changes } : r))
   }
 
-  const addRow = () => { clearFeedback(); setRows(rs => [...rs, { id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', note: '', supersetWithNext: false }]) }
+  const addRow = () => { clearFeedback(); setRows(rs => [...rs, { id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', bodyweight: false, note: '', supersetWithNext: false }]) }
   const removeRow = (id: string) => { clearFeedback(); setRows(rs => rs.length > 1 ? rs.filter(r => r.id !== id) : rs) }
 
   // Sposta un esercizio su/giù nell'ordine (#3): vale sia in creazione che in modifica.
@@ -703,6 +828,8 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         reps: r.reps.trim(),
         ...(r.linkedExerciseId ? { linkedExerciseId: r.linkedExerciseId } : {}),
         ...(r.muscle ? { muscle: displayMuscle(r.muscle) } : {}),
+        // Solo per un esercizio nuovo: di uno che esiste già lo sa l'esercizio.
+        ...(!r.linkedExerciseId && r.bodyweight ? { bodyweight: true } : {}),
         ...(r.note.trim() ? { note: r.note.trim() } : {}),
         // Il superset lega l'esercizio al SUCCESSIVO: sull'ultimo non ha senso.
         ...(r.supersetWithNext && i < filled.length - 1 ? { supersetWithNext: true as const } : {}),
@@ -901,6 +1028,22 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                     <option value="">{t('Scegli il gruppo…')}</option>
                     {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
                   </select>
+                  {/* Come nel "Nuovo esercizio": l'esercizio nasce qui, ed è qui
+                      che si dice se ha un peso da caricare o è il proprio corpo.
+                      Senza, un "Dip" creato da una scheda si salvava a 0 kg. */}
+                  <div className="flex gap-2" style={{ marginTop: 8 }}>
+                    {([false, true] as const).map(bw => (
+                      <button key={String(bw)} type="button" onClick={() => patch(r.id, { bodyweight: bw })} aria-pressed={r.bodyweight === bw} style={{
+                        flex: 1, height: 34, borderRadius: 'var(--radius)', cursor: 'pointer',
+                        background: r.bodyweight === bw ? 'var(--surface-2)' : 'var(--surface)',
+                        border: `1px solid ${r.bodyweight === bw ? 'var(--j-accent)' : NUC.hairline}`,
+                        color: r.bodyweight === bw ? 'var(--j-accent-ink)' : NUC.dim,
+                        fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.08em',
+                      }}>
+                        {bw ? t('Corpo libero') : t('Con attrezzo')}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1133,7 +1276,7 @@ function RigaAlzata({ a, primo, onCorreggi, onElimina }: {
   )
 }
 
-function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, allievi, appenaSalvate = [], palestraExercises = [], onCorreggi, onElimina, onCondividi, onBack, onEdit, onDelete, onStart }: {
+function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, allievi, appenaSalvate = [], palestraExercises = [], inCorso, onCorreggi, onElimina, onCondividi, onBack, onEdit, onDelete, onStart }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
   /** La riga di `coach_schede` da cui arriva questa scheda, se è stata assegnata.
@@ -1162,6 +1305,8 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
   onEdit: () => void
   onDelete: () => void
   onStart: () => void
+  /** C'è un allenamento lasciato a metà su questa scheda: il tasto lo riprende. */
+  inCorso?: boolean
 }) {
   const t = useT()
   const tData = useTData()
@@ -1177,6 +1322,10 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
   // La terza faccia: gli allenamenti già fatti con questa scheda, uno per giorno.
   const [storico, setStorico] = useState(false)
   const sessioni = useMemo(() => sessioniDellaScheda(scheda, palestraExercises), [scheda, palestraExercises])
+  // Da quanti giorni non si fa questa scheda. `null` se mai, o se l'ultima
+  // sessione è così vecchia da non avere una data.
+  const ultimoGiorno = sessioni[0]?.giorno
+  const giorniStop = ultimoGiorno && /^\d{4}-\d{2}-\d{2}$/.test(ultimoGiorno) ? giorniTra(ultimoGiorno, todayISO()) : null
   const [chiedi, setChiedi] = useState<null | { esercizio?: GymSchedaExercise; tipo: TipoMessaggio }>(null)
 
   const daCoach = assegnata ? (assegnata.coach_name?.trim() || t('Allenatore')) : undefined
@@ -1493,7 +1642,9 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
               <span style={{ fontFamily: NUC.font, fontSize: 14 }}>{t('Storico allenamenti')}</span>
             </span>
             <span className="flex items-center gap-1.5" style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint }}>
-              {t('ultimo {giorno}', { giorno: giornoSessione(sessioni[0].giorno) })}
+              {giorniStop !== null
+                ? quantoFa(giorniStop, t)
+                : t('ultimo {giorno}', { giorno: giornoSessione(sessioni[0].giorno) })}
               <Icons.chev size={12} stroke={2}/>
             </span>
           </button>
@@ -1505,11 +1656,22 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
           scrivendo, non ci si sta preparando a partire. */}
       {!richieste && !storico && scheda.exercises.length > 0 && (
         <div className="j-page-cta">
+          {/* Detto PRIMA di cominciare, non a metà della prima serie: chi torna
+              dopo uno stop deve saperlo quando sceglie con che peso partire. */}
+          {giorniStop !== null && giorniStop > GIORNI_DI_STOP && !inCorso && (
+            <div role="note" style={{
+              marginBottom: 10, padding: '9px 11px', borderRadius: 'var(--radius-sm)',
+              background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
+              fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--warn)',
+            }}>
+              {t('Non fai questa scheda da {n} giorni: probabilmente farai più fatica con i carichi dell’ultima volta.', { n: giorniStop })}
+            </div>
+          )}
           <button onClick={onStart} className="j-hard j-accent-key j-focus flex items-center justify-center gap-2 w-full" style={{
             height: 52, borderRadius: 'var(--radius)', backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)',
             color: 'var(--j-accent-fg)', cursor: 'pointer', fontFamily: NUC.font, fontSize: 15, fontWeight: 500,
           }}>
-            <Icons.play size={18}/> {t('Inizia allenamento')}
+            <Icons.play size={18}/> {inCorso ? t('Riprendi allenamento') : t('Inizia allenamento')}
           </button>
         </div>
       )}
@@ -1630,10 +1792,12 @@ function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
 // (colpi sotto obiettivo) vira al rosso: bordo, testo e unità insieme, perché il
 // solo bordo rosso su un numero nero si legge come "campo attivo", non come
 // "numero sbagliato".
-function CampoSerie({ value, onChange, unita, mode, etichetta, allarme }: {
+function CampoSerie({ value, onChange, unita, segnaposto, mode, etichetta, allarme }: {
   value: string
   onChange: (v: string) => void
   unita: string
+  /** Cosa si legge nel campo vuoto, se non è l'unità. */
+  segnaposto?: string
   mode: 'decimal' | 'numeric'
   etichetta: string
   allarme?: boolean
@@ -1646,7 +1810,7 @@ function CampoSerie({ value, onChange, unita, mode, etichetta, allarme }: {
         inputMode={mode}
         aria-label={etichetta}
         aria-invalid={allarme || undefined}
-        placeholder={unita}
+        placeholder={segnaposto ?? unita}
         className="j-field"
         style={{
           textAlign: 'center', padding: '9px 30px 9px 8px',
@@ -1685,17 +1849,32 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
   onUsa: () => void
 }) {
   const t = useT()
-  const { verso, kg, motivo, fatte, cima } = consiglio
-  const colore = verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.dim
+  const { verso, kg, pesi, da, motivo, fatte, cima, alte } = consiglio
+  // Lo stop ha un colore suo: non è un verso, è un avviso.
+  const colore = motivo === 'stop' ? 'var(--warn)' : verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.dim
   const freccia = verso === 'su' ? '↑' : verso === 'giu' ? '↓' : '='
+  // "Valuta" e "devi" non sono la stessa cosa, e il titolo lo dice prima del
+  // perché: una settimana piena è un permesso, due sono un ordine.
+  const titolo =
+    motivo === 'valuta' ? t('Puoi salire')
+    : motivo === 'devi' ? t('Devi salire')
+    : motivo === 'stop' ? t('Dopo lo stop')
+    : t('Carico consigliato')
   const perche =
-    motivo === 'completo' ? t('Tutte le serie a {n} colpi: si può salire.', { n: cima ?? '' })
-    : motivo === 'dueSettimane' ? t('Due settimane allo stesso peso: prova a salire.')
+    motivo === 'valuta' ? t('L’ultima volta tutte le serie e i colpi a {kg} kg: valuta un aumento leggero.', { kg: fmtNum(da) })
+    : motivo === 'devi' ? t('Due settimane di fila tutto fatto a {kg} kg: è ora di salire.', { kg: fmtNum(da) })
+    : motivo === 'estendi' ? (alte === serie
+      ? t('L’ultima volta le ultime serie sono salite e hanno retto: oggi tutte a {kg} kg.', { kg: fmtNum(kg) })
+      : t('L’ultima volta l’ultima serie è salita e ha retto: oggi {alte} serie su {serie} a {kg} kg.', { alte: alte ?? 0, serie, kg: fmtNum(kg) }))
     : motivo === 'serieMancanti' ? t('L’ultima volta {fatte} serie su {serie}: meglio scendere.', { fatte: fatte ?? 0, serie })
     : motivo === 'colpiCorti' ? t('L’ultima volta una serie sotto i {n} colpi: meglio scendere.', { n: cima ?? '' })
     : motivo === 'pesoCalato' ? t('L’ultima volta hai dovuto alleggerire: riparti più basso.')
-    : cima ? t('Resta a questo peso finché non fai {n} colpi su tutte le serie.', { n: cima })
-    : t('Resta a questo peso.')
+    : motivo === 'stop' ? t('Non lo fai da {n} giorni: probabilmente farai più fatica a sollevare questi carichi, visto lo stop. Riparti da qui senza salire.', { n: consiglio.giorni ?? 0 })
+    : motivo === 'schedaCambiata' ? t('La scheda è cambiata dall’ultima volta: riparti dai carichi che avevi.')
+    : t('Ripeti i carichi dell’ultima volta.')
+  // Con pesi diversi da serie a serie si scrivono tutti: "62,5 kg" da solo
+  // farebbe caricare il peso alto anche sulla prima serie.
+  const uguali = pesi.every(k => k === pesi[0])
   return (
     <div className="flex items-center gap-2.5" style={{
       marginBottom: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
@@ -1703,10 +1882,10 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: NUC.faint }}>
-          {t('Carico consigliato')}
+          {titolo}
         </div>
         <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: colore, marginTop: 1 }}>
-          <span aria-hidden>{freccia} </span>{fmtNum(kg)} kg
+          <span aria-hidden>{freccia} </span>{uguali ? fmtNum(kg) : pesi.map(fmtNum).join(' · ')} kg
         </div>
         <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.4, color: NUC.dim, marginTop: 2 }}>{perche}</div>
       </div>
@@ -1777,7 +1956,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     for (const e of scheda.exercises) {
       // resolveLinked: fallback per nome, così l'ultimo peso si precompila anche
       // per schede vecchie / esercizi digitati senza scegliere il suggerimento.
-      const lastKg = resolveLinked(e)?.current.kg
+      const linked = resolveLinked(e)
+      const lastKg = linked?.current.kg
+      // Serie per serie, se l'ultima volta i pesi erano diversi: `current.kg` è
+      // il più pesante, e scriverlo su tutte farebbe salvare 62,5 anche sulle
+      // serie che erano state fatte a 60 a chi spunta senza toccare i campi.
+      const perSerie = linked?.history.length ? sortedHistory(linked.history)[linked.history.length - 1].setWeights : undefined
       const n = Math.max(1, e.sets)
       // I colpi si precompilano sull'obiettivo, non sull'ultima volta: la scheda
       // dice cosa fare oggi, e partire dal numero previsto significa che chi
@@ -1787,7 +1971,10 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
         checks: Array(n).fill(false),
         // Anche il precompilato passa dal formattatore: un 62.5 riletto dallo
         // storico comparirebbe col punto in un campo che accetta la virgola.
-        weights: Array(n).fill(lastKg ? fmtNum(lastKg) : ''),
+        weights: Array.from({ length: n }, (_, i) => {
+          const kg = perSerie?.[i] ?? lastKg
+          return kg ? fmtNum(kg) : ''
+        }),
         reps: Array(n).fill(target ? String(target) : ''),
       }
     }
@@ -1811,13 +1998,13 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   const setNote = (exId: string, note: string) =>
     setProgress(p => ({ ...p, [exId]: { ...p[exId], note } }))
 
-  // Il carico consigliato scritto su tutte le serie non ancora spuntate: quelle
-  // già fatte sono andate con il peso che avevano, e riscriverle falserebbe lo
-  // storico.
-  const usaConsiglio = (exId: string, kg: number) =>
+  // Il carico consigliato, serie per serie, scritto su quelle non ancora
+  // spuntate: quelle già fatte sono andate con il peso che avevano, e
+  // riscriverle falserebbe lo storico.
+  const usaConsiglio = (exId: string, pesi: number[]) =>
     setProgress(p => {
       const cur = p[exId]
-      return { ...p, [exId]: { ...cur, weights: cur.weights.map((w, i) => cur.checks[i] ? w : fmtNum(kg)) } }
+      return { ...p, [exId]: { ...cur, weights: cur.weights.map((w, i) => cur.checks[i] || pesi[i] === undefined ? w : fmtNum(pesi[i])) } }
     })
 
   const setSetReps = (exId: string, setIdx: number, reps: string) =>
@@ -1842,7 +2029,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   // dallo storico, che durante l'allenamento non cambia, e non dai tasti premuti.
   const consigli = useMemo(() => {
     const out: Record<string, Consiglio | null> = {}
-    for (const e of scheda.exercises) out[e.id] = caricoConsigliato(resolveLinked(e)?.history ?? [], e, scheda.id)
+    for (const e of scheda.exercises) {
+      const linked = resolveLinked(e)
+      // A corpo libero non c'è un perno da spostare: il consiglio sui chili
+      // non avrebbe niente da dire.
+      out[e.id] = corpoLibero(linked ?? { n: e.name, bodyweight: e.bodyweight }) ? null : caricoConsigliato(linked?.history ?? [], e, scheda.id)
+    }
     return out
     // `resolveLinked` legge solo `palestraExercises`, che è già fra le dipendenze.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1860,8 +2052,10 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   // Ogni spunta, ogni chilo scritto finisce su disco. È un oggetto da poche
   // centinaia di byte e la scrittura è sincrona ma trascurabile: il costo è
   // incomparabile con quello di perdere la sessione.
+  // Tranne quando questa scheda è stata solo aperta e un'altra ha un
+  // allenamento cominciato: guardare non deve cancellare quello vero.
   useEffect(() => {
-    salvaSessione(scheda.id, progress)
+    if (!copreAltra(scheda.id, progress)) salvaSessione(scheda.id, progress)
   }, [scheda.id, progress])
 
   const finish = () => {
@@ -1920,6 +2114,9 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
           const target = obiettivoColpi(e.reps)
           const last = resolveLinked(e)
           const hasLast = !!last && last.history.length > 0
+          // Senza esercizio collegato (una scheda dell'allenatore mai fatta)
+          // lo dice la riga della scheda, o il nome.
+          const corpo = corpoLibero(last ?? { n: e.name, bodyweight: e.bodyweight })
           // La nota dell'ultima volta: si rilegge prima di cominciare, che è
           // quando serve ("sedile al 4", "la spalla tirava").
           const notaPrima = hasLast ? sortedHistory(last!.history)[last!.history.length - 1]?.note : undefined
@@ -1943,7 +2140,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                   </div>
                   {hasLast && (
                     <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.accentSoft, marginTop: 3 }}>
-                      {t('ultima volta')} {last!.current.reps} × {fmtNum(last!.current.kg)} kg
+                      {t('ultima volta')} {last!.current.reps} × {fmtKg({ kg: last!.current.kg, ...(corpo ? { bodyweight: true as const } : {}) })}
                     </div>
                   )}
                   {notaPrima && (
@@ -1981,8 +2178,8 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                   serie={nSets}
                   // Il tasto serve solo se c'è qualcosa da cambiare: con il
                   // consiglio già scritto su ogni serie da fare sarebbe un no-op.
-                  applicabile={p.weights.some((w, i) => !p.checks[i] && parseNum(w) !== consiglio.kg)}
-                  onUsa={() => usaConsiglio(e.id, consiglio.kg)}
+                  applicabile={p.weights.some((w, i) => !p.checks[i] && consiglio.pesi[i] !== undefined && parseNum(w) !== consiglio.pesi[i])}
+                  onUsa={() => usaConsiglio(e.id, consiglio.pesi)}
                 />
               )}
 
@@ -2026,7 +2223,8 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                       <CampoSerie
                         value={p.weights[i] ?? ''}
                         onChange={v => setSetWeight(e.id, i, v)}
-                        unita="kg" mode="decimal"
+                        // A corpo libero i chili sono la sola zavorra: vuoto = niente.
+                        unita="kg" segnaposto={corpo ? t('Zavorra') : undefined} mode="decimal"
                         etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · kg`}
                       />
                     </div>

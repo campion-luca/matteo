@@ -239,6 +239,44 @@ export function recordFor(prev: PalestraHistoryEntry[], entry: PalestraHistoryEn
   return next > best ? { prev: Math.round(best), next: Math.round(next) } : null
 }
 
+// ── Da quanto non ci si allena ─────────────────────────────────
+// Due domande diverse: "da quanto non mi alleno" (qualunque cosa, pesi o hyrox)
+// e "da quanto non faccio QUESTA scheda". La seconda è quella che cambia il
+// consiglio sui carichi: dopo dieci giorni senza una scheda, i suoi pesi sono
+// più pesanti di come li si era lasciati (vedi caricoConsigliato).
+
+/** L'ultimo giorno in cui si è registrato qualcosa. `null` se mai. Le voci
+ *  senza data (vecchissime) non contano: non si sa quando sono state. */
+export function ultimoAllenamento(
+  palestra: { history: { date?: string }[] }[],
+  hyrox: { history: { date?: string }[] }[] = [],
+): string | null {
+  let ultimo: string | null = null
+  for (const ex of [...palestra, ...hyrox]) {
+    for (const h of ex.history) if (h.date && (!ultimo || h.date > ultimo)) ultimo = h.date
+  }
+  return ultimo
+}
+
+/** Per ogni scheda (per id), l'ultimo giorno in cui è stata eseguita. */
+export function ultimaVoltaPerScheda(palestra: PalestraExercise[]): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const ex of palestra) {
+    for (const h of ex.history) {
+      if (!h.scheda || !h.date) continue
+      const gia = out.get(h.scheda.id)
+      if (!gia || h.date > gia) out.set(h.scheda.id, h.date)
+    }
+  }
+  return out
+}
+
+/** "oggi" · "ieri" · "12 giorni fa". `t` arriva da chi chiama: questo file non
+ *  conosce la lingua. */
+export function quantoFa(giorni: number, t: (s: string, v?: Record<string, string | number>) => string): string {
+  return giorni <= 0 ? t('oggi') : giorni === 1 ? t('ieri') : t('{n} giorni fa', { n: giorni })
+}
+
 // ── Hyrox Race Stations ────────────────────────────────────────
 export const RACE_STATIONS: Array<{ id: string; n: string; unit: HyroxExercise['unit']; target: number }> = [
   { id: 'hx_ski',    n: 'SkiErg',             unit: 'm',   target: 1000 },

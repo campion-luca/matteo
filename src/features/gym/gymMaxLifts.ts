@@ -15,6 +15,7 @@
 // vuota a chi allena le gambe alla pressa e non ha mai messo un bilanciere addosso.
 import type { PalestraExercise } from '@/store/useJarvisStore'
 import { entry1RM, setLoads } from './gymModel'
+import { quotaCorpo } from './catalogo'
 import type { DistrictStrength } from './gymStrength'
 
 export type MaxSource = 'dichiarato' | 'stimato' | 'distretto'
@@ -101,7 +102,7 @@ export function maxLifts(
     for (const ex of own) {
       for (const h of ex.history) {
         if (!h.maxLift) continue
-        const v = topLoad(h, bodyWeightKg)
+        const v = topLoad(h, bodyWeightKg * quotaCorpo(ex))
         if (v > kg) { kg = v; source = 'dichiarato'; exercise = ex.n }
       }
     }
@@ -110,7 +111,7 @@ export function maxLifts(
     if (!source) {
       for (const ex of own) {
         for (const h of ex.history) {
-          const v = entry1RM(h, bodyWeightKg)
+          const v = entry1RM(h, bodyWeightKg * quotaCorpo(ex))
           if (v > kg) { kg = v; source = 'stimato'; exercise = ex.n }
         }
       }

@@ -5,6 +5,11 @@ import { GymSchede } from '@/features/gym/GymSchede'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
+import { localISO } from '@/lib/isoDate'
+
+// Il consiglio dipende da quanto tempo è passato: le alzate "della settimana
+// scorsa" vanno datate rispetto a oggi, o fra un mese diventano uno stop.
+const giorniFa = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return localISO(d) }
 
 // Eseguire una scheda è il modo in cui la maggior parte delle alzate finisce
 // nello storico: quello che si spunta qui diventa un dato su cui poggiano volume,
@@ -173,17 +178,130 @@ describe('allenamento: le aggiunte di settembre', () => {
       palestraExercises: [{
         id: 'px1', n: 'Panca piana', muscle: 'Petto',
         current: { kg: 60, reps: 10, sets_n: 3 },
-        history: [{ d: 'W37', date: '2026-09-10', kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
+        history: [{ d: 'W37', date: giorniFa(7), kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
       }],
     })
     const user = userEvent.setup()
     await apriAllenamento(user)
-    expect(screen.getByText('Carico consigliato')).toBeInTheDocument()
+    // Una settimana piena: è un permesso, non un ordine.
+    expect(screen.getByText('Puoi salire')).toBeInTheDocument()
     expect(screen.getByText(/62,5 kg/)).toBeInTheDocument()
     // Precompilato sull'ultima volta: il consiglio non si impone da solo.
     expect(screen.getByLabelText('Panca piana · serie 1 · kg')).toHaveValue('60')
     await user.click(screen.getByRole('button', { name: 'Usa' }))
     expect(screen.getByLabelText('Panca piana · serie 3 · kg')).toHaveValue('62,5')
+  })
+
+  it('dopo l’ultima serie salita, «Usa» scrive il peso alto su due serie', async () => {
+    useJarvisStore.setState({
+      palestraExercises: [{
+        id: 'px1', n: 'Panca piana', muscle: 'Petto',
+        current: { kg: 62.5, reps: 10, sets_n: 3 },
+        history: [{ d: 'W37', date: giorniFa(7), kg: 62.5, reps: 10, sets_n: 3, setWeights: [60, 60, 62.5], scheda: { id: 'sc1', nome: 'Spinta A' } }],
+      }],
+    })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    expect(screen.getByText(/60 · 62,5 · 62,5 kg/)).toBeInTheDocument()
+    // Precompilato serie per serie com'era andata, non col peso più alto su
+    // tutte: chi spunta senza toccare niente salva quello che ha fatto davvero.
+    expect(screen.getByLabelText('Panca piana · serie 1 · kg')).toHaveValue('60')
+    expect(screen.getByLabelText('Panca piana · serie 2 · kg')).toHaveValue('60')
+    expect(screen.getByLabelText('Panca piana · serie 3 · kg')).toHaveValue('62,5')
+    await user.click(screen.getByRole('button', { name: 'Usa' }))
+    expect(screen.getByLabelText('Panca piana · serie 1 · kg')).toHaveValue('60')
+    expect(screen.getByLabelText('Panca piana · serie 2 · kg')).toHaveValue('62,5')
+    expect(screen.getByLabelText('Panca piana · serie 3 · kg')).toHaveValue('62,5')
+  })
+
+  it('dopo più di dieci giorni di stop non dice né di salire né di scendere', async () => {
+    useJarvisStore.setState({
+      palestraExercises: [{
+        id: 'px1', n: 'Panca piana', muscle: 'Petto',
+        current: { kg: 60, reps: 10, sets_n: 3 },
+        // Tutto fatto, da manuale "puoi salire" — ma tre settimane fa.
+        history: [{ d: 'W', date: giorniFa(21), kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
+      }],
+    })
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    // Già nell'elenco: da quanto non la si fa.
+    expect(screen.getByText(/21 giorni fa/)).toBeInTheDocument()
+    await user.click(screen.getByText('Spinta A'))
+    // E prima di cominciare, sul dettaglio.
+    expect(screen.getByText(/Non fai questa scheda da 21 giorni/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /inizia allenamento/i }))
+    expect(screen.getByText('Dopo lo stop')).toBeInTheDocument()
+    expect(screen.getByText(/farai più fatica a sollevare questi carichi/)).toBeInTheDocument()
+    expect(screen.queryByText('Puoi salire')).not.toBeInTheDocument()
+  })
+
+  it('l’alzata ricorda cosa chiedeva la scheda quel giorno', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate()[0].piano).toEqual({ sets: 3, reps: '10' })
+  })
+
+  it('a corpo libero niente consiglio sui chili, e l’alzata si salva come tale', async () => {
+    useJarvisStore.setState({
+      gymSchede: [{ ...scheda, exercises: [{ id: 'se1', name: 'Trazioni', sets: 2, reps: '8', muscle: 'Dorso' }] }],
+      // Nessun `bodyweight` sull'esercizio: lo dice il catalogo, per nome.
+      palestraExercises: [{
+        id: 'px1', n: 'Trazioni', muscle: 'Dorso',
+        current: { kg: 0, reps: 8, sets_n: 2 },
+        history: [{ d: 'W37', date: '2026-09-10', kg: 0, reps: 8, sets_n: 2, bodyweight: true, scheda: { id: 'sc1', nome: 'Spinta A' } }],
+      }],
+    })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    expect(screen.queryByText('Puoi salire')).not.toBeInTheDocument()
+    expect(screen.queryByText('Carico consigliato')).not.toBeInTheDocument()
+    for (const n of [1, 2]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    const h = useJarvisStore.getState().palestraExercises.find(e => e.n === 'Trazioni')?.history ?? []
+    expect(h[h.length - 1]).toMatchObject({ bodyweight: true, kg: 0, sets_n: 2 })
+  })
+
+  it('uscendo a metà, l’elenco propone di riprendere da dove si era', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    cleanup()
+
+    // Si rientra nelle schede da capo, come dopo essere usciti dalla sezione.
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.getByText('Allenamento in corso')).toBeInTheDocument()
+    expect(screen.getByText(/1\/3 serie fatte/)).toBeInTheDocument()
+    await user.click(screen.getByText(/tocca per riprendere/))
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('un’alzata con colpi diversi per serie si corregge senza riscrivere i chili', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
+    const colpi3 = screen.getByLabelText('Panca piana · serie 3 · colpi')
+    await user.clear(colpi3)
+    await user.type(colpi3, '6')
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    // Peso costante, colpi 10·10·6: la correzione si apre con i chili già
+    // scritti su ogni serie, e una nota si salva senza toccarli.
+    await user.click(screen.getAllByRole('button', { name: /Panca piana/ })[0])
+    expect(screen.getByLabelText('Serie 1 · kg')).toHaveValue('60')
+    expect(screen.getByLabelText('Serie 3 · kg')).toHaveValue('60')
+    await user.type(screen.getByPlaceholderText('Nota su questa sessione…'), 'ok')
+    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    expect(alzate()[0]).toMatchObject({ kg: 60, setReps: [10, 10, 6], note: 'ok' })
+    expect(alzate()[0].setWeights).toBeUndefined()
   })
 
   it('lo storico della scheda mostra gli allenamenti fatti, li corregge e li toglie', async () => {

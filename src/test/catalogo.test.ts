@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CATALOGO, esercizidaCatalogo } from '@/features/gym/catalogo'
+import { CATALOGO, esercizidaCatalogo, corpoLibero, quotaCorpo } from '@/features/gym/catalogo'
 import { MUSCLE_OPTIONS, displayMuscle } from '@/features/gym/gymModel'
 import type { PalestraExercise } from '@/store/useJarvisStore'
 
@@ -48,5 +48,30 @@ describe('catalogo di partenza', () => {
     expect(nomi).not.toContain('Panca piana al MPW')
     expect(nomi).not.toContain('Squat')
     expect(nuovi).toHaveLength(CATALOGO.length - 2)
+  })
+})
+
+describe('corpo libero', () => {
+  it('piegamenti e trazioni lo sono, anche negli esercizi già salvati senza il campo', () => {
+    expect(corpoLibero(ex('Piegamenti'))).toBe(true)
+    expect(corpoLibero(ex('trazioni '))).toBe(true)
+    expect(corpoLibero(ex('Panca piana al MPW'))).toBe(false)
+    const nuovi = esercizidaCatalogo([])
+    expect(nuovi.find(e => e.n === 'Trazioni')?.bodyweight).toBe(true)
+  })
+
+  it('la scelta di chi ha creato l’esercizio vince sul catalogo', () => {
+    expect(corpoLibero({ ...ex('Trazioni'), bodyweight: false })).toBe(false)
+    expect(corpoLibero({ ...ex('Dip alle parallele'), bodyweight: true })).toBe(true)
+  })
+})
+
+describe('quota di peso corporeo', () => {
+  it('i piegamenti, comunque si chiamino, ne sollevano due terzi; il resto tutto', () => {
+    expect(quotaCorpo(ex('Piegamenti'))).toBe(0.65)
+    expect(quotaCorpo(ex('Piegamenti presa stretta'))).toBe(0.65)
+    expect(quotaCorpo(ex('Push-up'))).toBe(0.65)
+    expect(quotaCorpo(ex('Trazioni'))).toBe(1)
+    expect(quotaCorpo(ex('Dip alle parallele'))).toBe(1)
   })
 })

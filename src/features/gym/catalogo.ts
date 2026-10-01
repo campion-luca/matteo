@@ -42,7 +42,7 @@ import { uid } from '@/lib/uid'
 // TUTTO il catalogo di partenza, e il disegno del gruppo muscolare resta solo
 // dove vuol dire qualcosa — "questo esercizio te lo sei aggiunto tu".
 
-interface Voce { n: string; muscle: string }
+interface Voce { n: string; muscle: string; bodyweight?: true }
 
 export const CATALOGO: Voce[] = [
   // Petto
@@ -52,10 +52,10 @@ export const CATALOGO: Voce[] = [
   { n: 'Croci ai cavi bassi',                     muscle: 'Petto' },
   { n: 'Croci ai cavi alti',                      muscle: 'Petto' },
   { n: 'Croci alla peck deck',                    muscle: 'Petto' },
-  { n: 'Piegamenti',                              muscle: 'Petto' },
+  { n: 'Piegamenti',                              muscle: 'Petto', bodyweight: true },
 
   // Dorso
-  { n: 'Trazioni',                                muscle: 'Dorso' },
+  { n: 'Trazioni',                                muscle: 'Dorso', bodyweight: true },
   { n: 'Stacco',                                  muscle: 'Dorso' },
   { n: 'Lat machine presa larga',                 muscle: 'Dorso' },
   { n: 'Rematore T-Bar presa larga',              muscle: 'Dorso' },
@@ -111,7 +111,42 @@ export function esercizidaCatalogo(esistenti: PalestraExercise[]): PalestraExerc
       id: uid('px'),
       n: v.n,
       muscle: v.muscle,
+      ...(v.bodyweight ? { bodyweight: true } : {}),
       current: { kg: 0, reps: 0, sets_n: 0 },
       history: [],
     }))
+}
+
+// ── Quanto del proprio peso si solleva davvero ─────────────────
+// A corpo libero il carico è il peso corporeo — ma non sempre tutto. In una
+// trazione o in un dip si è appesi per intero; in un piegamento i piedi restano
+// a terra e le braccia spingono circa due terzi del corpo. Contarlo per intero
+// dava a chi fa 3 × 20 piegamenti pesando 78 kg un "massimale" di 130 kg di
+// petto: più di quanto alzi quasi chiunque di panca.
+//
+// Si riconosce dal nome, come i massimali (BIG_LIFTS in gymMaxLifts): vale così
+// anche per "Piegamenti presa stretta" o "Push-up" scritti a mano. Tutto ciò
+// che non è in elenco conta per intero.
+const QUOTE: Array<[RegExp, number]> = [
+  [/piegament|push[\s-]?up|flessioni/i, 0.65],
+]
+
+/** La parte di peso corporeo che l'esercizio fa sollevare (1 = tutto). Si
+ *  moltiplica per il peso dell'utente prima di passarlo ai calcoli di carico. */
+export function quotaCorpo(ex: { n: string } | undefined): number {
+  if (!ex) return 1
+  for (const [nome, quota] of QUOTE) if (nome.test(ex.n)) return quota
+  return 1
+}
+
+const A_CORPO_LIBERO = new Set(CATALOGO.filter(v => v.bodyweight).map(v => v.n.trim().toLowerCase()))
+
+/** L'esercizio si fa a corpo libero? Se l'ha detto chi l'ha creato, vale quello;
+ *  altrimenti decide il catalogo per nome. Così i "Piegamenti" e le "Trazioni"
+ *  già nello storico di chi usava l'app diventano a corpo libero senza una
+ *  migrazione che riscriva il blob, e chi li ha voluti con attrezzo (`false`)
+ *  resta con attrezzo. */
+export function corpoLibero(ex: { n: string; bodyweight?: boolean } | undefined): boolean {
+  if (!ex) return false
+  return ex.bodyweight ?? A_CORPO_LIBERO.has(ex.n.trim().toLowerCase())
 }

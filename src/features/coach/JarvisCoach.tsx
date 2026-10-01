@@ -408,10 +408,13 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   }, [link.athlete_id, link.coach_id])
   useEffect(() => { ricaricaNote() }, [ricaricaNote])
 
-  const salva = (sc: GymScheda) => {
+  // `chiudi: false` per la bozza: il form resta aperto sull'elenco di cosa
+  // manca. Chiudendolo, quell'elenco non si leggeva mai e la bozza sembrava un
+  // salvataggio riuscito — con una scheda che l'allievo non vede.
+  const salva = (sc: GymScheda, chiudi = true) => {
     setSalvataggio(null)
     salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', sc)
-      .then(() => { setForm(null); ricarica() })
+      .then(() => { if (chiudi) setForm(null); ricarica() })
       .catch(e => setSalvataggio(messaggio(e)))
   }
 
@@ -433,7 +436,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           onSave={salva}
           // Anche la bozza si salva: il lavoro non si perde. Resta però invisibile
           // all'allievo, che vede solo le schede complete (vedi GymSchede).
-          onSaveDraft={sc => salva({ ...sc, draft: true })}
+          onSaveDraft={sc => salva({ ...sc, draft: true }, false)}
         />
       </div>
     )

@@ -74,15 +74,28 @@ export async function fetchRemoteUpdatedAt(userId: string): Promise<string | nul
 
 // Salva lo stato e restituisce l'`updated_at` scritto. Lancia in caso di errore
 // (rete, sessione scaduta, RLS): nessun salvataggio può fallire in silenzio.
+//
+// Anche qui una scadenza, più larga di quella delle letture: si spedisce tutto
+// il blob, e su una rete scarsa ci vuole di più. Senza, una rete che pende
+// lasciava il salvataggio "in viaggio" per sempre — e siccome se ne fa uno alla
+// volta, non ne partiva più nessuno fino al riavvio dell'app.
+const ATTESA_SALVATAGGIO_MS = 15000
+
 export async function saveUserData(userId: string, state: JarvisState): Promise<string> {
-  const { data, error } = await supabase
-    .from('user_data')
-    .upsert(
-      { user_id: userId, data: state, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    )
-    .select('updated_at')
-    .single()
+  const { signal, fine } = scadenza(ATTESA_SALVATAGGIO_MS)
+  let data, error
+  try {
+    ({ data, error } = await supabase
+      .from('user_data')
+      .upsert(
+        { user_id: userId, data: state, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      )
+      .select('updated_at')
+      .abortSignal(signal)
+      .single())
+  } finally { fine() }
   if (error) throw error
+  if (!data) throw new Error('salvataggio senza risposta')
   return data.updated_at as string
 }

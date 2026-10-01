@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoteUpdatedAt, senzaRete } from '@/lib/cloudSync'
 import { useSyncStatus } from '@/lib/syncStatus'
 import { getSyncMeta, setSynced, markDirty, clearSyncMeta, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
+import { dimenticaSchedeRicevute } from '@/lib/coach'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
@@ -165,7 +166,45 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
       if (useSyncStatus.getState().status === 'error') flushNow()
     })
 
-    const onVisibility = () => { if (document.visibilityState === 'hidden') flushNow() }
+    // ── Rileggere il cloud tornando sull'app ─────────────────────
+    // Il cloud si leggeva solo all'avvio. Ma una PWA sul telefono non si
+    // "avvia": resta aperta per giorni e torna in primo piano. Così il telefono
+    // lavorava su dati di ieri mentre il computer ne aveva scritti di nuovi, e il
+    // conflitto si scopriva solo al primo salvataggio — cioè a fine allenamento.
+    // Rileggendo al ritorno, quasi sempre non c'è nessun conflitto da risolvere.
+    //
+    // Solo se qui non c'è niente da mandare: con modifiche locali pendenti si
+    // passa da `performSave`, che il conflitto lo sa gestire (e recupera ciò
+    // che è nato qui). Non scrive mai: leggere non deve far diventare questo
+    // dispositivo "il più recente".
+    const rileggi = async () => {
+      if (inFlight.current || senzaRete()) return
+      if (getSyncMeta().dirty) { void performSave(); return }
+      inFlight.current = true
+      try {
+        const remote = await fetchRemoteUpdatedAt(userId)
+        if (!remotoCambiato(remote, lastKnownUpdatedAt.current)) return
+        const res = await loadUserData(userId)
+        // Nel frattempo si è toccato qualcosa: non si applica sopra, ci pensa
+        // il salvataggio che quella modifica ha già pianificato.
+        if (!res || getSyncMeta().dirty) return
+        applyRemoteState(res.data)
+        lastKnownUpdatedAt.current = res.updatedAt
+        setSynced(res.updatedAt, idsNoti(useJarvisStore.getState()))
+        useSyncStatus.getState().setNotice(t('Aggiornato da un altro dispositivo'))
+      } catch {
+        // Rete assente o lenta: si resta sul dato locale, senza allarmi. Non è
+        // un salvataggio fallito, e il prossimo ritorno ci riprova.
+      } finally {
+        inFlight.current = false
+        if (dirty.current) scheduleSave()
+      }
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushNow()
+      else void rileggi()
+    }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', flushNow)
 
@@ -305,13 +344,18 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        useJarvisStore.setState({ ...EMPTY_STATE })
+        // `true` = SOSTITUISCE lo stato invece di fonderlo. Fondendo, i campi che
+        // EMPTY_STATE non nomina (sesso, peso, altezza, data di nascita, lingua,
+        // gruppi creati) restavano in memoria, e chi entrava dopo sullo stesso
+        // telefono se li ritrovava — e al primo salvataggio nel proprio cloud.
+        useJarvisStore.setState({ ...EMPTY_STATE }, true)
         removeStorage('local', JARVIS_STORE_KEY)
         // Anche le meta di sync: sono dell'ACCOUNT, non del dispositivo. Restando,
         // l'utente successivo ereditava `dirty`, `lastSyncedAt` e soprattutto gli id
         // `noti` di quello prima — cioè `syncMerge` avrebbe deciso cosa "è nato qui"
         // guardando gli id di un altro.
         clearSyncMeta()
+        dimenticaSchedeRicevute()
       }
       // link "password dimenticata": mostra la schermata per impostare la nuova password
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)

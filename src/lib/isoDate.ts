@@ -10,6 +10,14 @@ export function todayISO(): string {
   return localISO(new Date())
 }
 
+/** Quanti giorni di calendario passano da una data all'altra ("YYYY-MM-DD").
+ *  In UTC, e non sottraendo due `Date` locali: a cavallo del cambio d'ora un
+ *  giorno dura 23 o 25 ore, e la differenza divisa per 24 non torna intera. */
+export function giorniTra(da: string, a: string): number {
+  const utc = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return Date.UTC(y, m - 1, d) }
+  return Math.round((utc(a) - utc(da)) / 86_400_000)
+}
+
 // ── Settimana ISO 8601 ─────────────────────────────────────────
 // Una sola definizione di settimana per tutta l'app: inizia di LUNEDÌ e appartiene
 // all'anno del suo giovedì. Le statistiche palestra usavano una versione naive che

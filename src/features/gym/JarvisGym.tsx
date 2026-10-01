@@ -31,7 +31,7 @@ import { Riepilogo } from '@/features/dashboard/Riepilogo'
 import { SettimanaStrip } from '@/features/dashboard/SettimanaStrip'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
-import { esercizidaCatalogo } from './catalogo'
+import { esercizidaCatalogo, quotaCorpo } from './catalogo'
 import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
 import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi, type VistaGruppi } from './vistaEsercizi'
 import { CaroselloGruppi } from './CaroselloGruppi'
@@ -49,7 +49,7 @@ import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary } from './GymHyrox'
 import { FormatoSwitch } from './FormatoSwitch'
 import { type FormatoHyrox, sessioniDel } from './hyroxStima'
-import { GlobalSearch } from '@/features/search/GlobalSearch'
+import { GlobalSearch, type Trovato } from '@/features/search/GlobalSearch'
 
 type MuscleView = 'vol' | 'sessioni'
 
@@ -217,13 +217,12 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
   const totalHyrox    = hyroxExercises.reduce((sum, ex) => sum + ex.history.length, 0)
 
   const { prs, muscleEntries } = useMemo(() => {
-    const volOf = (h: PalestraHistoryEntry) => entryVolume(h, bodyWeight)
-
     const prs = exercises.map(ex => {
-      const bestKg  = ex.history.length ? Math.max(...ex.history.map(h => effectiveLoad(h, bodyWeight))) : ex.current.kg
+      const corpo = bodyWeight * quotaCorpo(ex)
+      const bestKg  = ex.history.length ? Math.max(...ex.history.map(h => effectiveLoad(h, corpo))) : ex.current.kg
       // I record si ordinano per massimale stimato: il solo carico massimo metteva
       // davanti una singola pesante fatta una volta rispetto a una serie lunga e piena.
-      const best1RM = ex.history.length ? Math.max(...ex.history.map(h => entry1RM(h, bodyWeight))) : 0
+      const best1RM = ex.history.length ? Math.max(...ex.history.map(h => entry1RM(h, corpo))) : 0
       return { ex, name: ex.n, muscle: displayMuscle(ex.muscle), bestKg, best1RM, sessions: ex.history.length }
     }).sort((a, b) => b.best1RM - a.best1RM)
 
@@ -239,7 +238,8 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
       if (!ex.history.length) return
       const m = displayMuscle(ex.muscle)
       const cur = map.get(m) ?? { vol: 0, days: new Set<string>() }
-      ex.history.forEach(h => { cur.vol += volOf(h); cur.days.add(h.date ?? h.d) })
+      const corpo = bodyWeight * quotaCorpo(ex)
+      ex.history.forEach(h => { cur.vol += entryVolume(h, corpo); cur.days.add(h.date ?? h.d) })
       map.set(m, cur)
     })
     const muscleEntries = [...map.entries()].map(([muscle, v]) => ({ muscle, vol: v.vol, days: v.days.size }))
@@ -475,7 +475,8 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
 }) {
   const t = useT()
   const tData = useTData()
-  const bodyWeight = useBodyWeight()
+  // Già ridotto alla parte che questo esercizio fa sollevare (vedi quotaCorpo).
+  const bodyWeight = useBodyWeight() * quotaCorpo(ex)
   const dark = useIsDark()
   const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
   const color = exColor(ex, muscleColors)
@@ -576,7 +577,8 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
 }) {
   const t = useT()
   const tData = useTData()
-  const bodyWeight = useBodyWeight()
+  // Già ridotto alla parte che questo esercizio fa sollevare (vedi quotaCorpo).
+  const bodyWeight = useBodyWeight() * quotaCorpo(ex)
   const dark = useIsDark()
   // Ordinato per data: lo storico viene letto E riscritto da questa vista, quindi
   // l'ordinamento si normalizza anche su disco e gli indici restano coerenti.
@@ -829,7 +831,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
 const TREND_SOGLIA = 0.015
 const TREND_MIN_SESSIONI = 3
 
-export function trendAlzate(valori: number[]): 'su' | 'giu' | 'piatto' {
+function trendAlzate(valori: number[]): 'su' | 'giu' | 'piatto' {
   const v = valori.filter(x => x > 0)
   if (v.length < TREND_MIN_SESSIONI) return 'piatto'
   const ultima = v[v.length - 1]
@@ -1378,15 +1380,20 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
 }
 
 // ── Pagina di un gruppo muscolare (i suoi esercizi) ────────────
-function MuscleDetailPage({ muscle, color, icona, exercises, onBack, onSelectExercise, onAddExercise }: {
+function MuscleDetailPage({ muscle, color, icona, exercises, onBack, onSelectExercise, onAddExercise, onElimina }: {
   muscle: string; color: string; icona?: string; exercises: PalestraExercise[]
   onBack: () => void
   onSelectExercise: (ex: PalestraExercise) => void
   onAddExercise: () => void
+  /** Eliminare il gruppo. C'è solo per un gruppo creato dall'utente e vuoto:
+   *  quelli di serie non si tolgono, e uno con dentro degli esercizi li
+   *  lascerebbe senza casa. */
+  onElimina?: () => void
 }) {
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
+  const { confirmDelete } = useConfirmDelete()
   // Elenco o griglia. La scelta resta in localStorage e non nello store cloud: è
   // il modo in cui si guarda una lista su QUESTO schermo — sul telefono si scorre,
   // sul desktop si abbraccia — non un dato da portarsi dietro fra dispositivi.
@@ -1403,6 +1410,14 @@ function MuscleDetailPage({ muscle, color, icona, exercises, onBack, onSelectExe
             <div style={{ fontFamily: NUC.font, fontSize: 24, fontWeight: 500, color: NUC.ink, textTransform: 'uppercase', letterSpacing: '.02em', lineHeight: 1.1 }}>{tData(muscle)}</div>
             <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: exercises.length })}</div>
           </div>
+          {onElimina && (
+            <button onClick={() => confirmDelete(onElimina, tData(muscle))} aria-label={t('Elimina gruppo')} title={t('Elimina gruppo')} className="flex items-center justify-center" style={{
+              width: 36, height: 36, flexShrink: 0, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)',
+            }}>
+              <Icons.trash size={15} stroke={1.6}/>
+            </button>
+          )}
         </div>
       </div>
       <div className="j-scroll-area">
@@ -1433,6 +1448,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     hyroxExercises: st.hyroxExercises,
     palestraExercises: st.palestraExercises,
     muscleColors: st.muscleColors,
+    customMuscles: st.customMuscles,
   })))
   const set = useJarvisStore.setState
   const t = useT()
@@ -1465,8 +1481,18 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       .catch(() => { /* nessuna nota: è il caso normale */ })
     return () => { vivo = false }
   }, [])
+  // L'esercizio aperto è quello dello STORE, ritrovato per id: `selectedExercise`
+  // ricorda solo quale. Tenendone una copia, su desktop — dove la scheda resta
+  // aperta a destra mentre si fa altro — il pannello mostrava lo storico di
+  // prima, e alla prima nota o correzione lo riscriveva nello store cancellando
+  // l'alzata dell'allenamento fatto nel frattempo.
+  const esercizioAperto = selectedExercise
+    ? s.palestraExercises.find(e => e.id === selectedExercise.id) ?? null
+    : null
   const [selectedHyrox, setSelectedHyrox] = useState<HyroxExercise | null>(null)
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null)
+  // La scheda da aprire entrando nelle schede: la sceglie la ricerca.
+  const [schedaDaAprire, setSchedaDaAprire] = useState<string | null>(null)
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null)
   const [showSchede, setShowSchede] = useState(false)
   const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
@@ -1498,6 +1524,17 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     // Si entra subito nel gruppo appena creato: è vuoto, e lì dentro c'è la card
     // "+" per metterci il primo esercizio.
     setSelectedMuscle(name)
+  }
+
+  // Un gruppo creato e rimasto vuoto si può togliere: il gruppo e il suo colore
+  // insieme, come sono nati.
+  const eliminaGruppo = (name: string) => {
+    set(st => {
+      const mc = { ...(st.muscleColors ?? {}) }
+      delete mc[name]
+      return { customMuscles: (st.customMuscles ?? []).filter(c => c.name !== name), muscleColors: mc }
+    })
+    setSelectedMuscle(null)
   }
 
   const saveMuscleColor = (muscle: string, color: string | undefined) => {
@@ -1539,7 +1576,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const savePalestraEntry = (ex: PalestraExercise, entry: PalestraHistoryEntry) => {
     // Il confronto va fatto PRIMA di scrivere: dopo, l'alzata appena salvata
     // starebbe già nello storico e batterebbe sempre sé stessa.
-    const rec = recordFor(ex.history, entry, bodyWeight)
+    const rec = recordFor(ex.history, entry, bodyWeight * quotaCorpo(ex))
     if (rec) setRecords([{ name: ex.n, ...rec }])
 
     // Storico ordinato per data e `current` preso dalla sessione più RECENTE, non
@@ -1553,15 +1590,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     set(st => ({ palestraExercises: st.palestraExercises.map(e =>
       e.id === ex.id ? { ...e, ...merge(e.history) } : e
     )}))
-    if (selectedExercise?.id === ex.id) {
-      setSelectedExercise(prev => prev ? { ...prev, ...merge(prev.history) } : null)
-    }
   }
 
+  // Le modifiche si applicano all'esercizio com'è ADESSO nello store, non alla
+  // copia che aveva in mano chi ha chiamato.
   const updatePalestraExercise = (ex: PalestraExercise, changes: Partial<PalestraExercise>) => {
-    const updated = { ...ex, ...changes }
-    set(st => ({ palestraExercises: st.palestraExercises.map(e => e.id === ex.id ? updated : e) }))
-    setSelectedExercise(updated)
+    set(st => ({ palestraExercises: st.palestraExercises.map(e => e.id === ex.id ? { ...e, ...changes } : e) }))
   }
 
   const deletePalestraExercise = (ex: PalestraExercise) => {
@@ -1603,8 +1637,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       .map(m => ({ muscle: m, items: groups[m] }))
     // Un gruppo vuoto ("Altro · 0 esercizi") occupa una riga per dire niente. Le
     // card vuote restano solo all'utente nuovo, dove sono l'onboarding di cui sopra.
-    return hasAny ? ordered.filter(g => g.items.length > 0) : ordered
-  }, [filteredPalestra, hasAny, gruppiNoti])
+    // Tranne quelli creati dall'utente: nascosto, un gruppo appena creato e non
+    // ancora riempito spariva — e non si poteva né ritrovare né ricreare
+    // ("esiste già").
+    const creati = new Set((s.customMuscles ?? []).map(c => c.name))
+    return hasAny ? ordered.filter(g => g.items.length > 0 || creati.has(g.muscle)) : ordered
+  }, [filteredPalestra, hasAny, gruppiNoti, s.customMuscles])
 
   const raceStationData = useMemo<HyroxExercise[]>(() =>
     RACE_STATIONS.map(rs => ({
@@ -1665,7 +1703,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   if (showSchede) {
     return (
       <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>
-        <GymSchede onBack={() => setShowSchede(false)}/>
+        <GymSchede apri={schedaDaAprire ?? undefined} onBack={() => { setShowSchede(false); setSchedaDaAprire(null) }}/>
       </div>
     )
   }
@@ -1692,22 +1730,22 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     )
   })() : null
 
-  const paginaEsercizio = selectedExercise ? (
+  const paginaEsercizio = esercizioAperto ? (
     showExerciseCharts ? (
       <ExerciseChartsPage
-        ex={selectedExercise}
+        ex={esercizioAperto}
         onBack={() => setShowExerciseCharts(false)}
         muscleColors={muscleColors}
       />
     ) : (
       <ExerciseDetail
-        ex={selectedExercise}
+        ex={esercizioAperto}
         onBack={() => { setSelectedExercise(null); setShowExerciseCharts(false) }}
-        onLog={() => setLogPalestra(selectedExercise)}
-        onUpdate={changes => updatePalestraExercise(selectedExercise, changes)}
-        onDelete={() => deletePalestraExercise(selectedExercise)}
+        onLog={() => setLogPalestra(esercizioAperto)}
+        onUpdate={changes => updatePalestraExercise(esercizioAperto, changes)}
+        onDelete={() => deletePalestraExercise(esercizioAperto)}
         onOpenCharts={() => setShowExerciseCharts(true)}
-        noteCoach={noteCoach.filter(n => n.exercise_id === selectedExercise.id)}
+        noteCoach={noteCoach.filter(n => n.exercise_id === esercizioAperto.id)}
         muscleColors={muscleColors}
         onSaveMuscleColor={saveMuscleColor}
       />
@@ -1723,6 +1761,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       onBack={() => setSelectedMuscle(null)}
       onSelectExercise={ex => setSelectedExercise(ex)}
       onAddExercise={() => setShowAdd(true)}
+      onElimina={
+        (s.customMuscles ?? []).some(c => c.name === selectedMuscle)
+        && !s.palestraExercises.some(e => displayMuscle(e.muscle) === selectedMuscle)
+          ? () => eliminaGruppo(selectedMuscle)
+          : undefined
+      }
     />
   ) : null
 
@@ -1902,18 +1946,46 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     </div>
   )
 
+  // Un risultato della ricerca porta DOVE sta la cosa cercata: la scheda
+  // dell'esercizio dentro il suo gruppo, la stazione hyrox, la scheda
+  // d'allenamento. Prima chiudeva la ricerca e basta, lasciando a chi cercava
+  // "Panca" il compito di andarsela a trovare.
+  const apriDaRicerca = (cosa: Trovato) => {
+    setStats(false)
+    if (cosa.tipo === 'scheda') {
+      setSchedaDaAprire(cosa.id)
+      setShowSchede(true)
+      return
+    }
+    if (cosa.tipo === 'esercizio') {
+      const ex = s.palestraExercises.find(e => e.id === cosa.id)
+      if (!ex) return
+      setTab('palestra')
+      setSelectedHyrox(null)
+      setShowExerciseCharts(false)
+      setSelectedMuscle(displayMuscle(ex.muscle))
+      setSelectedExercise(ex)
+      return
+    }
+    const stazione = cosa.id === runStationData.id ? runStationData
+      : raceStationData.find(e => e.id === cosa.id) ?? s.hyroxExercises.find(e => e.id === cosa.id)
+    if (!stazione) return
+    setTab('hyrox')
+    setSelectedExercise(null)
+    setSelectedMuscle(null)
+    setSelectedHyrox(stazione)
+  }
+
   // Modali e ricerca globale stanno FUORI dalle pagine: su desktop la radice può
   // non essere a video (a sinistra c'è il gruppo aperto), e un modale montato
   // dentro di lei sparirebbe insieme a lei mentre è aperto.
   const contorno = (
     <>
       {modals}
-      {/* Dall'allenamento un risultato non ha altrove dove portare: chiude e
-          lascia sulla schermata in cui si è già. */}
       <GlobalSearch
         open={showRicercaGlobale}
         onClose={() => setShowRicercaGlobale(false)}
-        onOpenGym={() => setShowRicercaGlobale(false)}
+        onApri={apriDaRicerca}
       />
     </>
   )

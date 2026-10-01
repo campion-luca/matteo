@@ -7,6 +7,7 @@
 // ritrova condivisi da una richiesta altrui accettata di fretta.
 import { supabase } from './supabase'
 import { t } from '@/lib/i18n'
+import { readStorage, writeStorage, removeStorage } from './safeStorage'
 
 export interface CoachLink {
   coach_id: string
@@ -183,6 +184,38 @@ export async function schedeRicevute(userId: string): Promise<CoachScheda[]> {
     .order('updated_at', { ascending: false })
   if (error) throw new Error(translateCoachError(error.message))
   return (data ?? []) as CoachScheda[]
+}
+
+// ── Le schede ricevute, anche senza rete ───────────────────────
+// Le schede assegnate non stanno nel blob: si leggono dalla rete ogni volta. In
+// palestra — che spesso è un seminterrato — voleva dire non trovare la scheda
+// dell'allenatore proprio quando serviva, e non poter nemmeno riprendere un
+// allenamento lasciato a metà su di essa. L'ultima lettura riuscita resta sul
+// telefono, e si usa quando la rete non risponde.
+//
+// È una copia di sola lettura: quello che conta resta la tabella. Porta l'id di
+// chi l'ha letta, e vale solo per lui.
+const CHIAVE_RICEVUTE = 'jarvis-schede-ricevute-v1'
+
+export function ricordaSchedeRicevute(userId: string, righe: CoachScheda[]): void {
+  writeStorage('local', CHIAVE_RICEVUTE, JSON.stringify({ userId, righe }))
+}
+
+/** Le schede ricevute all'ultima lettura riuscita, se sono di questo utente. */
+export function schedeRicevuteInCache(userId: string): CoachScheda[] {
+  const raw = readStorage('local', CHIAVE_RICEVUTE)
+  if (!raw) return []
+  try {
+    const c = JSON.parse(raw) as { userId?: string; righe?: CoachScheda[] }
+    return c.userId === userId && Array.isArray(c.righe) ? c.righe : []
+  } catch {
+    return []
+  }
+}
+
+/** Al logout: sono dell'account, non del dispositivo. */
+export function dimenticaSchedeRicevute(): void {
+  removeStorage('local', CHIAVE_RICEVUTE)
 }
 
 /** Crea o aggiorna una scheda assegnata. L'id è quello della GymScheda: una

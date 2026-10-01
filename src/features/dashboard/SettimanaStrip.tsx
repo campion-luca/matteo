@@ -11,7 +11,9 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import { localISO } from '@/lib/isoDate'
+import { localISO, giorniTra, todayISO } from '@/lib/isoDate'
+import { ultimoAllenamento, quantoFa } from '@/features/gym/gymModel'
+import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
 import { daysShort } from '@/lib/dateFormat'
 import { useT, useLang } from '@/lib/i18n'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
@@ -37,6 +39,14 @@ export function SettimanaStrip() {
     })
   }, [s.palestra, s.hyrox, lang])
 
+  // Da quanto non ci si allena. Fino a ieri non si dice niente: lo dicono già
+  // i puntini della settimana. Da due giorni in su sì, e oltre i dieci cambia
+  // colore — è la soglia da cui le schede avvisano che i carichi peseranno.
+  const fermoDa = useMemo(() => {
+    const ultimo = ultimoAllenamento(s.palestra, s.hyrox)
+    return ultimo ? giorniTra(ultimo, todayISO()) : null
+  }, [s.palestra, s.hyrox])
+
   return (
     <>
       <button
@@ -45,7 +55,7 @@ export function SettimanaStrip() {
         className="j-focus"
         style={{
           display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', width: '100%',
-          padding: 0, margin: '0 0 clamp(10px, 1.8dvh, 16px)',
+          padding: 0, margin: fermoDa !== null && fermoDa >= 2 ? '0 0 4px' : '0 0 clamp(10px, 1.8dvh, 16px)',
           background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit',
         }}
       >
@@ -74,6 +84,18 @@ export function SettimanaStrip() {
           </div>
         ))}
       </button>
+      {fermoDa !== null && fermoDa >= 2 && (
+        <div style={{
+          margin: '0 0 clamp(10px, 1.8dvh, 16px)', textAlign: 'center',
+          fontFamily: NUC.label, fontSize: 11, letterSpacing: '.02em',
+          color: fermoDa > GIORNI_DI_STOP ? 'var(--warn)' : 'var(--fg-mute)',
+          fontWeight: fermoDa > GIORNI_DI_STOP ? 600 : 400,
+        }}>
+          {fermoDa > GIORNI_DI_STOP
+            ? t('Non ti alleni da {n} giorni', { n: fermoDa })
+            : t('Ultimo allenamento: {quando}', { quando: quantoFa(fermoDa, t) })}
+        </div>
+      )}
       <CalendarioAllenamenti open={calendario} onClose={() => setCalendario(false)}/>
     </>
   )

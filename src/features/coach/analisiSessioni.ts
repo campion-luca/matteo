@@ -16,6 +16,7 @@
 // testano qui.
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { effectiveLoad, entryVolume, setRepsOf, displayMuscle } from '@/features/gym/gymModel'
+import { quotaCorpo } from '@/features/gym/catalogo'
 
 export interface EsitoEsercizio {
   nome: string
@@ -86,7 +87,7 @@ export function analizzaGiornate(
     const prima = ex.history.filter(h => h.date && h.date < date)
     if (!prima.length) return null
     const ultima = prima.reduce((a, b) => (b.date! > a.date! ? b : a))
-    return effectiveLoad(ultima, pesoCorporeo)
+    return effectiveLoad(ultima, pesoCorporeo * quotaCorpo(ex))
   }
 
   // Tutte le alzate, raggruppate per giornata.
@@ -106,7 +107,7 @@ export function analizzaGiornate(
   const esito = (ex: PalestraExercise, h: PalestraHistoryEntry, date: string, previsto?: GymSchedaExercise): EsitoEsercizio => {
     const colpi = setRepsOf(h)
     const min = previsto ? colpiMinimi(previsto.reps) : null
-    const ora = effectiveLoad(h, pesoCorporeo)
+    const ora = effectiveLoad(h, pesoCorporeo * quotaCorpo(ex))
     const prima = caricoPrima(ex, date)
     return {
       nome: ex.n,
@@ -170,7 +171,7 @@ export function analizzaGiornate(
     const tutti = [...gruppi.values()].flatMap(g => g.esercizi)
     giornate.push({
       date,
-      volume: alzate.reduce((s, a) => s + entryVolume(a.h, pesoCorporeo), 0),
+      volume: alzate.reduce((s, a) => s + entryVolume(a.h, pesoCorporeo * quotaCorpo(a.ex)), 0),
       // Le schede prima, le alzate a mano in fondo.
       gruppi: [...gruppi.values()].sort((a, b) => Number(!a.scheda) - Number(!b.scheda)),
       soloHyrox: alzate.length === 0,

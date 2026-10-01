@@ -26,6 +26,7 @@ import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
 import { type FormatoHyrox, unitaFormato, distanzaLeggibile } from './hyroxStima'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
+import { corpoLibero, quotaCorpo } from './catalogo'
 import { todayISO } from '@/lib/isoDate'
 import { uid } from '@/lib/uid'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
@@ -273,6 +274,36 @@ function ColonnaScelta({ titolo, opzioni, spenta }: {
   )
 }
 
+// ── Attrezzo o corpo libero, sull'esercizio ────────────────────
+// Si sceglie quando l'esercizio nasce: è ciò che dice all'app qual è il carico
+// di riferimento. Con attrezzo sono i chili; a corpo libero è il proprio peso, i
+// chili sono solo zavorra, e il consiglio di carico non c'è — lì si progredisce
+// con i colpi, non spostando un perno.
+function SceltaCarico({ corpo, onChange }: { corpo: boolean; onChange: (corpo: boolean) => void }) {
+  const t = useT()
+  return (
+    <>
+      <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
+        {t('Tipo di carico')}
+      </div>
+      <div className="flex gap-2">
+        {([false, true] as const).map(bw => (
+          <button key={String(bw)} type="button" onClick={() => onChange(bw)} aria-pressed={corpo === bw} style={{
+            flex: 1, height: 36, borderRadius: 'var(--radius)',
+            background: corpo === bw ? 'var(--surface-2)' : 'var(--surface)',
+            border: `1px solid ${corpo === bw ? 'var(--j-accent)' : NUC.hairline}`,
+            color: corpo === bw ? 'var(--j-accent-ink)' : NUC.dim,
+            fontFamily: NUC.label, fontSize: 11, letterSpacing: '.08em', cursor: 'pointer',
+            transition: 'all 180ms',
+          }}>
+            {bw ? t('Corpo libero') : t('Con attrezzo')}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 // ── Log Palestra Modal ─────────────────────────────────────────
 export interface LogPalestraModalProps {
   open: boolean; onClose: () => void
@@ -304,7 +335,8 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     setKg(preCompila(ex.current.kg))
     setReps(preCompila(ex.current.reps))
     setSets(preCompila(ex.current.sets_n))
-    setIsBodyweight(false); setZavorra(''); setModificaData(false)
+    // Parte da come è fatto l'esercizio: le trazioni si aprono già a corpo libero.
+    setIsBodyweight(corpoLibero(ex)); setZavorra(''); setModificaData(false)
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
   }, [open, ex])
 
@@ -534,6 +566,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
   const [muscle, setMuscle] = useState(presetMuscle ?? '')
   const [muscle2, setMuscle2] = useState('')
   const [note, setNote] = useState('')
+  const [corpo, setCorpo] = useState(false)
 
   // Quando il modale viene aperto da una card di gruppo muscolare, parte già
   // sul muscolo giusto.
@@ -546,9 +579,9 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
     if (mode === 'hyrox') {
       onAdd({ id: uid('hx'), n: name, unit, target: parseFloat(target) || 1, history: [] })
     } else {
-      onAdd({ id: uid('px'), n: name, muscle, ...(muscle2 ? { muscle2 } : {}), ...(note.trim() ? { note: note.trim() } : {}), current: { kg: 0, reps: 8, sets_n: 3 }, history: [] })
+      onAdd({ id: uid('px'), n: name, muscle, ...(muscle2 ? { muscle2 } : {}), ...(note.trim() ? { note: note.trim() } : {}), bodyweight: corpo, current: { kg: 0, reps: 8, sets_n: 3 }, history: [] })
     }
-    setName(''); setUnit('m'); setTarget(''); setMuscle(''); setMuscle2(''); setNote('')
+    setName(''); setUnit('m'); setTarget(''); setMuscle(''); setMuscle2(''); setNote(''); setCorpo(false)
     onClose()
   }
 
@@ -607,6 +640,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
                 )}
               </>
             )}
+            <SceltaCarico corpo={corpo} onChange={setCorpo}/>
             <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
               {t('Note (opzionale)')}
             </div>
@@ -630,7 +664,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
 export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: () => void }) {
   const t = useT()
   const tData = useTData()
-  const bodyWeight = useBodyWeight()
+  const bodyWeight = useBodyWeight() * quotaCorpo(ex)
   const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
 
   // memoised derived arrays
@@ -829,10 +863,11 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   const [muscle2, setMuscle2] = useState(displayMuscle(ex.muscle2 ?? ''))
   const [color, setColor] = useState(muscleColors[displayMuscle(ex.muscle)] ?? '')
   const [note, setNote] = useState(ex.note ?? '')
+  const [corpo, setCorpo] = useState(corpoLibero(ex))
 
   useEffect(() => {
     setName(ex.n); setMuscle(displayMuscle(ex.muscle)); setMuscle2(displayMuscle(ex.muscle2 ?? ''))
-    setColor(muscleColors[displayMuscle(ex.muscle)] ?? ''); setNote(ex.note ?? '')
+    setColor(muscleColors[displayMuscle(ex.muscle)] ?? ''); setNote(ex.note ?? ''); setCorpo(corpoLibero(ex))
     // Reset del form solo al cambio di esercizio (ex.id): gli altri campi sono letti una tantum.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ex.id])
@@ -849,7 +884,10 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   const save = () => {
     if (!name.trim()) return
     onSaveMuscleColor(muscle, color || undefined)
-    onSave({ n: name.trim(), muscle, muscle2: muscle2 || undefined, note: note.trim() || undefined })
+    // Il tipo di carico si scrive sempre, anche se non è stato toccato: chi lo
+    // prendeva dal catalogo per nome ("Trazioni") lo perderebbe rinominando
+    // l'esercizio, con il selettore ancora acceso su "Corpo libero".
+    onSave({ n: name.trim(), muscle, muscle2: muscle2 || undefined, note: note.trim() || undefined, bodyweight: corpo })
     onClose()
   }
 
@@ -874,6 +912,8 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
           <option value="">{t('Secondo gruppo (opzionale)')}</option>
           {gruppi.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
         </select>
+
+        <SceltaCarico corpo={corpo} onChange={setCorpo}/>
 
         <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
           {t('Colore gruppo muscolare — si applica a tutti gli esercizi')}
@@ -936,7 +976,12 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
   // guardare solo i pesi l'avrebbe riaperta come uniforme, cancellandole i colpi
   // al primo salvataggio.
   const [perSet, setPerSet] = useState(!!(entry.setWeights?.length || entry.setReps?.length))
-  const [setWeightsStr, setSetWeightsStr] = useState<string[]>(entry.setWeights?.map(String) ?? [])
+  // Con i soli colpi variabili il peso è uno, ma i campi sono per serie: vanno
+  // riempiti tutti con quello. Vuoti, "Salva" usciva in silenzio — niente peso,
+  // niente salvataggio — e non si riusciva nemmeno ad aggiungere una nota.
+  const [setWeightsStr, setSetWeightsStr] = useState<string[]>(
+    entry.setWeights?.map(String) ?? (entry.setReps ?? []).map(() => (entry.kg > 0 ? String(entry.kg) : '')),
+  )
   const [setRepsStr, setSetRepsStr] = useState<string[]>(entry.setReps?.map(String) ?? [])
   // Anche un'alzata già registrata può essere un massimale: il flag si mette e si
   // toglie da qui, altrimenti l'unico modo sarebbe cancellarla e riscriverla.

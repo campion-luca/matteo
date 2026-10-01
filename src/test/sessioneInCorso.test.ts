@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { leggiSessione, salvaSessione, scartaSessione, type SerieInCorso } from '@/features/gym/sessioneInCorso'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, copreAltra, type SerieInCorso } from '@/features/gym/sessioneInCorso'
 import type { GymScheda } from '@/store/useJarvisStore'
 
 // La sessione a metà è l'unico dato dell'app che non sta né nello store né in
@@ -94,5 +94,24 @@ describe('sessione di allenamento in corso', () => {
     Storage.prototype.setItem = () => { throw new DOMException('QuotaExceededError') }
     expect(() => salvaSessione(PUSH.id, mezzaSessione)).not.toThrow()
     Storage.prototype.setItem = vero
+  })
+
+  // ── Riprendere da fuori ───────────────────────────────────────
+  it('dice quale scheda ha un allenamento aperto, e a che punto è', () => {
+    salvaSessione(PUSH.id, mezzaSessione)
+    expect(sessioneAperta()).toEqual({ schedaId: 'sc1', fatte: 2, totali: 7 })
+  })
+
+  it('una sessione mai toccata non è un allenamento in corso', () => {
+    salvaSessione(PUSH.id, { e1: serie(4), e2: serie(3) })
+    expect(sessioneAperta()).toBeNull()
+  })
+
+  it('aprire un’altra scheda solo per guardarla non cancella quella cominciata', () => {
+    salvaSessione(PUSH.id, mezzaSessione)
+    expect(copreAltra('sc-altra', { x: serie(3) })).toBe(true)
+    // Appena lì si spunta qualcosa, l'allenamento vero diventa quello.
+    expect(copreAltra('sc-altra', { x: serie(3, 1) })).toBe(false)
+    expect(copreAltra(PUSH.id, { e1: serie(4), e2: serie(3) })).toBe(false)
   })
 })

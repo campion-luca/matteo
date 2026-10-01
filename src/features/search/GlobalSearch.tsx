@@ -25,13 +25,16 @@ function norm(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 }
 
+/** Cosa è stato scelto: chi ospita la ricerca sa dove sta e ci porta. */
+export interface Trovato { tipo: 'esercizio' | 'hyrox' | 'scheda'; id: string }
+
 interface GlobalSearchProps {
   open: boolean
   onClose: () => void
-  onOpenGym: () => void
+  onApri: (cosa: Trovato) => void
 }
 
-export function GlobalSearch({ open, onClose, onOpenGym }: GlobalSearchProps) {
+export function GlobalSearch({ open, onClose, onApri }: GlobalSearchProps) {
   const t = useT()
   const tData = useTData()
   const s = useJarvisStore(useShallow(st => ({
@@ -50,11 +53,11 @@ export function GlobalSearch({ open, onClose, onOpenGym }: GlobalSearchProps) {
     // sul testo che l'utente VEDE, quindi in tedesco "Brust" deve trovare gli
     // esercizi di petto. `t` e `tData` fra le dipendenze rifanno l'indice al
     // cambio lingua.
-    s.palestra.forEach(e => out.push({ label: tData(e.n), sub: tData(e.muscle), run: () => onOpenGym() }))
-    s.hyrox.forEach(e => out.push({ label: tData(e.n), sub: t('Hyrox'), run: () => onOpenGym() }))
-    s.schede.forEach(sc => out.push({ label: sc.title, sub: t('Scheda'), run: () => onOpenGym() }))
+    s.palestra.forEach(e => out.push({ label: tData(e.n), sub: tData(e.muscle), run: () => onApri({ tipo: 'esercizio', id: e.id }) }))
+    s.hyrox.forEach(e => out.push({ label: tData(e.n), sub: t('Hyrox'), run: () => onApri({ tipo: 'hyrox', id: e.id }) }))
+    s.schede.forEach(sc => out.push({ label: sc.title, sub: t('Scheda'), run: () => onApri({ tipo: 'scheda', id: sc.id }) }))
     return out
-  }, [s, onOpenGym, t, tData])
+  }, [s, onApri, t, tData])
 
   const results = useMemo(() => {
     const nq = norm(q.trim())

@@ -39,3 +39,53 @@ describe('recupero di ciò che è nato in locale', () => {
     expect(recuperaCreatiInLocale(stato(['a']), stato(['a', 'b']), idsNoti(stato(['a'])))).toBeNull()
   })
 })
+
+// L'altro caso, più doloroso: il telefono rimasto indietro finisce una scheda, e
+// l'allenamento appena salvato spariva perché il computer aveva scritto dopo.
+describe('recupero delle alzate nate in locale', () => {
+  const alz = (date: string, kg: number) => ({ d: 'W', date, kg, reps: 8, sets_n: 3 })
+  const conStorico = (id: string, storico: ReturnType<typeof alz>[]): PalestraExercise =>
+    ({ ...esercizio(id), history: storico, current: storico.length ? { kg: storico[storico.length - 1].kg, reps: 8, sets_n: 3 } : { kg: 0, reps: 0, sets_n: 0 } })
+  const palestra = (...es: PalestraExercise[]) => ({ gymSchede: [], palestraExercises: es })
+
+  it('l’allenamento fatto qui si aggiunge a quello che ha scritto l’altro dispositivo', () => {
+    const base = palestra(conStorico('panca', [alz('2026-09-20', 60)]))
+    // Il computer ha registrato il 22; il telefono, rimasto alla base, il 24.
+    const remoto = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-22', 62.5)]))
+    const locale = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-24', 65)]))
+    const r = recuperaCreatiInLocale(locale, remoto, idsNoti(base))
+    const panca = r?.palestraExercises[0]
+    expect(panca?.history.map(h => h.date)).toEqual(['2026-09-20', '2026-09-22', '2026-09-24'])
+    // "L'ultima volta" è l'alzata più recente, cioè quella appena recuperata.
+    expect(panca?.current.kg).toBe(65)
+  })
+
+  it('un’alzata cancellata altrove non torna', () => {
+    const base = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-22', 62.5)]))
+    const remoto = palestra(conStorico('panca', [alz('2026-09-20', 60)]))
+    expect(recuperaCreatiInLocale(base, remoto, idsNoti(base))).toBeNull()
+  })
+
+  it('la stessa giornata corretta sui due dispositivi resta una, quella remota', () => {
+    const base = palestra(conStorico('panca', [alz('2026-09-20', 60)]))
+    const remoto = palestra(conStorico('panca', [alz('2026-09-20', 62.5)]))
+    const locale = palestra(conStorico('panca', [alz('2026-09-20', 65)]))
+    expect(recuperaCreatiInLocale(locale, remoto, idsNoti(base))).toBeNull()
+  })
+
+  it('un’alzata con data arretrata non diventa "l’ultima volta"', () => {
+    const base = palestra(conStorico('panca', [alz('2026-09-20', 60)]))
+    const remoto = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-25', 70)]))
+    const locale = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-10', 50)]))
+    const panca = recuperaCreatiInLocale(locale, remoto, idsNoti(base))?.palestraExercises[0]
+    expect(panca?.history).toHaveLength(3)
+    expect(panca?.current.kg).toBe(70)
+  })
+
+  it('non tocca gli esercizi che sul remoto non ci sono più', () => {
+    const base = palestra(conStorico('panca', [alz('2026-09-20', 60)]))
+    const locale = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-24', 65)]))
+    // L'esercizio è stato eliminato altrove: resta eliminato, alzate comprese.
+    expect(recuperaCreatiInLocale(locale, palestra(), idsNoti(base))).toBeNull()
+  })
+})

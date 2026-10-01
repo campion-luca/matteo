@@ -15,6 +15,8 @@ import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { LineChart } from '@/features/gym/gymShared'
 import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle } from '@/features/gym/gymModel'
+import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
+import { quotaCorpo } from '@/features/gym/catalogo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
 import { fmtDayMonth, daysShort } from '@/lib/dateFormat'
@@ -61,7 +63,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
       for (const h of ex.history) {
         if (!h.date) continue
         const s = perGiorno.get(h.date) ?? { date: h.date, volume: 0, alzate: [] }
-        s.volume += entryVolume(h, peso)
+        s.volume += entryVolume(h, peso * quotaCorpo(ex))
         s.alzate.push({ ex: ex.n, muscle: displayMuscle(ex.muscle), h })
         perGiorno.set(h.date, s)
       }
@@ -128,8 +130,9 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
     return palestra
       .filter(ex => ex.history.length > 0)
       .map(ex => {
-        const top = ex.history.reduce((b, h) => entry1RM(h, peso) > entry1RM(b, peso) ? h : b)
-        return { nome: ex.n, muscle: displayMuscle(ex.muscle), h: top, rm: Math.round(entry1RM(top, peso)) }
+        const p = peso * quotaCorpo(ex)
+        const top = ex.history.reduce((b, h) => entry1RM(h, p) > entry1RM(b, p) ? h : b)
+        return { nome: ex.n, muscle: displayMuscle(ex.muscle), h: top, rm: Math.round(entry1RM(top, p)) }
       })
       .sort((a, b) => b.rm - a.rm)
       .slice(0, 5)
@@ -180,8 +183,20 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
             <Tile
               k={t('Ultimo')}
               v={giorniFa === null ? '—' : giorniFa === 0 ? t('oggi') : giorniFa === 1 ? t('ieri') : t('{n} gg fa', { n: giorniFa })}
+              allarme={giorniFa !== null && giorniFa > GIORNI_DI_STOP}
             />
           </div>
+          {/* Oltre la soglia lo si dice per esteso: è il dato che cambia cosa
+              scrivere a questa persona, e un "14 gg fa" fra due numeri si perde. */}
+          {giorniFa !== null && giorniFa > GIORNI_DI_STOP && (
+            <div role="note" style={{
+              marginTop: 12, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+              background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
+              fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--warn)',
+            }}>
+              {t('Non si allena da {n} giorni: alla ripresa farà più fatica con i carichi di prima.', { n: giorniFa })}
+            </div>
+          )}
         </NucCard>
       </div>
 
@@ -583,11 +598,11 @@ function Cella({ giù, w, children }: { giù: boolean; w: number; children: Reac
   )
 }
 
-function Tile({ k, v }: { k: string; v: string }) {
+function Tile({ k, v, allarme }: { k: string; v: string; allarme?: boolean }) {
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 3 }}>{k}</div>
-      <div style={{ fontFamily: NUC.font, fontSize: 19, fontWeight: 500, letterSpacing: -0.4, color: 'var(--fg)' }}>{v}</div>
+      <div style={{ fontFamily: NUC.font, fontSize: 19, fontWeight: 500, letterSpacing: -0.4, color: allarme ? 'var(--warn)' : 'var(--fg)' }}>{v}</div>
     </div>
   )
 }
