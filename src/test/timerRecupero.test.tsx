@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
-import { TimerRecupero } from '@/features/gym/TimerRecupero'
-import { leggiRecupero, salvaRecupero, scartaSessione, RECUPERO_SEC, OLTRE_MAX_SEC } from '@/features/gym/sessioneInCorso'
+import { TimerRecupero, TimerIcona } from '@/features/gym/TimerRecupero'
+import { leggiRecupero, salvaRecupero, scartaSessione, timerChiuso, ricordaTimerChiuso, RECUPERO_SEC, OLTRE_MAX_SEC } from '@/features/gym/sessioneInCorso'
 
 // Il timer conta sull'ISTANTE di fine, non sui secondi passati: è ciò che lo fa
 // reggere al telefono bloccato e alla pagina rimontata. I casi qui sotto sono
@@ -117,5 +117,47 @@ describe('esecuzione, recupero, e oltre', () => {
     salvaRecupero('sc1', Date.now() + 60_000)
     scartaSessione()
     expect(leggiRecupero('sc1')).toBeNull()
+  })
+})
+
+// Chiuso con la ×, il timer diventa un'icona in testata. Chiuso non è fermo.
+describe('timer chiuso', () => {
+  it('la × c’è solo se si può chiudere, e chiama chi lo deve togliere', () => {
+    const chiudi = vi.fn()
+    const { unmount } = render(<TimerRecupero schedaId="sc1"/>)
+    expect(screen.queryByRole('button', { name: 'Chiudi il timer' })).not.toBeInTheDocument()
+    unmount()
+    render(<TimerRecupero schedaId="sc1" onChiudi={chiudi}/>)
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi il timer' }))
+    expect(chiudi).toHaveBeenCalledTimes(1)
+  })
+
+  it('a riposo l’icona è solo un orologio; toccarla riapre', () => {
+    const apri = vi.fn()
+    render(<TimerIcona schedaId="sc1" onApri={apri}/>)
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apri il timer' }))
+    expect(apri).toHaveBeenCalledTimes(1)
+  })
+
+  it('chiuso a recupero in corso, l’icona continua il conto — fino al "+"', () => {
+    render(<TimerRecupero schedaId="sc1" onChiudi={vi.fn()}/>)
+    avvia()
+    avanti(20)
+    cleanup()
+    // Il quadrante se n'è andato; l'icona riparte da dove lui era arrivato.
+    render(<TimerIcona schedaId="sc1" onApri={vi.fn()}/>)
+    expect(screen.getByRole('timer')).toHaveTextContent('1:10')
+    avanti(75)
+    expect(screen.getByRole('timer')).toHaveTextContent('+0:05')
+  })
+
+  it('la scelta di tenerlo chiuso resta, e non se ne va con la sessione', () => {
+    expect(timerChiuso()).toBe(false)
+    ricordaTimerChiuso(true)
+    scartaSessione()
+    expect(timerChiuso()).toBe(true)
+    ricordaTimerChiuso(false)
+    expect(timerChiuso()).toBe(false)
   })
 })

@@ -124,6 +124,20 @@ export function scartaSessione(): void {
 /** Quanto dura il recupero fra due serie. */
 export const RECUPERO_SEC = 90
 
+// Il quadrante chiuso (ridotto a icona in testata). È una preferenza di come
+// si guarda la pagina su QUESTO telefono, non un dato della sessione: resta fra
+// un allenamento e l'altro, e non la tocca `scartaSessione`.
+const KEY_TIMER_CHIUSO = 'jarvis-timer-chiuso-v1'
+
+export function timerChiuso(): boolean {
+  return readStorage('local', KEY_TIMER_CHIUSO) === '1'
+}
+
+export function ricordaTimerChiuso(chiuso: boolean): void {
+  if (chiuso) writeStorage('local', KEY_TIMER_CHIUSO, '1')
+  else removeStorage('local', KEY_TIMER_CHIUSO)
+}
+
 /** Per quanto il timer continua a contare OLTRE lo zero prima di azzerarsi da
  *  sé. Mezz'ora: abbastanza per chi si ferma a parlare, non così tanto da
  *  ritrovare un "+3:12:40" di un allenamento abbandonato. */

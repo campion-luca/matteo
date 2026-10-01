@@ -10,6 +10,11 @@
 //                "+0:07", quanto si sta aspettando oltre il recupero. Finché
 //                non lo si tocca per ripartire.
 //
+// Si può CHIUDERE, con la × in alto a sinistra: il quadrante è grande, e chi
+// vuole tutta la pagina per gli esercizi lo riduce a un'icona in testata,
+// accanto al nome della scheda (`TimerIcona`). Chiuso non è fermo: il tempo
+// continua a scorrere e l'icona lo mostra. Un tocco sull'icona lo riapre.
+//
 // Il tasto NON spunta la serie da solo: il recupero è proprio il momento in cui
 // la si registra — colpi e chili veri, non quelli previsti — e spuntarla al
 // posto di chi si allena vorrebbe dire salvare numeri che nessuno ha guardato.
@@ -20,6 +25,7 @@
 // sotto le dita di chi sta scrivendo i chili.
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
+import { Icons } from '@/components/ui/Icons'
 import { useT } from '@/lib/i18n'
 import { leggiRecupero, salvaRecupero, scartaRecupero, RECUPERO_SEC, OLTRE_MAX_SEC } from './sessioneInCorso'
 
@@ -78,8 +84,12 @@ const SOTTO: CSSProperties = {
   fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
 }
 
-export function TimerRecupero({ schedaId }: { schedaId: string }) {
-  const t = useT()
+// ── Il motore ──────────────────────────────────────────────────
+// Lo stesso per il quadrante e per l'icona: a schermo ce n'è sempre uno solo
+// dei due, e quello che entra riparte dall'istante di fine che l'altro ha
+// lasciato scritto (vedi `leggiRecupero`). Per questo chiudere e riaprire non
+// perde un secondo, e non fa vibrare due volte.
+function useRecupero(schedaId: string) {
   // L'istante in cui il recupero finisce, non i secondi rimasti: il conto si
   // rifà ogni volta da qui, quindi un intervallo rallentato dal browser (pagina
   // in secondo piano, telefono bloccato) non lo fa restare indietro. Passato
@@ -142,12 +152,36 @@ export function TimerRecupero({ schedaId }: { schedaId: string }) {
     salvaRecupero(schedaId, f)
   }
 
+  return { stato, restano, oltre, avvia, ferma }
+}
+
+export function TimerRecupero({ schedaId, onChiudi }: {
+  schedaId: string
+  /** Riduce il timer all'icona in testata. Senza, la × non c'è. */
+  onChiudi?: () => void
+}) {
+  const t = useT()
+  const { stato, restano, oltre, avvia, ferma } = useRecupero(schedaId)
+
   return (
     // L'altezza è la stessa nei tre stati: il quadrante non cambia misura e la
     // riga sotto tiene sempre il posto di due righe. Il blocco sta sotto
     // l'elenco degli esercizi, e se crescesse al tocco l'elenco salterebbe
     // proprio mentre si va a scrivere i colpi.
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 10 }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 10 }}>
+      {onChiudi && (
+        <button
+          onClick={onChiudi}
+          aria-label={t('Chiudi il timer')} title={t('Chiudi il timer')}
+          className="j-hard j-hard-sm flex items-center justify-center"
+          style={{
+            position: 'absolute', top: 0, left: 0, width: 34, height: 34, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+            background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
+          }}
+        >
+          <Icons.x size={15} stroke={2}/>
+        </button>
+      )}
       {stato === 'esecuzione' && (
         <button
           onClick={avvia}
@@ -207,6 +241,36 @@ export function TimerRecupero({ schedaId }: { schedaId: string }) {
           : t('Recupero finito: è ora della prossima serie.')}
       </div>
     </div>
+  )
+}
+
+// ── Il timer chiuso: un'icona in testata ───────────────────────
+// A riposo è un orologio e basta. Con il tempo che scorre porta anche il
+// numero, nel colore dello stato — quello dell'app in recupero, rosso oltre lo
+// zero — perché chi ha chiuso il quadrante non ha smesso di voler sapere quanto
+// manca.
+export function TimerIcona({ schedaId, onApri }: { schedaId: string; onApri: () => void }) {
+  const t = useT()
+  const { stato, restano, oltre } = useRecupero(schedaId)
+  const colore = stato === 'oltre' ? ROSSO : stato === 'recupero' ? 'var(--j-accent-ink)' : NUC.dim
+  return (
+    <button
+      onClick={onApri}
+      aria-label={t('Apri il timer')} title={t('Apri il timer')}
+      className="j-hard j-hard-sm flex items-center justify-center gap-1.5"
+      style={{
+        height: 36, minWidth: 36, padding: stato === 'esecuzione' ? 0 : '0 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
+        background: stato === 'oltre' ? `rgba(var(--segnale-giu-rgb),0.16)` : 'var(--surface)',
+        border: `1px solid ${stato === 'esecuzione' ? NUC.hairline : colore}`, color: colore,
+      }}
+    >
+      <Icons.clock size={16} stroke={1.8}/>
+      {stato !== 'esecuzione' && (
+        <span role="timer" style={{ fontFamily: NUC.font, fontSize: 14, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
+          {stato === 'oltre' ? `+${mmss(oltre)}` : mmss(restano)}
+        </span>
+      )}
+    </button>
   )
 }
 

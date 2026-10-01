@@ -21,11 +21,11 @@ import { fmtDayMonthFull } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
-import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, copreAltra } from './sessioneInCorso'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, copreAltra, timerChiuso, ricordaTimerChiuso } from './sessioneInCorso'
 import { corpoLibero, quotaCorpo } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio } from './gymShared'
-import { TimerRecupero } from './TimerRecupero'
+import { TimerRecupero, TimerIcona } from './TimerRecupero'
 import { caricoConsigliato, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { todayISO, giorniTra } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
@@ -1930,6 +1930,10 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   // Gli esercizi con il campo della nota aperto. Quelli che una nota ce l'hanno
   // già la mostrano comunque: si apre a mano solo per cominciarne una.
   const [noteAperte, setNoteAperte] = useState<Set<string>>(() => new Set())
+  // Il timer: il quadrante in fondo, oppure — chiuso con la × — un'icona in
+  // testata accanto al nome della scheda. Chi lo chiude lo ritrova chiuso.
+  const [timerAperto, setTimerAperto] = useState(() => !timerChiuso())
+  const apriTimer = (aperto: boolean) => { setTimerAperto(aperto); ricordaTimerChiuso(!aperto) }
   // Il riepilogo prima di salvare. Aperto, non subito confermato: è lÌ che le
   // serie mancanti diventano leggibili come mancanti — durante la sessione ogni
   // esercizio parte a zero, e un rosso che compare a metà del primo esercizio
@@ -2100,6 +2104,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       onBack={onExit} tronca
       title={scheda.title}
       sub={t('{fatti}/{tot} esercizi completati', { fatti: doneEx, tot: totalEx })}
+      azioni={timerAperto ? undefined : <TimerIcona schedaId={scheda.id} onApri={() => apriTimer(true)}/>}
       extra={
         <div style={{ height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--surface-2)', marginTop: 12, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${totalEx ? (doneEx / totalEx) * 100 : 0}%`, background: 'var(--j-accent)', transition: 'width 200ms' }}/>
@@ -2256,7 +2261,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
         {/* Esecuzione e recupero: la barra che accompagna tutta la sessione.
             Sta qui sotto, fuori dalla parte che scorre, perché serve qualunque
             esercizio si stia guardando. */}
-        <TimerRecupero schedaId={scheda.id}/>
+        {timerAperto && <TimerRecupero schedaId={scheda.id} onChiudi={() => apriTimer(false)}/>}
         {/* "Allenamento" e non "alzate": quello che finisce qui è la sessione, e
             le alzate sono solo ciò che se ne salva. */}
         <button onClick={() => setRiepilogo(true)} disabled={!anyDone} className="j-btn-accent" style={{ opacity: anyDone ? 1 : 0.5 }}>

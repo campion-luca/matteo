@@ -838,6 +838,8 @@ export const DE_UI: Record<string, string> = {
   'Esecuzione': 'Ausführung',
   'Serie finita': 'Satz fertig',
   'Timer': 'Timer',
+  'Chiudi il timer': 'Timer schließen',
+  'Apri il timer': 'Timer öffnen',
   'Riprendi': 'Fortfahren',
   'Oltre il recupero': 'Pause überzogen',
   'tocca per riprendere': 'tippen zum Fortfahren',

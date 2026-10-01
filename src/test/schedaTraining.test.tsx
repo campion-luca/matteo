@@ -304,6 +304,26 @@ describe('allenamento: le aggiunte di settembre', () => {
     expect(alzate()[0].setWeights).toBeUndefined()
   })
 
+  it('il timer si chiude in un’icona accanto al titolo, e si riapre da lì', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    // Aperto: il quadrante in fondo, nessuna icona in testata.
+    expect(screen.getByRole('button', { name: 'Timer' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apri il timer' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Chiudi il timer' }))
+    expect(screen.queryByRole('button', { name: 'Timer' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apri il timer' })).toBeInTheDocument()
+
+    // Uscendo e rientrando resta chiuso: è una scelta, non uno stato della pagina.
+    cleanup()
+    await apriAllenamento(user)
+    expect(screen.queryByRole('button', { name: 'Timer' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Apri il timer' }))
+    expect(screen.getByRole('button', { name: 'Timer' })).toBeInTheDocument()
+  })
+
   it('lo storico della scheda mostra gli allenamenti fatti, li corregge e li toglie', async () => {
     const user = userEvent.setup()
     await apriAllenamento(user)
