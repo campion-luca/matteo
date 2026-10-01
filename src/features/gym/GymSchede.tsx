@@ -25,6 +25,7 @@ import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, copreAltr
 import { corpoLibero, quotaCorpo } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio } from './gymShared'
+import { TimerRecupero } from './TimerRecupero'
 import { caricoConsigliato, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { todayISO, giorniTra } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
@@ -2252,6 +2253,10 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       </div>
 
       <div className="j-page-cta">
+        {/* Esecuzione e recupero: la barra che accompagna tutta la sessione.
+            Sta qui sotto, fuori dalla parte che scorre, perché serve qualunque
+            esercizio si stia guardando. */}
+        <TimerRecupero schedaId={scheda.id}/>
         {/* "Allenamento" e non "alzate": quello che finisce qui è la sessione, e
             le alzate sono solo ciò che se ne salva. */}
         <button onClick={() => setRiepilogo(true)} disabled={!anyDone} className="j-btn-accent" style={{ opacity: anyDone ? 1 : 0.5 }}>

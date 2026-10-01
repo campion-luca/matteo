@@ -16,6 +16,8 @@ import { readStorage, writeStorage, removeStorage } from '@/lib/safeStorage'
 import type { GymScheda } from '@/store/useJarvisStore'
 
 const KEY = 'jarvis-sessione-in-corso-v1'
+/** Il timer di recupero fra le serie: vedi in fondo al file. */
+const KEY_RECUPERO = 'jarvis-recupero-v1'
 
 /** Quanto resta valida una sessione lasciata a metà. Un allenamento lungo dura
  *  due ore; dodici coprono anche chi si ferma a mangiare e torna. Oltre, quello
@@ -107,4 +109,38 @@ export function salvaSessione(schedaId: string, progress: Record<string, SerieIn
  *  nello storico, e lasciarla qui la farebbe riproporre al prossimo ingresso. */
 export function scartaSessione(): void {
   removeStorage('local', KEY)
+  // Con la sessione se ne va anche il suo timer: un recupero rimasto acceso
+  // ripartirebbe da solo al prossimo allenamento.
+  removeStorage('local', KEY_RECUPERO)
+}
+
+// ── Il recupero in corso ───────────────────────────────────────
+// Il timer fra una serie e l'altra. Si salva l'ISTANTE in cui finisce, non i
+// secondi che mancano: così sopravvive a tutto ciò a cui sopravvive la sessione
+// — il telefono bloccato in tasca, il tasto indietro, la pagina scartata da iOS
+// — e al ritorno segna il tempo giusto invece di ripartire da capo o di essersi
+// fermato dove lo si era lasciato.
+
+/** Quanto dura il recupero fra due serie. */
+export const RECUPERO_SEC = 90
+
+/** Quando finisce il recupero in corso su questa scheda (ms), o `null` se non
+ *  ce n'è uno o è già scaduto. */
+export function leggiRecupero(schedaId: string, ora = Date.now()): number | null {
+  const raw = readStorage('local', KEY_RECUPERO)
+  if (!raw) return null
+  try {
+    const r = JSON.parse(raw) as { schedaId?: string; fine?: number }
+    return r.schedaId === schedaId && typeof r.fine === 'number' && r.fine > ora ? r.fine : null
+  } catch {
+    return null
+  }
+}
+
+export function salvaRecupero(schedaId: string, fine: number): void {
+  writeStorage('local', KEY_RECUPERO, JSON.stringify({ schedaId, fine }))
+}
+
+export function scartaRecupero(): void {
+  removeStorage('local', KEY_RECUPERO)
 }
