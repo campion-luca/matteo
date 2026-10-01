@@ -124,14 +124,20 @@ export function scartaSessione(): void {
 /** Quanto dura il recupero fra due serie. */
 export const RECUPERO_SEC = 90
 
-/** Quando finisce il recupero in corso su questa scheda (ms), o `null` se non
- *  ce n'è uno o è già scaduto. */
+/** Per quanto il timer continua a contare OLTRE lo zero prima di azzerarsi da
+ *  sé. Mezz'ora: abbastanza per chi si ferma a parlare, non così tanto da
+ *  ritrovare un "+3:12:40" di un allenamento abbandonato. */
+export const OLTRE_MAX_SEC = 30 * 60
+
+/** Quando finisce (o è finito) il recupero in corso su questa scheda, in ms.
+ *  Anche se è già passato: da lì il timer conta in su. `null` se non ce n'è
+ *  uno, o se è scaduto da più di `OLTRE_MAX_SEC`. */
 export function leggiRecupero(schedaId: string, ora = Date.now()): number | null {
   const raw = readStorage('local', KEY_RECUPERO)
   if (!raw) return null
   try {
     const r = JSON.parse(raw) as { schedaId?: string; fine?: number }
-    return r.schedaId === schedaId && typeof r.fine === 'number' && r.fine > ora ? r.fine : null
+    return r.schedaId === schedaId && typeof r.fine === 'number' && ora - r.fine < OLTRE_MAX_SEC * 1000 ? r.fine : null
   } catch {
     return null
   }

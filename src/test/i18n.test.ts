@@ -117,7 +117,9 @@ describe('dizionario tedesco', () => {
       // usa davvero: "Trainer" c'è, ma qui l'etichetta sta sotto un'icona in una
       // card da tre parole, e Coach è la più corta e la più riconoscibile.
       'Coach', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
-      'Personal Coach', 'Premium', 'Roxzone ({n} × {s} s)', 'Standard', 'Total', 'Trend',
+      'Personal Coach', 'Premium', 'Roxzone ({n} × {s} s)', 'Standard',
+      // "Timer" è la parola che si usa anche in tedesco (der Timer).
+      'Timer', 'Total', 'Trend',
     ])
   })
 })

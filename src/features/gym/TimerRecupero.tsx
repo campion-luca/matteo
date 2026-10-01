@@ -1,33 +1,44 @@
-// ── Esecuzione e recupero, in fondo all'allenamento ────────────
-// Una barra sola, sempre lì sotto, con due stati che si alternano:
+// ── Il timer di recupero, in fondo all'allenamento ─────────────
+// Un quadrante rotondo, al centro, sempre lì sotto: è fatto come un orologio da
+// timer perché è quello che è, e perché una cosa tonda in una pagina di
+// rettangoli si trova senza cercarla. Tre stati, uno dopo l'altro:
 //
-//   ESECUZIONE → si sta facendo la serie. Un tasto: "Serie finita".
-//   RECUPERO   → un minuto e mezzo che scende, e il promemoria di cosa farne:
-//                recuperare, e scrivere com'è andata la serie.
+//   ESECUZIONE → si sta facendo la serie. Il quadrante è un tasto pieno: TIMER.
+//   RECUPERO   → un minuto e mezzo che scende, con l'anello che si consuma, e
+//                il promemoria di cosa farne: recuperare e registrare la serie.
+//   OLTRE      → arrivato a zero non si ferma: diventa rosso e conta in su,
+//                "+0:07", quanto si sta aspettando oltre il recupero. Finché
+//                non lo si tocca per ripartire.
 //
 // Il tasto NON spunta la serie da solo: il recupero è proprio il momento in cui
 // la si registra — colpi e chili veri, non quelli previsti — e spuntarla al
 // posto di chi si allena vorrebbe dire salvare numeri che nessuno ha guardato.
 //
 // È un componente a sé, e non stato della pagina dell'allenamento, per una
-// ragione di velocità: il conto alla rovescia cambia ogni secondo, e tenuto
-// lassù farebbe ridisegnare ogni secondo tutte le card degli esercizi con i
-// loro campi — sotto le dita di chi sta scrivendo i chili.
-import { useCallback, useEffect, useRef, useState } from 'react'
+// ragione di velocità: il conto cambia ogni secondo, e tenuto lassù farebbe
+// ridisegnare ogni secondo tutte le card degli esercizi con i loro campi —
+// sotto le dita di chi sta scrivendo i chili.
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
-import { Icons } from '@/components/ui/Icons'
 import { useT } from '@/lib/i18n'
-import { leggiRecupero, salvaRecupero, scartaRecupero, RECUPERO_SEC } from './sessioneInCorso'
+import { leggiRecupero, salvaRecupero, scartaRecupero, RECUPERO_SEC, OLTRE_MAX_SEC } from './sessioneInCorso'
 
-/** L'altezza della barra, uguale in esecuzione e in recupero. */
-const ALTEZZA = 84
+/** Il diametro del quadrante. Più del doppio della barra che c'era prima (84px),
+ *  ma legato all'altezza dello schermo: su un telefono basso deve restare posto
+ *  per gli esercizi sopra. */
+const DIAMETRO = 'clamp(150px, 22dvh, 184px)'
+
+/** Per quanto, oltre lo zero, lo schermo resta acceso. Il conto in su continua
+ *  anche dopo; ma un telefono dimenticato sulla panca non deve restare acceso
+ *  mezz'ora. */
+const ACCESO_OLTRE_SEC = 180
 
 /** "1:30", "0:07". */
 function mmss(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 }
 
-// Lo schermo acceso mentre il tempo scende: un timer che si guarda dopo aver
+// Lo schermo acceso mentre il tempo scorre: un timer che si guarda dopo aver
 // sbloccato il telefono è arrivato tardi. Dove l'API non c'è non succede niente.
 type Blocco = { release: () => Promise<void> }
 async function tieniAcceso(): Promise<Blocco | null> {
@@ -39,20 +50,47 @@ async function tieniAcceso(): Promise<Blocco | null> {
   }
 }
 
+// L'anello: una circonferenza di raggio 46 in un riquadro da 100. La lunghezza
+// serve a consumarlo — il tratto è lungo quanto il cerchio, e lo si fa scorrere
+// via di quanto è già passato.
+// Il rosso di "oltre il recupero". È quello dei segnali (lo stesso del "scendi"
+// nel carico consigliato) e non `--danger`: in Premium i colori d'avviso sono
+// spenti di proposito — `--danger` lì è bianco — mentre un timer scaduto deve
+// diventare rosso in qualunque tema.
+const ROSSO = 'var(--segnale-giu)'
+
+const RAGGIO = 46
+const GIRO = 2 * Math.PI * RAGGIO
+
+const QUADRANTE: CSSProperties = {
+  position: 'relative', width: DIAMETRO, height: DIAMETRO, borderRadius: '50%', flexShrink: 0,
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  padding: 0, textAlign: 'center',
+}
+const SOPRA: CSSProperties = {
+  fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase',
+}
+const NUMERO: CSSProperties = {
+  fontFamily: NUC.font, fontSize: 42, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.03em',
+  fontVariantNumeric: 'tabular-nums', margin: '5px 0 7px',
+}
+const SOTTO: CSSProperties = {
+  fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
+}
+
 export function TimerRecupero({ schedaId }: { schedaId: string }) {
   const t = useT()
   // L'istante in cui il recupero finisce, non i secondi rimasti: il conto si
   // rifà ogni volta da qui, quindi un intervallo rallentato dal browser (pagina
-  // in secondo piano, telefono bloccato) non lo fa restare indietro.
+  // in secondo piano, telefono bloccato) non lo fa restare indietro. Passato
+  // quell'istante resta lo stesso numero: da lì si conta in su.
   const [fine, setFine] = useState<number | null>(() => leggiRecupero(schedaId))
   const [adesso, setAdesso] = useState(() => Date.now())
-  // L'ultimo recupero è arrivato in fondo: lo si dice finché non parte la
-  // serie dopo, perché è il segnale che si stava aspettando.
-  const [finito, setFinito] = useState(false)
   const blocco = useRef<Blocco | null>(null)
 
   const restano = fine === null ? 0 : Math.max(0, Math.ceil((fine - adesso) / 1000))
-  const inRecupero = fine !== null && restano > 0
+  const oltre = fine === null ? 0 : Math.max(0, Math.floor((adesso - fine) / 1000))
+  const stato: 'esecuzione' | 'recupero' | 'oltre' = fine === null ? 'esecuzione' : restano > 0 ? 'recupero' : 'oltre'
 
   const rilascia = useCallback(() => { void blocco.current?.release().catch(() => {}); blocco.current = null }, [])
 
@@ -62,106 +100,127 @@ export function TimerRecupero({ schedaId }: { schedaId: string }) {
     if (fine === null) return
     const batti = () => setAdesso(Date.now())
     const id = setInterval(batti, 250)
-    const alRitorno = () => {
-      if (document.visibilityState !== 'visible') return
-      batti()
-      // Il sistema toglie il blocco dello schermo quando la pagina va sotto.
-      if (!blocco.current) void tieniAcceso().then(b => { blocco.current = b })
-    }
+    const alRitorno = () => { if (document.visibilityState === 'visible') batti() }
     document.addEventListener('visibilitychange', alRitorno)
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', alRitorno) }
   }, [fine])
 
-  // Arrivato a zero.
+  // Il passaggio per lo zero: due colpi brevi, una volta sola. Chi rientra a
+  // tempo già scaduto non li sente — lo zero è passato mentre non c'era. Su
+  // iPhone la vibrazione dal browser non esiste: lì il segnale è il rosso.
+  const eraOltre = useRef(stato === 'oltre')
   useEffect(() => {
-    if (fine === null || restano > 0) return
-    setFine(null)
-    setFinito(true)
-    scartaRecupero()
-    rilascia()
-    // Due colpi brevi. Su iPhone la vibrazione dal browser non esiste: lì il
-    // segnale è la barra che cambia.
-    try { navigator.vibrate?.([180, 90, 180]) } catch { /* non supportata */ }
-  }, [fine, restano, rilascia])
+    if (stato === 'oltre' && !eraOltre.current) {
+      try { navigator.vibrate?.([180, 90, 180]) } catch { /* non supportata */ }
+    }
+    eraOltre.current = stato === 'oltre'
+  }, [stato])
 
+  // Lo schermo: acceso per il recupero e per i primi minuti oltre, poi lo si
+  // lascia andare. E dimenticato lì per mezz'ora, il timer si azzera da sé.
+  const accesoFinQui = stato !== 'esecuzione' && oltre < ACCESO_OLTRE_SEC
+  useEffect(() => {
+    if (!accesoFinQui) { rilascia(); return }
+    const prendi = () => { if (!blocco.current && document.visibilityState === 'visible') void tieniAcceso().then(b => { blocco.current = b }) }
+    prendi()
+    // Il sistema toglie il blocco quando la pagina va sotto: al ritorno si riprende.
+    document.addEventListener('visibilitychange', prendi)
+    return () => document.removeEventListener('visibilitychange', prendi)
+  }, [accesoFinQui, rilascia])
   useEffect(() => rilascia, [rilascia])
+
+  const ferma = useCallback(() => {
+    setFine(null)
+    scartaRecupero()
+  }, [])
+  useEffect(() => { if (oltre >= OLTRE_MAX_SEC) ferma() }, [oltre, ferma])
 
   const avvia = () => {
     const f = Date.now() + RECUPERO_SEC * 1000
     setAdesso(Date.now())
     setFine(f)
-    setFinito(false)
     salvaRecupero(schedaId, f)
-    void tieniAcceso().then(b => { blocco.current = b })
-  }
-
-  const salta = () => {
-    setFine(null)
-    setFinito(false)
-    scartaRecupero()
-    rilascia()
   }
 
   return (
-    <div
-      // Il contorno d'accent è il segnale di "tocca a te": durante il recupero
-      // la barra è a riposo, appena finisce si accende.
-      //
-      // L'altezza è la stessa nei due stati, fissata: la barra sta sotto
-      // l'elenco degli esercizi, e se crescesse al tocco l'elenco salterebbe di
-      // qualche riga proprio mentre si va a scrivere i colpi.
-      style={{
-        marginBottom: 10, padding: '0 12px 0 14px', height: ALTEZZA, borderRadius: 'var(--radius-lg)',
-        background: 'var(--surface-pop)',
-        border: `1px solid ${finito ? 'var(--j-accent)' : NUC.hairline}`,
-        display: 'flex', flexDirection: 'column', justifyContent: 'center',
-      }}
-    >
-      {inRecupero ? (
-        <>
-          <div className="flex items-center gap-3">
-            <div style={{ flexShrink: 0 }}>
-              <div className="j-eyebrow">{t('Recupero')}</div>
-              <div role="timer" aria-label={t('Recupero')} style={{
-                fontFamily: NUC.font, fontSize: 32, fontWeight: 600, lineHeight: 1.05, letterSpacing: '-0.02em',
-                fontVariantNumeric: 'tabular-nums', color: NUC.ink, marginTop: 1,
-              }}>{mmss(restano)}</div>
-            </div>
-            <div style={{ flex: 1, minWidth: 0, fontFamily: NUC.label, fontSize: 11, lineHeight: 1.4, color: NUC.dim }}>
-              {t('Tempo di recuperare e registrare la serie.')}
-            </div>
-            <button onClick={salta} className="j-hard j-hard-sm" style={{
-              flexShrink: 0, height: 36, padding: '0 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-              background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
-              fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
-            }}>{t('Salta')}</button>
-          </div>
-          {/* Quanto manca, in lunghezza: si legge con la coda dell'occhio, dal
-              telefono appoggiato per terra. */}
-          <div aria-hidden style={{ height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--surface-2)', marginTop: 9, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(restano / RECUPERO_SEC) * 100}%`, background: 'var(--j-accent)', transition: 'width 250ms linear' }}/>
-          </div>
-        </>
-      ) : (
-        <div className="flex items-center justify-between gap-3">
-          <div style={{ minWidth: 0 }}>
-            <div className="j-eyebrow flex items-center gap-1.5">
-              <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--j-accent)', flexShrink: 0 }}/>
-              {t('Esecuzione')}
-            </div>
-            <div style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.4, color: finito ? NUC.ink : NUC.dim, fontWeight: finito ? 600 : 400, marginTop: 3 }}>
-              {finito ? t('Recupero finito: vai con la prossima serie.') : t('Finita la serie, fai partire il recupero.')}
-            </div>
-          </div>
-          <button onClick={avvia} className="j-hard j-accent-key j-focus flex items-center gap-2" style={{
-            flexShrink: 0, height: 46, padding: '0 16px', borderRadius: 'var(--radius)', cursor: 'pointer',
+    // L'altezza è la stessa nei tre stati: il quadrante non cambia misura e la
+    // riga sotto tiene sempre il posto di due righe. Il blocco sta sotto
+    // l'elenco degli esercizi, e se crescesse al tocco l'elenco salterebbe
+    // proprio mentre si va a scrivere i colpi.
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 10 }}>
+      {stato === 'esecuzione' && (
+        <button
+          onClick={avvia}
+          aria-label={t('Timer')}
+          className="j-hard j-accent-key j-focus"
+          style={{
+            ...QUADRANTE, cursor: 'pointer',
             backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', color: 'var(--j-accent-fg)',
-            fontFamily: NUC.label, fontSize: 11.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
-          }}>
-            <Icons.check size={15} stroke={2.4}/> {t('Serie finita')}
-          </button>
+          }}
+        >
+          <span style={{ ...SOPRA, opacity: 0.8 }}>{t('Esecuzione')}</span>
+          <span style={{ fontFamily: NUC.font, fontSize: 34, fontWeight: 700, lineHeight: 1, letterSpacing: '.06em', textTransform: 'uppercase', margin: '7px 0 8px' }}>
+            {t('Timer')}
+          </span>
+          <span style={{ ...SOTTO, opacity: 0.8 }}>{t('Serie finita')}</span>
+        </button>
+      )}
+
+      {stato === 'recupero' && (
+        <div style={{ ...QUADRANTE, background: 'var(--surface-pop)', color: NUC.ink }}>
+          <Anello parte={restano / RECUPERO_SEC} colore="var(--j-accent)"/>
+          <span className="j-eyebrow" style={{ ...SOPRA, position: 'relative' }}>{t('Recupero')}</span>
+          <span role="timer" aria-label={t('Recupero')} style={{ ...NUMERO, position: 'relative' }}>{mmss(restano)}</span>
+          <button onClick={ferma} className="j-hard j-hard-sm" style={{
+            position: 'relative', height: 28, padding: '0 12px', borderRadius: 'var(--radius-pill)', cursor: 'pointer',
+            background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, ...SOTTO,
+          }}>{t('Salta')}</button>
         </div>
       )}
+
+      {stato === 'oltre' && (
+        // Tutto il quadrante è il tasto: a tempo scaduto c'è una cosa sola da
+        // fare, ripartire, e deve bastare un tocco senza mirare.
+        <button
+          onClick={ferma}
+          aria-label={t('Riprendi')}
+          className="j-focus"
+          style={{
+            ...QUADRANTE, cursor: 'pointer',
+            background: `rgba(var(--segnale-giu-rgb),0.2)`, border: 'none', color: ROSSO,
+          }}
+        >
+          <Anello parte={1} colore={ROSSO}/>
+          <span style={{ ...SOPRA, position: 'relative' }}>{t('Oltre il recupero')}</span>
+          <span role="timer" aria-label={t('Oltre il recupero')} style={{ ...NUMERO, position: 'relative' }}>+{mmss(oltre)}</span>
+          <span style={{ ...SOTTO, position: 'relative' }}>{t('tocca per riprendere')}</span>
+        </button>
+      )}
+
+      <div style={{
+        marginTop: 9, minHeight: 31, maxWidth: 300, textAlign: 'center',
+        fontFamily: NUC.label, fontSize: 11, lineHeight: 1.4,
+        color: stato === 'oltre' ? ROSSO : NUC.dim, fontWeight: stato === 'oltre' ? 600 : 400,
+      }}>
+        {stato === 'esecuzione' ? t('Finita la serie, tocca il timer per il recupero.')
+          : stato === 'recupero' ? t('Tempo di recuperare e registrare la serie.')
+          : t('Recupero finito: è ora della prossima serie.')}
+      </div>
     </div>
+  )
+}
+
+/** L'anello del quadrante. `parte` è quanto ne resta, da 1 (pieno) a 0. Parte
+ *  dall'alto e si consuma in senso orario, come una lancetta. */
+function Anello({ parte, colore }: { parte: number; colore: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+      <circle cx="50" cy="50" r={RAGGIO} fill="none" stroke="var(--surface-2)" strokeWidth="5"/>
+      <circle
+        cx="50" cy="50" r={RAGGIO} fill="none" stroke={colore} strokeWidth="5" strokeLinecap="round"
+        strokeDasharray={GIRO} strokeDashoffset={GIRO * (1 - Math.min(1, Math.max(0, parte)))}
+        style={{ transition: 'stroke-dashoffset 250ms linear' }}
+      />
+    </svg>
   )
 }
