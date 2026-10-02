@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { analizzaGiornate, colpiMinimi } from '@/features/coach/analisiSessioni'
+import { perSettimana, haProblemi, analizzaGiornate, colpiMinimi } from '@/features/coach/analisiSessioni'
 import type { GymScheda, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 const SCHEDA_A: GymScheda = {
@@ -74,8 +74,9 @@ describe('una giornata di scheda', () => {
 
   it('un esercizio non previsto resta visibile come fuori scheda', () => {
     expect(per('Crunch')).toMatchObject({ fuoriScheda: true, saltato: false })
-    // a corpo libero il carico comprende il peso corporeo
-    expect(per('Crunch').carico).toMatchObject({ ora: 80, prima: null, delta: null })
+    // A corpo libero il carico che si confronta è la sola zavorra: il peso di
+    // chi si allena non è una scelta di quel giorno.
+    expect(per('Crunch').carico).toMatchObject({ ora: 0, prima: null, delta: null })
   })
 
   it('segue l’ordine della scheda', () => {
@@ -105,5 +106,53 @@ describe('giornate senza confronto', () => {
   it('le giornate vanno dalla più recente', () => {
     const giornate = analizzaGiornate([es('p', 'Panca', [alzata('2026-09-01', 80, 8, 3), alzata('2026-09-20', 80, 8, 3)])], [], 80)
     expect(giornate.map(g => g.date)).toEqual(['2026-09-20', '2026-09-01'])
+  })
+})
+
+// Le settimane dell'allenatore: sette giorni a partire da quando ha assegnato
+// la prima scheda, non dal lunedì del calendario.
+describe('le giornate per settimana', () => {
+  const giorno = (date: string) => analizzaGiornate([es('p', 'Panca piana', [alzata(date, 80, 8, 3)])], [], 80)[0]
+  const giornate = ['2026-09-08', '2026-09-16', '2026-09-18', '2026-09-30'].map(giorno)
+
+  it('si contano dal giorno della prima scheda, non dal lunedì', () => {
+    // Assegnata mercoledì 16: la settimana 1 va da mercoledì a martedì.
+    const w = perSettimana(giornate, '2026-09-16', '2026-10-02')
+    expect(w.map(s => s.n)).toEqual([3, 2, 1, null])
+    const prima = w.find(s => s.n === 1)!
+    expect(prima).toMatchObject({ da: '2026-09-16', a: '2026-09-22' })
+    expect(prima.giornate.map(g => g.date)).toEqual(['2026-09-18', '2026-09-16'])
+  })
+
+  it('una settimana senza sessioni resta nell’elenco, vuota', () => {
+    const w = perSettimana(giornate, '2026-09-16', '2026-10-02')
+    expect(w.find(s => s.n === 2)).toMatchObject({ da: '2026-09-23', a: '2026-09-29', giornate: [] })
+  })
+
+  it('quella che contiene oggi è la settimana in corso', () => {
+    const w = perSettimana(giornate, '2026-09-16', '2026-10-02')
+    expect(w.filter(s => s.inCorso).map(s => s.n)).toEqual([3])
+    expect(w[0].giornate.map(g => g.date)).toEqual(['2026-09-30'])
+  })
+
+  it('quello che è successo prima delle schede sta a parte, in fondo', () => {
+    const w = perSettimana(giornate, '2026-09-16', '2026-10-02')
+    expect(w[w.length - 1]).toMatchObject({ n: null, inCorso: false })
+    expect(w[w.length - 1].giornate.map(g => g.date)).toEqual(['2026-09-08'])
+  })
+
+  it('senza schede assegnate si parte dalla prima sessione', () => {
+    const w = perSettimana(giornate.slice(0, 3), null, '2026-09-20')
+    expect(w.map(s => s.n)).toEqual([2, 1])
+    expect(w[1]).toMatchObject({ da: '2026-09-08', a: '2026-09-14' })
+  })
+
+  it('niente giornate, niente settimane', () => {
+    expect(perSettimana([], '2026-09-16')).toEqual([])
+  })
+
+  it('una giornata ha problemi se manca qualcosa rispetto alla scheda', () => {
+    expect(haProblemi(giornate[0])).toBe(false)
+    expect(haProblemi({ ...giornate[0], serieCorte: 1 })).toBe(true)
   })
 })

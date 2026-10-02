@@ -10,20 +10,23 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { fmtKg, fmtNum, fmtVol, setRepsOf } from '@/features/gym/gymModel'
-import { fmtShortDate } from '@/lib/dateFormat'
+import { fmtShortDate, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { GymScheda } from '@/store/useJarvisStore'
-import { analizzaGiornate, type EsitoEsercizio, type Giornata } from './analisiSessioni'
+import { analizzaGiornate, perSettimana, haProblemi, type EsitoEsercizio, type Giornata, type SettimanaSessioni } from './analisiSessioni'
 
 // Rosso e verde veri anche nel tema premium, che --danger e --ok li scolora.
 const ROSSO = 'var(--segnale-giu)'
 const VERDE = 'var(--segnale-su)'
 
-export function CoachSessioni({ data, schedeAssegnate, onConfronto }: {
+export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto }: {
   data: AthleteData
   /** Le schede scritte dall'allenatore: l'allievo le esegue, ma non stanno nel suo blob. */
   schedeAssegnate: GymScheda[]
+  /** Il giorno in cui è stata assegnata la prima scheda ("YYYY-MM-DD"): da lì
+   *  si contano le settimane. Senza, si parte dalla prima sessione. */
+  inizio?: string | null
   onConfronto?: () => void
 }) {
   const t = useT()
@@ -35,8 +38,23 @@ export function CoachSessioni({ data, schedeAssegnate, onConfronto }: {
     return analizzaGiornate(data.palestraExercises ?? [], schede, data.userWeight ?? 0, giorniHyrox)
   }, [data, schedeAssegnate])
 
+  const settimane = useMemo(() => perSettimana(giornate, inizio ?? null), [giornate, inizio])
+
   // La giornata aperta: la più recente, finché non se ne sceglie un'altra.
   const [aperta, setAperta] = useState<string | null>(giornate[0]?.date ?? null)
+  // Le settimane aperte. All'ingresso solo l'ultima con dentro qualcosa: le
+  // altre restano una riga ciascuna, con i quadratini che dicono com'è andata —
+  // è così che si legge un mese in una schermata.
+  const chiave = (s: SettimanaSessioni) => String(s.n ?? 'prima')
+  const [aperte, setAperte] = useState<Set<string>>(() => {
+    const ultima = settimane.find(s => s.giornate.length > 0)
+    return new Set(ultima ? [chiave(ultima)] : [])
+  })
+  const apri = (k: string) => setAperte(prev => {
+    const next = new Set(prev)
+    if (next.has(k)) next.delete(k); else next.add(k)
+    return next
+  })
 
   if (!giornate.length) return <div className="j-empty">{t('Nessuna sessione registrata')}</div>
 
@@ -54,20 +72,95 @@ export function CoachSessioni({ data, schedeAssegnate, onConfronto }: {
             }}>{t('Confronto')}</button>
           )}
         </span>
-      }>{t('Giornate')}</NucEyebrow>
+      }>{t('Settimane')}</NucEyebrow>
+
+      <div style={{ marginBottom: 8, fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: 'var(--fg-mute)' }}>
+        {inizio
+          ? t('Contate dal {giorno}, quando hai assegnato la prima scheda.', { giorno: fmtDayMon(inizio) })
+          : t('Contate dalla prima sessione registrata: non ci sono schede assegnate.')}
+      </div>
 
       <Legenda/>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {giornate.map(g => (
-          <RigaGiornata
-            key={g.date} g={g}
-            aperta={aperta === g.date}
-            onToggle={() => setAperta(a => (a === g.date ? null : g.date))}
-          />
-        ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {settimane.map(s => {
+          const k = chiave(s)
+          const aperto = aperte.has(k)
+          const vuota = s.giornate.length === 0
+          return (
+            <div key={k}>
+              <TestataSettimana s={s} aperta={aperto} onToggle={vuota ? undefined : () => apri(k)}/>
+              {aperto && !vuota && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                  {s.giornate.map(g => (
+                    <RigaGiornata
+                      key={g.date} g={g}
+                      aperta={aperta === g.date}
+                      onToggle={() => setAperta(a => (a === g.date ? null : g.date))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
+  )
+}
+
+// La riga di una settimana: numero, giorni, e un quadratino per sessione —
+// rosso se qualcosa non torna, accent se la scheda è stata rispettata, grigio se
+// non c'era una scheda con cui confrontare. È la riga che si legge senza aprire.
+function TestataSettimana({ s, aperta, onToggle }: { s: SettimanaSessioni; aperta: boolean; onToggle?: () => void }) {
+  const t = useT()
+  const vuota = s.giornate.length === 0
+  const daGuardare = s.giornate.filter(haProblemi).length
+  return (
+    <button
+      onClick={onToggle}
+      disabled={!onToggle}
+      aria-expanded={onToggle ? aperta : undefined}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', textAlign: 'left',
+        background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)',
+        cursor: onToggle ? 'pointer' : 'default', opacity: vuota ? 0.75 : 1,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: NUC.label, fontSize: 11.5, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg)' }}>
+            {s.n === null ? t('Prima delle schede') : t('Settimana {n}', { n: s.n })}
+          </span>
+          {s.inCorso && (
+            <span style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--j-accent-ink)', border: '1px solid var(--j-accent)', padding: '1px 5px', borderRadius: 'var(--radius-pill)' }}>
+              {t('in corso')}
+            </span>
+          )}
+        </span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10.5, color: 'var(--fg-mute)' }}>
+          {s.da === s.a ? fmtDayMon(s.da) : `${fmtDayMon(s.da)} – ${fmtDayMon(s.a)}`}
+          {' · '}
+          {vuota ? t('nessuna sessione')
+            : s.giornate.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: s.giornate.length })}
+          {daGuardare > 0 && <span style={{ color: ROSSO, fontWeight: 600 }}> · {daGuardare === 1 ? t('1 da guardare') : t('{n} da guardare', { n: daGuardare })}</span>}
+        </span>
+      </span>
+      {/* Dalla più vecchia alla più recente, come si legge una settimana. */}
+      <span aria-hidden style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+        {[...s.giornate].reverse().map(g => (
+          <span key={g.date} style={{
+            width: 10, height: 10, borderRadius: 3,
+            background: haProblemi(g) ? ROSSO : g.gruppi.some(x => x.confrontabile) ? 'var(--j-accent)' : 'var(--fg-mute)',
+          }}/>
+        ))}
+      </span>
+      {onToggle && (
+        <span style={{ color: 'var(--fg-mute)', display: 'flex', flexShrink: 0, transform: aperta ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
+          <Icons.chev size={14} stroke={2}/>
+        </span>
+      )}
+    </button>
   )
 }
 
@@ -198,7 +291,9 @@ function RigaEsercizio({ e, primo }: { e: EsitoEsercizio; primo: boolean }) {
             {' — '}{fmtKg(e.fatto)}
           </span>
         )}
-        {e.carico?.prima != null && delta !== 0 && (
+        {/* Solo se c'è una differenza da spiegare: a carico uguale, o senza un
+            carico da confrontare (corpo libero), "prima 0 kg" è rumore. */}
+        {e.carico?.prima != null && delta !== null && delta !== 0 && (
           <span>{t('prima {kg} kg', { kg: fmtNum(e.carico.prima) })}</span>
         )}
       </div>

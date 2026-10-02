@@ -182,6 +182,13 @@ export function setRepsOf(h: Pick<PalestraHistoryEntry, 'reps' | 'sets_n' | 'set
   return Array(Math.max(1, h.sets_n)).fill(h.reps)
 }
 
+/** I colpi della serie più lunga dell'alzata. È il "meglio" di un esercizio
+ *  che non va a chili (addominali, polpacci a corpo libero): lì non c'è un
+ *  massimale da stimare, c'è quante se ne fanno. */
+export function colpiMigliori(h: Pick<PalestraHistoryEntry, 'reps' | 'sets_n' | 'setReps'>): number {
+  return Math.max(...setRepsOf(h))
+}
+
 // Volume totale di chili spostati nell'alzata (Σ carico-serie × colpi-serie): con
 // serie variabili è la somma reale, non `carico × serie × colpi`. I due array
 // vanno accoppiati per indice, non moltiplicati fra somme: 60×10 + 40×6 fa 840,

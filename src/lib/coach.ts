@@ -8,6 +8,7 @@
 import { supabase } from './supabase'
 import { t } from '@/lib/i18n'
 import { readStorage, writeStorage, removeStorage } from './safeStorage'
+import { conSegnoCorpoLibero } from '@/features/gym/catalogo'
 
 export interface CoachLink {
   coach_id: string
@@ -140,7 +141,13 @@ export interface AthleteData {
 export async function athleteData(athleteId: string): Promise<AthleteData | null> {
   const { data, error } = await supabase.rpc('athlete_training_data', { p_athlete: athleteId })
   if (error) throw new Error(translateCoachError(error.message))
-  return (data as AthleteData | null) ?? null
+  const dati = (data as AthleteData | null) ?? null
+  if (!dati?.palestraExercises) return dati
+  // Lo stesso ritocco che l'app dell'allievo fa al caricamento: le alzate a
+  // 0 kg degli esercizi a corpo libero prendono il loro segno. Il blob che
+  // arriva da qui può essere di prima che lui riaprisse l'app, e senza questo
+  // l'allenatore leggerebbe "0 kg" dove l'allievo legge "BW".
+  return { ...dati, palestraExercises: dati.palestraExercises.map(conSegnoCorpoLibero) }
 }
 
 // ── Schede assegnate dall'allenatore ──────────────────────
@@ -155,10 +162,13 @@ export interface CoachScheda {
   athlete_id: string
   scheda: import('@/store/useJarvisStore').GymScheda
   coach_name: string | null
+  /** Quando la scheda è stata assegnata la prima volta. Non cambia modificandola
+   *  o ricondividendola: è da qui che si contano le settimane dell'allievo. */
+  created_at?: string
   updated_at: string
 }
 
-const CAMPI = 'id, coach_id, athlete_id, scheda, coach_name, updated_at'
+const CAMPI = 'id, coach_id, athlete_id, scheda, coach_name, created_at, updated_at'
 
 /** Le schede che QUESTO allenatore ha assegnato a QUESTO allievo. */
 export async function schedeAssegnate(athleteId: string): Promise<CoachScheda[]> {

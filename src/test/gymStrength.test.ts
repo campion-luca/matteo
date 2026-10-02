@@ -188,3 +188,18 @@ describe('corpo libero: quanta parte del peso si solleva', () => {
     expect(Math.round(dorso?.best ?? 0)).toBe(99)
   })
 })
+
+describe('esercizi che non vanno a chili', () => {
+  it('gli addominali a corpo libero non danno forza al core, per quanto si pesi', () => {
+    const gambe = ex({ n: 'Sollevamenti gambe alla sbarra', muscle: 'Core', history: [h({ reps: 15, bodyweight: true })] })
+    const core = districtStrength([gambe], 104, 'M').find(d => d.muscle === 'Core')
+    expect(core?.best ?? 0).toBe(0)
+  })
+
+  it('con una zavorra conta la zavorra, non il corpo', () => {
+    const polpacci = ex({ n: 'Polpacci in piedi', muscle: 'Gambe', history: [h({ kg: 20, reps: 15, bodyweight: true })] })
+    const gambe = districtStrength([polpacci], 104, 'M').find(d => d.muscle === 'Gambe')
+    // 20 kg × Epley a 15 colpi = 30. Non i 186 di chi conta anche i 104 kg.
+    expect(Math.round(gambe?.best ?? 0)).toBe(30)
+  })
+})

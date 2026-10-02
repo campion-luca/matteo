@@ -1,4 +1,4 @@
-import type { PalestraExercise } from '@/store/useJarvisStore'
+import type { PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { uid } from '@/lib/uid'
 
 // Il catalogo di partenza: gli esercizi che ci sono in qualunque palestra.
@@ -82,8 +82,8 @@ export const CATALOGO: Voce[] = [
   { n: 'Estensioni overhead al cavo',             muscle: 'Tricipiti' },
 
   // Core
-  { n: 'Sollevamenti gambe alla sbarra',          muscle: 'Core' },
-  { n: 'Ab wheel',                                muscle: 'Core' },
+  { n: 'Sollevamenti gambe alla sbarra',          muscle: 'Core', bodyweight: true },
+  { n: 'Ab wheel',                                muscle: 'Core', bodyweight: true },
   { n: 'Woodchopper ai cavi',                     muscle: 'Core' },
   { n: 'Pallof press al cavo',                    muscle: 'Core' },
   { n: 'Landmine press rotation',                 muscle: 'Core' },
@@ -92,7 +92,9 @@ export const CATALOGO: Voce[] = [
   // Gambe
   { n: 'Squat',                                   muscle: 'Gambe' },
   { n: 'Leg curl seduto',                         muscle: 'Gambe' },
-  { n: 'Polpacci in piedi',                       muscle: 'Gambe' },
+  // Si fa col proprio peso, e a volte con un manubrio in mano: è la zavorra
+  // del corpo libero. Senza, resta "BW" e non "0 kg".
+  { n: 'Polpacci in piedi',                       muscle: 'Gambe', bodyweight: true },
   { n: 'Polpacci seduto',                         muscle: 'Gambe' },
 
   // Glutei
@@ -127,8 +129,16 @@ export function esercizidaCatalogo(esistenti: PalestraExercise[]): PalestraExerc
 // Si riconosce dal nome, come i massimali (BIG_LIFTS in gymMaxLifts): vale così
 // anche per "Piegamenti presa stretta" o "Push-up" scritti a mano. Tutto ciò
 // che non è in elenco conta per intero.
+//
+// Zero per gli esercizi che "non vanno a chili": addominali, polpacci. Lì il
+// corpo non è un carico che si possa confrontare — nei sollevamenti delle gambe
+// alla sbarra chi pesa 104 kg non "alza" più di chi ne pesa 80, pesa di più e
+// basta — e contarlo metteva un esercizio per gli addominali in cima alle
+// "migliori alzate" di chiunque fosse pesante. Contano i colpi; e l'eventuale
+// zavorra, che è l'unico carico vero.
 const QUOTE: Array<[RegExp, number]> = [
   [/piegament|push[\s-]?up|flessioni/i, 0.65],
+  [/sollevament\w*\s+(delle\s+)?gambe|leg[\s-]?raise|ab[\s-]?wheel|polpacc|calf|plank|crunch|addominal/i, 0],
 ]
 
 /** La parte di peso corporeo che l'esercizio fa sollevare (1 = tutto). Si
@@ -137,6 +147,33 @@ export function quotaCorpo(ex: { n: string } | undefined): number {
   if (!ex) return 1
   for (const [nome, quota] of QUOTE) if (nome.test(ex.n)) return quota
   return 1
+}
+
+/** L'esercizio si misura a COLPI e non a chili: a corpo libero, e con il peso
+ *  del corpo che non conta come carico (vedi `QUOTE`). Chi lo mostra scrive i
+ *  colpi dove altrove scriverebbe i chili o il massimale. */
+export function aColpi(ex: { n: string; bodyweight?: boolean } | undefined): boolean {
+  return corpoLibero(ex) && quotaCorpo(ex) === 0
+}
+
+/** L'esercizio con le alzate a 0 kg segnate a corpo libero, se lui lo è.
+ *
+ *  Eseguendo una scheda, fino a ott 2026, trazioni e addominali venivano salvati
+ *  come "0 kg" e basta: senza il segno restano fuori da ogni conto e si leggono
+ *  "0 kg" invece di "BW". Solo a 0 kg: con dei chili scritti non si sa se
+ *  fossero zavorra o un attrezzo, e quelle restano come sono.
+ *
+ *  Serve in due posti: al caricamento dei propri dati, e quando un allenatore
+ *  legge quelli di un allievo che non ha ancora riaperto l'app. */
+export function conSegnoCorpoLibero<T extends { n: string; bodyweight?: boolean; history: PalestraHistoryEntry[] }>(ex: T): T {
+  if (!corpoLibero(ex)) return ex
+  let cambiato = false
+  const history = (ex.history ?? []).map(h => {
+    if (h.bodyweight || h.kg || h.setWeights?.some(w => w > 0)) return h
+    cambiato = true
+    return { ...h, bodyweight: true as const }
+  })
+  return cambiato ? { ...ex, history } : ex
 }
 
 const A_CORPO_LIBERO = new Set(CATALOGO.filter(v => v.bodyweight).map(v => v.n.trim().toLowerCase()))

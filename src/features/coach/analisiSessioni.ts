@@ -17,6 +17,7 @@
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { effectiveLoad, entryVolume, setRepsOf, displayMuscle } from '@/features/gym/gymModel'
 import { quotaCorpo } from '@/features/gym/catalogo'
+import { giorniTra, localISO, todayISO } from '@/lib/isoDate'
 
 export interface EsitoEsercizio {
   nome: string
@@ -76,6 +77,12 @@ function esercizioDi(se: GymSchedaExercise, palestra: PalestraExercise[]): Pales
     ?? palestra.find(e => norm(e.n) === norm(se.name))
 }
 
+/** Il carico che si CONFRONTA da una volta all'altra: i chili messi, non il
+ *  corpo. A corpo libero è la sola zavorra — il peso di chi si allena non è
+ *  una scelta di quel giorno, e contarlo farebbe leggere come "carico salito"
+ *  un chilo preso sulla bilancia. */
+const caricoMesso = (h: PalestraHistoryEntry) => effectiveLoad(h, 0)
+
 export function analizzaGiornate(
   palestra: PalestraExercise[],
   schede: GymScheda[],
@@ -87,7 +94,7 @@ export function analizzaGiornate(
     const prima = ex.history.filter(h => h.date && h.date < date)
     if (!prima.length) return null
     const ultima = prima.reduce((a, b) => (b.date! > a.date! ? b : a))
-    return effectiveLoad(ultima, pesoCorporeo * quotaCorpo(ex))
+    return caricoMesso(ultima)
   }
 
   // Tutte le alzate, raggruppate per giornata.
@@ -107,8 +114,12 @@ export function analizzaGiornate(
   const esito = (ex: PalestraExercise, h: PalestraHistoryEntry, date: string, previsto?: GymSchedaExercise): EsitoEsercizio => {
     const colpi = setRepsOf(h)
     const min = previsto ? colpiMinimi(previsto.reps) : null
-    const ora = effectiveLoad(h, pesoCorporeo * quotaCorpo(ex))
+    const ora = caricoMesso(h)
     const prima = caricoPrima(ex, date)
+    // A corpo libero e senza zavorra, né ora né prima: non c'è un carico da
+    // confrontare, e "= stesso carico" accanto a degli addominali è una riga
+    // che non dice niente.
+    const senzaCarico = ora === 0 && !prima
     return {
       nome: ex.n,
       muscle: displayMuscle(ex.muscle),
@@ -117,7 +128,7 @@ export function analizzaGiornate(
       saltato: false,
       serieMancanti: previsto ? Math.max(0, previsto.sets - h.sets_n) : 0,
       serieCorte: min === null ? [] : colpi.map((c, i) => (c < min ? i : -1)).filter(i => i >= 0),
-      carico: { ora, prima, delta: prima === null ? null : mezzoChilo(ora - prima) },
+      carico: { ora, prima, delta: prima === null || senzaCarico ? null : mezzoChilo(ora - prima) },
       fuoriScheda: false,
     }
   }
@@ -185,4 +196,74 @@ export function analizzaGiornate(
   }
 
   return giornate.sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// ── Le giornate, settimana per settimana ───────────────────────
+// Un allenatore non ragiona per date ma per settimane di programma: "alla
+// terza settimana ha saltato il giovedì". E le settimane che contano sono le
+// SUE — si parte dal giorno in cui ha assegnato la prima scheda, non dal lunedì
+// del calendario: assegnata di mercoledì, la settimana 1 va da mercoledì a
+// martedì, e ogni settimana contiene un giro completo di schede.
+//
+// Ci sono anche le settimane VUOTE fra la prima e quella in corso: una
+// settimana senza nemmeno una sessione è l'informazione più importante
+// dell'elenco, e raggruppando solo le giornate esistenti sparirebbe.
+export interface SettimanaSessioni {
+  /** 1 = la settimana in cui sono state assegnate le schede. `null` per quello
+   *  che è successo prima: non fa parte del programma. */
+  n: number | null
+  /** Primo e ultimo giorno ("YYYY-MM-DD"). */
+  da: string
+  a: string
+  /** La settimana che contiene oggi. */
+  inCorso: boolean
+  /** Dalla più recente. Vuoto per una settimana senza sessioni. */
+  giornate: Giornata[]
+}
+
+/** Una giornata ha qualcosa che non torna rispetto alla scheda. */
+export function haProblemi(g: Giornata): boolean {
+  return g.saltati + g.serieMancanti + g.serieCorte + g.caloCarico > 0
+}
+
+const piuGiorni = (iso: string, n: number): string => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return localISO(new Date(y, m - 1, d + n))
+}
+
+/** Le giornate raggruppate in settimane di sette giorni a partire da `inizio`,
+ *  dalla più recente. Senza `inizio` (nessuna scheda assegnata) si parte dalla
+ *  prima sessione registrata. */
+export function perSettimana(giornate: Giornata[], inizio: string | null, oggi: string = todayISO()): SettimanaSessioni[] {
+  if (!giornate.length) return []
+  const prima = giornate.reduce((m, g) => (g.date < m ? g.date : m), giornate[0].date)
+  const zero = inizio ?? prima
+  const numero = (date: string) => Math.floor(giorniTra(zero, date) / 7) + 1
+
+  const perNumero = new Map<number, Giornata[]>()
+  const precedenti: Giornata[] = []
+  for (const g of giornate) {
+    if (g.date < zero) { precedenti.push(g); continue }
+    const n = numero(g.date)
+    perNumero.set(n, [...(perNumero.get(n) ?? []), g])
+  }
+
+  // Fino alla settimana in corso, o all'ultima con una sessione se è più in là
+  // (una data sbagliata nel futuro non deve restare fuori dall'elenco).
+  const ultima = Math.max(oggi >= zero ? numero(oggi) : 0, ...perNumero.keys())
+  const out: SettimanaSessioni[] = []
+  for (let n = ultima; n >= 1; n--) {
+    const da = piuGiorni(zero, (n - 1) * 7)
+    const a = piuGiorni(da, 6)
+    out.push({
+      n, da, a,
+      inCorso: oggi >= da && oggi <= a,
+      giornate: (perNumero.get(n) ?? []).sort((x, y) => y.date.localeCompare(x.date)),
+    })
+  }
+  if (precedenti.length) {
+    precedenti.sort((x, y) => y.date.localeCompare(x.date))
+    out.push({ n: null, da: precedenti[precedenti.length - 1].date, a: precedenti[0].date, inCorso: false, giornate: precedenti })
+  }
+  return out
 }

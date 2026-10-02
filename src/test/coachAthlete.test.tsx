@@ -86,9 +86,15 @@ describe('CoachSessioni — le giornate confrontate con la scheda', () => {
       onConfronto={onConfronto}
     />)
 
-    // La più recente, chiusa, riassume i problemi…
+    // Per settimane, contate dalla prima sessione (qui non c'è una data di
+    // assegnazione): la 2 è l'ultima con dentro qualcosa, ed è aperta.
+    expect(screen.getByText('Settimana 2')).toBeInTheDocument()
+    expect(screen.getByText(/1 da guardare/)).toBeInTheDocument()
+    // La giornata più recente riassume i problemi…
     expect(screen.getByText('1 esercizio saltato · 1 serie in meno · 1 carico sceso')).toBeInTheDocument()
-    // …e la precedente è a posto.
+    // …e la precedente, nella settimana 1 che parte chiusa, è a posto.
+    expect(screen.queryByText('scheda rispettata')).not.toBeInTheDocument()
+    await user.click(screen.getByText('Settimana 1'))
     expect(screen.getByText('scheda rispettata')).toBeInTheDocument()
 
     // La più recente è già aperta: lo Squat saltato e il calo di carico.
@@ -233,5 +239,42 @@ describe('NoteEsercizi — il salvataggio è un gesto, non un effetto', () => {
 
     await user.click(screen.getByText('Modifica'))
     expect(screen.getByText('Salva')).toBeDisabled()
+  })
+})
+
+// Con trenta esercizi in fila, per scrivere una nota sullo squat bisognava
+// scorrerli tutti: adesso stanno sotto il loro muscolo.
+describe('NoteEsercizi — raggruppate per muscolo', () => {
+  const di = (n: string, muscle: string): PalestraExercise => ({ ...ex(n, [h({})]), muscle })
+  const esercizi = [di('Squat', 'Gambe'), di('Panca piana', 'Petto'), di('Leg curl', 'Gambe'), di('Croci', 'Petto'), di('Presa', 'Avambracci')]
+
+  it('un gruppo per muscolo, nell’ordine di sempre, con i gruppi creati dall’allievo in fondo', () => {
+    render(<NoteEsercizi esercizi={esercizi} note={[]} onSalva={vi.fn()}/>)
+    const titoli = screen.getAllByText(/^(Petto|Gambe|Avambracci) · \d$/).map(e => e.textContent)
+    expect(titoli).toEqual(['Petto · 2', 'Gambe · 2', 'Avambracci · 1'])
+  })
+
+  it('dentro al gruppo chi ha una nota sale in cima, e il gruppo dice quante ne ha', () => {
+    const nota: NotaCoach = { coach_id: 'c', athlete_id: 'a', exercise_id: 'px-Squat', nota: 'Sotto il parallelo', coach_name: null, updated_at: '' }
+    render(<NoteEsercizi esercizi={esercizi} note={[nota]} onSalva={vi.fn()}/>)
+    expect(screen.getByText('1 nota')).toBeInTheDocument()
+    const nomi = screen.getAllByText(/^(Squat|Leg curl)$/).map(e => e.textContent)
+    expect(nomi).toEqual(['Squat', 'Leg curl'])
+  })
+})
+
+// Fra due allievi, a corpo libero vince la bilancia e non la forza.
+describe('Migliori alzate — senza il corpo libero', () => {
+  it('trazioni e addominali non entrano in classifica, la panca sì', () => {
+    render(<CoachAthlete data={dati([
+      ex('Panca piana', [h({ date: '2026-08-20' })]),
+      ex('Trazioni', [h({ date: '2026-08-20', kg: 0, bodyweight: true })]),
+      ex('Sollevamenti gambe alla sbarra', [h({ date: '2026-08-20', kg: 0, reps: 15 })]),
+    ])}/>)
+    // Nel riepilogo i nomi degli esercizi compaiono solo in questa classifica.
+    expect(screen.getByText('Migliori alzate')).toBeInTheDocument()
+    expect(screen.getByText('Panca piana')).toBeInTheDocument()
+    expect(screen.queryByText('Trazioni')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sollevamenti gambe alla sbarra')).not.toBeInTheDocument()
   })
 })

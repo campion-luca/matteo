@@ -19,14 +19,14 @@ import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistor
 import {
   MUSCLE_COLORS, COLOR_PALETTE,
   displayMuscle, fmtKg, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
-  effectiveLoad, sortedHistory, fmtTime,
+  effectiveLoad, sortedHistory, fmtTime, colpiMigliori,
   } from './gymModel'
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
 import { type FormatoHyrox, unitaFormato, distanzaLeggibile } from './hyroxStima'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
-import { corpoLibero, quotaCorpo } from './catalogo'
+import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { todayISO } from '@/lib/isoDate'
 import { uid } from '@/lib/uid'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
@@ -668,11 +668,14 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
   const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
 
   // memoised derived arrays
-  const { oneRMs, kgs, labels } = useMemo(() => ({
+  const { oneRMs, kgs, colpi, labels } = useMemo(() => ({
     oneRMs: hist.map(h => Math.round(entry1RM(h, bodyWeight))),
     kgs:    hist.map(h => effectiveLoad(h, bodyWeight)),
+    colpi:  hist.map(colpiMigliori),
     labels: hist.map(h => h.date ? fmtDayMonth(h.date) : h.d),
   }), [hist, bodyWeight])
+  // Un esercizio che non va a chili si legge a colpi: vedi `aColpi`.
+  const soloColpi = aColpi(ex) && kgs.every(k => k === 0)
 
   const bestKg   = kgs.length    ? Math.max(...kgs)    : ex.current.kg
   const best1RM  = oneRMs.length ? Math.max(...oneRMs) : 0
@@ -685,11 +688,15 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
       <div className="flex flex-col gap-3.5">
 
         <div className="grid grid-cols-3 gap-2">
-          {[
+          {(soloColpi ? [
+            { label: t('Serie migliore'), value: colpi.length ? `${Math.max(...colpi)} ${t('colpi')}` : '—' },
+            { label: t('Ultima'),         value: colpi.length ? `${colpi[colpi.length - 1]} ${t('colpi')}` : '—' },
+            { label: t('Sessioni'),       value: String(hist.length) },
+          ] : [
             { label: t('Miglior Kg'),    value: `${bestKg} kg` },
             { label: t('Miglior stima'), value: best1RM > 0 ? `${best1RM} kg` : '—' },
             { label: t('Sessioni'),      value: String(hist.length) },
-          ].map(s => (
+          ]).map(s => (
             <div key={s.label} className="j-stat-tile">
               <div className="j-eyebrow mb-1.5">{s.label}</div>
               <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.4 }}>{s.value}</div>
@@ -699,14 +706,14 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
 
         {kgs.length >= 2 && (
           <div>
-            <NucEyebrow>{t('Carico (kg)')}</NucEyebrow>
+            <NucEyebrow>{soloColpi ? t('Colpi') : t('Carico (kg)')}</NucEyebrow>
             <div className="j-chart-box">
-              <LineChart data={kgs} labels={labels} height={96} color="var(--j-accent)" yAxis labelSize={9}/>
+              <LineChart data={soloColpi ? colpi : kgs} labels={labels} height={96} color="var(--j-accent)" yAxis labelSize={9}/>
             </div>
           </div>
         )}
 
-        {oneRMs.length >= 2 && (
+        {!soloColpi && oneRMs.length >= 2 && (
           <div>
             <NucEyebrow right={rmTrend !== 0 ? (
               <span style={{ color: rmTrend > 0 ? 'var(--j-accent-ink)' : 'var(--danger)' }}>
@@ -735,9 +742,9 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
                       {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
-                      <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{Math.round(entry1RM(h, bodyWeight))}</div>
+                      <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
                       {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
-                      <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{h.maxLift ? 'kg' : t('kg stim.')}</div>
+                      <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
                     </div>
                   </div>
                 )

@@ -14,9 +14,9 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { LineChart } from '@/features/gym/gymShared'
-import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle } from '@/features/gym/gymModel'
+import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle, MUSCLE_OPTIONS } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
-import { quotaCorpo } from '@/features/gym/catalogo'
+import { quotaCorpo, corpoLibero } from '@/features/gym/catalogo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
 import { fmtDayMonth, daysShort } from '@/lib/dateFormat'
@@ -126,9 +126,14 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
   )
 
   // ── Le migliori alzate in assoluto ───────────────────────────
+  // Senza gli esercizi a corpo libero. Lì il "carico" è il peso di chi li fa:
+  // trazioni o sollevamenti delle gambe finivano in cima alla classifica di
+  // chiunque fosse pesante, e fra due allievi vinceva la bilancia, non la forza.
+  // Restano nelle sessioni e nella forza per distretto; qui si confrontano i
+  // chili messi sul bilanciere.
   const migliori = useMemo(() => {
     return palestra
-      .filter(ex => ex.history.length > 0)
+      .filter(ex => ex.history.length > 0 && !corpoLibero(ex))
       .map(ex => {
         const p = peso * quotaCorpo(ex)
         const top = ex.history.reduce((b, h) => entry1RM(h, p) > entry1RM(b, p) ? h : b)
@@ -340,12 +345,31 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
   const [bozza, setBozza] = useState('')
   const testoDi = (id: string) => note.find(n => n.exercise_id === id)?.nota ?? ''
 
-  // Chi ha già una nota sale in cima: è quello che si torna a rileggere.
-  const ordinati = useMemo(
-    () => [...esercizi].sort((a, b) => Number(!!testoDi(b.id)) - Number(!!testoDi(a.id))),
+  // Un gruppo per muscolo, nell'ordine di sempre (Petto, Dorso, Gambe…): con
+  // trenta esercizi in fila, per scrivere una nota sullo squat bisognava
+  // scorrerli tutti leggendo i nomi. I gruppi che l'allievo si è creato vanno
+  // dopo quelli di serie e prima di "Altro". Dentro al gruppo, chi ha già una
+  // nota sale in cima — è quello che si torna a rileggere — e il resto è in
+  // ordine alfabetico.
+  const gruppi = useMemo(() => {
+    const perMuscolo = new Map<string, PalestraExercise[]>()
+    for (const ex of esercizi) {
+      const m = displayMuscle(ex.muscle) || 'Altro'
+      perMuscolo.set(m, [...(perMuscolo.get(m) ?? []), ex])
+    }
+    const posto = (m: string) => {
+      const i = MUSCLE_OPTIONS.indexOf(m)
+      return m === 'Altro' ? 999 : i < 0 ? 500 : i
+    }
+    return [...perMuscolo.entries()]
+      .sort(([a], [b]) => posto(a) - posto(b) || a.localeCompare(b))
+      .map(([muscle, lista]) => ({
+        muscle,
+        scritte: lista.filter(ex => testoDi(ex.id)).length,
+        esercizi: lista.sort((a, b) => Number(!!testoDi(b.id)) - Number(!!testoDi(a.id)) || a.n.localeCompare(b.n)),
+      }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [esercizi, note],
-  )
+  }, [esercizi, note])
 
   // Si salva con un tasto, e solo con quello.
   //
@@ -368,8 +392,23 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
   return (
     <div>
       <NucEyebrow right={<span style={{ textTransform: 'none' }}>{note.length === 1 ? t('1 scritta') : t('{n} scritte', { n: note.length })}</span>}>{t('Note sugli esercizi')}</NucEyebrow>
+      {gruppi.map(g => (
+      <div key={g.muscle} style={{ marginBottom: 14 }}>
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
+          padding: '0 2px', marginBottom: 6,
+          fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase',
+          color: 'var(--fg-soft)',
+        }}>
+          <span>{tData(g.muscle)} · {g.esercizi.length}</span>
+          {g.scritte > 0 && (
+            <span style={{ fontWeight: 400, letterSpacing: '.04em', textTransform: 'none', color: 'var(--j-accent-ink)' }}>
+              {g.scritte === 1 ? t('1 nota') : t('{n} note', { n: g.scritte })}
+            </span>
+          )}
+        </div>
       <NucCard pad={0}>
-        {ordinati.map((ex, i) => {
+        {g.esercizi.map((ex, i) => {
           const nota = testoDi(ex.id)
           const attivo = aperto === ex.id
           return (
@@ -456,6 +495,8 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
           )
         })}
       </NucCard>
+      </div>
+      ))}
     </div>
   )
 }

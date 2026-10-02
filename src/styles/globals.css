@@ -288,6 +288,15 @@
   }
   .j-field::placeholder { color: var(--fg-mute); }
 
+  /* Il campo del codice allievo (Personal Coach). Il codice si scrive grande e
+     spaziato, e il segnaposto ereditava le stesse misure: "CODICE" a 24px, pieno,
+     si leggeva come un codice già inserito. Qui è più piccolo, leggero e quasi
+     trasparente — un suggerimento, non un contenuto. */
+  .j-codice::placeholder {
+    color: var(--fg-mute); opacity: .45;
+    font-size: 14px; font-weight: 400; letter-spacing: .28em;
+  }
+
   /* I picker nativi data/ora hanno un min-width intrinseco largo: vanno tenuti
      comprimibili così non sforano mai il modale nelle righe flex affiancate.
      Padding orizzontale ridotto per non far tagliare l'anno dall'icona calendario. */

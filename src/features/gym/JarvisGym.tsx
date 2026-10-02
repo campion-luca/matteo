@@ -21,7 +21,7 @@ import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistor
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
   displayMuscle, exColor, MUSCLE_COLORS, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
-  effectiveLoad, entryVolume, sortedHistory,
+  effectiveLoad, entryVolume, sortedHistory, colpiMigliori,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
 import { useMuscleColors } from './useMuscleColors'
@@ -31,7 +31,7 @@ import { Riepilogo } from '@/features/dashboard/Riepilogo'
 import { SettimanaStrip } from '@/features/dashboard/SettimanaStrip'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
-import { esercizidaCatalogo, quotaCorpo } from './catalogo'
+import { esercizidaCatalogo, quotaCorpo, aColpi } from './catalogo'
 import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
 import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi, type VistaGruppi } from './vistaEsercizi'
 import { CaroselloGruppi } from './CaroselloGruppi'
@@ -223,7 +223,10 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
       // I record si ordinano per massimale stimato: il solo carico massimo metteva
       // davanti una singola pesante fatta una volta rispetto a una serie lunga e piena.
       const best1RM = ex.history.length ? Math.max(...ex.history.map(h => entry1RM(h, corpo))) : 0
-      return { ex, name: ex.n, muscle: displayMuscle(ex.muscle), bestKg, best1RM, sessions: ex.history.length }
+      // Gli esercizi che non vanno a chili (addominali, polpacci a corpo libero)
+      // hanno per record i colpi: scrivere "0 kg" direbbe che non si è fatto niente.
+      const bestColpi = aColpi(ex) && bestKg === 0 && ex.history.length ? Math.max(...ex.history.map(colpiMigliori)) : 0
+      return { ex, name: ex.n, muscle: displayMuscle(ex.muscle), bestKg, best1RM, bestColpi, sessions: ex.history.length }
     }).sort((a, b) => b.best1RM - a.best1RM)
 
     // Due numeri per muscolo, non uno: i chili spostati e i GIORNI in cui l'hai
@@ -354,7 +357,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
                         </div>
                         <div className="flex items-center gap-2.5">
                           <div className="text-right">
-                            <div style={{ fontFamily: NUC.label, fontSize: 15, color: NUC.accentSoft, letterSpacing: -0.5 }}>{pr.bestKg} kg</div>
+                            <div style={{ fontFamily: NUC.label, fontSize: 15, color: NUC.accentSoft, letterSpacing: -0.5 }}>{pr.bestColpi > 0 ? `${pr.bestColpi} ${t('colpi')}` : `${pr.bestKg} kg`}</div>
                             {pr.best1RM > 0 && <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{t('stima {n} kg', { n: Math.round(pr.best1RM) })}</div>}
                           </div>
                           <div style={{ color: NUC.faint }}><Icons.chev size={16} stroke={1.6}/></div>
@@ -485,16 +488,26 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   // mai quando fossero stati fatti.
   // Giorno e mese, senza anno: la serie è cronologica, l'anno è ridondante e
   // costava tre caratteri per punto — cioè le date diradate una sì e due no.
-  const { kgs, oneRMs, dates } = useMemo(() => ({
+  const { kgs, oneRMs, colpi, dates } = useMemo(() => ({
     kgs:    hist.map(h => effectiveLoad(h, bodyWeight)),
     oneRMs: hist.map(h => Math.round(entry1RM(h, bodyWeight))),
+    colpi:  hist.map(colpiMigliori),
     dates:  hist.map(h => h.date ? fmtDayMonth(h.date) : h.d),
   }), [hist, bodyWeight])
+  // Un esercizio che non va a chili (addominali, polpacci senza zavorra) si
+  // legge a colpi: i grafici del carico sarebbero due righe piatte sullo zero.
+  const soloColpi = aColpi(ex) && kgs.every(k => k === 0)
 
   // I due grafici avevano l'accent e la sua variante soffusa: affiancati sulla
   // stessa pagina si leggevano come lo stesso colore. `--chart-2` è un token
   // pensato per restare distinto in tutti e cinque i temi.
-  const charts = [
+  const charts = soloColpi ? [
+    {
+      show: colpi.length >= 2, label: t('Colpi'),
+      sub: t('la serie più lunga, sessione per sessione'),
+      data: colpi, c: 'var(--j-accent)',
+    },
+  ] : [
     {
       show: kgs.length >= 2, label: t('Carico (kg)'),
       sub: t('il peso sul bilanciere, sessione per sessione'),
@@ -511,8 +524,9 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   // Miglior alzata = massimale stimato più alto: kg e colpi finiscono nello stesso
   // numero, così 50×8 e 40×15 sono confrontabili. A parità vince la più recente,
   // perché `hist` è ordinato per data e il `>=` tiene l'ultima.
+  const metro = (h: PalestraHistoryEntry) => soloColpi ? colpiMigliori(h) : entry1RM(h, bodyWeight)
   const best = hist.length
-    ? hist.reduce((b, h) => entry1RM(h, bodyWeight) >= entry1RM(b, bodyWeight) ? h : b)
+    ? hist.reduce((b, h) => metro(h) >= metro(b) ? h : b)
     : null
 
   return (
@@ -540,7 +554,9 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
                 {best.sets_n}×{fmtReps(best)} – {fmtKg(best)}
               </div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.4, marginTop: 7 }}>
-                {best.maxLift ? t('Massimale') : t('Massimale stimato')} {Math.round(entry1RM(best, bodyWeight))} kg · {hist.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: hist.length })}
+                {soloColpi
+                  ? t('Serie migliore: {n} colpi', { n: colpiMigliori(best) })
+                  : `${best.maxLift ? t('Massimale') : t('Massimale stimato')} ${Math.round(entry1RM(best, bodyWeight))} kg`} · {hist.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: hist.length })}
                 {best.date ? ` · ${fmtShortDate(best.date)}` : ''}
               </div>
             </>
@@ -623,6 +639,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
     kgs: hist.map(h => effectiveLoad(h, bodyWeight)),
     kgLabels: hist.map(h => h.date ? fmtDayMonth(h.date) : h.d),
   }), [hist, bodyWeight])
+  // A colpi e non a chili: vedi ExerciseChartsPage.
+  const soloColpi = aColpi(ex) && kgs.every(k => k === 0)
+  const colpi = useMemo(() => hist.map(colpiMigliori), [hist])
 
   return (
     <>
@@ -721,7 +740,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           </div>
         </button>
 
-        {histOpen && hist.length > 0 && <TrendAlzate valori={hist.map(h => entry1RM(h, bodyWeight))}/>}
+        {histOpen && hist.length > 0 && <TrendAlzate valori={soloColpi ? colpi : hist.map(h => entry1RM(h, bodyWeight))}/>}
 
         {histOpen && hist.length === 0 && <div className="j-empty">{t('Nessuna sessione registrata')}</div>}
 
@@ -742,9 +761,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                 {/* `--j-accent-ink` e non `NUC.accentSoft`: quest'ultimo è tarato per
                     stare SU una superficie accent, e come testo sulla carta si ferma
                     a 4.0:1 — sotto AA. Il token "da testo" è AA per costruzione. */}
-                <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{Math.round(entry1RM(h, bodyWeight))}</div>
+                <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
                 {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
-                <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5 }}>{h.maxLift ? 'kg' : t('kg stim.')}</div>
+                <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5 }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
@@ -787,9 +806,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
               }}>
                 {t('Scopri di più')} <Icons.chev size={12} stroke={2.2}/>
               </span>
-            }>{t('Carico (kg)')}</NucEyebrow>
+            }>{soloColpi ? t('Colpi') : t('Carico (kg)')}</NucEyebrow>
             <NucCard pad={12} style={{ marginBottom: 12 }}>
-              <LineChart data={kgs} labels={kgLabels} height={96} color="var(--j-accent)" yAxis labelSize={9}/>
+              <LineChart data={soloColpi ? colpi : kgs} labels={kgLabels} height={96} color="var(--j-accent)" yAxis labelSize={9}/>
             </NucCard>
           </div>
         ) : (

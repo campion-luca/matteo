@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CATALOGO, esercizidaCatalogo, corpoLibero, quotaCorpo } from '@/features/gym/catalogo'
+import { CATALOGO, esercizidaCatalogo, corpoLibero, quotaCorpo, aColpi, conSegnoCorpoLibero } from '@/features/gym/catalogo'
 import { MUSCLE_OPTIONS, displayMuscle } from '@/features/gym/gymModel'
 import type { PalestraExercise } from '@/store/useJarvisStore'
 
@@ -73,5 +73,39 @@ describe('quota di peso corporeo', () => {
     expect(quotaCorpo(ex('Push-up'))).toBe(0.65)
     expect(quotaCorpo(ex('Trazioni'))).toBe(1)
     expect(quotaCorpo(ex('Dip alle parallele'))).toBe(1)
+  })
+})
+
+// Addominali e polpacci: a corpo libero, e il corpo non è un carico da contare.
+describe('esercizi che non vanno a chili', () => {
+  it('sollevamenti delle gambe, ab wheel e polpacci in piedi sono a corpo libero e a colpi', () => {
+    for (const n of ['Sollevamenti gambe alla sbarra', 'Ab wheel', 'Polpacci in piedi']) {
+      expect(corpoLibero(ex(n)), n).toBe(true)
+      expect(quotaCorpo(ex(n)), n).toBe(0)
+      expect(aColpi(ex(n)), n).toBe(true)
+    }
+  })
+
+  it('trazioni e piegamenti restano a chili; la macchina dei polpacci non è a corpo libero', () => {
+    expect(aColpi(ex('Trazioni'))).toBe(false)
+    expect(aColpi(ex('Piegamenti'))).toBe(false)
+    expect(aColpi(ex('Polpacci seduto'))).toBe(false)
+    expect(corpoLibero(ex('Polpacci seduto'))).toBe(false)
+  })
+
+  it('chi li ha voluti con attrezzo li tiene a chili', () => {
+    expect(aColpi({ ...ex('Polpacci in piedi'), bodyweight: false })).toBe(false)
+  })
+
+  it('le vecchie alzate a 0 kg prendono il segno; quelle con dei chili restano come sono', () => {
+    const storico: PalestraExercise['history'] = [
+      { d: 'W', date: '2026-09-10', kg: 0, reps: 15, sets_n: 3 },
+      { d: 'W', date: '2026-09-17', kg: 20, reps: 15, sets_n: 3 },
+    ]
+    const polpacci = conSegnoCorpoLibero({ ...ex('Polpacci in piedi'), history: storico })
+    expect(polpacci.history.map(h => h.bodyweight)).toEqual([true, undefined])
+    // Un esercizio con attrezzo non si tocca: resta lo stesso oggetto.
+    const panca = { ...ex('Panca piana'), history: storico }
+    expect(conSegnoCorpoLibero(panca)).toBe(panca)
   })
 })

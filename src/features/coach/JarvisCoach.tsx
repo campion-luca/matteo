@@ -15,7 +15,8 @@
 // l'allenatore manderebbe una richiesta e all'allievo resterebbe da accettarla —
 // un consenso che si dà per non far aspettare l'altro, che è il modo peggiore di
 // darlo. Le regole vere stanno nel database: vedi supabase/coach_schema.sql.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { localISO } from '@/lib/isoDate'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { NucCard, NucEyebrow, NucSubTabs } from '@/components/ui/NucComponents'
@@ -317,6 +318,9 @@ function LatoAllenatore({ userName, atleti, onCollegato, onApri, onRimuovi }: {
           onChange={e => setCodice(e.target.value.toUpperCase())}
           onKeyDown={e => { if (e.key === 'Enter') void collega() }}
           placeholder={t('CODICE')}
+          // Il segnaposto ha uno stile suo (vedi `.j-codice` in globals.css):
+          // con il corpo e il peso del codice vero sembrava un codice già scritto.
+          className="j-codice"
           autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
@@ -420,6 +424,20 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
 
   const nome = dati?.userName || link.athlete_name || t('Allievo')
 
+  // Il giorno in cui ho assegnato la prima scheda a questa persona: è da lì che
+  // si contano le sue settimane (vedi `perSettimana`). `created_at` è della riga
+  // e non cambia modificando la scheda; `createdAt` dentro la scheda è il
+  // ripiego per le righe lette prima che la colonna fosse chiesta.
+  const primaScheda = useMemo(() => {
+    const giorni = assegnate
+      .filter(r => !r.scheda.draft)
+      .map(r => r.created_at ?? r.scheda.createdAt)
+      .filter(Boolean)
+      .map(v => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : localISO(new Date(v))))
+      .filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v))
+    return giorni.length ? giorni.reduce((m, v) => (v < m ? v : m)) : null
+  }, [assegnate])
+
   // Il form è una pagina intera e non un blocco dentro questa: è lo stesso
   // componente che l'atleta usa per le sue schede, ed è fatto per riempire lo
   // schermo. Incastrarlo in una colonna che scorre lo lascerebbe senza altezza.
@@ -458,6 +476,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
         <CoachSessioni
           data={dati}
           schedeAssegnate={assegnate.map(r => r.scheda)}
+          inizio={primaScheda}
           onConfronto={() => setSotto('ultimo')}
         />
       </Pagina>
@@ -679,17 +698,21 @@ function RigaPersona({ nome, sotto, primo, onApri, onRimuovi }: {
 function Bottone({ children, onClick, disabled, variante = 'accent' }: {
   children: React.ReactNode; onClick: () => void; disabled?: boolean; variante?: 'accent' | 'chiaro'
 }) {
-  // Da disabilitato il tasto accent non resta un blocco di accent sbiadito: in
-  // Premium l'accent è bianco, e al 45% diventava una fascia chiara larga quanto
-  // la card. Spento prende l'aspetto del tasto chiaro, e il colore arriva quando
-  // c'è davvero qualcosa da premere.
-  const accent = variante === 'accent' && !disabled
+  // Il tasto accent resta del suo colore anche da spento, solo attenuato.
+  // Prima, spento, prendeva l'aspetto del tasto chiaro — serviva quando in
+  // Premium l'accent era bianco e al 45% faceva una fascia chiara larga quanto la
+  // card. Ma così "Collega", sotto il campo del codice, era un secondo
+  // rettangolo grigio identico al campo: due caselle uguali, e nessuna che
+  // sembrasse il tasto. Con l'accent di adesso il colore attenuato si legge per
+  // quello che è: un tasto che aspetta il codice.
+  const accent = variante === 'accent'
   return (
     <button onClick={onClick} disabled={disabled} className="j-hard" style={{
       flex: 1, width: '100%', minHeight: 44, borderRadius: 'var(--radius)',
       background: accent ? 'var(--j-accent)' : 'var(--surface-2)',
       border: accent ? 'none' : '1px solid var(--hairline)',
       color: accent ? 'var(--j-accent-fg)' : disabled ? 'var(--fg-mute)' : 'var(--fg)',
+      opacity: accent && disabled ? 0.5 : 1,
       fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
       letterSpacing: '.14em', textTransform: 'uppercase',
       cursor: disabled ? 'default' : 'pointer',
