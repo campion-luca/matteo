@@ -113,10 +113,9 @@ describe('dizionario tedesco', () => {
       // "Personal OS" se n'è andato con la sidebar desktop, che non aveva più
       // due schermate fra cui commutare.
       // "Roxzone" è il nome ufficiale della zona di cambio Hyrox, uguale ovunque.
-      // "Coach" è la stessa parola in tedesco (Duden: der Coach) ed è quella che si
-      // usa davvero: "Trainer" c'è, ma qui l'etichetta sta sotto un'icona in una
-      // card da tre parole, e Coach è la più corta e la più riconoscibile.
-      'Coach', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
+      // "Coaching" è la stessa parola in tedesco (Duden: das Coaching) ed è quella
+      // che si usa davvero: "Training" c'è, ma è già l'allenamento in sé.
+      'Coaching', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
       'Personal Coach', 'Premium', 'Roxzone ({n} × {s} s)', 'Standard',
       // "Timer" è la parola che si usa anche in tedesco (der Timer).
       'Timer', 'Total', 'Trend',

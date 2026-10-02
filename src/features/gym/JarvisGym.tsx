@@ -126,9 +126,11 @@ function GymModeTabs({ value, onChange }: { value: 'palestra' | 'hyrox'; onChang
 // seconda, prova un'altra parola.
 // Personal Coach è la prima: stava in home fra le scorciatoie, ma è una cosa
 // che riguarda l'allenamento, e qui sta accanto alle schede che un allenatore ti
-// assegna. Si chiama "Coach" e non "Personal Coach" perché le tre etichette
+// assegna. Si chiama "Coaching" e non "Personal Coach" perché le tre etichette
 // stanno su una riga sola e la più lunga decide il corpo del carattere di tutte
-// e tre; "Statistiche" al posto di "Stats" per il motivo opposto — lì lo spazio
+// e tre — "Coaching" è lunga quanto "Statistiche", quindi non la allarga. È
+// l'attività e non la persona: da qui si segue qualcuno e si è seguiti, e
+// "Coach" faceva pensare solo alla seconda. "Statistiche" al posto di "Stats" per il motivo opposto — lì lo spazio
 // c'è, e una parola intera si legge invece di doverla decifrare.
 // L'icona è una nuvoletta e non più un manubrio: il manubrio è già la tab Pesi
 // qui sopra, identico, e diceva comunque la cosa sbagliata — il Personal Coach è
@@ -186,7 +188,7 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
   }
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(6px, 2vw, 8px)', marginTop: 10, maxWidth: 520 }}>
-      {card('coach',  t('Coach'),       <Icons.chat     size={22} stroke={1.7} style={ICONA_AZIONE}/>, onCoach)}
+      {card('coach',  t('Coaching'),    <Icons.chat    size={22} stroke={1.7} style={ICONA_AZIONE}/>, onCoach)}
       {card('schede', t('Schede'),      <Icons.bookOpen size={22} stroke={1.7} style={ICONA_AZIONE}/>, onSchede)}
       {card('stats',  t('Statistiche'), <Icons.chart    size={22} stroke={1.7} style={ICONA_AZIONE}/>, onStats)}
     </div>

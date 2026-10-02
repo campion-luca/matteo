@@ -141,7 +141,7 @@ export const DE_UI: Record<string, string> = {
   'Gruppo muscolare': 'Muskelgruppe',
   'Schede': 'Pläne',
   // Le tre destinazioni sotto i tab dell'allenamento.
-  'Coach': 'Coach',
+  'Coaching': 'Coaching',
   'Statistiche': 'Statistiken',
   'Mappa della forza': 'Kraftkarte',
   'Personal Coach': 'Personal Coach',
