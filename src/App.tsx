@@ -16,6 +16,7 @@ import { loadUserData, saveUserData, fetchRemoteUpdatedAt, senzaRete } from '@/l
 import { useSyncStatus } from '@/lib/syncStatus'
 import { getSyncMeta, setSynced, markDirty, clearSyncMeta, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
 import { dimenticaSchedeRicevute } from '@/lib/coach'
+import { correzioniPer, eliminaCorrezioni, applicaCorrezioni } from '@/lib/correzioni'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
@@ -226,6 +227,54 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
   return null
 }
 
+// ── Le correzioni dell'allenatore ──────────────────────────────
+// Chi mi segue può correggere un'alzata che ho scritto male, ma non scrive nei
+// miei dati: lascia la correzione in una tabella a parte (vedi lib/correzioni),
+// e ad applicarla sono io, qui — all'apertura dell'app e ogni volta che torna
+// in primo piano.
+//
+// Montato solo a caricamento dal cloud RIUSCITO (`cloudPronto`), e non prima.
+// Un istante prima lo store contiene quello che c'era sul telefono, o niente: la
+// correzione non troverebbe la sua alzata, verrebbe presa per "senza più un
+// bersaglio" e cancellata — con il lavoro dell'allenatore perso prima ancora che
+// i dati arrivino. È successo davvero, alla prima prova.
+function CorrezioniBridge({ userId }: { userId: string }) {
+  useEffect(() => {
+    let inCorso = false
+    const applica = async () => {
+      if (inCorso || senzaRete()) return
+      inCorso = true
+      try {
+        const correzioni = await correzioniPer(userId)
+        if (!correzioni.length) return
+        const esito = applicaCorrezioni(useJarvisStore.getState().palestraExercises, correzioni)
+        if (esito.applicate.length) {
+          // Segna lo stato come modificato: il bridge del cloud lo salva.
+          useJarvisStore.setState({ palestraExercises: esito.esercizi })
+          useSyncStatus.getState().setNotice(esito.applicate.length === 1
+            ? t('Il tuo allenatore ha corretto un’alzata')
+            : t('Il tuo allenatore ha corretto {n} alzate', { n: esito.applicate.length }))
+        }
+        // Si tolgono quelle senza più un bersaglio, e quelle già fatte — ma
+        // queste solo se il dato corretto è arrivato al cloud (niente modifiche
+        // in sospeso): finché non c'è, la correzione resta lì a garanzia.
+        const daTogliere = [...esito.perse, ...(getSyncMeta().dirty ? [] : esito.giaFatte)]
+        await eliminaCorrezioni(daTogliere)
+      } catch {
+        // Tabella non ancora creata, o rete: non è un errore da mostrare. Si
+        // riprova al prossimo ritorno sull'app.
+      } finally {
+        inCorso = false
+      }
+    }
+    void applica()
+    const alRitorno = () => { if (document.visibilityState === 'visible') void applica() }
+    document.addEventListener('visibilitychange', alRitorno)
+    return () => document.removeEventListener('visibilitychange', alRitorno)
+  }, [userId])
+  return null
+}
+
 // Pill minimale in stile paper, in cima allo schermo. Stessa forma per tutti e tre
 // i messaggi di sync: cambia solo il testo e se è toccabile.
 const PILL_STYLE: React.CSSProperties = {
@@ -293,6 +342,12 @@ export default function App() {
   const [recovering, setRecovering] = useState(false)
   const [cloudLoading, setCloudLoading] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
+  // Il caricamento dal cloud è RIUSCITO, per questo utente, in questa sessione.
+  // Non è `!cloudLoading`: quello è vero anche nell'istante prima che il
+  // caricamento parta, quando lo store contiene ancora solo quello che c'era sul
+  // telefono — o niente. Chi deve ragionare sui dati veri (le correzioni
+  // dell'allenatore) aspetta questo.
+  const [cloudPronto, setCloudPronto] = useState(false)
   // Incrementato dalla pill "riprova": è la dipendenza che ritriggera il load.
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [initialUpdatedAt, setInitialUpdatedAt] = useState<string | null>(null)
@@ -408,6 +463,7 @@ export default function App() {
     // tutti per un'app da palestra — il seminterrato che non prende — dove prima
     // si restavano a guardare lo scheletro per sette secondi e mezzo prima di
     // vedere i propri esercizi, che erano lì sul telefono dall'inizio.
+    setCloudPronto(false)
     if (senzaRete()) {
       setInitialUpdatedAt(getSyncMeta().lastSyncedAt)
       setPushOnMount(false)
@@ -458,6 +514,7 @@ export default function App() {
           setPushOnMount(azzerato || meta.dirty)
         }
         setCloudLoading(false)
+        setCloudPronto(true)
       })
       .catch(() => {
         // Load fallito (rete/server): non tocco i dati, ma il bridge lo monto lo stesso —
@@ -541,6 +598,7 @@ export default function App() {
       {session && !recovering && (
         <>
           {!cloudLoading && <CloudSyncBridge userId={session.user.id} initialUpdatedAt={initialUpdatedAt} pushOnMount={pushOnMount}/>}
+          {cloudPronto && !cloudLoading && <CorrezioniBridge userId={session.user.id}/>}
           <SyncPills loadFailed={loadFailed} onRetryLoad={() => setLoadAttempt(n => n + 1)}/>
 
           {cloudLoading && (

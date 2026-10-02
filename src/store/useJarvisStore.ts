@@ -45,6 +45,10 @@ export interface PalestraHistoryEntry {
   // col programma di oggi: tre serie su tre diventano "tre su quattro, meglio
   // scendere" (vedi caricoConsigliato).
   piano?: { sets: number; reps: string }
+  // Il nome dell'allenatore che ha corretto questa alzata (vedi lib/correzioni).
+  // Sta scritto sull'alzata perché chi la rilegge deve sapere che quei numeri
+  // non sono più quelli che aveva scritto lui.
+  correttaDa?: string
   // Un appunto sulla sessione, scritto mentre ci si allena ("spalla che tira",
   // "sedile al 4"). Resta attaccato a QUESTA alzata, e alla successiva sullo
   // stesso esercizio si rilegge come "nota dell'ultima volta".

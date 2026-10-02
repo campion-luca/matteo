@@ -20,6 +20,9 @@ import { quotaCorpo } from '@/features/gym/catalogo'
 import { giorniTra, localISO, todayISO } from '@/lib/isoDate'
 
 export interface EsitoEsercizio {
+  /** L'id dell'esercizio nello storico dell'allievo. Assente se è stato saltato
+   *  e non esiste ancora: serve a chi vuole correggere l'alzata. */
+  exId?: string
   nome: string
   muscle?: string
   /** Cosa chiedeva la scheda. Assente per le alzate fuori scheda. */
@@ -55,6 +58,8 @@ export interface Giornata {
   serieCorte: number
   /** Esercizi con carico sceso rispetto all'ultima volta. */
   caloCarico: number
+  /** Esercizi con carico salito rispetto all'ultima volta. */
+  caricoSalito: number
 }
 
 const norm = (s: string) => s.trim().toLowerCase()
@@ -121,6 +126,7 @@ export function analizzaGiornate(
     // che non dice niente.
     const senzaCarico = ora === 0 && !prima
     return {
+      exId: ex.id,
       nome: ex.n,
       muscle: displayMuscle(ex.muscle),
       previsto: previsto ? { serie: previsto.sets, colpi: previsto.reps, colpiMin: min } : undefined,
@@ -192,6 +198,7 @@ export function analizzaGiornate(
       serieMancanti: tutti.filter(e => !e.saltato).reduce((s, e) => s + e.serieMancanti, 0),
       serieCorte: tutti.reduce((s, e) => s + e.serieCorte.length, 0),
       caloCarico: tutti.filter(e => (e.carico?.delta ?? 0) < 0).length,
+      caricoSalito: tutti.filter(e => (e.carico?.delta ?? 0) > 0).length,
     })
   }
 

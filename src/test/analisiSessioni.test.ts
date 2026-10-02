@@ -70,6 +70,8 @@ describe('una giornata di scheda', () => {
     expect(per('Panca piana').carico).toEqual({ ora: 82.5, prima: 80, delta: 2.5 })
     expect(per('rematore').carico).toEqual({ ora: 55, prima: 60, delta: -5 })
     expect(oggi.caloCarico).toBe(1)
+    // Si contano anche quelli saliti: e' cio' che la riga chiusa dice in verde.
+    expect(oggi.caricoSalito).toBe(oggi.gruppi.flatMap(x => x.esercizi).filter(e => (e.carico?.delta ?? 0) > 0).length)
   })
 
   it('un esercizio non previsto resta visibile come fuori scheda', () => {

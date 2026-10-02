@@ -14,8 +14,10 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { LineChart } from '@/features/gym/gymShared'
-import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle, MUSCLE_OPTIONS } from '@/features/gym/gymModel'
+import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
+import { perMuscolo } from './gruppi'
+import { TendinaGruppo } from './TendinaGruppo'
 import { quotaCorpo, corpoLibero } from '@/features/gym/catalogo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
@@ -32,7 +34,7 @@ interface Sessione {
   alzate: Array<{ ex: string; muscle: string; h: PalestraHistoryEntry }>
 }
 
-export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApriNote }: {
+export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApriGrafici, onApriNote }: {
   data: AthleteData
   /** Le schede assegnate, già montate da chi le sa scrivere. Arrivano come slot e
    *  non come dati perché questa è una vista: legge e disegna, non salva niente.
@@ -43,6 +45,8 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
   note?: number
   /** Apre la pagina delle sessioni, giornata per giornata. */
   onApriSessioni?: () => void
+  /** Apre l'elenco degli esercizi, ognuno col suo grafico. */
+  onApriGrafici?: () => void
   onApriNote?: () => void
 }) {
   const t = useT()
@@ -51,6 +55,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
   const peso = data.userWeight ?? 0
   const palestra = useMemo(() => data.palestraExercises ?? [], [data.palestraExercises])
   const hyrox = useMemo(() => data.hyroxExercises ?? [], [data.hyroxExercises])
+  const conStorico = useMemo(() => palestra.filter(ex => ex.history.length > 0).length, [palestra])
 
   // ── Le sessioni, raggruppate per giornata ────────────────────
   // Lo storico è per esercizio; un allenatore ragiona per allenamenti. Senza
@@ -218,8 +223,11 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
       {/* Sessioni e note, due porte affiancate. Le sessioni erano una tendina
           in fondo alla pagina che mostrava una giornata per volta: adesso hanno
           una pagina loro, dove ogni giornata si confronta con la sua scheda. */}
-      {(onApriSessioni || onApriNote) && (
-        <div style={{ display: 'grid', gridTemplateColumns: onApriSessioni && onApriNote ? '1fr 1fr' : '1fr', gap: 10 }}>
+      {/* Tre adesso: in mezzo i grafici, esercizio per esercizio. Le etichette
+          sono una parola sola — "Note" e non "Note sugli esercizi" — perché in un
+          terzo di schermo la frase intera finiva troncata coi puntini. */}
+      {(onApriSessioni || onApriGrafici || onApriNote) && (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${[onApriSessioni, onApriGrafici, onApriNote].filter(Boolean).length}, minmax(0, 1fr))`, gap: 8 }}>
           {onApriSessioni && (
             <BottonePagina
               icon={<Icons.list size={20} stroke={1.6}/>}
@@ -228,10 +236,18 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
               onClick={onApriSessioni}
             />
           )}
+          {onApriGrafici && (
+            <BottonePagina
+              icon={<Icons.chart size={20} stroke={1.6}/>}
+              label={t('Grafici')}
+              sotto={conStorico === 1 ? t('1 esercizio') : t('{n} esercizi', { n: conStorico })}
+              onClick={onApriGrafici}
+            />
+          )}
           {onApriNote && (
             <BottonePagina
               icon={<Icons.pencil size={20} stroke={1.6}/>}
-              label={t('Note sugli esercizi')}
+              label={t('Note')}
               sotto={note === 0 ? t('Nessuna scritta') : note === 1 ? t('1 scritta') : t('{n} scritte', { n: note })}
               onClick={onApriNote}
             />
@@ -345,31 +361,23 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
   const [bozza, setBozza] = useState('')
   const testoDi = (id: string) => note.find(n => n.exercise_id === id)?.nota ?? ''
 
-  // Un gruppo per muscolo, nell'ordine di sempre (Petto, Dorso, Gambe…): con
-  // trenta esercizi in fila, per scrivere una nota sullo squat bisognava
-  // scorrerli tutti leggendo i nomi. I gruppi che l'allievo si è creato vanno
-  // dopo quelli di serie e prima di "Altro". Dentro al gruppo, chi ha già una
-  // nota sale in cima — è quello che si torna a rileggere — e il resto è in
-  // ordine alfabetico.
-  const gruppi = useMemo(() => {
-    const perMuscolo = new Map<string, PalestraExercise[]>()
-    for (const ex of esercizi) {
-      const m = displayMuscle(ex.muscle) || 'Altro'
-      perMuscolo.set(m, [...(perMuscolo.get(m) ?? []), ex])
-    }
-    const posto = (m: string) => {
-      const i = MUSCLE_OPTIONS.indexOf(m)
-      return m === 'Altro' ? 999 : i < 0 ? 500 : i
-    }
-    return [...perMuscolo.entries()]
-      .sort(([a], [b]) => posto(a) - posto(b) || a.localeCompare(b))
-      .map(([muscle, lista]) => ({
-        muscle,
-        scritte: lista.filter(ex => testoDi(ex.id)).length,
-        esercizi: lista.sort((a, b) => Number(!!testoDi(b.id)) - Number(!!testoDi(a.id)) || a.n.localeCompare(b.n)),
-      }))
+  // Un gruppo per muscolo (vedi `perMuscolo`): con trenta esercizi in fila, per
+  // scrivere una nota sullo squat bisognava scorrerli tutti leggendo i nomi.
+  // Dentro al gruppo, chi ha già una nota sale in cima: è quello che si torna a
+  // rileggere.
+  const gruppi = useMemo(
+    () => perMuscolo(esercizi, ex => !!testoDi(ex.id)).map(g => ({ ...g, scritte: g.esercizi.filter(ex => testoDi(ex.id)).length })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [esercizi, note])
+    [esercizi, note],
+  )
+  // Tutti chiusi all'ingresso: la pagina è l'elenco dei gruppi, con accanto
+  // quante note ha ciascuno, e si apre solo quello su cui si vuole scrivere.
+  const [aperti, setAperti] = useState<Set<string>>(() => new Set())
+  const apriGruppo = (m: string) => setAperti(prev => {
+    const next = new Set(prev)
+    if (next.has(m)) next.delete(m); else next.add(m)
+    return next
+  })
 
   // Si salva con un tasto, e solo con quello.
   //
@@ -393,20 +401,11 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
     <div>
       <NucEyebrow right={<span style={{ textTransform: 'none' }}>{note.length === 1 ? t('1 scritta') : t('{n} scritte', { n: note.length })}</span>}>{t('Note sugli esercizi')}</NucEyebrow>
       {gruppi.map(g => (
-      <div key={g.muscle} style={{ marginBottom: 14 }}>
-        <div style={{
-          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
-          padding: '0 2px', marginBottom: 6,
-          fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase',
-          color: 'var(--fg-soft)',
-        }}>
-          <span>{tData(g.muscle)} · {g.esercizi.length}</span>
-          {g.scritte > 0 && (
-            <span style={{ fontWeight: 400, letterSpacing: '.04em', textTransform: 'none', color: 'var(--j-accent-ink)' }}>
-              {g.scritte === 1 ? t('1 nota') : t('{n} note', { n: g.scritte })}
-            </span>
-          )}
-        </div>
+      <TendinaGruppo
+        key={g.muscle} muscle={g.muscle} conta={g.esercizi.length}
+        extra={g.scritte > 0 ? (g.scritte === 1 ? t('1 nota') : t('{n} note', { n: g.scritte })) : undefined}
+        aperta={aperti.has(g.muscle)} onToggle={() => apriGruppo(g.muscle)}
+      >
       <NucCard pad={0}>
         {g.esercizi.map((ex, i) => {
           const nota = testoDi(ex.id)
@@ -495,7 +494,7 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
           )
         })}
       </NucCard>
-      </div>
+      </TendinaGruppo>
       ))}
     </div>
   )

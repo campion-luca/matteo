@@ -37,8 +37,11 @@ import { CoachMessaggi } from './CoachMessaggi'
 import { BadgeNonLetti } from './messaggiUI'
 import { useNonLetti } from '@/lib/messaggiLive'
 import { CoachSessioni } from './CoachSessioni'
+import { CoachGrafici, CoachEsercizio } from './CoachEsercizi'
 import { SchedaFormPage } from '@/features/gym/GymSchede'
-import type { GymScheda } from '@/store/useJarvisStore'
+import { EditHistoryModal } from '@/features/gym/gymModals'
+import { correzioniPer, salvaCorrezione, applicaCorrezioni } from '@/lib/correzioni'
+import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 // Le tre sezioni del Personal Coach. "messaggi" è la terza e sta a destra: le
 // prime due sono i due lati del collegamento (chi ti segue, chi segui), la terza
@@ -223,8 +226,11 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
       <NucEyebrow>{t('Il tuo codice')}</NucEyebrow>
       <NucCard pad={16} style={{ marginBottom: 18 }}>
         <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)', marginBottom: 14 }}>
-          {t('Genera un codice e dallo a chi ti allena. Vedrà i tuoi allenamenti, il volume e l’andamento del peso —')}{' '}
-          <b>{t('in sola lettura')}</b>. {t('Puoi togliergli l’accesso quando vuoi.')}
+          {/* Non più "in sola lettura": chi ti segue può correggere un'alzata
+              scritta male (vedi lib/correzioni), e va detto a chi sta per
+              dargli il codice. */}
+          {t('Genera un codice e dallo a chi ti allena. Vedrà i tuoi allenamenti, il volume e l’andamento del peso, e potrà correggere un’alzata scritta male.')}{' '}
+          {t('Puoi togliergli l’accesso quando vuoi.')}
         </div>
 
         {invito ? (
@@ -387,16 +393,34 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // CoachAthlete perché l'intestazione con la freccia è di questo livello: da
   // là sotto, cambiare contenuto senza cambiare header avrebbe lasciato un back
   // che esce dall'allievo invece di tornare al suo riepilogo.
-  const [sotto, setSotto] = useState<null | 'ultimo' | 'note' | 'sessioni'>(null)
+  const [sotto, setSotto] = useState<null | 'ultimo' | 'note' | 'sessioni' | 'grafici' | 'esercizio'>(null)
+  // L'esercizio aperto nei grafici: per id, così dopo una correzione la pagina
+  // rilegge l'esercizio aggiornato invece di restare sulla copia di prima.
+  const [esercizioId, setEsercizioId] = useState<string | null>(null)
+  // L'alzata che sto correggendo (vedi lib/correzioni).
+  const [correggo, setCorreggo] = useState<{ exId: string; vecchia: PalestraHistoryEntry } | null>(null)
+
+  // I dati dell'allievo, con sopra le mie correzioni che la sua app non ha
+  // ancora applicato: così vedo subito il numero giusto, senza aspettare che
+  // lui riapra l'app. Se la tabella delle correzioni non c'è ancora si leggono
+  // i dati e basta.
+  const leggiDati = useCallback(async (): Promise<AthleteData | null> => {
+    const [d, correzioni] = await Promise.all([
+      athleteData(link.athlete_id),
+      correzioniPer(link.athlete_id).catch(() => []),
+    ])
+    if (!d?.palestraExercises) return d
+    return { ...d, palestraExercises: applicaCorrezioni(d.palestraExercises, correzioni).esercizi }
+  }, [link.athlete_id])
 
   useEffect(() => {
     let vivo = true
     setStato('carico')
-    athleteData(link.athlete_id)
+    leggiDati()
       .then(d => { if (vivo) { setDati(d); setStato('pronto') } })
       .catch(e => { if (vivo) { setErrore(messaggio(e)); setStato('errore') } })
     return () => { vivo = false }
-  }, [link.athlete_id])
+  }, [leggiDati])
 
   const ricarica = useCallback(() => {
     schedeAssegnate(link.athlete_id)
@@ -423,6 +447,37 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   }
 
   const nome = dati?.userName || link.athlete_name || t('Allievo')
+
+  // Salva la correzione e rilegge: l'alzata porta il mio nome, perché chi la
+  // ritrova cambiata deve sapere da chi.
+  const correggi = (nuova: PalestraHistoryEntry) => {
+    if (!correggo) return
+    const { exId, vecchia } = correggo
+    setCorreggo(null)
+    setSalvataggio(null)
+    salvaCorrezione(link.coach_id, link.athlete_id, exId, link.coach_name ?? '', vecchia, {
+      ...nuova, correttaDa: link.coach_name?.trim() || t('il tuo allenatore'),
+    })
+      .then(leggiDati)
+      .then(setDati)
+      .catch(e => setSalvataggio(messaggio(e)))
+  }
+
+  // Il modale della correzione sta SOPRA la pagina, in uno strato suo. Le pagine
+  // dell'allenatore sono a z 97, e un modale si monta da sé nella card dell'app
+  // a z 90 (vedi useModalHost): ci finiva sotto, aperto e invisibile.
+  // `data-jmodal-root` dice al modale di montarsi QUI dentro invece che lassù.
+  const conCorrezione = (pagina: React.ReactNode) => (
+    <>
+      {pagina}
+      {correggo && (
+        <div data-jmodal-root style={{ position: 'absolute', inset: 0, zIndex: 99 }}>
+          <EditHistoryModal entry={correggo.vecchia} onClose={() => setCorreggo(null)} onSave={correggi}/>
+        </div>
+      )}
+    </>
+  )
+  const apriCorrezione = (exId: string, vecchia: PalestraHistoryEntry) => { setSalvataggio(null); setCorreggo({ exId, vecchia }) }
 
   // Il giorno in cui ho assegnato la prima scheda a questa persona: è da lì che
   // si contano le sue settimane (vedi `perSettimana`). `created_at` è della riga
@@ -471,15 +526,39 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   }
 
   if (sotto === 'sessioni' && dati) {
-    return (
+    return conCorrezione(
       <Pagina titolo={t('Sessioni')} onBack={() => setSotto(null)} isDesktop={isDesktop}>
+        {salvataggio && <Avviso testo={salvataggio} tono="errore"/>}
         <CoachSessioni
           data={dati}
           schedeAssegnate={assegnate.map(r => r.scheda)}
           inizio={primaScheda}
           onConfronto={() => setSotto('ultimo')}
+          onCorreggi={apriCorrezione}
+        />
+      </Pagina>,
+    )
+  }
+
+  if (sotto === 'grafici' && dati) {
+    return (
+      <Pagina titolo={t('Grafici')} onBack={() => setSotto(null)} isDesktop={isDesktop}>
+        <CoachGrafici
+          esercizi={dati.palestraExercises ?? []}
+          onApri={ex => { setSalvataggio(null); setEsercizioId(ex.id); setSotto('esercizio') }}
         />
       </Pagina>
+    )
+  }
+
+  // La scheda di un esercizio si apre dai grafici e ci torna.
+  const esercizio = sotto === 'esercizio' ? dati?.palestraExercises?.find(e => e.id === esercizioId) : undefined
+  if (sotto === 'esercizio' && dati && esercizio) {
+    return conCorrezione(
+      <Pagina titolo={esercizio.n} onBack={() => setSotto('grafici')} isDesktop={isDesktop}>
+        {salvataggio && <Avviso testo={salvataggio} tono="errore"/>}
+        <CoachEsercizio ex={esercizio} peso={dati.userWeight ?? 0} onCorreggi={apriCorrezione}/>
+      </Pagina>,
     )
   }
 
@@ -510,7 +589,8 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           <CoachAthlete
             data={dati}
             note={note.length}
-            onApriSessioni={() => setSotto('sessioni')}
+            onApriSessioni={() => { setSalvataggio(null); setSotto('sessioni') }}
+            onApriGrafici={() => setSotto('grafici')}
             onApriNote={() => { setSalvataggio(null); setSotto('note') }}
             slotSchede={
               <SchedeAssegnate

@@ -264,9 +264,8 @@ export const DE_UI: Record<string, string> = {
   'Elimina': 'Löschen',
   'Confronto': 'Vergleich',
   'Il tuo codice': 'Dein Code',
-  'Genera un codice e dallo a chi ti allena. Vedrà i tuoi allenamenti, il volume e l’andamento del peso —':
-    'Erzeuge einen Code und gib ihn der Person, die dich trainiert. Sie sieht dein Training, das Volumen und den Gewichtsverlauf —',
-  'in sola lettura': 'nur lesend',
+  'Genera un codice e dallo a chi ti allena. Vedrà i tuoi allenamenti, il volume e l’andamento del peso, e potrà correggere un’alzata scritta male.':
+    'Erzeuge einen Code und gib ihn der Person, die dich trainiert. Sie sieht dein Training, das Volumen und den Gewichtsverlauf und kann einen falsch eingetragenen Satz korrigieren.',
   'Puoi togliergli l’accesso quando vuoi.': 'Du kannst den Zugang jederzeit entziehen.',
   'Genera un codice': 'Code erzeugen',
   'Nuovo codice': 'Neuer Code',
@@ -834,6 +833,19 @@ export const DE_UI: Record<string, string> = {
   'L’ultima volta l’ultima serie è salita e ha retto: oggi {alte} serie su {serie} a {kg} kg.': 'Letztes Mal hast du den letzten Satz gesteigert und gehalten: heute {alte} von {serie} Sätzen mit {kg} kg.',
   'Ripeti i carichi dell’ultima volta.': 'Wiederhole die Gewichte vom letzten Mal.',
   'Dopo lo stop': 'Nach der Pause',
+
+  // ── Grafici dell'allievo e correzione delle alzate ──
+  'Il tuo allenatore ha corretto un’alzata': 'Dein Trainer hat einen Eintrag korrigiert',
+  'Il tuo allenatore ha corretto {n} alzate': 'Dein Trainer hat {n} Einträge korrigiert',
+  'il tuo allenatore': 'dein Trainer',
+  'corretta da {chi}': 'korrigiert von {chi}',
+  'Correggi': 'Korrigieren',
+  'Grafici': 'Diagramme',
+  'tocca un esercizio per il grafico': 'Übung antippen für das Diagramm',
+  'ultima': 'zuletzt',
+  'Dall’inizio': 'Seit Beginn',
+  '1 carico salito': '1 Gewicht gestiegen',
+  '{n} carichi saliti': '{n} Gewichte gestiegen',
 
   // ── Esercizi a colpi, note per muscolo, sessioni per settimana ──
   'la serie più lunga, sessione per sessione': 'der längste Satz, Einheit für Einheit',

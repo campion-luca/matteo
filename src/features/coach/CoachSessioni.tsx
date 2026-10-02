@@ -13,14 +13,17 @@ import { fmtKg, fmtNum, fmtVol, setRepsOf } from '@/features/gym/gymModel'
 import { fmtShortDate, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
-import type { GymScheda } from '@/store/useJarvisStore'
+import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { analizzaGiornate, perSettimana, haProblemi, type EsitoEsercizio, type Giornata, type SettimanaSessioni } from './analisiSessioni'
 
 // Rosso e verde veri anche nel tema premium, che --danger e --ok li scolora.
 const ROSSO = 'var(--segnale-giu)'
 const VERDE = 'var(--segnale-su)'
 
-export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto }: {
+/** Chiede di correggere un'alzata: l'esercizio dell'allievo e l'alzata com'è. */
+export type Correggi = (exerciseId: string, alzata: PalestraHistoryEntry) => void
+
+export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto, onCorreggi }: {
   data: AthleteData
   /** Le schede scritte dall'allenatore: l'allievo le esegue, ma non stanno nel suo blob. */
   schedeAssegnate: GymScheda[]
@@ -28,6 +31,8 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto }: {
    *  si contano le settimane. Senza, si parte dalla prima sessione. */
   inizio?: string | null
   onConfronto?: () => void
+  /** Se c'è, ogni alzata ha una matita per correggerla. */
+  onCorreggi?: Correggi
 }) {
   const t = useT()
   const giornate = useMemo(() => {
@@ -40,16 +45,13 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto }: {
 
   const settimane = useMemo(() => perSettimana(giornate, inizio ?? null), [giornate, inizio])
 
-  // La giornata aperta: la più recente, finché non se ne sceglie un'altra.
-  const [aperta, setAperta] = useState<string | null>(giornate[0]?.date ?? null)
-  // Le settimane aperte. All'ingresso solo l'ultima con dentro qualcosa: le
-  // altre restano una riga ciascuna, con i quadratini che dicono com'è andata —
-  // è così che si legge un mese in una schermata.
+  // All'ingresso è tutto chiuso, settimane e giornate: la pagina è l'indice
+  // delle settimane, una riga ciascuna con i quadratini che dicono com'è andata,
+  // e a scegliere cosa aprire è chi guarda. Aprire da sé l'ultima voleva dire
+  // trovarsi ogni volta davanti a una giornata che non si era chiesta.
+  const [aperta, setAperta] = useState<string | null>(null)
   const chiave = (s: SettimanaSessioni) => String(s.n ?? 'prima')
-  const [aperte, setAperte] = useState<Set<string>>(() => {
-    const ultima = settimane.find(s => s.giornate.length > 0)
-    return new Set(ultima ? [chiave(ultima)] : [])
-  })
+  const [aperte, setAperte] = useState<Set<string>>(() => new Set())
   const apri = (k: string) => setAperte(prev => {
     const next = new Set(prev)
     if (next.has(k)) next.delete(k); else next.add(k)
@@ -97,6 +99,7 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto }: {
                       key={g.date} g={g}
                       aperta={aperta === g.date}
                       onToggle={() => setAperta(a => (a === g.date ? null : g.date))}
+                      onCorreggi={onCorreggi}
                     />
                   ))}
                 </div>
@@ -190,7 +193,7 @@ function riassunto(g: Giornata, t: ReturnType<typeof useT>): { testo: string; pr
   return parti.length ? { testo: parti.join(' · '), problemi: true } : { testo: '', problemi: false }
 }
 
-function RigaGiornata({ g, aperta, onToggle }: { g: Giornata; aperta: boolean; onToggle: () => void }) {
+function RigaGiornata({ g, aperta, onToggle, onCorreggi }: { g: Giornata; aperta: boolean; onToggle: () => void; onCorreggi?: Correggi }) {
   const t = useT()
   const nomiSchede = g.gruppi.map(x => x.scheda?.nome).filter(Boolean) as string[]
   const { testo, problemi } = riassunto(g, t)
@@ -218,6 +221,14 @@ function RigaGiornata({ g, aperta, onToggle }: { g: Giornata; aperta: boolean; o
           </span>
           <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.03em', color: problemi ? ROSSO : 'var(--fg-mute)' }}>
             {testo || (g.soloHyrox ? '—' : confrontabile ? t('scheda rispettata') : `${fmtVol(g.volume)} kg`)}
+            {/* Anche quello che è andato BENE, già da chiusa: i carichi saliti.
+                Prima l'anteprima diceva solo cosa non tornava, e una giornata
+                con tre aumenti si leggeva uguale a una senza. */}
+            {g.caricoSalito > 0 && (
+              <span style={{ color: VERDE, fontWeight: 600 }}>
+                {' · '}▲ {g.caricoSalito === 1 ? t('1 carico salito') : t('{n} carichi saliti', { n: g.caricoSalito })}
+              </span>
+            )}
           </span>
         </span>
         <span style={{ color: 'var(--fg-mute)', display: 'flex', transform: aperta ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
@@ -233,7 +244,7 @@ function RigaGiornata({ g, aperta, onToggle }: { g: Giornata; aperta: boolean; o
                 {gr.scheda ? gr.scheda.nome : t('Registrate a mano')}
                 {gr.scheda && !gr.confrontabile && <span style={{ color: 'var(--fg-mute)', textTransform: 'none', letterSpacing: 0 }}> · {t('scheda non più disponibile, niente confronto')}</span>}
               </div>
-              {gr.esercizi.map((e, j) => <RigaEsercizio key={j} e={e} primo={j === 0}/>)}
+              {gr.esercizi.map((e, j) => <RigaEsercizio key={j} e={e} primo={j === 0} onCorreggi={onCorreggi}/>)}
             </div>
           ))}
           <div style={{ marginTop: 10, fontFamily: NUC.label, fontSize: 10, color: 'var(--fg-mute)', textAlign: 'right' }}>
@@ -245,7 +256,7 @@ function RigaGiornata({ g, aperta, onToggle }: { g: Giornata; aperta: boolean; o
   )
 }
 
-function RigaEsercizio({ e, primo }: { e: EsitoEsercizio; primo: boolean }) {
+function RigaEsercizio({ e, primo, onCorreggi }: { e: EsitoEsercizio; primo: boolean; onCorreggi?: Correggi }) {
   const t = useT()
   const tData = useTData()
   const colpi = e.fatto ? setRepsOf(e.fatto) : []
@@ -268,6 +279,21 @@ function RigaEsercizio({ e, primo }: { e: EsitoEsercizio; primo: boolean }) {
           </span>
         )}
         {delta === 0 && <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)' }}>= {t('stesso carico')}</span>}
+        {/* La matita: l'allievo ha scritto un numero sbagliato, e lo si sistema
+            da qui senza chiedergli di rifarlo. */}
+        {onCorreggi && e.exId && e.fatto && (
+          <button
+            onClick={() => onCorreggi(e.exId!, e.fatto!)}
+            aria-label={`${t('Correggi')} ${tData(e.nome)}`} title={t('Correggi')}
+            style={{
+              flexShrink: 0, width: 28, height: 28, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              background: 'var(--surface-2)', border: '1px solid var(--hairline)', color: 'var(--fg-mute)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Icons.pencil size={11} stroke={1.8}/>
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 10px', marginTop: 3, fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)' }}>
@@ -297,6 +323,11 @@ function RigaEsercizio({ e, primo }: { e: EsitoEsercizio; primo: boolean }) {
           <span>{t('prima {kg} kg', { kg: fmtNum(e.carico.prima) })}</span>
         )}
       </div>
+      {e.fatto?.correttaDa && (
+        <div style={{ marginTop: 3, fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)' }}>
+          {t('corretta da {chi}', { chi: e.fatto.correttaDa })}
+        </div>
+      )}
       {/* La nota che l'atleta ha scritto mentre si allenava: spesso spiega il
           rosso qui sopra ("spalla che tirava") meglio di qualunque numero. */}
       {e.fatto?.note && (

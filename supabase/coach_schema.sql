@@ -426,6 +426,58 @@ DROP POLICY IF EXISTS "messaggi_deletable_by_both" ON public.coach_messaggi;
 CREATE POLICY "messaggi_deletable_by_both" ON public.coach_messaggi
   FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
 
+-- ── Le correzioni dell'allenatore alle alzate ─────────────────
+-- Un allievo scrive un numero sbagliato e chi lo segue lo sistema. Ma NON
+-- scrivendo in `user_data`: quel blob lo riscrive per intero l'app dell'allievo
+-- a ogni salvataggio, e una modifica fatta da fuori verrebbe sovrascritta — o
+-- sovrascriverebbe lei un allenamento appena registrato. È lo stesso motivo per
+-- cui schede assegnate e note stanno in tabelle loro.
+--
+-- Qui l'allenatore lascia la correzione ("questa alzata, così"); ad applicarla è
+-- l'app dell'allievo alla prossima apertura, e a toglierla da qui pure, una
+-- volta che il dato corretto è al sicuro. Vedi src/lib/correzioni.ts.
+CREATE TABLE IF NOT EXISTS public.coach_correzioni (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  coach_id     uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  athlete_id   uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  -- L'id del PalestraExercise nell'app dell'allievo (testo: vedi coach_note).
+  exercise_id  text NOT NULL,
+  -- L'alzata com'era e come dev'essere. Le alzate non hanno un id: quella da
+  -- correggere si ritrova confrontandola con `vecchia`.
+  vecchia      jsonb NOT NULL,
+  nuova        jsonb NOT NULL,
+  coach_name   text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS coach_correzioni_athlete_idx ON public.coach_correzioni (athlete_id, created_at);
+
+ALTER TABLE public.coach_correzioni ENABLE ROW LEVEL SECURITY;
+
+-- Visibile a entrambi: l'allievo deve leggerla per applicarla, l'allenatore per
+-- vedere i dati già corretti finché l'allievo non riapre l'app.
+DROP POLICY IF EXISTS "correzioni_visible_to_both" ON public.coach_correzioni;
+CREATE POLICY "correzioni_visible_to_both" ON public.coach_correzioni
+  FOR SELECT USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+-- Scrive solo l'allenatore, e solo verso chi lo ha collegato.
+DROP POLICY IF EXISTS "correzioni_written_by_coach" ON public.coach_correzioni;
+CREATE POLICY "correzioni_written_by_coach" ON public.coach_correzioni
+  FOR INSERT WITH CHECK (
+    auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_correzioni.athlete_id
+    )
+  );
+
+-- Nessuna policy di UPDATE: una correzione non si ritocca, se ne scrive
+-- un'altra. Cancellabile da entrambi — l'allievo la toglie dopo averla
+-- applicata, l'allenatore può ripensarci.
+DROP POLICY IF EXISTS "correzioni_deletable_by_both" ON public.coach_correzioni;
+CREATE POLICY "correzioni_deletable_by_both" ON public.coach_correzioni
+  FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+
 -- ── Rende visibili subito le tabelle nuove all'API ─────────────────
 -- Senza, PostgREST può continuare per un po' a rispondere "tabella non
 -- trovata" anche a schema appena eseguito.
