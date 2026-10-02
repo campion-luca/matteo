@@ -35,7 +35,11 @@ import {
 import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from './CoachAthlete'
 import { CoachMessaggi } from './CoachMessaggi'
 import { BadgeNonLetti } from './messaggiUI'
-import { useNonLetti } from '@/lib/messaggiLive'
+import { useNonLetti, useMessaggi, avvisa } from '@/lib/messaggiLive'
+import { bozzaChat, idChat, nonLetti } from '@/lib/messaggi'
+import { ChatDiretta } from './ChatDiretta'
+import { NotifichePush } from './NotifichePush'
+import { fmtKg, fmtReps } from '@/features/gym/gymModel'
 import { CoachSessioni } from './CoachSessioni'
 import { CoachGrafici, CoachEsercizio } from './CoachEsercizi'
 import { SchedaFormPage } from '@/features/gym/GymSchede'
@@ -48,13 +52,21 @@ import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
 // è quello che succede DOPO che il collegamento c'è.
 type Ruolo = 'seguito' | 'allenatore' | 'messaggi'
 
-export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => void }) {
+export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
+  userId: string
+  onBack: () => void
+  /** La sezione su cui aprirsi. Chi arriva toccando una notifica vuole i
+   *  messaggi, non il proprio codice. */
+  iniziale?: Ruolo
+}) {
   const t = useT()
   const isDesktop = useIsDesktop()
   const userName = useJarvisStore(st => st.userName)
   const { confirmDelete } = useConfirmDelete()
 
-  const [ruolo, setRuolo] = useState<Ruolo>('seguito')
+  const [ruolo, setRuolo] = useState<Ruolo>(iniziale)
+  // La chat aperta con uno dei miei allenatori (io sono l'allievo).
+  const [chatCon, setChatCon] = useState<CoachLink | null>(null)
   const daLeggere = useNonLetti()
   const [invito, setInvito] = useState<CoachInvite | null>(null)
   const [allenatori, setAllenatori] = useState<CoachLink[]>([])
@@ -87,6 +99,14 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
 
   useEffect(() => { void ricarica() }, [ricarica])
 
+  // I nomi di chi seguo e di chi mi segue, per l'elenco dei messaggi.
+  const nomi = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const l of atleti) if (l.athlete_name) m.set(l.athlete_id, l.athlete_name)
+    for (const l of allenatori) if (l.coach_name) m.set(l.coach_id, l.coach_name)
+    return m
+  }, [atleti, allenatori])
+
   // Lo scollegamento fallisce solo per rete o sessione scaduta, ma se fallisce in
   // silenzio la riga sparisce dalla lista e l'altro continua a vedere i dati: è
   // l'unico errore di questa schermata che l'utente DEVE vedere.
@@ -104,6 +124,14 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
     return <SchedaAllievo link={aperto} onBack={() => setAperto(null)}/>
   }
 
+  if (chatCon) {
+    return (
+      <Pagina titolo={chatCon.coach_name || t('Allenatore')} onBack={() => setChatCon(null)} isDesktop={isDesktop}>
+        <ChatDiretta coachId={chatCon.coach_id} athleteId={chatCon.athlete_id} io={userId} mioNome={userName}/>
+      </Pagina>
+    )
+  }
+
   return (
     <Pagina titolo={t('Personal Coach')} onBack={onBack} isDesktop={isDesktop}>
       <NucSubTabs
@@ -118,6 +146,8 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
       />
 
       {errore && <Avviso testo={errore} tono="errore"/>}
+
+      <NotifichePush userId={userId}/>
 
       {caricamento ? (
         <div className="j-empty">{t('Caricamento…')}</div>
@@ -137,6 +167,7 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
           allenatori={allenatori}
           onInvito={setInvito}
           onErrore={setErrore}
+          onScrivi={setChatCon}
           onRimuovi={link => confirmDelete(
             () => { void scollega(link, () => setAllenatori(a => a.filter(x => x.coach_id !== link.coach_id))) },
             link.coach_name || t('questo allenatore'),
@@ -155,7 +186,7 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
             svelto delle richieste al server (vedi messaggiLive). Lasciarlo
             montato dietro un `hidden` significherebbe interrogare il server ogni
             tre secondi stando a guardare tutt'altro. */}
-        {ruolo === 'messaggi' && <CoachMessaggi userId={userId} userName={userName}/>}
+        {ruolo === 'messaggi' && <CoachMessaggi userId={userId} userName={userName} nomi={nomi}/>}
         <div hidden={ruolo !== 'allenatore'}>
         <LatoAllenatore
           userName={userName}
@@ -181,13 +212,15 @@ export function JarvisCoach({ userId, onBack }: { userId: string; onBack: () => 
 }
 
 // ── Lato "ti seguono": genero il codice ────────────────────────
-function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore, onRimuovi }: {
+function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore, onScrivi, onRimuovi }: {
   userId: string
   userName: string
   invito: CoachInvite | null
   allenatori: CoachLink[]
   onInvito: (i: CoachInvite | null) => void
   onErrore: (e: string | null) => void
+  /** Apre la chat con questo allenatore. */
+  onScrivi: (l: CoachLink) => void
   onRimuovi: (l: CoachLink) => void
 }) {
   const t = useT()
@@ -273,8 +306,9 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
             <RigaPersona
               key={l.coach_id}
               nome={l.coach_name || t('Allenatore')}
-              sotto={t('Dal {data}', { data: fmtShortDate(l.created_at.slice(0, 10)) })}
+              sotto={`${t('Dal {data}', { data: fmtShortDate(l.created_at.slice(0, 10)) })} · ${t('tocca per scrivergli')}`}
               primo={i === 0}
+              onApri={() => onScrivi(l)}
               onRimuovi={() => onRimuovi(l)}
             />
           ))}
@@ -393,7 +427,20 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // CoachAthlete perché l'intestazione con la freccia è di questo livello: da
   // là sotto, cambiare contenuto senza cambiare header avrebbe lasciato un back
   // che esce dall'allievo invece di tornare al suo riepilogo.
-  const [sotto, setSotto] = useState<null | 'ultimo' | 'note' | 'sessioni' | 'grafici' | 'esercizio'>(null)
+  const [sotto, setSotto] = useState<null | 'ultimo' | 'note' | 'sessioni' | 'grafici' | 'esercizio' | 'chat'>(null)
+  // Quanti messaggi di questa persona devo ancora leggere: sta sul tasto.
+  const { messaggi } = useMessaggi()
+  const daLeggereChat = useMemo(() => {
+    const id = idChat(link.coach_id, link.athlete_id)
+    return nonLetti(messaggi.filter(m => m.scheda_id === id), link.coach_id).length
+  }, [messaggi, link.coach_id, link.athlete_id])
+  // Un avviso nel filo con questa persona, a mio nome: quello che ho appena
+  // fatto per lei (una scheda, una nota, una correzione) le arriva come
+  // messaggio e come notifica.
+  const avvisaAllievo = (tipo: 'scheda' | 'nota' | 'correzione', testo: string) => avvisa(bozzaChat({
+    coachId: link.coach_id, athleteId: link.athlete_id,
+    autore: link.coach_id, autoreNome: link.coach_name ?? '', tipo, testo,
+  }))
   // L'esercizio aperto nei grafici: per id, così dopo una correzione la pagina
   // rilegge l'esercizio aggiornato invece di restare sulla copia di prima.
   const [esercizioId, setEsercizioId] = useState<string | null>(null)
@@ -441,8 +488,19 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // salvataggio riuscito — con una scheda che l'allievo non vede.
   const salva = (sc: GymScheda, chiudi = true) => {
     setSalvataggio(null)
+    // Nuova o già assegnata: lo si guarda PRIMA di salvare, dopo ci sarebbe comunque.
+    const nuova = !assegnate.some(r => r.id === sc.id)
     salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', sc)
-      .then(() => { if (chiudi) setForm(null); ricarica() })
+      .then(() => {
+        if (chiudi) setForm(null)
+        ricarica()
+        // Una bozza l'allievo non la vede: non c'è niente di cui avvisarlo.
+        if (!sc.draft) {
+          avvisaAllievo('scheda', nuova
+            ? t('Ti ho assegnato una scheda nuova: «{scheda}».', { scheda: sc.title })
+            : t('Ho aggiornato la scheda «{scheda}».', { scheda: sc.title }))
+        }
+      })
       .catch(e => setSalvataggio(messaggio(e)))
   }
 
@@ -455,10 +513,18 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     const { exId, vecchia } = correggo
     setCorreggo(null)
     setSalvataggio(null)
+    const esercizio = dati?.palestraExercises?.find(e => e.id === exId)?.n ?? ''
     salvaCorrezione(link.coach_id, link.athlete_id, exId, link.coach_name ?? '', vecchia, {
       ...nuova, correttaDa: link.coach_name?.trim() || t('il tuo allenatore'),
     })
-      .then(leggiDati)
+      .then(() => {
+        avvisaAllievo('correzione', t('Ho corretto «{esercizio}» del {giorno}: ora è {alzata}.', {
+          esercizio,
+          giorno: nuova.date ? fmtShortDate(nuova.date) : nuova.d,
+          alzata: `${nuova.sets_n} × ${fmtReps(nuova)} – ${fmtKg(nuova)}`,
+        }))
+        return leggiDati()
+      })
       .then(setDati)
       .catch(e => setSalvataggio(messaggio(e)))
   }
@@ -551,6 +617,14 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     )
   }
 
+  if (sotto === 'chat') {
+    return (
+      <Pagina titolo={nome} onBack={() => setSotto(null)} isDesktop={isDesktop}>
+        <ChatDiretta coachId={link.coach_id} athleteId={link.athlete_id} io={link.coach_id} mioNome={link.coach_name ?? ''}/>
+      </Pagina>
+    )
+  }
+
   // La scheda di un esercizio si apre dai grafici e ci torna.
   const esercizio = sotto === 'esercizio' ? dati?.palestraExercises?.find(e => e.id === esercizioId) : undefined
   if (sotto === 'esercizio' && dati && esercizio) {
@@ -572,7 +646,14 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           onSalva={(exId, testo) => {
             setSalvataggio(null)
             salvaNotaCoach(link.coach_id, link.athlete_id, exId, link.coach_name ?? '', testo)
-              .then(ricaricaNote)
+              .then(() => {
+                ricaricaNote()
+                // Una nota tolta non è una notizia; una scritta sì.
+                if (testo.trim()) {
+                  const esercizio = dati?.palestraExercises?.find(e => e.id === exId)?.n ?? ''
+                  avvisaAllievo('nota', t('Nota su «{esercizio}»: {testo}', { esercizio, testo: testo.trim() }))
+                }
+              })
               .catch(e => setSalvataggio(messaggio(e)))
           }}
         />
@@ -592,6 +673,19 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
             onApriSessioni={() => { setSalvataggio(null); setSotto('sessioni') }}
             onApriGrafici={() => setSotto('grafici')}
             onApriNote={() => { setSalvataggio(null); setSotto('note') }}
+            slotChat={
+              <button onClick={() => setSotto('chat')} className="j-hard" style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', textAlign: 'left',
+                background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)', cursor: 'pointer',
+              }}>
+                <span style={{ color: 'var(--j-accent-ink)', display: 'flex', flexShrink: 0 }}><Icons.chat size={19} stroke={1.6}/></span>
+                <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg)' }}>
+                  {t('Scrivi a {chi}', { chi: nome })}
+                </span>
+                <BadgeNonLetti n={daLeggereChat}/>
+                <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', flexShrink: 0 }}/>
+              </button>
+            }
             slotSchede={
               <SchedeAssegnate
                 righe={assegnate}

@@ -17,6 +17,7 @@ import { useSyncStatus } from '@/lib/syncStatus'
 import { getSyncMeta, setSynced, markDirty, clearSyncMeta, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
 import { dimenticaSchedeRicevute } from '@/lib/coach'
 import { correzioniPer, eliminaCorrezioni, applicaCorrezioni } from '@/lib/correzioni'
+import { riallineaPush } from '@/lib/push'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
@@ -358,6 +359,22 @@ export default function App() {
   // dati, peso). Una sola alla volta, e `null` quando non c'è niente aperto.
   const [profilo, setProfilo] = useState<null | 'impostazioni' | 'utente'>(null)
   const [showCoach, setShowCoach] = useState(false)
+  // Si apre sui messaggi quando si arriva toccando una notifica: nell'indirizzo
+  // (`?apri=messaggi`, app chiusa) o detto dal service worker (app già aperta).
+  const [coachSuMessaggi, setCoachSuMessaggi] = useState(false)
+  useEffect(() => {
+    const apri = () => { setCoachSuMessaggi(true); setShowCoach(true) }
+    if (new URLSearchParams(window.location.search).get('apri') === 'messaggi') {
+      apri()
+      // L'indirizzo si ripulisce: ricaricando la pagina non deve riaprirsi il
+      // Coaching ogni volta.
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+    if (!('serviceWorker' in navigator)) return
+    const daSW = (e: MessageEvent) => { if (e.data?.tipo === 'apri') apri() }
+    navigator.serviceWorker.addEventListener('message', daSW)
+    return () => navigator.serviceWorker.removeEventListener('message', daSW)
+  }, [])
   // Le domande del primo accesso sono già state chiuse in questa sessione. Serve
   // perché `profiloVuoto` si aggiorna dallo store un attimo dopo il salvataggio,
   // e in quell'attimo il questionario si rimonterebbe da capo.
@@ -451,6 +468,9 @@ export default function App() {
     const id = session?.user?.id
     if (!id) { fermaMessaggi(); return }
     avviaMessaggi(id)
+    // Se questo dispositivo ha già le notifiche attive, l'iscrizione dev'essere
+    // a nome di chi è entrato adesso (vedi lib/push).
+    void riallineaPush(id).catch(() => { /* tabella assente o rete: si riprova al prossimo avvio */ })
     return () => fermaMessaggi()
   }, [session?.user?.id])
 
@@ -660,7 +680,7 @@ export default function App() {
 
           {/* Personal Coach — overlay su mobile e desktop, aperto dall'allenamento */}
           <Suspense fallback={null}>
-            {showCoach  && <JarvisCoach  userId={session.user.id} onBack={() => setShowCoach(false)}/>}
+            {showCoach  && <JarvisCoach  userId={session.user.id} iniziale={coachSuMessaggi ? 'messaggi' : 'seguito'} onBack={() => { setShowCoach(false); setCoachSuMessaggi(false) }}/>}
           </Suspense>
         </>
       )}

@@ -67,3 +67,14 @@ export const supabase = {
   from: rest.from.bind(rest),
   rpc: rest.rpc.bind(rest),
 }
+
+/** Chiama una Edge Function col token dell'utente. È tutto quello che serve di
+ *  `functions-js` — una POST — e non vale il pacchetto intero: le funzioni qui
+ *  sono una sola (l'invio delle notifiche push, vedi lib/push.ts). */
+export function chiamaFunzione(nome: string, corpo: unknown): Promise<Response> {
+  return authedFetch(new URL(`functions/v1/${nome}`, baseUrl).href, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  })
+}

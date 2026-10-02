@@ -8,8 +8,20 @@
 // Qui quella domanda resta ATTACCATA all'esercizio di cui parla, e la risposta
 // torna nello stesso punto.
 //
-// Chi apre la conversazione è sempre l'allievo (dalla scheda, col punto
+// Chi apre QUESTE conversazioni è sempre l'allievo (dalla scheda, col punto
 // interrogativo in testata); l'allenatore risponde dai suoi messaggi.
+//
+// ── La chat diretta ────────────────────────────────────────────
+// Accanto ai fili sulle schede ce n'è uno per ogni coppia allenatore–allievo,
+// che non parla di una scheda: è dove ci si scrive e basta, e dove finiscono gli
+// avvisi di quello che succede — un allenamento finito, una scheda assegnata,
+// una nota, una correzione. Lo può aprire chiunque dei due.
+//
+// Vive nella STESSA tabella, senza colonne nuove: `scheda_id` è testo libero e
+// non una chiave esterna, quindi il filo diretto si riconosce da un id costruito
+// apposta (vedi `idChat`). Così tutto ciò che vale per i messaggi — i permessi,
+// le spunte di lettura, il pallino rosso, il giro che li tiene aggiornati — vale
+// anche per la chat, e non c'è una seconda tabella da tenere allineata.
 import { supabase } from './supabase'
 import { translateCoachError } from './coach'
 import { uid } from './uid'
@@ -17,7 +29,52 @@ import { uid } from './uid'
 /** Cosa sta chiedendo il messaggio. Non è cosmesi: dà all'elenco
  *  dell'allenatore la forma di una lista di cose da fare invece che di una chat
  *  in cui tutto pesa uguale. */
-export type TipoMessaggio = 'info' | 'sostituzione' | 'risposta'
+export type TipoMessaggio =
+  // Le richieste su una scheda, e la risposta dell'allenatore.
+  | 'info' | 'sostituzione' | 'risposta'
+  // La chat diretta: un messaggio scritto a mano…
+  | 'chat'
+  // …e gli avvisi che l'app scrive per conto di chi ha fatto la cosa.
+  | 'allenamento' | 'scheda' | 'nota' | 'correzione'
+
+/** I tipi che l'app scrive da sé. Si mostrano come avvisi, non come frasi dette. */
+export const TIPI_AVVISO: readonly TipoMessaggio[] = ['allenamento', 'scheda', 'nota', 'correzione']
+
+// ── Il filo diretto ────────────────────────────────────────────
+const PREFISSO_CHAT = 'chat~'
+
+/** L'id del filo diretto fra questo allenatore e questo allievo. Sta nel campo
+ *  `scheda_id`, e contiene tutti e due gli id perché i fili si raggruppano per
+ *  quel campo: con un id uguale per tutti, chi segue tre persone si ritroverebbe
+ *  le tre chat fuse in una. */
+export function idChat(coachId: string, athleteId: string): string {
+  return `${PREFISSO_CHAT}${coachId}~${athleteId}`
+}
+
+export function eChat(schedaId: string): boolean {
+  return schedaId.startsWith(PREFISSO_CHAT)
+}
+
+/** Un messaggio per il filo diretto: scritto a mano (`chat`) o avviso. */
+export function bozzaChat(p: {
+  coachId: string; athleteId: string
+  /** Chi scrive: dev'essere uno dei due. */
+  autore: string; autoreNome: string
+  tipo: TipoMessaggio; testo: string
+}): BozzaMessaggio {
+  return {
+    scheda_id: idChat(p.coachId, p.athleteId),
+    scheda_titolo: null,
+    coach_id: p.coachId,
+    athlete_id: p.athleteId,
+    autore: p.autore,
+    autore_nome: p.autoreNome.trim() || null,
+    esercizio_id: null,
+    esercizio_nome: null,
+    tipo: p.tipo,
+    testo: p.testo,
+  }
+}
 
 export interface Messaggio {
   id: string
@@ -128,8 +185,11 @@ export function nonLetti(messaggi: Messaggio[], userId: string): Messaggio[] {
   return messaggi.filter(m => !letto(m, userId))
 }
 
-/** Una conversazione: una scheda, una controparte, i messaggi in ordine. */
+/** Una conversazione: una scheda (o la chat diretta), una controparte, i
+ *  messaggi in ordine. */
 export interface Conversazione {
+  /** È il filo diretto fra le due persone, non una scheda. */
+  diretta: boolean
   /** La chiave: una scheda condivisa è un filo solo, anche se le domande sono
    *  su esercizi diversi. */
   schedaId: string
@@ -167,6 +227,7 @@ export function conversazioni(messaggi: Messaggio[], userId: string): Conversazi
     // dell'altro (è esattamente il permesso che coach_schema non concede).
     const suo = ordinati.find(m => m.autore !== userId)
     out.push({
+      diretta: eChat(schedaId),
       schedaId,
       schedaTitolo: ordinati.find(m => m.scheda_titolo)?.scheda_titolo ?? '',
       coachId: ultimo.coach_id,

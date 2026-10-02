@@ -23,6 +23,7 @@ import {
   ruoloIn, nonLetti,
   type Messaggio, type BozzaMessaggio,
 } from './messaggi'
+import { notificaPush } from './push'
 
 /** Il badge in home: basta sapere entro il minuto che è arrivato qualcosa. */
 export const RITMO_FONDO = 20_000
@@ -180,8 +181,20 @@ export async function invia(bozza: BozzaMessaggio): Promise<Messaggio> {
     useMessaggiStore.setState(s => ({ messaggi: s.messaggi.filter(x => x.id !== m.id) }))
     throw e
   }
+  // Solo adesso che la riga è al sicuro: la funzione che manda la notifica la
+  // rilegge dal database, e prima non la troverebbe.
+  notificaPush(m.id)
   ricaricaMessaggi()
   return m
+}
+
+/** Un avviso nel filo diretto — un allenamento finito, una scheda assegnata —
+ *  scritto dall'app per conto di chi ha fatto la cosa. A differenza di `invia`
+ *  non fallisce mai: l'avviso accompagna un'azione già riuscita (l'allenamento è
+ *  salvato, la scheda è assegnata), e se non parte non c'è niente da annullare
+ *  né da dire a chi ha appena finito di fare altro. */
+export function avvisa(bozza: BozzaMessaggio): void {
+  void invia(bozza).catch(() => { /* l'avviso è un di più */ })
 }
 
 /** Segna letti i messaggi passati, ciascuno dal lato in cui sto io.

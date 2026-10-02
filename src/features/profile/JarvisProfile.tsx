@@ -17,6 +17,7 @@ import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
 import { Icons } from '@/components/ui/Icons'
 import { supabase } from '@/lib/supabase'
+import { disattivaPush } from '@/lib/push'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
 import { Flag } from '@/components/ui/Flags'
@@ -244,6 +245,10 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   }
 
   const handleLogout = async () => {
+    // PRIMA di uscire, finché c'è la sessione per farlo: questo dispositivo
+    // smette di ricevere le notifiche dell'account. Senza, chi entra dopo sullo
+    // stesso telefono si vedrebbe arrivare i messaggi di chi è uscito.
+    await disattivaPush().catch(() => { /* niente iscrizione, o niente rete: si esce lo stesso */ })
     await supabase.auth.signOut()
     onClose()
   }

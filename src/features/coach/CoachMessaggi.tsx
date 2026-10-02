@@ -19,9 +19,19 @@ import { fmtQuando } from '@/lib/dateFormat'
 import { conversazioni, type Conversazione } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
 import { Bolla, BadgeNonLetti, Composer } from './messaggiUI'
+import { ChatDiretta } from './ChatDiretta'
 
-export function CoachMessaggi({ userId, userName }: { userId: string; userName: string }) {
+export function CoachMessaggi({ userId, userName, nomi }: {
+  userId: string
+  userName: string
+  /** id → nome delle persone con cui sono collegato. Serve quando in un filo
+   *  l'altro non ha ancora scritto: il suo nome di solito si legge dai suoi
+   *  messaggi, e senza questo una chat appena aperta si chiamerebbe "Allenatore". */
+  nomi?: Map<string, string>
+}) {
   const t = useT()
+  const nomeDi = (c: Conversazione) =>
+    c.controparte || nomi?.get(c.sonoCoach ? c.athleteId : c.coachId) || (c.sonoCoach ? t('Allievo') : t('Allenatore'))
   // Quale filo è aperto. Null = l'elenco.
   const [apertaId, setApertaId] = useState<string | null>(null)
   // Ritmo svelto solo con un filo aperto: l'elenco si accontenta del giro di
@@ -38,6 +48,26 @@ export function CoachMessaggi({ userId, userName }: { userId: string; userName: 
     if (aperta && aperta.daLeggere > 0) segnaLettiOra(aperta.messaggi, userId)
   }, [aperta, userId])
 
+  // La chat diretta ha il suo componente: niente "rispondi su", è una
+  // conversazione e non un elenco di richieste da evadere.
+  if (aperta?.diretta) {
+    return (
+      <>
+        <div className="flex items-center gap-3" style={{ marginBottom: 14 }}>
+          <button onClick={() => setApertaId(null)} className="j-btn-back" style={{ width: 34, height: 34 }}>
+            <Icons.chevL size={15}/>
+          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {nomeDi(aperta)}
+            </div>
+            <div className="j-eyebrow" style={{ marginTop: 2 }}>{t('Chat')}</div>
+          </div>
+        </div>
+        <ChatDiretta coachId={aperta.coachId} athleteId={aperta.athleteId} io={userId} mioNome={userName}/>
+      </>
+    )
+  }
   if (aperta) return <FiloAperto conv={aperta} userId={userId} userName={userName} onBack={() => setApertaId(null)}/>
 
   // Tre stati, non due, ed è la differenza fra "aspetta" e "aspetta per sempre".
@@ -53,7 +83,7 @@ export function CoachMessaggi({ userId, userName }: { userId: string; userName: 
   if (fili.length === 0) {
     return (
       <>
-        <NucEyebrow>{t('Richieste')}</NucEyebrow>
+        <NucEyebrow>{t('Conversazioni')}</NucEyebrow>
         {errore ? (
           <>
             <div style={{
@@ -65,7 +95,7 @@ export function CoachMessaggi({ userId, userName }: { userId: string; userName: 
           </>
         ) : (
           <div className="j-empty">
-            {t('Nessuna richiesta. Chi riceve una tua scheda può chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.')}
+            {t('Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Segui” o in “Ti seguono”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.')}
           </div>
         )}
       </>
@@ -74,7 +104,7 @@ export function CoachMessaggi({ userId, userName }: { userId: string; userName: 
 
   return (
     <>
-      <NucEyebrow>{t('Richieste')}</NucEyebrow>
+      <NucEyebrow>{t('Conversazioni')}</NucEyebrow>
       {/* `overflow: hidden` perché le righe si accendono al passaggio (j-riga-gruppo):
           senza, il fondo della prima e dell'ultima esce dagli angoli smussati della
           card e disegna due spigoli vivi dove non ce ne sono. */}
@@ -94,12 +124,12 @@ export function CoachMessaggi({ userId, userName }: { userId: string; userName: 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
                 <span style={{ fontFamily: NUC.font, fontSize: 15, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {c.controparte || (c.sonoCoach ? t('Allievo') : t('Allenatore'))}
+                  {nomeDi(c)}
                 </span>
                 <BadgeNonLetti n={c.daLeggere}/>
               </div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: 'var(--tertiary-ink)', marginTop: 2, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {c.schedaTitolo || t('Scheda')}
+                {c.diretta ? t('Chat') : c.schedaTitolo || t('Scheda')}
               </div>
               {/* L'ultima riga scritta, su una riga sola: è quello che dice se
                   vale la pena entrare adesso o dopo. */}

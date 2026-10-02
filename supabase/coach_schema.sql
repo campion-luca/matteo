@@ -478,6 +478,34 @@ CREATE POLICY "correzioni_deletable_by_both" ON public.coach_correzioni
   FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
 
 
+-- ── I dispositivi iscritti alle notifiche push ────────────────
+-- Una riga per dispositivo: l'indirizzo che il browser dà quando si attivano le
+-- notifiche (`endpoint`) e le due chiavi con cui gli si cifra il messaggio.
+-- A leggerle è la Edge Function `notifica`, con la chiave di servizio; l'app
+-- scrive e cancella solo la riga del proprio dispositivo (vedi src/lib/push.ts).
+--
+-- Si chiama `push_iscrizioni` e non `push_subscriptions`: quel nome è già preso
+-- da una tabella di una versione precedente dell'app, fatta diversamente, e
+-- riusarla avrebbe voluto dire indovinarne le colonne.
+CREATE TABLE IF NOT EXISTS public.push_iscrizioni (
+  endpoint    text PRIMARY KEY,
+  user_id     uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  p256dh      text NOT NULL,
+  auth        text NOT NULL,
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS push_iscrizioni_user_idx ON public.push_iscrizioni (user_id);
+
+ALTER TABLE public.push_iscrizioni ENABLE ROW LEVEL SECURITY;
+
+-- Ognuno vede e tocca solo i propri dispositivi. Nessun altro ha motivo di
+-- conoscerli: chi manda la notifica non passa da qui ma dalla funzione.
+DROP POLICY IF EXISTS "iscrizioni_proprie" ON public.push_iscrizioni;
+CREATE POLICY "iscrizioni_proprie" ON public.push_iscrizioni
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+
 -- ── Rende visibili subito le tabelle nuove all'API ─────────────────
 -- Senza, PostgREST può continuare per un po' a rispondere "tabella non
 -- trovata" anche a schema appena eseguito.

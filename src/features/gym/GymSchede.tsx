@@ -31,7 +31,10 @@ import { todayISO, giorniTra } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
 import { supabase } from '@/lib/supabase'
-import { schedeRicevute, schedeRicevuteInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
+import { schedeRicevute, schedeRicevuteInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, myCoaches, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
+import { bozzaChat } from '@/lib/messaggi'
+import { avvisa } from '@/lib/messaggiLive'
+import { riassuntoAllenamento } from './riassuntoAllenamento'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
 import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
@@ -132,6 +135,7 @@ export function GymSchede({ onBack, apri }: {
   // o la rete non risponde, la lista resta quella locale e l'app non se ne accorge.
   const [assegnate, setAssegnate] = useState<CoachScheda[]>([])
   const [allievi, setAllievi] = useState<CoachLink[]>([])
+  const [allenatori, setAllenatori] = useState<CoachLink[]>([])
   const [ioId, setIoId] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
@@ -161,6 +165,10 @@ export function GymSchede({ onBack, apri }: {
       myAthletes(io)
         .then(righe => { if (vivo) setAllievi(righe) })
         .catch(() => { /* non allena nessuno, o la tabella non c'è: nessun tasto */ })
+      // Chi mi segue: a fine allenamento va avvisato (vedi `finishTraining`).
+      myCoaches(io)
+        .then(righe => { if (vivo) setAllenatori(righe) })
+        .catch(() => { /* nessuno mi segue: nessuno da avvisare */ })
     })
     return () => { vivo = false }
   }, [])
@@ -402,6 +410,17 @@ export function GymSchede({ onBack, apri }: {
     setView('detail')
     setRecords(recs)
     setAppenaSalvate(salvate)
+
+    // Chi mi segue lo viene a sapere: una riga nella chat con ciascuno, con
+    // dentro se c'è qualcosa da guardare. Parte solo se qualcosa è stato fatto
+    // davvero, e a salvataggio avvenuto — se l'avviso non arriva, l'allenamento
+    // c'è lo stesso.
+    if (ioId && salvate.length > 0) {
+      const testo = riassuntoAllenamento(scheda, results, t)
+      for (const l of allenatori) {
+        avvisa(bozzaChat({ coachId: l.coach_id, athleteId: ioId, autore: ioId, autoreNome: userName ?? '', tipo: 'allenamento', testo }))
+      }
+    }
   }
 
   /** Riscrive un'alzata già salvata, trovandola per riferimento dentro lo storico
@@ -506,6 +525,12 @@ export function GymSchede({ onBack, apri }: {
               const mio = e.linkedExerciseId ? palestraExercises.find(p => p.id === e.linkedExerciseId) : undefined
               return mio && corpoLibero(mio) ? { ...e, bodyweight: true } : e
             }),
+          }).then(() => {
+            // L'allievo lo viene a sapere: nella chat con lui, e con una notifica.
+            avvisa(bozzaChat({
+              coachId: ioId, athleteId, autore: ioId, autoreNome: userName ?? '', tipo: 'scheda',
+              testo: t('Ti ho condiviso la scheda «{scheda}».', { scheda: current.title }),
+            }))
           })
           : undefined}
         appenaSalvate={appenaSalvate}

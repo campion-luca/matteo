@@ -38,7 +38,25 @@ export function BadgeNonLetti({ n, style }: { n: number; style?: CSSProperties }
  *  risposta sarebbe un'etichetta che dice "risposta" sopra una risposta. */
 export function EtichettaTipo({ tipo }: { tipo: TipoMessaggio }) {
   const t = useT()
-  if (tipo === 'risposta') return null
+  // Un messaggio scritto a mano non ha bisogno di dire cos'è.
+  if (tipo === 'risposta' || tipo === 'chat') return null
+  // Gli avvisi che l'app scrive da sé: l'etichetta è ciò che li distingue da una
+  // frase detta — "allenamento finito" non l'ha digitato nessuno.
+  if (tipo !== 'info' && tipo !== 'sostituzione') {
+    const nome = tipo === 'allenamento' ? t('allenamento') : tipo === 'scheda' ? t('scheda') : tipo === 'nota' ? t('nota') : t('correzione')
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        padding: '1px 6px', borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--j-accent)', color: 'var(--j-accent-ink)',
+        fontFamily: NUC.label, fontSize: 8.5, fontWeight: 700,
+        letterSpacing: '.12em', textTransform: 'uppercase',
+      }}>
+        {tipo === 'allenamento' ? <Icons.check size={9} stroke={2.6}/> : tipo === 'scheda' ? <Icons.book size={9} stroke={2.2}/> : <Icons.pencil size={9} stroke={2.2}/>}
+        {nome}
+      </span>
+    )
+  }
   const sostituzione = tipo === 'sostituzione'
   return (
     <span style={{

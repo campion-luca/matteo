@@ -115,7 +115,8 @@ describe('dizionario tedesco', () => {
       // "Roxzone" è il nome ufficiale della zona di cambio Hyrox, uguale ovunque.
       // "Coaching" è la stessa parola in tedesco (Duden: das Coaching) ed è quella
       // che si usa davvero: "Training" c'è, ma è già l'allenamento in sé.
-      'Coaching', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
+      // "Chat" è Chat anche in tedesco (der Chat).
+      'Chat', 'Coaching', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
       'Personal Coach', 'Premium', 'Roxzone ({n} × {s} s)', 'Standard',
       // "Timer" è la parola che si usa anche in tedesco (der Timer).
       'Timer', 'Total', 'Trend',

@@ -782,7 +782,6 @@ export const DE_UI: Record<string, string> = {
 
   // ── Richieste su una scheda condivisa ────────────────────────
   'Messaggi': 'Nachrichten',
-  'Richieste': 'Anfragen',
   'Richieste a {chi}': 'Anfragen an {chi}',
   'Chiedi all’allenatore': 'Trainer fragen',
   'Torna alla scheda': 'Zurück zum Plan',
@@ -804,8 +803,34 @@ export const DE_UI: Record<string, string> = {
   'Rispondi su': 'Antworten zu',
   'Scrivi la risposta…': 'Antwort schreiben…',
   'Le richieste non si possono leggere adesso. Riprova più tardi.': 'Die Anfragen lassen sich gerade nicht laden. Versuch es später noch einmal.',
-  'Nessuna richiesta. Chi riceve una tua scheda può chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
-    'Keine Anfragen. Wer einen Plan von dir bekommt, kann über das Fragezeichen oben im Plan Infos oder einen Ersatz anfragen.',
+  'Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Segui” o in “Ti seguono”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
+    'Keine Unterhaltungen. Um jemandem zu schreiben, tippe auf den Namen unter „Du betreust“ oder „Betreuen dich“; wer einen Plan von dir bekommt, kann außerdem über das Fragezeichen oben im Plan Infos oder einen Ersatz anfragen.',
+
+  // ── Chat diretta, avvisi e notifiche push ──
+  'Conversazioni': 'Unterhaltungen',
+  'Chat': 'Chat',
+  'I messaggi non si possono leggere adesso. Riprova più tardi.': 'Die Nachrichten können gerade nicht gelesen werden. Versuch es später noch einmal.',
+  'Nessun messaggio. Scrivi il primo.': 'Keine Nachrichten. Schreib die erste.',
+  'Scrivi un messaggio…': 'Nachricht schreiben…',
+  'Invia': 'Senden',
+  'tocca per scrivergli': 'tippen zum Schreiben',
+  'Scrivi a {chi}': 'An {chi} schreiben',
+  'scheda': 'Plan',
+  'correzione': 'Korrektur',
+  'Ti ho assegnato una scheda nuova: «{scheda}».': 'Ich habe dir einen neuen Plan zugewiesen: «{scheda}».',
+  'Ho aggiornato la scheda «{scheda}».': 'Ich habe den Plan «{scheda}» aktualisiert.',
+  'Ti ho condiviso la scheda «{scheda}».': 'Ich habe den Plan «{scheda}» mit dir geteilt.',
+  'Ho corretto «{esercizio}» del {giorno}: ora è {alzata}.': 'Ich habe «{esercizio}» vom {giorno} korrigiert: jetzt {alzata}.',
+  'Nota su «{esercizio}»: {testo}': 'Notiz zu «{esercizio}»: {testo}',
+  'Allenamento finito: «{scheda}». {dettaglio}': 'Training beendet: «{scheda}». {dettaglio}',
+  'tutto come da scheda': 'alles wie geplant',
+  'Notifiche attive su questo dispositivo.': 'Benachrichtigungen auf diesem Gerät aktiv.',
+  'Attiva le notifiche per sapere subito quando ti scrivono o un allievo finisce un allenamento.': 'Aktiviere Benachrichtigungen, um sofort zu erfahren, wenn dir jemand schreibt oder ein Athlet ein Training beendet.',
+  'Le notifiche sono bloccate per questa app. Riattivale dalle impostazioni del telefono o del browser.': 'Benachrichtigungen sind für diese App blockiert. Aktiviere sie in den Einstellungen des Telefons oder Browsers wieder.',
+  'Su iPhone le notifiche arrivano solo con l’app installata: da Safari tocca Condividi, poi “Aggiungi alla schermata Home”, e aprila da lì.': 'Auf dem iPhone kommen Benachrichtigungen nur mit installierter App an: In Safari auf Teilen tippen, dann „Zum Home-Bildschirm“, und von dort öffnen.',
+  'Questo browser non supporta le notifiche.': 'Dieser Browser unterstützt keine Benachrichtigungen.',
+  'Disattiva': 'Deaktivieren',
+  'Attiva': 'Aktivieren',
   // Minuscolo: sta dentro la bolla al posto del nome ("tu: ...") e in tedesco
   // "du" come pronome resta minuscolo.
   'tu': 'du',

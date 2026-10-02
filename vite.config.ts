@@ -33,6 +33,11 @@ export default defineConfig({
         // Niente skipWaiting/clientsClaim: col pattern 'prompt' il nuovo SW resta in
         // attesa finché l'utente non conferma l'aggiornamento (updateSW(true)).
         cleanupOutdatedCaches: true,
+        // Le notifiche push: il service worker lo genera workbox, e qui gli si
+        // aggiunge il pezzo che le riceve (public/push-sw.js). È un file a sé e
+        // non un service worker scritto a mano perché tutto il resto — la
+        // cache, l'aggiornamento su conferma — resta com'è.
+        importScripts: ['/push-sw.js'],
         // Le estensioni delle foto degli esercizi (src/assets/esercizi) vanno
         // tutte tenute qui dentro: dimenticarne una vuol dire immagini rotte al
         // primo uso offline, cioè in palestra, dove il telefono spesso non

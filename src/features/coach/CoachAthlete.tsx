@@ -34,13 +34,16 @@ interface Sessione {
   alzate: Array<{ ex: string; muscle: string; h: PalestraHistoryEntry }>
 }
 
-export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApriGrafici, onApriNote }: {
+export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessioni, onApriGrafici, onApriNote }: {
   data: AthleteData
   /** Le schede assegnate, già montate da chi le sa scrivere. Arrivano come slot e
    *  non come dati perché questa è una vista: legge e disegna, non salva niente.
    *  Qui si decide solo DOVE stanno — subito sotto la settimana, che è la prima
    *  cosa che un allenatore guarda, e prima di tutto il resto, che è storia. */
   slotSchede?: ReactNode
+  /** Il tasto che apre la chat con questa persona. Come `slotSchede`: lo monta
+   *  chi sa cosa fa; qui si decide solo dove sta — sotto le tre porte. */
+  slotChat?: ReactNode
   /** Quante note ho scritto: sta sul bottone, così si sa se dentro c'è qualcosa. */
   note?: number
   /** Apre la pagina delle sessioni, giornata per giornata. */
@@ -254,6 +257,8 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
           )}
         </div>
       )}
+
+      {slotChat}
 
       {/* ── Volume nel tempo ───────────────────────────────── */}
       {volumeSettimane.some(w => w.volume > 0) && (
