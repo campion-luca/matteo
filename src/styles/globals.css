@@ -213,6 +213,12 @@
     top: 0; left: 0; right: 0; bottom: 0;
   }
 
+  /* Il trascinamento arrivato in fondo a una lista non passa alla pagina. Senza,
+     su iPhone tirare oltre la fine di un elenco — o partire da una testata, che
+     non scorre — faceva rimbalzare la schermata intera, testata compresa, come
+     una pagina web invece che un'app. */
+  html, body { overscroll-behavior: none; }
+
   *::-webkit-scrollbar { width: 0; height: 0; }
   button {
     font-family: inherit; cursor: pointer;
@@ -239,11 +245,6 @@
 }
 
 /* ── Entry animation (gentle fade, no hacker effects) ───────────── */
-@keyframes j-enter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes undo-bar {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
@@ -261,9 +262,9 @@
   50%      { opacity: .9;  transform: scale(1.35); }
 }
 
-.jarvis-boot {
-  animation: j-enter 400ms cubic-bezier(.2,.8,.2,1) both;
-}
+/* Qui stava `.jarvis-boot`, una dissolvenza da 400ms sul saluto in testata.
+   La testata si rimontava a ogni ritorno alla home, e il saluto ricompariva ogni
+   volta da trasparente: era la prima cosa a far sembrare lento il tasto indietro. */
 
 /* ── Component utilities ─────────────────────────────────────────── */
 @layer components {
@@ -633,6 +634,8 @@
      telefono (`--nav-clear`, deciso da App) più il respiro di fine lista. */
   .j-scroll-area {
     flex: 1; overflow-y: auto;
+    /* Il rimbalzo resta dentro la lista che si sta scorrendo (vedi html/body). */
+    overscroll-behavior-y: contain;
     /* Il respiro di fine lista segue l'altezza dello schermo. Non è cosmesi: questo
        padding sta DENTRO l'area che scorre, quindi ventiquattro pixel di vuoto in
        fondo sono ventiquattro pixel che possono far comparire la barra di
@@ -1092,9 +1095,22 @@
     transform: none;
   }
 }
+.premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del) {
+  transition:
+    transform  var(--motion-fast) var(--ease),
+    filter     var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
+}
+/* Il ritardo è per lo scorrimento. iOS accende `:active` al primo contatto, prima
+   di sapere se è un tocco o l'inizio di uno scroll: appoggiando il dito su una
+   card per scorrere la lista, la card si stringeva e si schiariva per un istante
+   e poi tornava com'era — un sussulto a ogni scorrimento. Con 60ms di attesa uno
+   scroll se ne va prima che la pressione si veda; un tocco vero la vede lo stesso.
+   Solo all'entrata: al rilascio la regola qui sopra torna senza ritardo. */
 .premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del):active {
   transform: translateY(1px) scale(.97);
   filter: brightness(1.25);
+  transition-delay: 60ms;
 }
 .premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
   transform: none;

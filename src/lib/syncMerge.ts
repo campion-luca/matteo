@@ -19,7 +19,7 @@
 // Un id che il locale ha, il remoto no e l'ultimo sync nemmeno è nato qui.
 // Uno che c'era all'ultimo sync e il remoto non ha più è stato cancellato
 // altrove, e non va resuscitato.
-import type { GymScheda, JarvisState, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
+import type { GymScheda, HyroxGara, JarvisState, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 export interface NotiAlSync {
   schede: string[]
@@ -27,7 +27,11 @@ export interface NotiAlSync {
   /** Le giornate di alzate presenti all'ultimo sync, una chiave per esercizio e
    *  giorno (vedi `chiaveAlzata`). Assente nelle meta di versioni precedenti. */
   alzate?: string[]
+  /** Le gare Hyrox registrate. Assente nelle meta salvate prima che esistessero. */
+  gare?: string[]
 }
+
+type Recuperabile = Pick<JarvisState, 'gymSchede' | 'palestraExercises' | 'hyroxGare'>
 
 /** Un'alzata si riconosce da esercizio e giorno, non dai suoi numeri: così una
  *  correzione (80 → 85 kg) resta la stessa alzata e non ne nasce una seconda,
@@ -35,13 +39,14 @@ export interface NotiAlSync {
  *  ricadono sull'etichetta della settimana. */
 const chiaveAlzata = (exId: string, h: PalestraHistoryEntry) => `${exId}|${h.date ?? h.d}`
 
-export function idsNoti(s: Pick<JarvisState, 'gymSchede' | 'palestraExercises'>): NotiAlSync {
+export function idsNoti(s: Recuperabile): NotiAlSync {
   const alzate = new Set<string>()
   for (const ex of s.palestraExercises ?? []) for (const h of ex.history ?? []) alzate.add(chiaveAlzata(ex.id, h))
   return {
     schede: (s.gymSchede ?? []).map(x => x.id),
     esercizi: (s.palestraExercises ?? []).map(x => x.id),
     alzate: [...alzate],
+    gare: (s.hyroxGare ?? []).map(x => x.id),
   }
 }
 
@@ -88,17 +93,22 @@ function conAlzateNateQui(
  *  niente da recuperare. Senza `noti` (meta di una versione precedente) tutto
  *  ciò che il remoto non ha si considera nato qui: resuscitare per una volta una
  *  scheda cancellata altrove costa meno che perderne una appena creata. */
+//
+// Le gare Hyrox registrate valgono come le schede: una gara appena scritta sul
+// telefono non deve sparire perché il portatile ha salvato dopo.
 export function recuperaCreatiInLocale(
-  locale: Pick<JarvisState, 'gymSchede' | 'palestraExercises'>,
-  remoto: Pick<JarvisState, 'gymSchede' | 'palestraExercises'>,
+  locale: Recuperabile,
+  remoto: Recuperabile,
   noti: NotiAlSync | null,
-): { gymSchede: GymScheda[]; palestraExercises: PalestraExercise[] } | null {
+): { gymSchede: GymScheda[]; palestraExercises: PalestraExercise[]; hyroxGare: HyroxGara[] } | null {
   const schede = soloQui(locale.gymSchede ?? [], remoto.gymSchede ?? [], noti?.schede)
   const esercizi = soloQui(locale.palestraExercises ?? [], remoto.palestraExercises ?? [], noti?.esercizi)
   const conAlzate = conAlzateNateQui(locale.palestraExercises ?? [], remoto.palestraExercises ?? [], noti?.alzate)
-  if (schede.length === 0 && esercizi.length === 0 && !conAlzate) return null
+  const gare = soloQui(locale.hyroxGare ?? [], remoto.hyroxGare ?? [], noti?.gare)
+  if (schede.length === 0 && esercizi.length === 0 && !conAlzate && gare.length === 0) return null
   return {
     gymSchede: [...(remoto.gymSchede ?? []), ...schede],
     palestraExercises: [...(conAlzate ?? remoto.palestraExercises ?? []), ...esercizi],
+    hyroxGare: [...(remoto.hyroxGare ?? []), ...gare],
   }
 }

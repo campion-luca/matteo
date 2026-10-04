@@ -8,20 +8,21 @@
 // Le pagine di dettaglio stanno qui sopra come componenti privati; i modali di
 // log/modifica vivono in gymModals.tsx e il calcolo (EVL, volume, PR) in
 // gymModel.ts, che è puro e testato.
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import type React from 'react'
 import { NUC, accentInkFor, cursore } from '@/lib/jarvis-tokens'
 import { NucCard, NucSubTabs, NucEyebrow } from '@/components/ui/NucComponents'
 import { SalutoHeader } from '@/components/ui/SalutoHeader'
-import { SplitPane, SplitVuoto } from '@/components/ui/SplitPane'
+import { SplitPane, SplitVuoto, Strato } from '@/components/ui/SplitPane'
+import { Cronologia } from '@/components/ui/Cronologia'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
+import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
   displayMuscle, exColor, MUSCLE_COLORS, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
-  effectiveLoad, entryVolume, sortedHistory, colpiMigliori,
+  effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
 import { useMuscleColors } from './useMuscleColors'
@@ -44,11 +45,12 @@ import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
-import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal } from './gymModals'
+import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal } from './gymModals'
 import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary } from './GymHyrox'
 import { FormatoSwitch } from './FormatoSwitch'
-import { type FormatoHyrox, sessioniDel } from './hyroxStima'
+import { type FormatoHyrox, sessioniDel, aDistanzaIntera, categoriaStima } from './hyroxStima'
+import { todayISO } from '@/lib/isoDate'
 import { GlobalSearch, type Trovato } from '@/features/search/GlobalSearch'
 
 type MuscleView = 'vol' | 'sessioni'
@@ -195,11 +197,38 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
   )
 }
 
+// Il menù di Hyrox: una voce sola, Statistiche, sotto Esercizi e Gara.
+// Coach e Schede sono cose dei pesi — le schede sono elenchi di esercizi con
+// serie e chili, l'allenatore commenta quelle — e dentro Hyrox erano due porte
+// verso l'altro mondo. Stessa forma delle card dei pesi, stesa su una riga: è
+// un interruttore come lì, si ripreme per tornare all'elenco.
+function TastoStatistiche({ attivo, onClick }: { attivo: boolean; onClick: () => void }) {
+  const t = useT()
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={attivo}
+      className="j-hard j-focus"
+      style={{
+        width: '100%', height: 44, marginBottom: 16, borderRadius: 'var(--radius)', cursor: 'pointer',
+        backgroundColor: attivo ? 'var(--j-accent)' : 'var(--surface)',
+        border: `1px solid ${attivo ? 'var(--j-accent)' : 'var(--hairline)'}`,
+        color: attivo ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        fontFamily: NUC.label, fontSize: 12.5, fontWeight: 500, letterSpacing: '.01em',
+        transition: 'background-color 200ms, border-color 200ms, color 200ms',
+      }}
+    >
+      <Icons.chart size={18} stroke={1.7}/>
+      {t('Statistiche')}
+    </button>
+  )
+}
+
 function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormatoHyrox }: {
   exercises: PalestraExercise[]
   hyroxExercises: HyroxExercise[]
-  /** Pesi o Hyrox: la sceglie JarvisGym, che mette l'interruttore sopra il
-   *  riepilogo complessivo. */
+  /** Pesi o Hyrox: le statistiche del mondo in cui si è (vedi JarvisGym). */
   statsTab: 'pesi' | 'hyrox'
   /** Le statistiche Hyrox guardano una distanza sola: miglior tempo e media fra
    *  un 500 m e un 1000 m non vogliono dire niente. */
@@ -644,6 +673,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   // A colpi e non a chili: vedi ExerciseChartsPage.
   const soloColpi = aColpi(ex) && kgs.every(k => k === 0)
   const colpi = useMemo(() => hist.map(colpiMigliori), [hist])
+  // Lo storico si legge dalla più recente; l'indice vero viaggia con l'alzata,
+  // perché modifica ed eliminazione lavorano su `hist` in ordine cronologico.
+  const dalPiuRecente = useMemo(() => hist.map((h, idx) => ({ h, idx })).reverse(), [hist])
 
   return (
     <>
@@ -746,48 +778,56 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
 
         {histOpen && hist.length === 0 && <div className="j-empty">{t('Nessuna sessione registrata')}</div>}
 
-        {histOpen && [...hist].reverse().map((h, i) => {
-          const realIdx = hist.length - 1 - i
-          const dateStr = h.date ? fmtShortDate(h.date) : h.d
-          return (
-            <div key={i} className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, color: NUC.ink, letterSpacing: -0.2 }}>
-                  {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
+        {/* Per anno e per mese: aperti solo i più recenti (vedi Cronologia). */}
+        {histOpen && hist.length > 0 && (
+          <Cronologia
+            voci={dalPiuRecente}
+            dataDi={v => v.h.date}
+            chiaveDi={v => v.idx}
+            conta={n => n === 1 ? t('1 sessione') : t('{n} sessioni', { n })}
+            voce={({ h, idx: realIdx }) => {
+              const dateStr = h.date ? fmtShortDate(h.date) : h.d
+              return (
+                <div className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, color: NUC.ink, letterSpacing: -0.2 }}>
+                      {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
+                    </div>
+                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
+                    {h.note && <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.dim, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{h.note}</div>}
+                    {/* I numeri non sono più quelli scritti da me: va detto. */}
+                    {h.correttaDa && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', marginTop: 2 }}>{t('corretta da {chi}', { chi: h.correttaDa })}</div>}
+                    {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {/* `--j-accent-ink` e non `NUC.accentSoft`: quest'ultimo è tarato per
+                        stare SU una superficie accent, e come testo sulla carta si ferma
+                        a 4.0:1 — sotto AA. Il token "da testo" è AA per costruzione. */}
+                    <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
+                    {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
+                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5 }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
+                      width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
+                      background: 'var(--surface)', border: '1px solid var(--hairline)',
+                      color: NUC.faint, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icons.pencil size={10} stroke={1.8}/>
+                    </button>
+                    <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Alzata'))} style={{
+                      width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
+                      background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
+                      color: 'var(--danger)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}><Icons.trash size={11} stroke={1.6}/></button>
+                  </div>
                 </div>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
-                {h.note && <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.dim, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{h.note}</div>}
-                {/* I numeri non sono più quelli scritti da me: va detto. */}
-                {h.correttaDa && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', marginTop: 2 }}>{t('corretta da {chi}', { chi: h.correttaDa })}</div>}
-                {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
-              </div>
-              <div className="text-right flex-shrink-0">
-                {/* `--j-accent-ink` e non `NUC.accentSoft`: quest'ultimo è tarato per
-                    stare SU una superficie accent, e come testo sulla carta si ferma
-                    a 4.0:1 — sotto AA. Il token "da testo" è AA per costruzione. */}
-                <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
-                {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
-                <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5 }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
-              </div>
-              <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
-                  width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                  background: 'var(--surface)', border: '1px solid var(--hairline)',
-                  color: NUC.faint, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Icons.pencil size={10} stroke={1.8}/>
-                </button>
-                <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Alzata'))} style={{
-                  width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                  background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
-                  color: 'var(--danger)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}><Icons.trash size={11} stroke={1.6}/></button>
-              </div>
-            </div>
-          )
-        })}
+              )
+            }}
+          />
+        )}
 
         {kgs.length >= 2 ? (
           <div onClick={onOpenCharts} style={{ cursor: 'pointer' }}>
@@ -1174,8 +1214,7 @@ function ElencoEsercizi({ esercizi, color, onApri, onNuovo }: {
     }}>
       <RigaNuovo label={t('Nuovo esercizio')} onClick={onNuovo}/>
       {esercizi.map((ex, i) => {
-        const hist = sortedHistory(ex.history)
-        const last = hist[hist.length - 1]
+        const last = ultimaVoce(ex.history)
         return (
           <button
             key={ex.id}
@@ -1235,8 +1274,7 @@ function GrigliaEsercizi({ esercizi, color, onApri, onNuovo }: {
     <div style={GRIGLIA}>
       <CardNuovo label={t('Nuovo esercizio')} onClick={onNuovo}/>
       {esercizi.map(ex => {
-        const hist = sortedHistory(ex.history)
-        const last = hist[hist.length - 1]
+        const last = ultimaVoce(ex.history)
         const foto = fotoEsercizio(ex.n)
         return (
           <button
@@ -1402,6 +1440,100 @@ function GrigliaGruppi({ gruppi, muscleColors, icone, onApri, onNuovo }: {
   )
 }
 
+// I gruppi muscolari della home: l'occhiello con il contatore, la riga del
+// catalogo e il carosello (o la griglia, o l'elenco).
+//
+// A parte perché la card in vista (`cardGruppo`) cambia a ogni scorrimento, e
+// finché stava in JarvisGym ogni card agganciata ridisegnava tutta la home —
+// testata, settimana, menù, modali, ricerca. Qui cambia solo questa sezione.
+function SezioneGruppi({ gruppi, totaleEsercizi, mancanti, onAggiungiCatalogo, coloriPieni, muscleColors, icone, onApri, onNuovo }: {
+  gruppi: Array<{ muscle: string; items: PalestraExercise[] }>
+  totaleEsercizi: number
+  mancanti: number
+  onAggiungiCatalogo: () => void
+  coloriPieni: Record<string, string>
+  muscleColors: Record<string, string>
+  icone: Record<string, string>
+  onApri: (muscle: string) => void
+  onNuovo: () => void
+}) {
+  const t = useT()
+  const [vistaGruppi, setVistaGruppi] = useVistaGruppi()
+  // La card del carosello in vista: sta qui perché il "1 / 8" si scrive accanto
+  // al titolo della sezione, fuori dal carosello.
+  const [cardGruppo, setCardGruppo] = useState(0)
+  return (
+    <>
+      <NucEyebrow right={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {vistaGruppi === 'carosello' && gruppi.length > 0 && (
+            <span aria-live="polite" style={{ letterSpacing: '.08em' }}>
+              {Math.min(cardGruppo, gruppi.length - 1) + 1} / {gruppi.length}
+            </span>
+          )}
+          <VistaGruppiSwitch valore={vistaGruppi} onChange={setVistaGruppi}/>
+        </span>
+      }>
+        {vistaGruppi === 'carosello'
+          ? t('Gruppi muscolari')
+          : <>{t('Gruppi muscolari')} · {t('{n} esercizi', { n: totaleEsercizi })}</>}
+      </NucEyebrow>
+      {/* Il catalogo entra da solo al primo accesso, ma chi aveva già un
+          profilo quel passaggio non lo rivede più: senza questa riga i
+          trentasette esercizi — e le loro foto — restavano irraggiungibili
+          per tutti gli account già avviati. Compare finché ne manca almeno
+          uno e sparisce quando non manca più niente. */}
+      {mancanti > 0 && (
+        <button onClick={onAggiungiCatalogo} className="j-hard" style={{
+          width: '100%', marginBottom: 12, padding: '11px 13px', borderRadius: 'var(--radius)',
+          background: 'var(--surface)', border: '1px solid var(--hairline)',
+          display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', textAlign: 'left',
+        }}>
+          <span style={{ color: 'var(--j-accent-ink)', display: 'flex', flexShrink: 0 }}>
+            <Icons.plus size={17} stroke={2}/>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink }}>
+              {t('Aggiungi gli esercizi di base')}
+            </span>
+            <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, marginTop: 2 }}>
+              {mancanti === 1 ? t('Ne manca 1, con la sua immagine') : t('Ne mancano {n}, con la loro immagine', { n: mancanti })}
+            </span>
+          </span>
+          <Icons.chev size={15} stroke={1.6} color={NUC.faint}/>
+        </button>
+      )}
+      {vistaGruppi === 'carosello' ? (
+        <CaroselloGruppi
+          gruppi={gruppi}
+          colori={coloriPieni}
+          icone={icone}
+          indice={cardGruppo}
+          onIndice={setCardGruppo}
+          onApri={onApri}
+          onNuovo={onNuovo}
+        />
+      ) : vistaGruppi === 'elenco' ? (
+        <ElencoGruppi
+          gruppi={gruppi}
+          muscleColors={muscleColors}
+          icone={icone}
+          onApri={onApri}
+          onNuovo={onNuovo}
+        />
+      ) : (
+        <GrigliaGruppi
+          gruppi={gruppi}
+          muscleColors={muscleColors}
+          icone={icone}
+          onApri={onApri}
+          onNuovo={onNuovo}
+        />
+      )}
+    </>
+  )
+}
+
 // ── Pagina di un gruppo muscolare (i suoi esercizi) ────────────
 function MuscleDetailPage({ muscle, color, icona, exercises, onBack, onSelectExercise, onAddExercise, onElimina }: {
   muscle: string; color: string; icona?: string; exercises: PalestraExercise[]
@@ -1472,6 +1604,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     palestraExercises: st.palestraExercises,
     muscleColors: st.muscleColors,
     customMuscles: st.customMuscles,
+    hyroxGare: st.hyroxGare,
   })))
   const set = useJarvisStore.setState
   const t = useT()
@@ -1481,11 +1614,17 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // `tab` è il mondo in cui si sta (pesi o hyrox), `stats` e `ricerca` sono due
   // viste che ci si aprono sopra. Prima era un'enum sola, e per questo "Stats"
   // doveva per forza essere un terzo tab: entrarci significava USCIRE da pesi.
+  // Le statistiche sono sempre quelle del mondo in cui si è: dai pesi i pesi, da
+  // Hyrox i tempi. Non c'è più un interruttore Pesi/Hyrox dentro: era lo stesso
+  // dello switch in testata, ripetuto un piano più giù.
   const [tab, setTab] = useState<'palestra' | 'hyrox'>('palestra')
   const [stats, setStats] = useState(false)
-  const [statsTab, setStatsTab] = useState<'pesi' | 'hyrox'>('pesi')
   const mode: GymMode = stats ? 'stats' : tab
-  const [hyroxSubTab, setHyroxSubTab] = useState<'gara' | 'esercizi'>('esercizi')
+  // Hyrox si apre sulla gara: il tempo stimato è la domanda con cui ci si entra.
+  const [hyroxSubTab, setHyroxSubTab] = useState<'gara' | 'esercizi'>('gara')
+  // La gara registrata aperta nel modale: 'nuova' per una da scrivere.
+  const [garaAperta, setGaraAperta] = useState<HyroxGara | 'nuova' | null>(null)
+  const { confirmDelete } = useConfirmDelete()
   const [logHyrox, setLogHyrox] = useState<HyroxExercise | null>(null)
   const [logPalestra, setLogPalestra] = useState<PalestraExercise | null>(null)
   const [records, setRecords] = useState<RecordItem[]>([])
@@ -1521,10 +1660,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
   const [formatoHyrox, setFormatoHyrox] = useFormatoHyrox()
   const [showRicercaGlobale, setShowRicercaGlobale] = useState(false)
-  const [vistaGruppi, setVistaGruppi] = useVistaGruppi()
-  // La card del carosello in vista: sta qui perché il "1 / 8" si scrive accanto
-  // al titolo della sezione, fuori dal carosello.
-  const [cardGruppo, setCardGruppo] = useState(0)
+  const apriNuovoGruppo = useCallback(() => setShowNuovoGruppo(true), [])
+  const chiudiRicerca = useCallback(() => setShowRicercaGlobale(false), [])
 
   // Mappa risolta (default + override utente, desaturata in layout "Notte"). Il picker
   // di EditExModal riceve invece `s.muscleColors` raw: vedi sotto.
@@ -1591,6 +1728,21 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     if (selectedHyrox?.id === ex.id) setSelectedHyrox(updated)
   }
 
+  const gare = useMemo(() => s.hyroxGare ?? [], [s.hyroxGare])
+  const salvaGara = (g: HyroxGara) => set(st => {
+    const elenco = st.hyroxGare ?? []
+    return { hyroxGare: elenco.some(x => x.id === g.id) ? elenco.map(x => (x.id === g.id ? g : x)) : [...elenco, g] }
+  })
+  const eliminaGara = (g: HyroxGara) => confirmDelete(
+    () => set(st => ({ hyroxGare: (st.hyroxGare ?? []).filter(x => x.id !== g.id) })),
+    g.tipo === 'gara' ? t('Gara') : t('Simulazione'),
+  )
+  // "Erano intere": le sessioni a metà di quel giorno tornano alla distanza di
+  // gara. Il tempo non si tocca — era giusto, era la distanza a essere sbagliata.
+  const correggiGiornata = (data: string) => set(st => ({
+    hyroxExercises: st.hyroxExercises.map(e => ({ ...e, history: aDistanzaIntera(e.history, e.target, data) })),
+  }))
+
   const deleteHyroxExercise = (ex: HyroxExercise) => {
     set(st => ({ hyroxExercises: st.hyroxExercises.filter(e => e.id !== ex.id) }))
     setSelectedHyrox(null)
@@ -1627,7 +1779,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   }
 
   const addExercise = (ex: HyroxExercise | PalestraExercise) => {
-    if (mode === 'hyrox') {
+    if (tab === 'hyrox') {
       set(st => ({ hyroxExercises: [...st.hyroxExercises, ex as HyroxExercise] }))
     } else {
       set(st => ({ palestraExercises: [...st.palestraExercises, ex as PalestraExercise] }))
@@ -1707,10 +1859,16 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       />
       <AddExModal
         open={showAdd} onClose={() => setShowAdd(false)}
-        mode={mode === 'stats' ? 'palestra' : mode} onAdd={addExercise}
+        mode={tab} onAdd={addExercise}
         presetMuscle={selectedMuscle ?? undefined}
       />
       <RecordModal records={records} onClose={() => setRecords([])}/>
+      <RegistraGaraModal
+        open={garaAperta !== null} onClose={() => setGaraAperta(null)}
+        gara={garaAperta === 'nuova' ? null : garaAperta}
+        categoriaPredefinita={categoriaStima(gare) ?? 'double'}
+        onSave={salvaGara}
+      />
       <NuovoGruppoModal
         open={showNuovoGruppo} onClose={() => setShowNuovoGruppo(false)}
         onCrea={creaGruppo}
@@ -1718,18 +1876,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       />
     </>
   )
-
-  // Le schede sono un mondo a sé, con la propria navigazione interna (elenco →
-  // scheda → allenamento in corso): non si infilano in una delle due colonne, si
-  // prendono la pagina. Il tetto di larghezza è lo stesso della radice — una
-  // scheda è un elenco di righe, e una riga lunga un monitor non si legge.
-  if (showSchede) {
-    return (
-      <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>
-        <GymSchede apri={schedaDaAprire ?? undefined} onBack={() => { setShowSchede(false); setSchedaDaAprire(null) }}/>
-      </div>
-    )
-  }
 
   // ── Le pagine ───────────────────────────────────────────────────
   // Costruite come valori e non più come rami di `return`: su desktop due di
@@ -1814,56 +1960,63 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         />
         <SettimanaStrip/>
         <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
-        {/* Stats è un interruttore: si ripreme la card per tornare alla lista. */}
-        <AzioniGym
-          attiva={stats ? 'stats' : null}
-          onCoach={onOpenCoach}
-          onSchede={() => setShowSchede(true)}
-          onStats={() => {
-            if (stats) setStats(false)
-            // Stats si apre sul mondo da cui si arriva: da Hyrox, sui numeri Hyrox.
-            else { setStats(true); setStatsTab(tab === 'hyrox' ? 'hyrox' : 'pesi') }
-          }}
-        />
+        {/* Il menù è dei pesi: in Hyrox Coach e Schede non hanno niente da fare, e
+            Statistiche scende sotto Esercizi e Gara (vedi TastoStatistiche).
+            Stats è un interruttore: si ripreme la card per tornare alla lista. */}
+        {tab === 'palestra' && (
+          <AzioniGym
+            attiva={stats ? 'stats' : null}
+            onCoach={onOpenCoach}
+            onSchede={() => setShowSchede(true)}
+            onStats={() => setStats(v => !v)}
+          />
+        )}
       </div>
 
       <div className="j-scroll-area">
+        {/* Il menù di Hyrox: Esercizi e Gara, e sotto Statistiche. Con le
+            statistiche aperte nessuna delle due è accesa — toccarne una torna lì. */}
+        {tab === 'hyrox' && (
+          <>
+            <NucSubTabs
+              options={[{ id: 'gara', label: t('Gara') }, { id: 'esercizi', label: t('Esercizi') }]}
+              value={stats ? '' : hyroxSubTab}
+              onChange={id => { setStats(false); setHyroxSubTab(id as 'gara' | 'esercizi') }}
+              style={{ marginBottom: 8 }}
+            />
+            <TastoStatistiche attivo={stats} onClick={() => setStats(v => !v)}/>
+          </>
+        )}
+
         {mode === 'stats' && (
           <>
             {/* Il riepilogo complessivo è qui, aperto. Era la schermata d'ingresso
                 dell'app e per un giro è stato dietro un bottone: ma è la cosa che si
                 guarda per prima entrando in Stats — quanto ti sei allenato, quanto
-                sei forte — e un tocco per vederla era un tocco di troppo. */}
-            {/* Pesi / Hyrox in cima, sopra il riepilogo: è la prima scelta della
-                schermata, e sotto il riepilogo si perdeva a metà pagina. */}
-            <NucSubTabs
-              options={[{ id: 'pesi', label: t('Pesi') }, { id: 'hyrox', label: t('Hyrox') }]}
-              value={statsTab}
-              onChange={id => setStatsTab(id as 'pesi' | 'hyrox')}
-              style={{ marginBottom: 16 }}
-            />
-            {/* Il riepilogo parla solo di pesi (settimana, mappa della forza,
-                massimali): sotto Hyrox sarebbe un pannello di numeri non suoi. */}
-            {statsTab === 'pesi' && <Riepilogo onOpenProfile={onOpenUser}/>}
+                sei forte — e un tocco per vederla era un tocco di troppo.
+                Parla solo di pesi (settimana, mappa della forza, massimali): sotto
+                Hyrox sarebbe un pannello di numeri non suoi. */}
+            {tab === 'palestra' && <Riepilogo onOpenProfile={onOpenUser}/>}
             <GymStats
               exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}
-              statsTab={statsTab} formatoHyrox={formatoHyrox} onFormatoHyrox={setFormatoHyrox}
+              statsTab={tab === 'hyrox' ? 'hyrox' : 'pesi'} formatoHyrox={formatoHyrox} onFormatoHyrox={setFormatoHyrox}
             />
           </>
         )}
 
         {mode === 'hyrox' && (
           <>
-            {/* Sub-tab bar */}
-            <NucSubTabs
-              options={[{ id: 'esercizi', label: t('Esercizi') }, { id: 'gara', label: t('Gara') }]}
-              value={hyroxSubTab}
-              onChange={id => setHyroxSubTab(id as 'gara' | 'esercizi')}
-              style={{ marginBottom: 16 }}
-            />
 
             {hyroxSubTab === 'gara' && (
-              <RaceSummary raceStations={raceStationData} runStation={runStationData}/>
+              <RaceSummary
+                raceStations={raceStationData} runStation={runStationData}
+                gare={gare} oggi={todayISO()}
+                onRegistra={() => setGaraAperta('nuova')}
+                onModifica={setGaraAperta}
+                onElimina={eliminaGara}
+                onApri={setSelectedHyrox}
+                onCorreggiGiornata={correggiGiornata}
+              />
             )}
 
             {hyroxSubTab === 'esercizi' && (
@@ -1890,80 +2043,21 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
             )}
           </>
         )}
+        {/* La riga larga "Schede d'allenamento" non è più qui: era in mezzo
+            alla lista degli esercizi, cioè dentro il contenuto invece che
+            fra i comandi. Adesso è la prima delle tre card sopra. */}
         {mode === 'palestra' && (
-          <>
-              <>
-                {/* La riga larga "Schede d'allenamento" non è più qui: era in mezzo
-                    alla lista degli esercizi, cioè dentro il contenuto invece che
-                    fra i comandi. Adesso è la prima delle tre card sopra. */}
-                <NucEyebrow right={
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {vistaGruppi === 'carosello' && groupedPalestra.length > 0 && (
-                      <span aria-live="polite" style={{ letterSpacing: '.08em' }}>
-                        {Math.min(cardGruppo, groupedPalestra.length - 1) + 1} / {groupedPalestra.length}
-                      </span>
-                    )}
-                    <VistaGruppiSwitch valore={vistaGruppi} onChange={setVistaGruppi}/>
-                  </span>
-                }>
-                  {vistaGruppi === 'carosello'
-                    ? t('Gruppi muscolari')
-                    : <>{t('Gruppi muscolari')} · {t('{n} esercizi', { n: s.palestraExercises.length })}</>}
-                </NucEyebrow>
-                {/* Il catalogo entra da solo al primo accesso, ma chi aveva già un
-                    profilo quel passaggio non lo rivede più: senza questa riga i
-                    trentasette esercizi — e le loro foto — restavano irraggiungibili
-                    per tutti gli account già avviati. Compare finché ne manca almeno
-                    uno e sparisce quando non manca più niente. */}
-                {mancanti > 0 && (
-                  <button onClick={aggiungiCatalogo} className="j-hard" style={{
-                    width: '100%', marginBottom: 12, padding: '11px 13px', borderRadius: 'var(--radius)',
-                    background: 'var(--surface)', border: '1px solid var(--hairline)',
-                    display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', textAlign: 'left',
-                  }}>
-                    <span style={{ color: 'var(--j-accent-ink)', display: 'flex', flexShrink: 0 }}>
-                      <Icons.plus size={17} stroke={2}/>
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink }}>
-                        {t('Aggiungi gli esercizi di base')}
-                      </span>
-                      <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, marginTop: 2 }}>
-                        {mancanti === 1 ? t('Ne manca 1, con la sua immagine') : t('Ne mancano {n}, con la loro immagine', { n: mancanti })}
-                      </span>
-                    </span>
-                    <Icons.chev size={15} stroke={1.6} color={NUC.faint}/>
-                  </button>
-                )}
-                {vistaGruppi === 'carosello' ? (
-                  <CaroselloGruppi
-                    gruppi={groupedPalestra}
-                    colori={coloriPieni}
-                    icone={iconeGruppi}
-                    indice={cardGruppo}
-                    onIndice={setCardGruppo}
-                    onApri={muscle => setSelectedMuscle(muscle)}
-                    onNuovo={() => setShowNuovoGruppo(true)}
-                  />
-                ) : vistaGruppi === 'elenco' ? (
-                  <ElencoGruppi
-                    gruppi={groupedPalestra}
-                    muscleColors={muscleColors}
-                    icone={iconeGruppi}
-                    onApri={muscle => setSelectedMuscle(muscle)}
-                    onNuovo={() => setShowNuovoGruppo(true)}
-                  />
-                ) : (
-                  <GrigliaGruppi
-                    gruppi={groupedPalestra}
-                    muscleColors={muscleColors}
-                    icone={iconeGruppi}
-                    onApri={muscle => setSelectedMuscle(muscle)}
-                    onNuovo={() => setShowNuovoGruppo(true)}
-                  />
-                )}
-              </>
-          </>
+          <SezioneGruppi
+            gruppi={groupedPalestra}
+            totaleEsercizi={s.palestraExercises.length}
+            mancanti={mancanti}
+            onAggiungiCatalogo={aggiungiCatalogo}
+            coloriPieni={coloriPieni}
+            muscleColors={muscleColors}
+            icone={iconeGruppi}
+            onApri={setSelectedMuscle}
+            onNuovo={apriNuovoGruppo}
+          />
         )}
       </div>
     </div>
@@ -2007,39 +2101,55 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       {modals}
       <GlobalSearch
         open={showRicercaGlobale}
-        onClose={() => setShowRicercaGlobale(false)}
+        onClose={chiudiRicerca}
         onApri={apriDaRicerca}
       />
     </>
   )
 
-  // Le statistiche non aprono niente: sono grafici, e non c'è un "dettaglio" che
-  // possa comparire di fianco. Spartire lo schermo con una colonna che resterebbe
-  // vuota per sempre vorrebbe dire stringere i grafici a metà larghezza per
-  // niente, quindi qui la vista resta intera.
-  if (mode === 'stats') {
-    return <>{paginaRadice}{contorno}</>
-  }
-
   // A sinistra l'elenco su cui si sta navigando — i gruppi muscolari, oppure gli
   // esercizi del gruppo aperto — a destra la scheda di quello che si è scelto.
   // Su telefono SplitPane mostra solo lo strato più alto, che è il comportamento
   // di sempre.
+  //
+  // Le statistiche non aprono niente: sono grafici, e non c'è un "dettaglio" che
+  // possa comparire di fianco. Spartire lo schermo con una colonna che resterebbe
+  // vuota per sempre vorrebbe dire stringere i grafici a metà larghezza per
+  // niente, quindi lì la vista resta intera (`intero`).
+  //
+  // Le schede sono un mondo a sé, con la propria navigazione interna (elenco →
+  // scheda → allenamento in corso): non si infilano in una delle due colonne, si
+  // prendono la pagina. Si posano SOPRA la home invece di sostituirla, così
+  // uscendone la home è ancora lì com'era (vedi Strato). Il tetto di larghezza
+  // è lo stesso della radice — una scheda è un elenco di righe, e una riga lunga
+  // un monitor non si legge.
+  const statsAperte = mode === 'stats'
   return (
     <>
-      <SplitPane
-        master={paginaMuscolo ?? paginaRadice}
-        detail={paginaEsercizio ?? paginaHyrox}
-        vuoto={
-          <SplitVuoto>
-            {/* Dalla radice un esercizio non è ancora scegliibile: prima si apre un
-                gruppo. Dirlo qui evita l'invito a fare una cosa che non si può fare. */}
-            {selectedMuscle
-              ? t('Scegli un esercizio per vederne la scheda')
-              : t('Apri un gruppo muscolare, poi un esercizio')}
-          </SplitVuoto>
-        }
-      />
+      <Strato coperto={showSchede}>
+        <SplitPane
+          intero={statsAperte}
+          radice={paginaRadice}
+          master={statsAperte ? null : paginaMuscolo}
+          detail={statsAperte ? null : (paginaEsercizio ?? paginaHyrox)}
+          vuoto={
+            <SplitVuoto>
+              {/* Dalla radice un esercizio non è ancora scegliibile: prima si apre un
+                  gruppo. Dirlo qui evita l'invito a fare una cosa che non si può fare. */}
+              {selectedMuscle
+                ? t('Scegli un esercizio per vederne la scheda')
+                : t('Apri un gruppo muscolare, poi un esercizio')}
+            </SplitVuoto>
+          }
+        />
+      </Strato>
+      {showSchede && (
+        <Strato coperto={false}>
+          <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>
+            <GymSchede apri={schedaDaAprire ?? undefined} onBack={() => { setShowSchede(false); setSchedaDaAprire(null) }}/>
+          </div>
+        </Strato>
+      )}
       {contorno}
     </>
   )

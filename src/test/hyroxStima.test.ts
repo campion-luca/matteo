@@ -1,50 +1,39 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatoSessione, sessioniDel, unitaFormato, distanzaLeggibile, proietta,
-  giorniDiGara, contestoSessione, secFresco, stazioneDouble, esponentePersonale,
-  stimaSegmento, stimaGara, fmtTempoGara,
-  ESPONENTE, FATICA_CORSA, FATICA_CORSA_SIMULAZIONE, RIFERIMENTO, ROXZONE_PASSAGGI, ROXZONE_SEC,
+  stimaPB, categoriaStima, totaleGara, giornateAMeta, aDistanzaIntera, fmtDelta, fmtTempoGara,
+  ESPONENTE, RIFERIMENTO, ROXZONE_PASSAGGI, ROXZONE_SEC,
 } from '@/features/gym/hyroxStima'
 import { RACE_STATIONS, RUNNING_STATION } from '@/features/gym/gymModel'
-import type { HyroxExercise, HyroxHistoryEntry } from '@/store/useJarvisStore'
+import type { HyroxExercise, HyroxGara, HyroxHistoryEntry } from '@/store/useJarvisStore'
 
 const sess = (date: string, sec: number, units: number): HyroxHistoryEntry => ({ d: date, date, sec, units })
 const es = (id: string, target: number, unit: HyroxExercise['unit'], history: HyroxHistoryEntry[] = []): HyroxExercise =>
   ({ id, n: id, unit, target, history })
-const nessunGiorno = { gara: new Set<string>(), simulazione: new Set<string>() }
 
-// Un atleta finto di cui si conoscono i tempi "freschi, da solo" su distanza di
-// gara: il riferimento stesso. Tutti gli scenari si costruiscono in avanti col
-// modello, e la stima deve saperli rileggere all'indietro.
-const FRESCO = RIFERIMENTO
-const k = (id: string) => ESPONENTE[id]
+const OGGI = '2026-10-04'
+const RECENTE = '2026-09-28'   // dentro l'ultimo mese
+const VECCHIO = '2026-08-15'   // prima
 
-/** Una gara registrata: 1 km di corsa (media) e tutte le stazioni intere. */
-function gara(date: string, categoria: 'double' | 'singolo', scala = 1): HyroxExercise[] {
-  const corsa = es(RUNNING_STATION.id, 1, 'km', [sess(date, Math.round(FRESCO.hx_run * scala * FATICA_CORSA[categoria]), 1)])
-  const stazioni = RACE_STATIONS.map(r => {
-    const f = FRESCO[r.id] * scala
-    const sec = categoria === 'double' ? stazioneDouble(f, r.id) : f
-    return es(r.id, r.target, r.unit, [sess(date, Math.round(sec), r.target)])
-  })
-  return [corsa, ...stazioni]
+/** Tutte le stazioni intere, con i tempi del riferimento × scala. */
+function stazioni(date: string, scala = 1): HyroxExercise[] {
+  return RACE_STATIONS.map(r => es(r.id, r.target, r.unit, [sess(date, Math.round(RIFERIMENTO[r.id] * scala), r.target)]))
+}
+const corsa = (...h: HyroxHistoryEntry[]) => es(RUNNING_STATION.id, 1, 'km', h)
+const vuote = () => RACE_STATIONS.map(r => es(r.id, r.target, r.unit))
+
+function garaReg(date: string, extra: Partial<HyroxGara> = {}): HyroxGara {
+  return {
+    id: `g-${date}`, date, tipo: 'gara', categoria: 'double',
+    corsa: 8 * 330,
+    stazioni: Object.fromEntries(RACE_STATIONS.map(r => [r.id, RIFERIMENTO[r.id]])),
+    roxzone: 7 * 60,
+    ...extra,
+  }
 }
 
-/** Una simulazione tutta a metà, fatta da solo. */
-function simulazione(date: string, scala = 1): HyroxExercise[] {
-  const corsa = es(RUNNING_STATION.id, 1, 'km',
-    [sess(date, Math.round(FRESCO.hx_run * scala / Math.pow(2, k('hx_run')) * FATICA_CORSA_SIMULAZIONE), 0.5)])
-  const stazioni = RACE_STATIONS.map(r =>
-    es(r.id, r.target, r.unit, [sess(date, Math.round(FRESCO[r.id] * scala / Math.pow(2, k(r.id))), r.target / 2)]))
-  return [corsa, ...stazioni]
-}
-
-/** Unisce gli storici di più "registrazioni" segmento per segmento. */
-function unisci(...gruppi: HyroxExercise[][]): HyroxExercise[] {
-  return gruppi[0].map((ex, i) => ({ ...ex, history: gruppi.flatMap(g => g[i].history) }))
-}
-const stima = (segmenti: HyroxExercise[], categoria: 'double' | 'singolo' = 'double') =>
-  stimaGara(segmenti[0], segmenti.slice(1), categoria)
+const sommaRif = RACE_STATIONS.reduce((t, r) => t + RIFERIMENTO[r.id], 0)
+const roxIpotesi = ROXZONE_PASSAGGI * ROXZONE_SEC
 
 describe('formato di una sessione', () => {
   it('la distanza di gara è intera, la sua metà è mezza', () => {
@@ -88,191 +77,140 @@ describe('Riegel', () => {
   })
 })
 
-describe('gare e simulazioni si riconoscono da sole', () => {
-  it('cinque segmenti interi lo stesso giorno sono una gara', () => {
-    const g = giorniDiGara(gara('2026-06-14', 'double'))
-    expect([...g.gara]).toEqual(['2026-06-14'])
-    expect(g.simulazione.size).toBe(0)
+describe('la stima è la somma dei tuoi PB', () => {
+  it('corsa al passo migliore × 8, più le stazioni, più la Roxzone', () => {
+    const s = stimaPB(corsa(sess(RECENTE, 330, 1), sess(VECCHIO, 300, 1)), stazioni(RECENTE), [], OGGI)
+    expect(s.corsa.passoKm).toBe(300)
+    expect(s.corsa.sec).toBe(2400)
+    expect(s.parti).toEqual({ corsa: 2400, stazioni: sommaRif, roxzone: roxIpotesi })
+    expect(s.totale).toBe(2400 + sommaRif + roxIpotesi)
+    expect(s.roxzone.fonte).toEqual({ tipo: 'ipotesi' })
   })
 
-  it('cinque segmenti a metà lo stesso giorno sono una simulazione', () => {
-    expect([...giorniDiGara(simulazione('2026-09-12')).simulazione]).toEqual(['2026-09-12'])
+  it('di ogni stazione tiene il tempo migliore, e dice da dove viene', () => {
+    const ski = es('hx_ski', 1000, 'm', [sess(VECCHIO, 260, 1000), sess(RECENTE, 275, 1000)])
+    const s = stimaPB(corsa(sess(RECENTE, 300, 1)), [ski, ...stazioni(RECENTE).slice(1)], [], OGGI)
+    expect(s.stazioni[0].pb.sec).toBe(260)
+    expect(s.stazioni[0].pb.fonte).toEqual({ tipo: 'allenamento', data: VECCHIO })
   })
 
-  it('quattro segmenti sono ancora un allenamento', () => {
-    const quattro = gara('2026-06-14', 'singolo').map((ex, i) => i < 4 ? ex : { ...ex, history: [] })
-    expect(giorniDiGara(quattro).gara.size).toBe(0)
+  it('una corsa registrata su più km vale per il suo passo medio', () => {
+    const s = stimaPB(corsa(sess(RECENTE, 8 * 320, 8)), stazioni(RECENTE), [], OGGI)
+    expect(s.corsa.passoKm).toBe(320)
   })
 
-  it('una mezza nel giorno di una gara intera non diventa "gara"', () => {
-    const g = giorniDiGara(gara('2026-06-14', 'singolo'))
-    expect(contestoSessione({ units: 500, date: '2026-06-14' }, 1000, g)).toBe('allenamento')
-    expect(contestoSessione({ units: 1000, date: '2026-06-14' }, 1000, g)).toBe('gara')
-  })
-})
+  it('una mezza si porta all’intera solo dove di intere non ce n’è', () => {
+    const soloMezza = es('hx_ski', 1000, 'm', [sess(RECENTE, 120, 500)])
+    const s = stimaPB(corsa(sess(RECENTE, 300, 1)), [soloMezza, ...stazioni(RECENTE).slice(1)], [], OGGI)
+    expect(s.stazioni[0].pb.sec).toBeCloseTo(proietta(120, 500, 1000, ESPONENTE.hx_ski), 5)
+    expect(s.stazioni[0].pb.fonte?.tipo).toBe('mezza')
 
-describe('passo 1: tutto riportato a "da solo, fresco"', () => {
-  it('la corsa di gara perde la sua fatica, diversa fra singolo e double', () => {
-    expect(secFresco({ sec: 330 }, 'hx_run', 'gara', 'singolo')).toBeCloseTo(300, 5)
-    expect(secFresco({ sec: 315 }, 'hx_run', 'gara', 'double')).toBeCloseTo(300, 5)
-    expect(secFresco({ sec: 315 }, 'hx_run', 'simulazione', 'double')).toBeCloseTo(300, 5)
-    expect(secFresco({ sec: 300 }, 'hx_run', 'allenamento', 'double')).toBe(300)
+    // Con un'intera, anche più lenta della proiezione, vince l'intera.
+    const conIntera = es('hx_ski', 1000, 'm', [sess(RECENTE, 120, 500), sess(VECCHIO, 280, 1000)])
+    const t = stimaPB(corsa(sess(RECENTE, 300, 1)), [conIntera, ...stazioni(RECENTE).slice(1)], [], OGGI)
+    expect(t.stazioni[0].pb.sec).toBe(280)
   })
 
-  it('una stazione in double si riporta a te da solo, e ritorno', () => {
-    for (const r of RACE_STATIONS) {
-      const coppia = stazioneDouble(FRESCO[r.id], r.id)
-      expect(coppia).toBeLessThan(FRESCO[r.id])                         // in due si va più forte
-      expect(secFresco({ sec: coppia }, r.id, 'gara', 'double')).toBeCloseTo(FRESCO[r.id], 5)
-    }
-  })
-
-  it('una stazione in singolo o in allenamento resta com’è', () => {
-    expect(secFresco({ sec: 270 }, 'hx_ski', 'gara', 'singolo')).toBe(270)
-    expect(secFresco({ sec: 270 }, 'hx_ski', 'allenamento', 'double')).toBe(270)
-  })
-
-  it('un tempo di coppia registrato male non diventa zero', () => {
-    expect(secFresco({ sec: 10 }, 'hx_wb', 'gara', 'double')).toBeGreaterThanOrEqual(10)
+  it('una simulazione intera registrata con l’interruttore su 500 m non raddoppia più la stima', () => {
+    // Il caso del 2:16 al posto di 1:30: i tempi veri, ma salvati come mezze.
+    const mezze = RACE_STATIONS.map(r => es(r.id, r.target, r.unit, [sess(RECENTE, RIFERIMENTO[r.id], r.target / 2)]))
+    const sim = garaReg(RECENTE, { tipo: 'simulazione', categoria: 'singolo' })
+    const s = stimaPB(corsa(), mezze, [sim], OGGI)
+    expect(s.totale).toBe(totaleGara(sim))
+    expect(s.stazioni.every(x => x.pb.fonte?.tipo === 'simulazione')).toBe(true)
   })
 })
 
-describe('k personale', () => {
-  it('serve almeno una intera E una mezza', () => {
-    expect(esponentePersonale(es('hx_ski', 1000, 'm', [sess('2026-09-01', 240, 1000)]), nessunGiorno, 'double', 1.06)).toBeNull()
+describe('gare e simulazioni registrate', () => {
+  it('il totale di una gara è corsa + stazioni + Roxzone', () => {
+    expect(totaleGara(garaReg(RECENTE))).toBe(8 * 330 + sommaRif + 420)
   })
 
-  it('si ricava dal rapporto fra i tuoi tempi, con i limiti', () => {
-    const h = [sess('2026-09-01', 110, 500), sess('2026-09-02', 242, 1000)]
-    expect(esponentePersonale(es('hx_ski', 1000, 'm', h), nessunGiorno, 'double', 1.06)).toBeCloseTo(Math.log2(2.2), 3)
-    const lenta = [sess('2026-09-01', 150, 500), sess('2026-09-02', 240, 1000)]
-    expect(esponentePersonale(es('hx_ski', 1000, 'm', lenta), nessunGiorno, 'double', 1.06)).toBe(1.0)
+  it('la Roxzone viene dalle gare, la migliore', () => {
+    const gare = [garaReg(VECCHIO, { roxzone: 400 }), garaReg(RECENTE, { id: 'b', roxzone: 380 })]
+    const s = stimaPB(corsa(), vuote(), gare, OGGI)
+    expect(s.roxzone.sec).toBe(380)
+    expect(s.roxzone.fonte).toEqual({ tipo: 'gara', data: RECENTE })
   })
 
-  it('una gara e una simulazione vicine dello stesso atleta non inventano un k diverso', () => {
-    // La fatica di gara va tolta PRIMA del confronto: altrimenti finirebbe dentro
-    // k, e la corsa sembrerebbe crollare sulla distanza.
-    const segmenti = unisci(gara('2026-09-01', 'double'), simulazione('2026-09-12'))
-    const giorni = giorniDiGara(segmenti)
-    expect(esponentePersonale(segmenti[0], giorni, 'double', 1.06)).toBeCloseTo(1.06, 1)
+  it('la stima è nella categoria dell’ultima gara, e le stazioni dell’altra non valgono', () => {
+    const singolo = garaReg(VECCHIO, { id: 's', categoria: 'singolo', stazioni: { hx_ski: 200 } })
+    const double = garaReg(RECENTE, { id: 'd', categoria: 'double', stazioni: { hx_ski: 230 } })
+    expect(categoriaStima([singolo, double])).toBe('double')
+    const s = stimaPB(corsa(sess(RECENTE, 300, 1)), stazioni(RECENTE), [singolo, double], OGGI)
+    expect(s.categoria).toBe('double')
+    expect(s.stazioni[0].pb.sec).toBe(230)
   })
 
-  it('un’intera e una mezza lontane mesi non tarano niente: in mezzo c’è la forma cambiata', () => {
-    const h = [sess('2026-06-14', 242, 1000), sess('2026-09-12', 110, 500)]
-    expect(esponentePersonale(es('hx_ski', 1000, 'm', h), nessunGiorno, 'double', 1.06)).toBeNull()
-  })
-})
-
-describe('passo 1 per un segmento', () => {
-  it('senza dati non inventa niente', () => {
-    expect(stimaSegmento(es('hx_ski', 1000, 'm'), nessunGiorno, 'double')).toMatchObject({ fresco: null, fonte: 'mancante' })
+  it('la corsa di una gara vale in entrambe le categorie: corrono tutti e due', () => {
+    const singolo = garaReg(VECCHIO, { id: 's', categoria: 'singolo', corsa: 8 * 290 })
+    const double = garaReg(RECENTE, { id: 'd', categoria: 'double', corsa: 8 * 310 })
+    const s = stimaPB(corsa(), vuote(), [singolo, double], OGGI)
+    expect(s.corsa.passoKm).toBe(290)
   })
 
-  it('una mezza si proietta sulla distanza di gara', () => {
-    const s = stimaSegmento(es('hx_ski', 1000, 'm', [sess('2026-09-01', 110, 500)]), nessunGiorno, 'double')
-    expect(s).toMatchObject({ fonte: 'misura', daMezza: true, kPersonale: false })
-    expect(s.fresco).toBeCloseTo(110 * Math.pow(2, 1.06), 5)
-  })
-
-  it('una mezza registrata non abbassa la stima di un’intera', () => {
-    // Il difetto di partenza: la media ingenua di 240 e 110 dava 175.
-    const h = [sess('2026-09-01', 240, 1000), sess('2026-09-02', 110, 500)]
-    expect(stimaSegmento(es('hx_ski', 1000, 'm', h), nessunGiorno, 'double').fresco).toBeCloseTo(240, 0)
-  })
-
-  it('usa le ultime tre sessioni, in ordine di data', () => {
-    const h = [sess('2026-09-01', 250, 1000), sess('2026-09-05', 240, 1000), sess('2026-09-10', 230, 1000), sess('2026-01-01', 400, 1000)]
-    expect(stimaSegmento(es('hx_row', 1000, 'm', h), nessunGiorno, 'double').fresco).toBeCloseTo(240, 5)
-  })
-
-  it('gare e simulazioni contano più dell’allenamento', () => {
-    const segmenti = gara('2026-06-14', 'singolo')
-    segmenti[1] = { ...segmenti[1], history: [...segmenti[1].history, sess('2026-09-01', 200, 1000), sess('2026-09-03', 200, 1000)] }
-    const s = stimaSegmento(segmenti[1], giorniDiGara(segmenti), 'singolo')
-    expect(s.contesti).toEqual(['gara'])
-    expect(s.fresco).toBeCloseTo(FRESCO.hx_ski, 0)
+  it('senza gare non c’è una categoria: gli allenamenti valgono per tutte e due', () => {
+    expect(categoriaStima([])).toBeNull()
   })
 })
 
-describe('la stima di gara', () => {
-  it('rilegge una gara in double e restituisce il suo tempo', () => {
-    const segmenti = gara('2026-06-14', 'double')
-    const g = stima(segmenti, 'double')
-    const vero = segmenti.reduce((s, ex, i) => s + ex.history[0].sec * (i === 0 ? 8 : 1), 0) + ROXZONE_PASSAGGI * ROXZONE_SEC
-    expect(g.tempi.double!.totale).toBeCloseTo(vero, -1)                 // entro l'arrotondamento
-    expect(g).toMatchObject({ misurati: 9, daProfilo: 0, gare: ['2026-06-14'] })
+describe('il profilo completa i segmenti che mancano', () => {
+  it('con almeno tre misurati, i mancanti seguono il tuo rapporto col riferimento', () => {
+    const parziali = RACE_STATIONS.map((r, i) => es(r.id, r.target, r.unit, i < 3 ? [sess(RECENTE, RIFERIMENTO[r.id] * 1.1, r.target)] : []))
+    const s = stimaPB(corsa(), parziali, [], OGGI)
+    expect(s.daProfilo).toBe(6)                       // 5 stazioni e la corsa
+    expect(s.stazioni[5].pb.fonte).toEqual({ tipo: 'profilo' })
+    expect(s.stazioni[5].pb.sec).toBeCloseTo(RIFERIMENTO[RACE_STATIONS[5].id] * 1.1, 5)
+    expect(s.corsa.passoKm).toBeCloseTo(RIFERIMENTO.hx_run * 1.1, 5)
+    expect(s.totale).not.toBeNull()
   })
 
-  it('dalla stessa gara ricava anche il singolo, più lento', () => {
-    const g = stima(gara('2026-06-14', 'double'), 'double')
-    expect(g.tempi.singolo!.totale).toBeGreaterThan(g.tempi.double!.totale)
-    // …e il singolo è quello che avrebbe fatto lo stesso atleta da solo.
-    const soloVero = stima(gara('2026-06-14', 'singolo'), 'singolo').tempi.singolo!.totale
-    expect(g.tempi.singolo!.totale).toBeCloseTo(soloVero, -1)
+  it('con meno di tre non inventa: la stima resta senza totale', () => {
+    const due = RACE_STATIONS.map((r, i) => es(r.id, r.target, r.unit, i < 2 ? [sess(RECENTE, 200, r.target)] : []))
+    const s = stimaPB(corsa(), due, [], OGGI)
+    expect(s.totale).toBeNull()
+    expect(s.parti).toBeNull()
+    expect(s.misurati).toBe(2)
+  })
+})
+
+describe('nell’ultimo mese', () => {
+  it('il delta è il PB di oggi meno quello di un mese fa', () => {
+    const ski = es('hx_ski', 1000, 'm', [sess(VECCHIO, 280, 1000), sess(RECENTE, 265, 1000)])
+    const s = stimaPB(corsa(sess(VECCHIO, 310, 1), sess(RECENTE, 305, 1)), [ski, ...stazioni(VECCHIO).slice(1)], [], OGGI)
+    expect(s.stazioni[0].pb.delta).toBe(-15)
+    expect(s.stazioni[1].pb.delta).toBe(0)
+    expect(s.corsa.delta).toBe(-40)                   // 5 s al km × 8
+    expect(s.delta).toBe(-55)
   })
 
-  it('funziona con la sola simulazione a metà', () => {
-    const g = stima(simulazione('2026-09-12'), 'double')
-    expect(g).toMatchObject({ misurati: 9, daProfilo: 0, simulazioni: ['2026-09-12'] })
-    expect(g.corsa.daMezza).toBe(true)
-    // Stesso atleta della gara in double: stesso tempo, a meno degli arrotondamenti.
-    const daGara = stima(gara('2026-06-14', 'double'), 'double').tempi.double!.totale
-    expect(g.tempi.double!.totale).toBeCloseTo(daGara, -1)
+  it('senza dati di un mese fa non c’è un delta', () => {
+    const s = stimaPB(corsa(sess(RECENTE, 300, 1)), stazioni(RECENTE), [], OGGI)
+    expect(s.stazioni[0].pb.delta).toBeNull()
+    expect(s.delta).toBeNull()
   })
 
-  it('in double ogni stazione è più veloce che da solo, anche col k tarato al minimo', () => {
-    // Intera e mezza con k personale 1: prima i turni non davano nessun vantaggio
-    // e la coppia usciva più lenta per colpa dei cambi.
-    const segmenti = simulazione('2026-09-12').map(ex => ex.id === 'hx_ski'
-      ? { ...ex, history: [sess('2026-09-10', 250, 1000), sess('2026-09-12', 125, 500)] } : ex)
-    const g = stima(segmenti, 'double')
-    const ski = g.stazioni.find(s => s.ex.id === 'hx_ski')!
-    expect(ski.stima.kPersonale).toBe(true)
-    expect(g.tempi.double!.perStazione.hx_ski).toBeLessThan(ski.stima.fresco!)
+  it('scrive il delta col segno, come un cronometro', () => {
+    expect(fmtDelta(-8)).toBe('−0:08')
+    expect(fmtDelta(66)).toBe('+1:06')
+    expect(fmtDelta(-160)).toBe('−2:40')
+  })
+})
+
+describe('le giornate da controllare', () => {
+  it('cinque o più stazioni a metà lo stesso giorno fanno una domanda', () => {
+    const segmenti = RACE_STATIONS.map((r, i) => es(r.id, r.target, r.unit, i < 5 ? [sess(RECENTE, 200, r.target / 2)] : []))
+    expect(giornateAMeta(segmenti)).toEqual([{ data: RECENTE, segmenti: RACE_STATIONS.slice(0, 5).map(r => r.id) }])
   })
 
-  it('gara passata + simulazione più veloce: la stima migliora, senza cancellare la gara', () => {
-    const soloGara = stima(gara('2026-06-14', 'double'), 'double').tempi.double!.totale
-    const soloSim  = stima(simulazione('2026-09-12', 0.9), 'double').tempi.double!.totale
-    const entrambe = stima(unisci(gara('2026-06-14', 'double'), simulazione('2026-09-12', 0.9)), 'double').tempi.double!.totale
-    expect(entrambe).toBeLessThan(soloGara)
-    expect(entrambe).toBeGreaterThan(soloSim)
+  it('quattro no: è un allenamento a metà, non una gara registrata male', () => {
+    const segmenti = RACE_STATIONS.map((r, i) => es(r.id, r.target, r.unit, i < 4 ? [sess(RECENTE, 200, r.target / 2)] : []))
+    expect(giornateAMeta(segmenti)).toEqual([])
   })
 
-  it('la corsa in gara singola porta più fatica che in double', () => {
-    const g = stima(simulazione('2026-09-12'), 'double')
-    expect(g.tempi.singolo!.corsaKm / g.tempi.double!.corsaKm).toBeCloseTo(FATICA_CORSA.singolo / FATICA_CORSA.double, 5)
-  })
-
-  it('con dati parziali completa col profilo', () => {
-    // Solo corsa, SkiErg e Rowing, tutti il 10% più lenti del riferimento.
-    const segmenti = [es(RUNNING_STATION.id, 1, 'km', [sess('2026-09-01', 330, 1)]),
-      ...RACE_STATIONS.map(r => es(r.id, r.target, r.unit,
-        r.id === 'hx_ski' || r.id === 'hx_row' ? [sess('2026-09-01', FRESCO[r.id] * 1.1, r.target)] : []))]
-    const g = stima(segmenti, 'singolo')
-    expect(g).toMatchObject({ misurati: 3, daProfilo: 6 })
-    expect(g.fattoreProfilo).toBeCloseTo(1.1, 5)
-    const sled = g.stazioni.find(s => s.ex.id === 'hx_sled_p')!.stima
-    expect(sled).toMatchObject({ fonte: 'profilo' })
-    expect(sled.fresco).toBeCloseTo(FRESCO.hx_sled_p * 1.1, 5)
-    expect(g.tempi.singolo).not.toBeNull()
-  })
-
-  it('con troppo pochi dati non inventa la gara', () => {
-    const segmenti = [es(RUNNING_STATION.id, 1, 'km', [sess('2026-09-01', 300, 1)]),
-      ...RACE_STATIONS.map(r => es(r.id, r.target, r.unit, r.id === 'hx_ski' ? [sess('2026-09-01', 270, 1000)] : []))]
-    const g = stima(segmenti)
-    expect(g.misurati).toBe(2)
-    expect(g.tempi).toEqual({ double: null, singolo: null })
-    expect(g.margine).toBeNull()
-  })
-
-  it('il margine cresce con quello che la stima deve supporre', () => {
-    const piena = stima(gara('2026-06-14', 'double'))
-    const segmenti = gara('2026-06-14', 'double').map((ex, i) => i >= 1 && i <= 3 ? { ...ex, history: [] } : ex)
-    const bucata = stima(segmenti)
-    expect(bucata.daProfilo).toBe(3)
-    expect(bucata.margine! / bucata.tempi.double!.totale).toBeGreaterThan(piena.margine! / piena.tempi.double!.totale)
+  it('correggere riporta alla distanza intera solo le mezze di quel giorno', () => {
+    const h = [sess(RECENTE, 250, 500), sess(VECCHIO, 120, 500), sess(RECENTE, 260, 1000)]
+    expect(aDistanzaIntera(h, 1000, RECENTE).map(x => x.units)).toEqual([1000, 500, 1000])
   })
 })
 

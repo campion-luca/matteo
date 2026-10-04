@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa } from '@/features/gym/gymModel'
+import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, ultimaVoce, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa } from '@/features/gym/gymModel'
 import { isoWeek, giorniTra } from '@/lib/isoDate'
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 
@@ -214,5 +214,28 @@ describe('da quanto non ci si allena', () => {
   it('oggi, ieri, poi i giorni', () => {
     const t = (s: string, v?: Record<string, string | number>) => s.replace('{n}', String(v?.n))
     expect([0, 1, 12].map(n => quantoFa(n, t))).toEqual(['oggi', 'ieri', '12 giorni fa'])
+  })
+})
+
+describe('ultimaVoce', () => {
+  it('è la stessa voce che sortedHistory mette in fondo', () => {
+    const hist = [
+      entry({ date: '2026-07-08', kg: 70 }),
+      entry({ date: undefined, kg: 99 }),
+      entry({ date: '2026-07-04', kg: 65 }),
+    ]
+    const sorted = sortedHistory(hist)
+    expect(ultimaVoce(hist)).toBe(sorted[sorted.length - 1])
+  })
+
+  it('a pari data vince la più in fondo, come nell’ordinamento stabile', () => {
+    const a = entry({ date: '2026-07-08', kg: 70 })
+    const b = entry({ date: '2026-07-08', kg: 72 })
+    expect(ultimaVoce([a, b])).toBe(b)
+    expect(sortedHistory([a, b])[1]).toBe(b)
+  })
+
+  it('senza voci non c’è un’ultima', () => {
+    expect(ultimaVoce([])).toBeUndefined()
   })
 })

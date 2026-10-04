@@ -117,7 +117,7 @@ describe('dizionario tedesco', () => {
       // che si usa davvero: "Training" c'è, ma è già l'allenamento in sé.
       // "Chat" è Chat anche in tedesco (der Chat).
       'Chat', 'Coaching', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
-      'Personal Coach', 'Premium', 'Roxzone ({n} × {s} s)', 'Standard',
+      'Personal Coach', 'Premium', 'Roxzone', 'Standard',
       // "Timer" è la parola che si usa anche in tedesco (der Timer).
       'Timer', 'Total', 'Trend',
     ])

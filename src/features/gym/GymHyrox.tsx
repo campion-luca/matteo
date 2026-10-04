@@ -13,19 +13,20 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { useT, useTData } from '@/lib/i18n'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
-import type { HyroxExercise, HyroxHistoryEntry } from '@/store/useJarvisStore'
+import type { HyroxExercise, HyroxGara, HyroxHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { fmtTime, pace, sortedHistory } from './gymModel'
 import {
-  type FormatoHyrox, type StimaSegmento, type Categoria, type Contesto,
-  formatoSessione, distanzaLeggibile, stimaGara, fmtTempoGara,
-  FATICA_CORSA, ROXZONE_PASSAGGI, ROXZONE_SEC, MIN_PER_PROFILO,
+  type FormatoHyrox, type Fonte, type PB,
+  formatoSessione, distanzaLeggibile, stimaPB, giornateAMeta, totaleGara, fmtTempoGara, fmtDelta,
+  ROXZONE_PASSAGGI, ROXZONE_SEC, MIN_PER_PROFILO,
 } from './hyroxStima'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { EditHyroxHistModal } from './gymModals'
 import { FormatoSwitch } from './FormatoSwitch'
 import { LineChart } from './gymShared'
-import { fmtShortDate } from '@/lib/dateFormat'
+import { Cronologia } from '@/components/ui/Cronologia'
+import { fmtShortDate, fmtDayMon, fmtDayMonthFull } from '@/lib/dateFormat'
 
 // La parte Hyrox della scheda Allenamento: la card in elenco, la pagina di
 // dettaglio di una stazione e il riepilogo gara.
@@ -53,6 +54,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
     () => hist.map((h, idx) => ({ h, idx })).filter(({ h }) => formatoSessione(h, ex.target) === formato),
     [hist, ex.target, formato],
   )
+  const dalPiuRecente = useMemo(() => [...visibili].reverse(), [visibili])
   const distIntera = distanzaLeggibile(ex.target, ex.unit)
   const distMezza  = distanzaLeggibile(ex.target / 2, ex.unit)
 
@@ -140,46 +142,56 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
           </>
         )}
 
-        {/* Tutte le sessioni in vista, come nella pagina di un esercizio dei pesi:
-            chiuse dietro una tendina erano il contenuto della pagina nascosto. */}
+        {/* Lo storico non sta dietro una tendina sola, come nella pagina di un
+            esercizio dei pesi: il mese in corso è aperto, i precedenti si aprono
+            uno per uno. */}
         <NucEyebrow right={visibili.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: visibili.length })}>{t('Storico')}</NucEyebrow>
 
         {visibili.length === 0 && (
           <div className="j-empty">{t('Nessuna sessione da {dist}', { dist: formato === 'mezzo' ? distMezza : distIntera })}</div>
         )}
 
-        {[...visibili].reverse().map(({ h, idx: realIdx }) => {
-          const dateStr = h.date ? fmtShortDate(h.date) : h.d
-          return (
-            <div key={realIdx} className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, color: NUC.ink, letterSpacing: -0.2 }}>
-                  {fmtTime(h.sec)} · {distanzaLeggibile(h.units, ex.unit)}
+        {/* Per anno e per mese, come lo storico dei pesi: aperti solo i più recenti. */}
+        {visibili.length > 0 && (
+          <Cronologia
+            voci={dalPiuRecente}
+            dataDi={v => v.h.date}
+            chiaveDi={v => v.idx}
+            conta={n => n === 1 ? t('1 sessione') : t('{n} sessioni', { n })}
+            voce={({ h, idx: realIdx }) => {
+              const dateStr = h.date ? fmtShortDate(h.date) : h.d
+              return (
+                <div className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, color: NUC.ink, letterSpacing: -0.2 }}>
+                      {fmtTime(h.sec)} · {distanzaLeggibile(h.units, ex.unit)}
+                    </div>
+                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
+                  </div>
+                  <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.accentSoft, letterSpacing: -0.3, flexShrink: 0 }}>
+                    {pace(h.sec, h.units, ex.unit)}
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
+                      width: 26, height: 26, borderRadius: 'var(--radius-sm)',
+                      background: 'var(--surface)', border: '1px solid var(--hairline)',
+                      color: NUC.faint, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icons.pencil size={10} stroke={1.8}/>
+                    </button>
+                    <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Sessione'))} style={{
+                      width: 26, height: 26, borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
+                      color: 'var(--danger)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}><Icons.trash size={11} stroke={1.6}/></button>
+                  </div>
                 </div>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
-              </div>
-              <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.accentSoft, letterSpacing: -0.3, flexShrink: 0 }}>
-                {pace(h.sec, h.units, ex.unit)}
-              </div>
-              <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
-                  width: 26, height: 26, borderRadius: 'var(--radius-sm)',
-                  background: 'var(--surface)', border: '1px solid var(--hairline)',
-                  color: NUC.faint, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Icons.pencil size={10} stroke={1.8}/>
-                </button>
-                <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Sessione'))} style={{
-                  width: 26, height: 26, borderRadius: 'var(--radius-sm)',
-                  background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
-                  color: 'var(--danger)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}><Icons.trash size={11} stroke={1.6}/></button>
-              </div>
-            </div>
-          )
-        })}
+              )
+            }}
+          />
+        )}
 
         <button onClick={onLog} className="j-btn-accent" style={{ marginTop: 16 }}>
           <Icons.plus size={16} stroke={2}/> {t('Nuova sessione')}
@@ -203,169 +215,329 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
   )
 }
 
-// ── Riepilogo gara ─────────────────────────────────────────────
-// Il tempo di gara che i tuoi allenamenti promettono, segmento per segmento.
-// I conti stanno in hyroxStima, puri e testati; qui c'è solo il modo di leggerli.
-//
-// Tre cose si vedono sempre, perché una stima che non dice come è fatta non è
-// una stima, è un numero: DA DOVE viene ogni segmento (gara, simulazione,
-// allenamento, o completato dal profilo), QUANTO pesano le ipotesi (fatica in
-// corsa, turni in coppia, Roxzone) e QUANTO fidarsi (il ± sotto il tempo).
+// ── La gara ────────────────────────────────────────────────────
+// La prima cosa che si vede aprendo Hyrox. In alto il tempo che i tuoi PB
+// promettono, diviso in corsa, stazioni e Roxzone; sotto, da dove viene ogni
+// pezzo — il PB di ogni stazione con il giorno in cui l'hai fatto; poi le gare
+// e le simulazioni registrate, e in fondo come ragiona la stima. I conti stanno
+// in hyroxStima, puri e testati: qui c'è solo il modo di leggerli.
 
-const CATEGORIA_KEY = 'jarvis-categoria-hyrox'
+/** Il grigio-azzurro dello sfondo fuso: le stazioni nella barra, accanto
+ *  all'arancione della corsa. Due tinte che si distinguono in tutti i temi. */
+const TINTA_STAZIONI = '#8593A4'
 
-export function RaceSummary({ raceStations, runStation }: {
+/** I nomi delle stazioni come si dicono in palestra: nelle card a due colonne
+ *  "Burpees Broad Jump" non ci sta accanto alla distanza. */
+const NOME_BREVE: Record<string, string> = {
+  hx_bbj: 'Burpee BJ', hx_farm: 'Farmers', hx_lunge: 'Lunges',
+}
+
+/** Le giornate già controllate ("erano a metà davvero"): sul dispositivo, come
+ *  le altre preferenze di Hyrox. È una risposta a una domanda, non un dato. */
+const GIORNATE_OK_KEY = 'jarvis-hyrox-giornate-ok'
+function useGiornateOk(): [string[], (d: string) => void] {
+  const [ok, setOk] = useState<string[]>(() => {
+    try { return JSON.parse(readStorage('local', GIORNATE_OK_KEY) ?? '[]') as string[] } catch { return [] }
+  })
+  const aggiungi = (d: string) => setOk(prev => {
+    const next = [...prev, d]
+    writeStorage('local', GIORNATE_OK_KEY, JSON.stringify(next))
+    return next
+  })
+  return [ok, aggiungi]
+}
+
+export function RaceSummary({ raceStations, runStation, gare, oggi, onRegistra, onModifica, onElimina, onApri, onCorreggiGiornata }: {
   raceStations: HyroxExercise[]
   runStation: HyroxExercise
+  gare: HyroxGara[]
+  /** Il giorno da cui si conta "l'ultimo mese". */
+  oggi: string
+  onRegistra: () => void
+  onModifica: (g: HyroxGara) => void
+  onElimina: (g: HyroxGara) => void
+  onApri: (ex: HyroxExercise) => void
+  /** Riporta alla distanza intera le sessioni a metà di quel giorno. */
+  onCorreggiGiornata: (data: string) => void
 }) {
   const t = useT()
   const tData = useTData()
-  // La categoria che corri. Si ricorda sul dispositivo come la distanza: il
-  // default è il double, e cambiarla cambia anche come si leggono le gare
-  // registrate — una gara in coppia ha stazioni più brevi di una da solo.
-  const [categoria, setCategoriaState] = useState<Categoria>(
-    () => readStorage('local', CATEGORIA_KEY) === 'singolo' ? 'singolo' : 'double',
+  const s = useMemo(() => stimaPB(runStation, raceStations, gare, oggi), [runStation, raceStations, gare, oggi])
+  const [giornateOk, segnaOk] = useGiornateOk()
+  const daControllare = useMemo(
+    () => giornateAMeta([runStation, ...raceStations]).filter(g => !giornateOk.includes(g.data)),
+    [runStation, raceStations, giornateOk],
   )
-  const setCategoria = (c: Categoria) => { setCategoriaState(c); writeStorage('local', CATEGORIA_KEY, c) }
+  const gareOrdinate = useMemo(() => [...gare].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)), [gare])
 
-  const g = useMemo(() => stimaGara(runStation, raceStations, categoria), [runStation, raceStations, categoria])
-  const tempi = g.tempi[categoria]
-  const altra: Categoria = categoria === 'double' ? 'singolo' : 'double'
-  const nomeCat = (c: Categoria) => c === 'double' ? t('Double') : t('Singolo')
-  const sec = (x: number) => fmtTime(Math.round(x))
-
-  // "× 2,09": quanto si moltiplica il tempo della mezza. È 2^k, e dice la stessa
-  // cosa dell'esponente in un modo che si capisce senza sapere chi è Riegel.
-  const fattore = (k: number) => Math.pow(2, k).toFixed(2).replace('.', ',')
-  const nomeContesto = (c: Contesto) => c === 'gara' ? t('gara') : c === 'simulazione' ? t('simulazione') : t('allenamento')
-
-  const provenienza = (stima: StimaSegmento, target: number, unit: HyroxExercise['unit']) => {
-    if (stima.fonte === 'mancante') return t('nessuna sessione')
-    if (stima.fonte === 'profilo') return t('dal tuo profilo')
-    const parti = [stima.contesti.map(nomeContesto).join(' + ')]
-    if (stima.daMezza) parti.push(`${t('da {dist}', { dist: distanzaLeggibile(target / 2, unit) })} × ${fattore(stima.k)}`)
-    if (stima.kPersonale) parti.push(t('tarato su di te'))
-    return parti.join(' · ')
+  const fonte = (f: Fonte | null, unit: HyroxExercise['unit']): string => {
+    if (!f) return t('nessuna sessione')
+    switch (f.tipo) {
+      case 'allenamento': return `${t('allenamento')} · ${fmtDayMon(f.data)}`
+      case 'gara':        return `${t('gara')} · ${fmtDayMon(f.data)}`
+      case 'simulazione': return `${t('simulazione')} · ${fmtDayMon(f.data)}`
+      case 'mezza':       return `${t('da {dist}', { dist: distanzaLeggibile(f.daUnita, unit) })} × ${Math.pow(2, f.k).toFixed(2).replace('.', ',')} · ${fmtDayMon(f.data)}`
+      case 'profilo':     return t('dal tuo profilo')
+      case 'ipotesi':     return t('ipotesi: {n} passaggi × {s} s', { n: ROXZONE_PASSAGGI, s: ROXZONE_SEC })
+    }
   }
 
-  const riga = (id: string, nome: string, sotto: string, stima: StimaSegmento, target: number, unit: HyroxExercise['unit'],
-    valore: number | undefined, extra?: string, ultima = false) => (
-    <div key={id} className="flex justify-between items-center gap-3 py-3"
-      style={{ borderBottom: ultima ? 'none' : '1px solid var(--hairline-soft)' }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>{nome}</div>
-        <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2, lineHeight: 1.45 }}>
-          {sotto} · <span style={{ color: stima.fonte === 'profilo' || stima.daMezza ? 'var(--tertiary-ink)' : undefined }}>
-            {provenienza(stima, target, unit)}
-          </span>
-        </div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        {valore !== undefined ? (
-          <>
-            <div style={{ fontFamily: NUC.label, fontSize: 15, color: stima.fonte === 'profilo' ? NUC.dim : NUC.accentSoft, letterSpacing: -0.5 }}>{sec(valore)}</div>
-            {extra && <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 1 }}>{extra}</div>}
-          </>
-        ) : (
-          <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.faint }}>—</div>
-        )}
-      </div>
-    </div>
-  )
-
-  const voce = (label: string, valore: string, forte = false) => (
-    <div className="flex justify-between items-baseline gap-3" style={{ padding: '4px 0' }}>
-      <span style={{ fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.04em', color: forte ? NUC.ink : NUC.faint }}>{label}</span>
-      <span style={{ fontFamily: NUC.label, fontSize: forte ? 13 : 12, color: forte ? NUC.ink : NUC.dim, fontWeight: forte ? 600 : 400, flexShrink: 0 }}>{valore}</span>
-    </div>
-  )
-
-  const ultimaGara = g.gare[g.gare.length - 1]
-  const ultimaSim = g.simulazioni[g.simulazioni.length - 1]
-  const basi = [
-    ultimaGara && t('gara del {d}', { d: fmtShortDate(ultimaGara) }),
-    ultimaSim && t('simulazione del {d}', { d: fmtShortDate(ultimaSim) }),
-  ].filter(Boolean).join(' · ')
-
-  const piccolo: React.CSSProperties = { fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 4, letterSpacing: .2 }
+  const sottotitolo = s.totale === null
+    ? t('Servono almeno {n} segmenti registrati', { n: MIN_PER_PROFILO })
+    : [
+        t('somma dei tuoi PB'),
+        s.delta !== null && s.delta !== 0 ? t('{d} nell’ultimo mese', { d: fmtDelta(s.delta) }) : null,
+        s.delta === 0 ? t('invariato nell’ultimo mese') : null,
+      ].filter(Boolean).join(' · ')
 
   return (
     <div>
-      <FormatoSwitch<Categoria>
-        valore={categoria} onChange={setCategoria}
-        valori={['double', 'singolo']} etichette={[t('Double'), t('Singolo')]}
-        etichettaGruppo={t('Categoria')}
-        style={{ marginBottom: 14 }}
-      />
+      {/* Le giornate registrate a metà che sembrano una simulazione intera: è
+          così che una simulazione da 1:30 diventava una stima da 2:16. Si
+          chiede, non si corregge da soli — una mezza simulazione vera esiste. */}
+      {daControllare.slice(0, 1).map(g => (
+        <NucCard key={g.data} pad={14} style={{ marginBottom: 12, borderLeft: '3px solid var(--j-accent)' }}>
+          <div style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--tertiary-ink)' }}>
+            {t('Da controllare')}
+          </div>
+          <div style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink, marginTop: 6, lineHeight: 1.4 }}>
+            {t('Il {d} hai registrato {n} segmenti a metà distanza.', { d: fmtDayMonthFull(g.data), n: g.segmenti.length })}
+          </div>
+          <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.faint, marginTop: 4, lineHeight: 1.5 }}>
+            {t('Se era una simulazione intera, i tempi sono quelli giusti ma la distanza no: la stima li legge come mezze e li raddoppia.')}
+          </div>
+          <div className="flex gap-2" style={{ marginTop: 10 }}>
+            <button onClick={() => onCorreggiGiornata(g.data)} className="j-btn-accent-sm" style={{ flex: 1 }}>
+              {t('Erano intere')}
+            </button>
+            <button onClick={() => segnaOk(g.data)} className="j-btn-ghost" style={{ flex: 1, height: 44, fontFamily: NUC.label, fontSize: 13.5 }}>
+              {t('Erano a metà')}
+            </button>
+          </div>
+        </NucCard>
+      ))}
 
-      <NucCard pad={16} style={{ marginBottom: 16 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textTransform: 'uppercase', marginBottom: 8 }}>
-            {t('Tempo gara stimato')} · {nomeCat(categoria)}
-          </div>
-          <div style={{ fontFamily: NUC.label, fontSize: 32, color: tempi ? NUC.accentSoft : NUC.faint, letterSpacing: -1.5, lineHeight: 1 }}>
-            {tempi ? fmtTempoGara(tempi.totale) : '—'}
-          </div>
-          {tempi && g.margine !== null && (
-            <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.dim, marginTop: 6 }}>± {sec(g.margine)}</div>
-          )}
-          {g.tempi[altra] && (
-            <div style={{ ...piccolo, marginTop: 8, fontSize: 11 }}>
-              {nomeCat(altra)}: {fmtTempoGara(g.tempi[altra]!.totale)}
+      {/* ── Il tempo ── */}
+      <NucCard pad={16} style={{ marginBottom: 18 }}>
+        <div className="flex items-start justify-between gap-3">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
+              {t('Tempo gara stimato')}{s.categoria ? ` · ${s.categoria === 'double' ? t('Double') : t('Singolo')}` : ''}
             </div>
-          )}
-
-          <div style={{ ...piccolo, marginTop: 10 }}>
-            {t('{n}/{tot} segmenti misurati', { n: g.misurati, tot: g.totaleSegmenti })}
-            {g.daProfilo > 0 && ` · ${t('{n} dal tuo profilo', { n: g.daProfilo })}`}
-          </div>
-          <div style={{ ...piccolo, color: basi ? 'var(--tertiary-ink)' : NUC.faint }}>
-            {basi || t('nessuna gara né simulazione: stima dagli allenamenti')}
-          </div>
-          {!tempi && (
-            <div style={{ ...piccolo, opacity: .8 }}>
-              {t('Servono almeno {n} segmenti registrati', { n: MIN_PER_PROFILO })} · {t('logga le sessioni mancanti nella scheda Esercizi')}
+            <div style={{ fontFamily: NUC.tempo, fontSize: 'clamp(34px, 11vw, 44px)', fontWeight: 500, lineHeight: 1.05, letterSpacing: '-.02em', color: s.totale !== null ? NUC.ink : NUC.faint, marginTop: 8 }}>
+              {s.totale !== null ? fmtTempoGara(s.totale) : '—'}
             </div>
-          )}
+            <div style={{ fontFamily: NUC.label, fontSize: 11.5, color: NUC.faint, marginTop: 6, lineHeight: 1.4 }}>
+              {sottotitolo}
+            </div>
+          </div>
+          <button
+            onClick={onRegistra}
+            aria-label={t('Registra una gara o una simulazione')}
+            className="j-hard j-accent-key j-focus"
+            style={{
+              width: 46, height: 46, flexShrink: 0, borderRadius: 'var(--radius)', cursor: 'pointer',
+              backgroundColor: 'var(--j-accent)', color: 'var(--j-accent-fg)', border: '1px solid var(--accent-edge)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Icons.plus size={20} stroke={2}/>
+          </button>
         </div>
 
-        {/* Come è fatto il numero: ogni ipotesi ha la sua riga, così si vede quanto pesa. */}
-        {tempi && (
-          <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--divider)' }}>
-            {voce(t('Corsa 8 × {p} (fatica +{f}%)', { p: sec(tempi.corsaKm), f: Math.round((FATICA_CORSA[categoria] - 1) * 100) }), fmtTempoGara(tempi.corsa))}
-            {voce(categoria === 'double' ? t('Stazioni a turni in due') : t('Stazioni da solo'), fmtTempoGara(tempi.stazioni))}
-            {voce(t('Roxzone ({n} × {s} s)', { n: ROXZONE_PASSAGGI, s: ROXZONE_SEC }), fmtTempoGara(tempi.roxzone))}
-            <div style={{ borderTop: '1px solid var(--hairline-soft)', marginTop: 4, paddingTop: 4 }}>
-              {voce(t('Stima gara'), fmtTempoGara(tempi.totale), true)}
+        {s.parti && (
+          <>
+            <div role="img" aria-label={t('Corsa {c}, stazioni {s}, Roxzone {r}', { c: fmtTempoGara(s.parti.corsa), s: fmtTempoGara(s.parti.stazioni), r: fmtTempoGara(s.parti.roxzone) })}
+              style={{ display: 'flex', gap: 3, height: 8, marginTop: 16 }}>
+              {[
+                { v: s.parti.corsa, c: 'var(--j-accent)' },
+                { v: s.parti.stazioni, c: TINTA_STAZIONI },
+                { v: s.parti.roxzone, c: 'var(--track)' },
+              ].map((p, i) => (
+                <span key={i} style={{ flex: `${p.v} 1 0`, minWidth: 4, background: p.c, borderRadius: 'var(--radius-pill)' }}/>
+              ))}
             </div>
-          </div>
+            <div className="flex flex-wrap" style={{ gap: '6px 16px', marginTop: 10 }}>
+              {[
+                { l: t('Corsa'), v: s.parti.corsa, c: 'var(--j-accent)' },
+                { l: t('Stazioni'), v: s.parti.stazioni, c: TINTA_STAZIONI },
+                { l: t('Roxzone'), v: s.parti.roxzone, c: 'var(--track)' },
+              ].map(p => (
+                <span key={p.l} className="flex items-center gap-1.5" style={{ fontFamily: NUC.label, fontSize: 11.5, color: NUC.dim }}>
+                  <span aria-hidden style={{ width: 9, height: 9, borderRadius: 2, background: p.c, display: 'inline-block' }}/>
+                  {p.l} <span style={{ fontFamily: NUC.tempo, color: NUC.ink }}>{fmtTempoGara(p.v)}</span>
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </NucCard>
 
-      <NucCard pad={16} style={{ marginBottom: 16 }}>
-        {riga(runStation.id, t('Corsa 1 km'), '1 km × 8', g.corsa, runStation.target, runStation.unit,
-          tempi?.corsaKm, tempi ? `× 8 = ${fmtTempoGara(tempi.corsa)}` : undefined)}
-        {g.stazioni.map(({ ex, stima }, idx) => riga(
-          ex.id, tData(ex.n), distanzaLeggibile(ex.target, ex.unit), stima, ex.target, ex.unit,
-          tempi?.perStazione[ex.id],
-          // In double il tempo è della coppia: accanto, quello tuo da solo, perché
-          // è la misura che alleni e che registri.
-          tempi && categoria === 'double' && stima.fresco !== null ? t('da solo {t}', { t: sec(stima.fresco) }) : undefined,
-          idx === g.stazioni.length - 1,
-        ))}
-      </NucCard>
+      {/* ── Da dove viene ── */}
+      <NucEyebrow right={s.corsa.passoKm !== null ? `${fmtTime(Math.round(s.corsa.passoKm))} /km` : undefined}>{t('Corsa · PB')}</NucEyebrow>
+      <div style={{ marginBottom: 16 }}>
+        <CardPB
+          nome={t('Corsa')} distanza="8 km" pb={s.corsa}
+          fonte={fonte(s.corsa.fonte, 'km')}
+          onClick={() => onApri(runStation)}
+        />
+      </div>
 
-      {/* Il ragionamento, in chiaro: chi guarda un tempo deve poter sapere cosa ci
-          sta dietro senza aprire il codice. */}
+      <NucEyebrow>{t('Stazioni · PB')}</NucEyebrow>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 16 }}>
+        {raceStations.map((ex, i) => (
+          <CardPB
+            key={ex.id}
+            nome={NOME_BREVE[ex.id] ?? tData(ex.n)}
+            distanza={distanzaLeggibile(ex.target, ex.unit)}
+            pb={s.stazioni[i].pb}
+            fonte={fonte(s.stazioni[i].pb.fonte, ex.unit)}
+            onClick={() => onApri(ex)}
+          />
+        ))}
+      </div>
+
+      <NucEyebrow>{t('Roxzone')}</NucEyebrow>
+      <div style={{ marginBottom: 22 }}>
+        <CardPB
+          nome={t('Roxzone')} distanza={t('{n} passaggi', { n: ROXZONE_PASSAGGI })} pb={s.roxzone}
+          fonte={fonte(s.roxzone.fonte, 'm')}
+        />
+      </div>
+
+      {/* ── Le gare registrate ── */}
+      <NucEyebrow right={gare.length > 0 ? String(gare.length) : undefined}>{t('Gare e simulazioni')}</NucEyebrow>
+      {gare.length === 0 ? (
+        <button onClick={onRegistra} className="j-focus" style={{
+          width: '100%', marginBottom: 22, padding: '14px', borderRadius: 'var(--radius)', cursor: 'pointer',
+          background: 'transparent', border: '1px dashed var(--hairline)', color: 'var(--j-accent-ink)',
+          display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+        }}>
+          <Icons.plus size={18} stroke={1.9}/>
+          <span>
+            <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 14, color: NUC.ink }}>{t('Registra una gara o una simulazione')}</span>
+            <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 2 }}>
+              {t('Corsa, stazioni e Roxzone, con i tempi della distanza intera')}
+            </span>
+          </span>
+        </button>
+      ) : (
+        <div style={{ marginBottom: 22 }}>
+          <Cronologia
+            voci={gareOrdinate}
+            dataDi={g => g.date}
+            chiaveDi={g => g.id}
+            // "Prove" e non "gare": dentro ci sono anche le simulazioni.
+            conta={n => n === 1 ? t('1 prova') : t('{n} prove', { n })}
+            voce={g => <GaraRegistrata g={g} stazioni={raceStations} onModifica={() => onModifica(g)} onElimina={() => onElimina(g)}/>}
+          />
+        </div>
+      )}
+
+      {/* Il ragionamento, in chiaro: chi guarda un tempo deve poter sapere cosa
+          ci sta dietro senza aprire il codice. */}
       <NucCard pad={14}>
         <NucEyebrow>{t('Come ragiona la stima')}</NucEyebrow>
         <div style={{ fontFamily: NUC.font, fontSize: 12, color: NUC.dim, lineHeight: 1.55, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div>{t('1. Ogni sessione viene riportata a te da solo e a gambe fresche: alla corsa di gara si toglie la fatica, alle stazioni di una gara in double i turni col compagno, e una mezza si porta alla distanza intera.')}</div>
-          <div>{t('2. Una gara o una simulazione si riconoscono da sole (5 segmenti lo stesso giorno) e contano più degli allenamenti. I segmenti che mancano si completano col tuo profilo, se ne hai registrati almeno 3.')}</div>
-          <div>{t('3. La gara si rimonta nella categoria: corsa +10% in singolo e +5% in double, stazioni a turni in due, 16 passaggi in Roxzone da 25 s. In double si suppone un compagno del tuo livello.')}</div>
+          <div>{t('1. Il tempo stimato è la somma dei tuoi tempi migliori: il passo migliore al km × 8, il PB di ogni stazione e la Roxzone. Sotto ogni tempo c’è il giorno da cui viene.')}</div>
+          <div>{t('2. Gare e simulazioni intere si registrano col +, e valgono come gli allenamenti: vince il tempo migliore. Sono l’unico posto da cui viene la Roxzone; senza, è un’ipotesi.')}</div>
+          <div>{t('3. In double le stazioni si fanno in due: la stima è nella categoria della tua ultima gara, e le stazioni delle gare dell’altra categoria non contano. La corsa sì: si corre tutti e due.')}</div>
+          <div>{t('4. Una stazione fatta solo a metà si porta all’intera con la formula di Riegel (circa × 2,1), finché non ne registri una intera. Con almeno 3 segmenti misurati, quelli che mancano si completano dal tuo profilo.')}</div>
         </div>
       </NucCard>
     </div>
+  )
+}
+
+/** Un PB: nome e distanza, il tempo, quanto è cambiato nell'ultimo mese, e da
+ *  dove viene. Toccata, apre la pagina della stazione. */
+function CardPB({ nome, distanza, pb, fonte, onClick }: {
+  nome: string; distanza: string; pb: PB; fonte: string; onClick?: () => void
+}) {
+  const t = useT()
+  const supposto = pb.fonte?.tipo === 'profilo' || pb.fonte?.tipo === 'ipotesi' || pb.fonte?.tipo === 'mezza'
+  const colore = pb.delta === null || pb.delta === 0 ? NUC.faint : pb.delta < 0 ? 'var(--segnale-su)' : 'var(--segnale-giu)'
+  const contenuto = (
+    <>
+      <div className="flex items-baseline justify-between gap-2">
+        <span style={{ fontFamily: NUC.font, fontSize: 13.5, fontWeight: 500, color: NUC.ink, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</span>
+        <span style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, flexShrink: 0 }}>{distanza}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-2" style={{ marginTop: 8 }}>
+        <span style={{ fontFamily: NUC.tempo, fontSize: 24, fontWeight: 500, letterSpacing: '-.02em', color: pb.sec === null ? NUC.faint : supposto ? NUC.dim : NUC.ink }}>
+          {pb.sec !== null ? fmtTempoGara(pb.sec) : '—'}
+        </span>
+        <span aria-label={pb.delta ? t('{d} nell’ultimo mese', { d: fmtDelta(pb.delta) }) : undefined} style={{ fontFamily: NUC.tempo, fontSize: 11.5, color: colore, flexShrink: 0 }}>
+          {pb.delta ? fmtDelta(pb.delta) : '–'}
+        </span>
+      </div>
+      <div style={{
+        fontFamily: NUC.label, fontSize: 10, marginTop: 5, lineHeight: 1.35,
+        color: supposto ? 'var(--tertiary-ink)' : NUC.faint,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{fonte}</div>
+    </>
+  )
+  const stile: React.CSSProperties = {
+    width: '100%', minWidth: 0, padding: '12px 12px 11px', borderRadius: 'var(--radius)', textAlign: 'left',
+    background: 'var(--surface)', border: '1px solid var(--hairline)',
+  }
+  return onClick
+    ? <button onClick={onClick} className="j-hard j-focus" style={{ ...stile, cursor: 'pointer', display: 'block' }}>{contenuto}</button>
+    : <div className="j-hard-flat" style={stile}>{contenuto}</div>
+}
+
+/** Una gara registrata: chiusa, il giorno e il tempo; aperta, i suoi tempi. */
+function GaraRegistrata({ g, stazioni, onModifica, onElimina }: {
+  g: HyroxGara; stazioni: HyroxExercise[]; onModifica: () => void; onElimina: () => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const [aperta, setAperta] = useState(false)
+  // Registrata solo in parte: il totale non è il tempo della gara, e va detto.
+  const parziale = !(g.corsa > 0) || !(g.roxzone > 0) || stazioni.some(ex => !(g.stazioni[ex.id] > 0))
+  const riga = (nome: string, sec: number | undefined, primo = false) => (
+    <div key={nome} className="flex items-baseline justify-between gap-3" style={{ padding: '6px 0', borderTop: primo ? 'none' : '1px solid var(--hairline-soft)' }}>
+      <span style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</span>
+      <span style={{ fontFamily: NUC.tempo, fontSize: 13, color: sec ? NUC.ink : NUC.faint, flexShrink: 0 }}>{sec ? fmtTempoGara(sec) : '—'}</span>
+    </div>
+  )
+  return (
+    <NucCard pad={0} style={{ marginBottom: 8 }}>
+      <button onClick={() => setAperta(a => !a)} aria-expanded={aperta} className="j-focus flex items-center justify-between gap-3 w-full"
+        style={{ padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>{fmtDayMonthFull(g.date)}</span>
+          <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--tertiary-ink)', marginTop: 2 }}>
+            {g.tipo === 'gara' ? t('Gara') : t('Simulazione')} · {g.categoria === 'double' ? t('Double') : t('Singolo')}
+            {parziale && <span style={{ color: NUC.faint }}> · {t('parziale')}</span>}
+          </span>
+        </span>
+        <span className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+          <span style={{ fontFamily: NUC.tempo, fontSize: 16, color: NUC.ink }}>{fmtTempoGara(totaleGara(g))}</span>
+          <span style={{ display: 'flex', color: NUC.faint, transform: aperta ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
+            <Icons.chev size={13} stroke={2}/>
+          </span>
+        </span>
+      </button>
+      {aperta && (
+        <div style={{ borderTop: '1px solid var(--hairline-soft)', padding: '6px 14px 12px' }}>
+          {riga(`${t('Corsa')} · 8 km`, g.corsa, true)}
+          {stazioni.map(ex => riga(tData(ex.n), g.stazioni[ex.id]))}
+          {riga(t('Roxzone'), g.roxzone)}
+          <div className="flex gap-2" style={{ marginTop: 10 }}>
+            <button onClick={onModifica} className="j-btn-ghost flex items-center justify-center gap-1.5" style={{ flex: 1, height: 34, fontFamily: NUC.label, fontSize: 12 }}>
+              <Icons.pencil size={12} stroke={1.8}/> {t('Modifica')}
+            </button>
+            <button onClick={onElimina} aria-label={t('Elimina gara')} style={{
+              width: 34, height: 34, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><Icons.trash size={13} stroke={1.6}/></button>
+          </div>
+        </div>
+      )}
+    </NucCard>
   )
 }
 

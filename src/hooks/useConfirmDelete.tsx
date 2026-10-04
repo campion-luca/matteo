@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- file di contesto: co-esporta di proposito Provider (componente) e hook useConfirmDelete */
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { t } from '@/lib/i18n'
 
 // Il dialogo nasce per le eliminazioni, ma serve anche ad azioni distruttive che
@@ -48,8 +48,13 @@ export function ConfirmDeleteProvider({ children }: { children: ReactNode }) {
 
   const cancel = useCallback(() => setPending(null), [])
 
+  // Il valore è memorizzato: un oggetto nuovo a ogni render faceva ridisegnare
+  // tutti quelli che usano il contesto — schede, pagine esercizio — ogni volta
+  // che si ridisegnava l'app intorno, anche senza nessuna conferma in giro.
+  const value = useMemo(() => ({ confirmDelete, pending, confirm, cancel }), [confirmDelete, pending, confirm, cancel])
+
   return (
-    <ConfirmDeleteContext.Provider value={{ confirmDelete, pending, confirm, cancel }}>
+    <ConfirmDeleteContext.Provider value={value}>
       {children}
     </ConfirmDeleteContext.Provider>
   )

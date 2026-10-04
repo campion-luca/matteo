@@ -1,53 +1,36 @@
-// Hyrox a metà distanza, e come se ne ricava un tempo di gara.
+// Hyrox: le distanze, e il tempo di gara che i tuoi allenamenti promettono.
 //
 // ── Il "mezzo esercizio" ───────────────────────────────────────
 // In allenamento raramente si fa la stazione intera: 500 m di SkiErg invece di
 // 1000, 50 wall ball invece di 100, 500 m di corsa invece di 1 km. Non serve un
 // campo nuovo per dirlo: ogni sessione registra già la distanza fatta davvero
-// (`units`), e quello basta a classificarla. Niente da migrare, niente da
-// sincronizzare, e i dati vecchi finiscono da soli nel posto giusto.
+// (`units`), e quello basta a classificarla.
 //
-// ── Come ragiona la stima ──────────────────────────────────────
-// Ogni sessione è stata fatta in condizioni diverse: una gara, una simulazione a
-// metà, un allenamento a gambe fresche; da solo o in coppia. Sommarle così come
-// sono vorrebbe dire sommare mele e pere. Il ragionamento è in tre passi:
+// ── La stima: la somma dei tuoi PB ─────────────────────────────
+// Il tempo di gara stimato è la somma dei tuoi tempi migliori, segmento per
+// segmento: la corsa (il tuo miglior passo al km × 8), le otto stazioni, la
+// Roxzone. Ogni numero viene da una cosa che hai fatto davvero, e la pagina dice
+// quale — l'allenamento del 12 settembre, la gara di maggio.
 //
-//   1. RIPORTARE ogni sessione a una misura comune: "tu, da solo, fresco, sulla
-//      distanza di gara". Una corsa fatta in gara si spoglia della fatica delle
-//      stazioni; una stazione di una gara in coppia si spoglia dei turni col
-//      compagno; una mezza si porta alla distanza intera con Riegel.
-//   2. COMPLETARE i segmenti che mancano col tuo profilo: se sei il 10% più lento
-//      di un tempo di riferimento dove hai dati, lo sei probabilmente anche dove
-//      non ne hai. Serve almeno qualche segmento misurato.
-//   3. RIMONTARE la gara nella categoria scelta: la corsa riprende la sua fatica
-//      (meno in coppia, perché le stazioni si dividono), le stazioni in coppia si
-//      fanno a turni, e si aggiungono i passaggi in Roxzone.
+// Prima la stima era un modello: riportava ogni sessione a "da solo, fresco",
+// la proiettava con Riegel, la rimontava con fatica e turni in coppia, e
+// riconosceva gare e simulazioni contando le stazioni registrate lo stesso
+// giorno. Ogni passo aveva la sua ragione, ma messi in fila facevano un numero
+// che nessuno poteva controllare: una simulazione da 1:30 registrata con
+// l'interruttore su 500 m diventava "una simulazione a metà" da raddoppiare, e la
+// stima diceva 2:16. Adesso le gare e le simulazioni intere si registrano come
+// tali (HyroxGara), e la stima è una somma che si rifà a mano.
 //
-// Una gara o una simulazione si riconoscono da sole: sono il giorno in cui hai
-// registrato almeno 5 segmenti della stessa distanza. Contano più
-// dell'allenamento, perché dentro c'è già quello che un allenamento non ha — il
-// ritmo tenuto con tutto il resto intorno.
-//
-// ── Da mezza a intera: la formula di Riegel ────────────────────
-//     T₂ = T₁ × (D₂ / D₁)^k
-// Pete Riegel (1977) la ricavò sui tempi di gara di corsa, nuoto e ciclismo: il
-// tempo non cresce in proporzione alla distanza, ma un po' di più, perché il
-// ritmo cala man mano che ci si stanca. Con k = 1,06 raddoppiare la distanza
-// costa 2,085 volte il tempo, non 2. La stessa formula, letta al contrario, dice
-// quanto si guadagna spezzando una stazione in turni più corti.
-//
-// Tutti i coefficienti qui sotto sono IPOTESI dichiarate — il valore di Riegel è
-// pubblicato per l'endurance, non per le stazioni Hyrox — e appena i tuoi dati
-// lo permettono (una intera e una mezza della stessa stazione) k si ricava dai
-// tuoi tempi invece che dalle ipotesi.
+// Restano due supposizioni, dette in chiaro dove compaiono:
+//  · una stazione fatta solo a metà distanza si porta all'intera con Riegel —
+//    finché non ce n'è una intera, che vince sempre;
+//  · con almeno tre segmenti misurati, quelli che mancano si completano col tuo
+//    profilo, e la Roxzone senza una gara registrata è un'ipotesi.
 
-import type { HyroxExercise, HyroxHistoryEntry } from '@/store/useJarvisStore'
-import { sortedHistory } from './gymModel'
+import type { HyroxExercise, HyroxGara, HyroxHistoryEntry } from '@/store/useJarvisStore'
 
 export type FormatoHyrox = 'intero' | 'mezzo'
-export type Categoria = 'double' | 'singolo'
-/** In che condizioni è stata fatta una sessione. */
-export type Contesto = 'gara' | 'simulazione' | 'allenamento'
+export type Categoria = HyroxGara['categoria']
 
 /** Oltre i tre quarti della distanza di gara una sessione conta come intera: un
  *  800 m di SkiErg è una prova da 1000 fatta un po' corta, non una mezza. */
@@ -93,25 +76,17 @@ export const ESPONENTE: Record<string, number> = {
  *  strada fra un ergometro e una slitta. */
 export const ESPONENTE_DEFAULT = 1.08
 
-/** Il k personale non può uscire da qui. Sotto 1 vorrebbe dire che la distanza
- *  intera è più veloce, al metro, della metà — succede solo se la mezza è stata
- *  fatta stanchi, e fidarsene butterebbe la stima. Sopra 1,25 è quasi sempre una
- *  sessione intera andata male, non la tua curva di fatica. */
-const K_MIN = 1.0
-const K_MAX = 1.25
-
-/** Quante sessioni fanno la stima di un segmento: le ultime, non tutte. Tre
- *  bastano a smussare una giornata storta, e non trascinano dentro la forma di sei
- *  mesi fa. */
-const RECENTI = 3
-
-/** Il tempo che servirebbe su un'altra distanza, con Riegel. */
+/** Il tempo che servirebbe su un'altra distanza, con la formula di Riegel:
+ *      T₂ = T₁ × (D₂ / D₁)^k
+ *  Pete Riegel (1977) la ricavò sui tempi di gara di corsa, nuoto e ciclismo: il
+ *  tempo non cresce in proporzione alla distanza ma un po' di più, perché il
+ *  ritmo cala con la fatica. Con k = 1,06 raddoppiare la distanza costa 2,085
+ *  volte il tempo, non 2. */
 export function proietta(sec: number, daUnita: number, aUnita: number, k: number): number {
   if (!(daUnita > 0) || daUnita === aUnita) return sec
   return sec * Math.pow(aUnita / daUnita, k)
 }
 
-const media = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length
 const mediana = (xs: number[]) => {
   const o = [...xs].sort((a, b) => a - b)
   const m = Math.floor(o.length / 2)
@@ -119,187 +94,12 @@ const mediana = (xs: number[]) => {
 }
 
 export const CORSA_ID = 'hx_run'
-const isCorsa = (id: string) => id === CORSA_ID
 
-// ── Gare e simulazioni ─────────────────────────────────────────
-/** Da quanti segmenti registrati nello stesso giorno, e alla stessa distanza, si
- *  capisce che quel giorno era una gara (intera) o una simulazione (a metà).
- *  Cinque su nove: una gara registrata a pezzi resta una gara, mentre un
- *  allenamento con due stazioni e una corsa resta un allenamento. */
-export const SOGLIA_GARA = 5
-
-export interface GiorniDiGara { gara: Set<string>; simulazione: Set<string> }
-
-type Segmento = Pick<HyroxExercise, 'id' | 'target' | 'history'>
-
-export function giorniDiGara(segmenti: Segmento[]): GiorniDiGara {
-  const conta: Record<FormatoHyrox, Map<string, number>> = { intero: new Map(), mezzo: new Map() }
-  for (const s of segmenti) {
-    // Un segmento conta una volta per giorno: due SkiErg lo stesso giorno non
-    // fanno due segmenti.
-    const visti: Record<FormatoHyrox, Set<string>> = { intero: new Set(), mezzo: new Set() }
-    for (const h of s.history) if (h.date) visti[formatoSessione(h, s.target)].add(h.date)
-    for (const f of ['intero', 'mezzo'] as const) {
-      for (const d of visti[f]) conta[f].set(d, (conta[f].get(d) ?? 0) + 1)
-    }
-  }
-  const sopra = (m: Map<string, number>) => new Set([...m].filter(([, n]) => n >= SOGLIA_GARA).map(([d]) => d))
-  return { gara: sopra(conta.intero), simulazione: sopra(conta.mezzo) }
-}
-
-export function contestoSessione(h: Pick<HyroxHistoryEntry, 'units' | 'date'>, target: number, giorni: GiorniDiGara): Contesto {
-  const f = formatoSessione(h, target)
-  if (f === 'intero' && giorni.gara.has(h.date)) return 'gara'
-  if (f === 'mezzo' && giorni.simulazione.has(h.date)) return 'simulazione'
-  return 'allenamento'
-}
-
-// ── Fatica e coppia ────────────────────────────────────────────
-/** Quanto rallenta il chilometro di gara rispetto a uno corso fresco. In singolo
- *  ogni chilometro arriva dopo una stazione fatta tutta da te: +10%. In double le
- *  stazioni si dividono, e ne arriva addosso circa metà: +5%. Ipotesi. */
-export const FATICA_CORSA: Record<Categoria, number> = { singolo: 1.10, double: 1.05 }
-/** Una simulazione a metà ha metà stazioni fra una corsa e l'altra: la sua corsa
- *  porta circa metà della fatica di una gara singola. Ipotesi. */
-export const FATICA_CORSA_SIMULAZIONE = 1.05
-
-/** Come si divide una stazione in double: in quanti turni (sommati fra i due) e
- *  quanto costa ogni cambio. Un turno corto si tiene a un ritmo più alto di uno
- *  lungo — è Riegel letto al contrario — e il compagno intanto recupera.
- *  Ergometri: quattro turni, e scendere dal remo coi piedi legati costa. Slitte:
- *  una vasca a testa. Farmers: 100 m a testa. Wall ball: sei blocchi, il cambio è
- *  un passaggio di palla. Ipotesi, da sostituire coi tuoi turni veri. */
-export const TURNI_DOUBLE: Record<string, { turni: number; cambioSec: number }> = {
-  hx_ski:    { turni: 4, cambioSec: 5 },
-  hx_sled_p: { turni: 4, cambioSec: 3 },
-  hx_sled_u: { turni: 4, cambioSec: 4 },
-  hx_bbj:    { turni: 4, cambioSec: 2 },
-  hx_row:    { turni: 4, cambioSec: 6 },
-  hx_farm:   { turni: 2, cambioSec: 3 },
-  hx_lunge:  { turni: 4, cambioSec: 4 },
-  hx_wb:     { turni: 6, cambioSec: 2 },
-}
-const TURNI_DEFAULT = { turni: 4, cambioSec: 3 }
-
-/** Da una stazione fatta da solo e fresco, al tempo della coppia in gara. Ogni
- *  turno è 1/turni della distanza: con Riegel il totale è fresco × turni^(1−k),
- *  più i cambi.
- *
- *  k qui è sempre quello di partenza, mai quello tarato su di te. Il k personale
- *  può scendere fino a 1, e con k = 1 i turni non farebbero guadagnare niente:
- *  restavano solo i secondi dei cambi, e la coppia usciva PIÙ LENTA di te da
- *  solo. E un k che dipende dalle gare in double, usato per leggere le gare in
- *  double, girerebbe in tondo. */
-export function stazioneDouble(fresco: number, id: string): number {
-  const p = TURNI_DOUBLE[id] ?? TURNI_DEFAULT
-  const k = ESPONENTE[id] ?? ESPONENTE_DEFAULT
-  return fresco * Math.pow(p.turni, 1 - k) + (p.turni - 1) * p.cambioSec
-}
-
-/** L'inverso: da una stazione di una gara in coppia, a te da solo e fresco. Il
- *  tetto al raddoppio protegge da un tempo registrato male (pochi secondi), che
- *  tolti i cambi diventerebbe zero o negativo. */
-function stazioneDaDouble(sec: number, id: string): number {
-  const p = TURNI_DOUBLE[id] ?? TURNI_DEFAULT
-  const k = ESPONENTE[id] ?? ESPONENTE_DEFAULT
-  const netto = (sec - (p.turni - 1) * p.cambioSec) / Math.pow(p.turni, 1 - k)
-  return Math.min(sec * 2, Math.max(sec, netto))
-}
-
-/** Passo 1: una sessione riportata a "tu, da solo, fresco", sulla SUA distanza.
- *  La categoria serve a leggere le gare: una gara registrata vale per quella che
- *  corri (double o singolo). */
-export function secFresco(h: Pick<HyroxHistoryEntry, 'sec'>, id: string, contesto: Contesto, categoria: Categoria): number {
-  if (isCorsa(id)) {
-    if (contesto === 'gara') return h.sec / FATICA_CORSA[categoria]
-    if (contesto === 'simulazione') return h.sec / FATICA_CORSA_SIMULAZIONE
-    return h.sec
-  }
-  if (contesto === 'gara' && categoria === 'double') return stazioneDaDouble(h.sec, id)
-  return h.sec
-}
-
-/** Quanto possono stare lontane un'intera e una mezza per dire qualcosa sulla
- *  distanza. Oltre, la differenza fra le due è soprattutto forma cambiata: una
- *  gara di giugno e una simulazione di settembre darebbero un k che si mangia il
- *  miglioramento, e la simulazione non abbasserebbe mai la stima. */
-export const GIORNI_K = 21
-const GIORNO_MS = 86_400_000
-
-/** k ricavato dai tuoi tempi: serve un'intera e una mezza vicine nel tempo.
- *  Si confrontano dopo averle riportate entrambe a "fresco, da solo", così una
- *  gara e una simulazione non scambiano la fatica di gara per fatica da distanza. */
-export function esponentePersonale(seg: Segmento, giorni: GiorniDiGara, categoria: Categoria, kBase: number): number | null {
-  const ord = sortedHistory(seg.history)
-  const fresco = (h: HyroxHistoryEntry) => secFresco(h, seg.id, contestoSessione(h, seg.target, giorni), categoria)
-  const tutteIntere = sessioniDel(ord, seg.target, 'intero')
-  const vicina = (m: HyroxHistoryEntry) => tutteIntere.some(i => Math.abs(Date.parse(i.date) - Date.parse(m.date)) <= GIORNI_K * GIORNO_MS)
-  const mezze = sessioniDel(ord, seg.target, 'mezzo').filter(vicina).slice(-RECENTI)
-  if (!mezze.length) return null
-  const ultimaMezza = Date.parse(mezze[mezze.length - 1].date)
-  const primaMezza = Date.parse(mezze[0].date)
-  const intere = tutteIntere
-    .filter(i => Date.parse(i.date) >= primaMezza - GIORNI_K * GIORNO_MS && Date.parse(i.date) <= ultimaMezza + GIORNI_K * GIORNO_MS)
-    .slice(-RECENTI)
-  if (!intere.length) return null
-  const tIntera = media(intere.map(h => proietta(fresco(h), h.units, seg.target, kBase)))
-  const tMezza  = media(mezze.map(h => proietta(fresco(h), h.units, seg.target / 2, kBase)))
-  if (!(tIntera > 0) || !(tMezza > 0)) return null
-  return Math.min(K_MAX, Math.max(K_MIN, Math.log2(tIntera / tMezza)))
-}
-
-const ORDINE_CONTESTI: Contesto[] = ['gara', 'simulazione', 'allenamento']
-
-export interface StimaSegmento {
-  /** Tu, da solo, fresco, sulla distanza di gara, in secondi. `null` se mancano i
-   *  dati (e il profilo non basta a completarli). */
-  fresco: number | null
-  /** misura = dalle tue sessioni; profilo = completato dagli altri segmenti. */
-  fonte: 'misura' | 'profilo' | 'mancante'
-  /** Da che tipo di sessioni viene, in ordine di peso. */
-  contesti: Contesto[]
-  /** Almeno una delle sessioni usate era a metà distanza. */
-  daMezza: boolean
-  k: number
-  /** true = k ricavato dai tuoi tempi, false = ipotesi di partenza. */
-  kPersonale: boolean
-  /** Quante sessioni entrano nella stima. */
-  sessioni: number
-}
-
-/** Passo 1 per un segmento intero.
- *
- *  Gare e simulazioni, quando ci sono, vincono sull'allenamento: sono state fatte
- *  con tutto il resto intorno, e il ritmo tenuto lì vale più di un 500 m a gambe
- *  fresche. L'allenamento serve dove di gare non ce n'è. Fra le sessioni scelte
- *  contano le ultime tre, intere o mezze che siano: la forma di oggi. */
-export function stimaSegmento(seg: Segmento, giorni: GiorniDiGara, categoria: Categoria): StimaSegmento {
-  const kBase = ESPONENTE[seg.id] ?? ESPONENTE_DEFAULT
-  const kPers = esponentePersonale(seg, giorni, categoria, kBase)
-  const k = kPers ?? kBase
-  const base = { k, kPersonale: kPers !== null }
-
-  const valide = sortedHistory(seg.history).filter(h => h.sec > 0)
-  const contesto = (h: HyroxHistoryEntry) => contestoSessione(h, seg.target, giorni)
-  const daGara = valide.filter(h => contesto(h) !== 'allenamento')
-  const usate = (daGara.length ? daGara : valide).slice(-RECENTI)
-  if (!usate.length) return { ...base, fresco: null, fonte: 'mancante', contesti: [], daMezza: false, sessioni: 0 }
-
-  const fresco = media(usate.map(h => proietta(secFresco(h, seg.id, contesto(h), categoria), h.units, seg.target, k)))
-  return {
-    ...base,
-    fresco,
-    fonte: 'misura',
-    contesti: ORDINE_CONTESTI.filter(c => usate.some(h => contesto(h) === c)),
-    daMezza: usate.some(h => formatoSessione(h, seg.target) === 'mezzo'),
-    sessioni: usate.length,
-  }
-}
-
-// ── Passo 2: il profilo ────────────────────────────────────────
-/** Un'amatore di riferimento, da solo e fresco, sulla distanza di gara. Non conta
- *  il valore assoluto: conta la PROPORZIONE fra i segmenti, che serve a dire
- *  quanto verrebbe una stazione mai registrata sapendo come vai nelle altre. */
+// ── Il profilo, per i segmenti che mancano ──────────────────────
+/** Un'amatore di riferimento, da solo e fresco, sulla distanza di gara (la
+ *  corsa è al km). Non conta il valore assoluto: conta la PROPORZIONE fra i
+ *  segmenti, che dice quanto verrebbe una stazione mai registrata sapendo come
+ *  vai nelle altre. */
 export const RIFERIMENTO: Record<string, number> = {
   hx_run:    300,   // 5:00 al km
   hx_ski:    270,
@@ -315,110 +115,268 @@ export const RIFERIMENTO: Record<string, number> = {
  *  la stima resta parziale invece di inventare il resto. */
 export const MIN_PER_PROFILO = 3
 
-// ── Passo 3: la gara ───────────────────────────────────────────
-/** Ogni stazione si entra e si esce passando dalla Roxzone: 8 × 2. */
+// ── La Roxzone ─────────────────────────────────────────────────
+/** Senza una gara registrata la Roxzone è un'ipotesi: ogni stazione si entra e
+ *  si esce passando di lì (8 × 2), e a un amatore ogni passaggio costa sui 25 s. */
 export const ROXZONE_PASSAGGI = 16
-/** Ipotesi per un amatore: il cambio, la ricerca della propria corsia, il tempo
- *  per riprendere fiato. Uguale in double: si entra e si esce insieme. */
 export const ROXZONE_SEC = 25
 
-export interface TempiGara {
-  /** Un chilometro di gara, con la sua fatica. */
-  corsaKm: number
-  /** La fatica aggiunta alla corsa, sugli 8 km. */
-  faticaCorsa: number
-  corsa: number
-  stazioni: number
-  roxzone: number
-  totale: number
-  /** Il tempo di gara di ogni stazione, per id. */
-  perStazione: Record<string, number>
+/** Il "nell'ultimo mese" accanto alla stima e alle stazioni. */
+export const GIORNI_DELTA = 30
+
+// ── La stima ───────────────────────────────────────────────────
+/** Da dove viene un tempo. È quello che la pagina scrive sotto ogni numero. */
+export type Fonte =
+  | { tipo: 'allenamento'; data: string }
+  /** Una sessione a metà distanza, portata all'intera con Riegel. */
+  | { tipo: 'mezza'; data: string; daUnita: number; k: number }
+  | { tipo: 'gara' | 'simulazione'; data: string }
+  | { tipo: 'profilo' }
+  | { tipo: 'ipotesi' }
+
+export interface PB {
+  /** Sulla distanza di gara, in secondi. `null` = nessun dato. */
+  sec: number | null
+  fonte: Fonte | null
+  /** Rispetto a un mese fa, in secondi: negativo = migliorato. `null` se un
+   *  mese fa il tempo non c'era, o se uno dei due è supposto e non misurato. */
+  delta: number | null
 }
 
-export interface StimaGara {
-  categoria: Categoria
-  corsa: StimaSegmento
-  stazioni: Array<{ ex: HyroxExercise; stima: StimaSegmento }>
+export interface StimaPB {
+  /** La categoria della stima: quella della tua ultima gara registrata. `null`
+   *  senza gare — gli allenamenti valgono per entrambe. */
+  categoria: Categoria | null
+  /** Gli 8 km. `passoKm` è il passo che li fa. */
+  corsa: PB & { passoKm: number | null }
+  stazioni: Array<{ id: string; pb: PB }>
+  roxzone: PB
+  parti: { corsa: number; stazioni: number; roxzone: number } | null
+  totale: number | null
+  /** Il totale rispetto a un mese fa. */
+  delta: number | null
   misurati: number
   daProfilo: number
-  totaleSegmenti: number
-  /** Quanto sei più lento (>1) o più veloce (<1) del riferimento. */
-  fattoreProfilo: number | null
-  /** I giorni di gara e simulazione trovati, i più recenti per ultimi. */
-  gare: string[]
-  simulazioni: string[]
-  /** La gara nelle due categorie; `null` se i dati non bastano. */
-  tempi: Record<Categoria, TempiGara | null>
-  /** Quanto fidarsi, in secondi, sul totale della categoria scelta: ± margine. */
-  margine: number | null
 }
 
-function tempiGara(categoria: Categoria, corsa: StimaSegmento, stazioni: Array<{ ex: HyroxExercise; stima: StimaSegmento }>): TempiGara | null {
-  if (corsa.fresco === null || stazioni.some(s => s.stima.fresco === null)) return null
-  const corsaKm = corsa.fresco * FATICA_CORSA[categoria]
-  const perStazione: Record<string, number> = {}
-  for (const { ex, stima } of stazioni) {
-    perStazione[ex.id] = categoria === 'double' ? stazioneDouble(stima.fresco!, ex.id) : stima.fresco!
+type Segmento = Pick<HyroxExercise, 'id' | 'target' | 'history'>
+interface Candidato { sec: number; fonte: Fonte }
+
+const migliore = (c: Candidato[]): Candidato | null =>
+  c.reduce<Candidato | null>((m, x) => (m === null || x.sec < m.sec ? x : m), null)
+
+const misurato = (f: Fonte | null) => f !== null && f.tipo !== 'profilo' && f.tipo !== 'ipotesi'
+
+/** Le sessioni fino a quel giorno (incluso). Senza `fino`, tutte. */
+const entro = (data: string | undefined, fino?: string) => !fino || !data || data <= fino
+
+/** Il miglior tempo di una stazione. Una sessione intera, di allenamento o di
+ *  gara, vince sempre su una mezza: la mezza serve solo dove di intere non ce
+ *  n'è, perché la sua proiezione è una supposizione. Le gare contano solo se
+ *  della categoria della stima — in double la stazione si fa in due. */
+function pbStazione(ex: Segmento, gare: HyroxGara[], categoria: Categoria | null, fino?: string): Candidato | null {
+  const k = ESPONENTE[ex.id] ?? ESPONENTE_DEFAULT
+  const intere: Candidato[] = []
+  const mezze: Candidato[] = []
+  for (const h of ex.history) {
+    if (!(h.sec > 0) || !entro(h.date, fino)) continue
+    const sec = proietta(h.sec, h.units, ex.target, k)
+    if (formatoSessione(h, ex.target) === 'intero') intere.push({ sec, fonte: { tipo: 'allenamento', data: h.date } })
+    else mezze.push({ sec, fonte: { tipo: 'mezza', data: h.date, daUnita: h.units, k } })
   }
-  const corsaTot = corsaKm * 8
-  const stazioniTot = Object.values(perStazione).reduce((s, x) => s + x, 0)
-  const roxzone = ROXZONE_PASSAGGI * ROXZONE_SEC
-  return {
-    corsaKm, corsa: corsaTot, stazioni: stazioniTot, roxzone,
-    faticaCorsa: corsaTot - corsa.fresco * 8,
-    totale: corsaTot + stazioniTot + roxzone,
-    perStazione,
+  for (const g of gare) {
+    const sec = g.stazioni[ex.id]
+    if (!(sec > 0) || !entro(g.date, fino) || (categoria && g.categoria !== categoria)) continue
+    intere.push({ sec, fonte: { tipo: g.tipo, data: g.date } })
   }
+  return migliore(intere) ?? migliore(mezze)
 }
 
-/** `categoria` è quella che corri: dice come leggere le gare registrate e quale
- *  tempo mettere in primo piano. L'altra categoria nasce dagli STESSI tempi
- *  freschi — cambia solo il passo 3 — così il confronto fra le due è onesto. */
-export function stimaGara(corsaEx: HyroxExercise, stazioniEx: HyroxExercise[], categoria: Categoria): StimaGara {
-  const giorni = giorniDiGara([corsaEx, ...stazioniEx])
-  const corsa = stimaSegmento(corsaEx, giorni, categoria)
-  const stazioni = stazioniEx.map(ex => ({ ex, stima: stimaSegmento(ex, giorni, categoria) }))
-  const tutti = [{ id: corsaEx.id, stima: corsa }, ...stazioni.map(s => ({ id: s.ex.id, stima: s.stima }))]
+/** Il miglior passo al km. Dalle sessioni di corsa (registrate al km, o su più
+ *  km: il passo è la media) e dalle gare, dove gli 8 km si fanno in due anche in
+ *  double — corrono tutti e due — quindi valgono in entrambe le categorie. */
+function pbCorsa(ex: Segmento, gare: HyroxGara[], fino?: string): Candidato | null {
+  const k = ESPONENTE[ex.id] ?? ESPONENTE_DEFAULT
+  const intere: Candidato[] = []
+  const mezze: Candidato[] = []
+  for (const h of ex.history) {
+    if (!(h.sec > 0) || !(h.units > 0) || !entro(h.date, fino)) continue
+    if (formatoSessione(h, ex.target) === 'intero') intere.push({ sec: h.sec / h.units, fonte: { tipo: 'allenamento', data: h.date } })
+    else mezze.push({ sec: proietta(h.sec, h.units, 1, k), fonte: { tipo: 'mezza', data: h.date, daUnita: h.units, k } })
+  }
+  for (const g of gare) {
+    if (!(g.corsa > 0) || !entro(g.date, fino)) continue
+    intere.push({ sec: g.corsa / 8, fonte: { tipo: g.tipo, data: g.date } })
+  }
+  return migliore(intere) ?? migliore(mezze)
+}
 
-  // Passo 2: il profilo si misura dove ci sono dati, e completa dove mancano.
-  const misurati = tutti.filter(s => s.stima.fresco !== null).length
-  const rapporti = tutti
-    .filter(s => s.stima.fresco !== null && RIFERIMENTO[s.id])
-    .map(s => s.stima.fresco! / RIFERIMENTO[s.id])
-  const fattore = rapporti.length >= MIN_PER_PROFILO ? mediana(rapporti) : null
+function pbRoxzone(gare: HyroxGara[], fino?: string): Candidato {
+  const viste = gare
+    .filter(g => g.roxzone > 0 && entro(g.date, fino))
+    .map(g => ({ sec: g.roxzone, fonte: { tipo: g.tipo, data: g.date } as Fonte }))
+  return migliore(viste) ?? { sec: ROXZONE_PASSAGGI * ROXZONE_SEC, fonte: { tipo: 'ipotesi' } }
+}
+
+interface Calcolo {
+  corsaKm: Candidato | null
+  stazioni: Array<{ id: string; c: Candidato | null }>
+  roxzone: Candidato
+  totale: number | null
+  misurati: number
+  daProfilo: number
+}
+
+function calcola(corsaEx: Segmento, stazioniEx: Segmento[], gare: HyroxGara[], categoria: Categoria | null, fino?: string): Calcolo {
+  let corsaKm = pbCorsa(corsaEx, gare, fino)
+  const stazioni = stazioniEx.map(ex => ({ id: ex.id, c: pbStazione(ex, gare, categoria, fino) }))
+  const roxzone = pbRoxzone(gare, fino)
+
+  // Il profilo: quanto sei più lento o più veloce del riferimento dove ci sono
+  // dati, applicato dove non ce n'è. La corsa entra col suo passo al km.
+  const misurati = (corsaKm ? 1 : 0) + stazioni.filter(s => s.c).length
+  const rapporti = [
+    ...(corsaKm && RIFERIMENTO[corsaEx.id] ? [corsaKm.sec / RIFERIMENTO[corsaEx.id]] : []),
+    ...stazioni.filter(s => s.c && RIFERIMENTO[s.id]).map(s => s.c!.sec / RIFERIMENTO[s.id]),
+  ]
   let daProfilo = 0
-  if (fattore !== null) {
-    for (const s of tutti) {
-      if (s.stima.fresco === null && RIFERIMENTO[s.id]) {
-        s.stima.fresco = RIFERIMENTO[s.id] * fattore
-        s.stima.fonte = 'profilo'
+  if (rapporti.length >= MIN_PER_PROFILO) {
+    const fattore = mediana(rapporti)
+    if (!corsaKm && RIFERIMENTO[corsaEx.id]) {
+      corsaKm = { sec: RIFERIMENTO[corsaEx.id] * fattore, fonte: { tipo: 'profilo' } }
+      daProfilo++
+    }
+    for (const s of stazioni) {
+      if (!s.c && RIFERIMENTO[s.id]) {
+        s.c = { sec: RIFERIMENTO[s.id] * fattore, fonte: { tipo: 'profilo' } }
         daProfilo++
       }
     }
   }
 
-  // Passo 3, nelle due categorie.
-  const tempi: Record<Categoria, TempiGara | null> = {
-    double:  tempiGara('double', corsa, stazioni),
-    singolo: tempiGara('singolo', corsa, stazioni),
-  }
+  const completa = corsaKm !== null && stazioni.every(s => s.c !== null)
+  const totale = completa
+    ? corsaKm!.sec * 8 + stazioni.reduce((t, s) => t + s.c!.sec, 0) + roxzone.sec
+    : null
+  return { corsaKm, stazioni, roxzone, totale, misurati, daProfilo }
+}
 
-  // Il margine cresce con quello che la stima deve supporre invece di misurare:
-  // una base del 3%, un punto e mezzo per ogni segmento dal profilo, tre punti se
-  // non c'è nessuna gara né simulazione a dare il ritmo vero.
-  const conGara = giorni.gara.size > 0 || giorni.simulazione.size > 0
-  const quota = 0.03 + 0.015 * daProfilo + (conGara ? 0 : 0.03)
-  const scelti = tempi[categoria]
+/** Un giorno ISO spostato di `giorni`, senza passare dal fuso del telefono. */
+function spostaGiorni(iso: string, giorni: number): string {
+  const d = new Date(`${iso}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + giorni)
+  return d.toISOString().slice(0, 10)
+}
+
+const differenza = (ora: Candidato | null, prima: Candidato | null, scala = 1): number | null =>
+  ora && prima && misurato(ora.fonte) && misurato(prima.fonte) ? Math.round((ora.sec - prima.sec) * scala) : null
+
+/** La categoria della stima: quella dell'ultima gara registrata. */
+export function categoriaStima(gare: HyroxGara[]): Categoria | null {
+  const ultima = [...gare].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).pop()
+  return ultima?.categoria ?? null
+}
+
+/** Il tempo di gara stimato: la somma dei tuoi PB, e com'era un mese fa. */
+export function stimaPB(corsaEx: Segmento, stazioniEx: Segmento[], gare: HyroxGara[], oggi: string): StimaPB {
+  const categoria = categoriaStima(gare)
+  const ora = calcola(corsaEx, stazioniEx, gare, categoria)
+  const prima = calcola(corsaEx, stazioniEx, gare, categoria, spostaGiorni(oggi, -GIORNI_DELTA))
+
+  const pb = (c: Candidato | null, d: number | null): PB => ({ sec: c?.sec ?? null, fonte: c?.fonte ?? null, delta: d })
+  const corsaSec = ora.corsaKm ? ora.corsaKm.sec * 8 : null
+  const stazioniSec = ora.stazioni.every(s => s.c) ? ora.stazioni.reduce((t, s) => t + s.c!.sec, 0) : null
 
   return {
-    categoria, corsa, stazioni, misurati, daProfilo,
-    totaleSegmenti: stazioniEx.length + 1,
-    fattoreProfilo: fattore,
-    gare: [...giorni.gara].sort(),
-    simulazioni: [...giorni.simulazione].sort(),
-    tempi,
-    margine: scelti ? scelti.totale * quota : null,
+    categoria,
+    corsa: {
+      sec: corsaSec,
+      fonte: ora.corsaKm?.fonte ?? null,
+      delta: differenza(ora.corsaKm, prima.corsaKm, 8),
+      passoKm: ora.corsaKm?.sec ?? null,
+    },
+    stazioni: ora.stazioni.map((s, i) => ({ id: s.id, pb: pb(s.c, differenza(s.c, prima.stazioni[i].c)) })),
+    roxzone: pb(ora.roxzone, differenza(ora.roxzone, prima.roxzone)),
+    parti: ora.totale !== null ? { corsa: corsaSec!, stazioni: stazioniSec!, roxzone: ora.roxzone.sec } : null,
+    totale: ora.totale,
+    delta: ora.totale !== null && prima.totale !== null ? Math.round(ora.totale - prima.totale) : null,
+    misurati: ora.misurati,
+    daProfilo: ora.daProfilo,
   }
+}
+
+/** Il tempo totale di una gara registrata. */
+export function totaleGara(g: Pick<HyroxGara, 'corsa' | 'stazioni' | 'roxzone'>): number {
+  return g.corsa + Object.values(g.stazioni).reduce((t, x) => t + (x > 0 ? x : 0), 0) + g.roxzone
+}
+
+// ── Le giornate da controllare ─────────────────────────────────
+/** Da quante stazioni registrate a metà distanza nello stesso giorno quel giorno
+ *  merita una domanda: cinque mezze stazioni in un pomeriggio sono più spesso
+ *  una simulazione intera registrata con l'interruttore su "500 m" che una
+ *  mezza simulazione vera. */
+export const SOGLIA_GIORNATA = 5
+
+/** I giorni con almeno `SOGLIA_GIORNATA` segmenti registrati a metà distanza,
+ *  dal più recente. Chi chiama decide cosa chiedere. */
+export function giornateAMeta(segmenti: Segmento[]): Array<{ data: string; segmenti: string[] }> {
+  const perGiorno = new Map<string, Set<string>>()
+  for (const s of segmenti) {
+    for (const h of s.history) {
+      if (!h.date || formatoSessione(h, s.target) !== 'mezzo') continue
+      const ids = perGiorno.get(h.date) ?? new Set<string>()
+      ids.add(s.id)
+      perGiorno.set(h.date, ids)
+    }
+  }
+  return [...perGiorno]
+    .filter(([, ids]) => ids.size >= SOGLIA_GIORNATA)
+    .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+    .map(([data, ids]) => ({ data, segmenti: [...ids] }))
+}
+
+/** Le sessioni a metà di quel giorno riportate alla distanza di gara: il tempo
+ *  resta quello, cambia solo la distanza a cui si riferisce. */
+export function aDistanzaIntera(history: HyroxHistoryEntry[], target: number, data: string): HyroxHistoryEntry[] {
+  return history.map(h => (h.date === data && formatoSessione(h, target) === 'mezzo' ? { ...h, units: target } : h))
+}
+
+/** "−0:08", "+1:05": quanto è cambiato un tempo. */
+export function fmtDelta(sec: number): string {
+  const a = Math.abs(Math.round(sec))
+  const testo = a >= 3600 ? fmtTempoGara(a) : `${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}`
+  return `${sec < 0 ? '−' : '+'}${testo}`
+}
+
+// ── Il campo tempo ─────────────────────────────────────────────
+// Si battono solo le cifre e i due punti li mette il campo (vedi RegistraGaraModal).
+
+/** Le cifre battute come tempo: "425" → 4:25, "11500" → 1:15:00. */
+export function cifreInTempo(cifre: string): string {
+  const c = cifre.replace(/\D/g, '').replace(/^0+/, '')
+  if (!c) return ''
+  const p = c.padStart(3, '0')
+  const sec = p.slice(-2)
+  const resto = p.slice(0, -2)
+  if (resto.length <= 2) return `${Number(resto)}:${sec}`
+  return `${Number(resto.slice(0, -2))}:${resto.slice(-2)}:${sec}`
+}
+
+/** I secondi di quelle cifre; `null` se minuti o secondi passano 59. */
+export function cifreInSec(cifre: string): number | null {
+  const c = cifre.replace(/\D/g, '')
+  if (!c) return 0
+  const n = c.padStart(6, '0')
+  const h = Number(n.slice(0, -4)), m = Number(n.slice(-4, -2)), s = Number(n.slice(-2))
+  if (s > 59 || (h > 0 && m > 59)) return null
+  return h * 3600 + m * 60 + s
+}
+
+/** L'inverso, per riaprire una gara già registrata. */
+export function secInCifre(sec: number): string {
+  if (!(sec > 0)) return ''
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60
+  return h > 0 ? `${h}${String(m).padStart(2, '0')}${String(s).padStart(2, '0')}` : `${m}${String(s).padStart(2, '0')}`
 }
 
 /** Un tempo di gara si scrive con le ore: "1:12:40", non "72:40". */

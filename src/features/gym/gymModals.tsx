@@ -15,16 +15,16 @@ import { NucEyebrow } from '@/components/ui/NucComponents'
 import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import type { HyroxExercise, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
+import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import {
   MUSCLE_COLORS, COLOR_PALETTE,
   displayMuscle, fmtKg, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
-  effectiveLoad, sortedHistory, fmtTime, colpiMigliori,
+  effectiveLoad, sortedHistory, fmtTime, colpiMigliori, RACE_STATIONS,
   } from './gymModel'
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
-import { type FormatoHyrox, unitaFormato, distanzaLeggibile } from './hyroxStima'
+import { type FormatoHyrox, unitaFormato, distanzaLeggibile, fmtTempoGara, cifreInTempo, cifreInSec, secInCifre } from './hyroxStima'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { todayISO } from '@/lib/isoDate'
@@ -136,6 +136,144 @@ export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }:
         )}
 
         <button onClick={save} className="j-btn-accent">{t('Salva')}</button>
+      </div>
+    </JModal>
+  )
+}
+
+// ── Registra una gara Hyrox ────────────────────────────────────
+// Una gara o una simulazione intera, in un colpo solo: la corsa, le otto
+// stazioni, la Roxzone. Undici tempi da scrivere uno dopo l'altro, quindi il
+// campo è fatto per scriverli in fretta: si battono solo le cifre e i due punti
+// li mette lui — "425" è 4:25, "4040" è 40:40. Sul tastierino numerico del
+// telefono i due punti non ci sono, e due campi minuti/secondi per tempo
+// sarebbero ventidue caselle.
+
+function CampoTempo({ cifre, onChange, etichetta }: { cifre: string; onChange: (c: string) => void; etichetta: string }) {
+  const sbagliato = cifreInSec(cifre) === null
+  return (
+    <input
+      value={cifreInTempo(cifre)}
+      onChange={e => onChange(e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 6))}
+      inputMode="numeric"
+      placeholder="0:00"
+      aria-label={etichetta}
+      aria-invalid={sbagliato || undefined}
+      className="j-field"
+      style={{
+        width: 104, flexShrink: 0, textAlign: 'right', fontFamily: NUC.tempo,
+        ...(sbagliato ? { borderColor: 'var(--danger)' } : {}),
+      }}
+    />
+  )
+}
+
+export function RegistraGaraModal({ open, onClose, gara, categoriaPredefinita, onSave }: {
+  open: boolean; onClose: () => void
+  /** Quella da modificare; `null` per una nuova. */
+  gara: HyroxGara | null
+  /** La categoria proposta a una gara nuova: quella dell'ultima registrata. */
+  categoriaPredefinita: HyroxGara['categoria']
+  onSave: (g: HyroxGara) => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const [tipo, setTipo] = useState<HyroxGara['tipo']>('gara')
+  const [categoria, setCategoria] = useState<HyroxGara['categoria']>(categoriaPredefinita)
+  const [date, setDate] = useState(todayISO())
+  const [corsa, setCorsa] = useState('')
+  const [stazioni, setStazioni] = useState<Record<string, string>>({})
+  const [roxzone, setRoxzone] = useState('')
+
+  // Il modale resta montato: si riempie a ogni apertura, con la gara da
+  // modificare o vuoto.
+  useEffect(() => {
+    if (!open) return
+    setTipo(gara?.tipo ?? 'gara')
+    setCategoria(gara?.categoria ?? categoriaPredefinita)
+    setDate(gara?.date ?? todayISO())
+    setCorsa(secInCifre(gara?.corsa ?? 0))
+    setStazioni(Object.fromEntries(RACE_STATIONS.map(r => [r.id, secInCifre(gara?.stazioni[r.id] ?? 0)])))
+    setRoxzone(secInCifre(gara?.roxzone ?? 0))
+    // Si riempie all'apertura, non a ogni cambio della categoria proposta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, gara])
+
+  const tempi = [corsa, roxzone, ...RACE_STATIONS.map(r => stazioni[r.id] ?? '')]
+  const sbagliati = tempi.some(c => cifreInSec(c) === null)
+  const mancanti = tempi.filter(c => !(cifreInSec(c) ?? 0)).length
+  const valori = {
+    corsa: cifreInSec(corsa) ?? 0,
+    roxzone: cifreInSec(roxzone) ?? 0,
+    stazioni: Object.fromEntries(RACE_STATIONS.map(r => [r.id, cifreInSec(stazioni[r.id] ?? '') ?? 0]).filter(([, v]) => (v as number) > 0)) as Record<string, number>,
+  }
+  const totale = valori.corsa + valori.roxzone + Object.values(valori.stazioni).reduce((a, b) => a + b, 0)
+  const valida = totale > 0 && !sbagliati && /^\d{4}-\d{2}-\d{2}$/.test(date)
+
+  const save = () => {
+    if (!valida) return
+    onSave({ id: gara?.id ?? uid(), date, tipo, categoria, ...valori })
+    onClose()
+  }
+
+  const riga = (nome: string, sotto: string, campo: React.ReactNode) => (
+    <div key={nome} className="flex items-center justify-between gap-3" style={{ padding: '5px 0' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
+        <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint }}>{sotto}</div>
+      </div>
+      {campo}
+    </div>
+  )
+
+  return (
+    <JModal open={open} onClose={onClose} title={gara ? t('Modifica gara') : t('Registra una gara')} width={380}>
+      <div className="flex flex-col gap-2.5">
+        <FormatoSwitch<HyroxGara['tipo']>
+          valore={tipo} onChange={setTipo}
+          valori={['gara', 'simulazione']} etichette={[t('Gara'), t('Simulazione')]}
+          etichettaGruppo={t('Tipo')}
+        />
+        <FormatoSwitch<HyroxGara['categoria']>
+          valore={categoria} onChange={setCategoria}
+          valori={['double', 'singolo']} etichette={[t('Double'), t('Singolo')]}
+          etichettaGruppo={t('Categoria')}
+        />
+
+        <div className="j-eyebrow mb-0.5 mt-1">{t('Data')}</div>
+        <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
+
+        <div className="j-eyebrow mt-2">{t('Tempi')}</div>
+        <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, lineHeight: 1.5, marginTop: -4 }}>
+          {t('Solo le cifre: 425 diventa 4:25, 4040 diventa 40:40. Un tempo lasciato vuoto non conta.')}
+        </div>
+        <div>
+          {riga(t('Corsa'), t('8 km, sommati'), <CampoTempo cifre={corsa} onChange={setCorsa} etichetta={t('Corsa')}/>)}
+          {RACE_STATIONS.map(r => riga(
+            tData(r.n), distanzaLeggibile(r.target, r.unit),
+            <CampoTempo cifre={stazioni[r.id] ?? ''} onChange={c => setStazioni(st => ({ ...st, [r.id]: c }))} etichetta={tData(r.n)}/>,
+          ))}
+          {riga(t('Roxzone'), t('tutti i passaggi, sommati'), <CampoTempo cifre={roxzone} onChange={setRoxzone} etichetta={t('Roxzone')}/>)}
+        </div>
+
+        <div className="flex items-baseline justify-between gap-3" style={{
+          marginTop: 4, padding: '10px 12px', borderRadius: 'var(--radius)',
+          background: 'var(--surface-2)', border: '1px solid var(--hairline)',
+        }}>
+          <span className="j-eyebrow">{t('Totale')}</span>
+          <span style={{ textAlign: 'right' }}>
+            <span style={{ display: 'block', fontFamily: NUC.tempo, fontSize: 20, color: totale > 0 ? NUC.ink : NUC.faint }}>
+              {totale > 0 ? fmtTempoGara(totale) : '—'}
+            </span>
+            {totale > 0 && mancanti > 0 && (
+              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: 'var(--tertiary-ink)', marginTop: 2 }}>
+                {mancanti === 1 ? t('1 tempo mancante: totale parziale') : t('{n} tempi mancanti: totale parziale', { n: mancanti })}
+              </span>
+            )}
+          </span>
+        </div>
+
+        <button onClick={save} disabled={!valida} className="j-btn-accent" style={{ opacity: valida ? 1 : 0.5 }}>{t('Salva')}</button>
       </div>
     </JModal>
   )

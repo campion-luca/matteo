@@ -14,18 +14,41 @@ import { useIsDesktop } from '@/hooks/useIsDesktop'
 // che si apre compare accanto: si passa da un esercizio all'altro senza mai perdere
 // di vista da dove si è partiti.
 //
-// `master` è la colonna che NON si chiude (l'elenco su cui si sta navigando),
-// `detail` la pagina aperta. Quando `detail` è nullo la seconda colonna resta al
-// suo posto con `vuoto` dentro: non si allarga e non si restringe: una colonna che
-// cambia larghezza a ogni click farebbe ballare tutto l'elenco a sinistra.
-export function SplitPane({ master, detail, vuoto }: {
-  master: ReactNode
+// `radice` è la pagina di partenza, `master` l'elenco aperto sopra di lei (se
+// c'è): insieme fanno la colonna che NON si chiude. `detail` è la pagina aperta.
+// Quando `detail` è nullo la seconda colonna resta al suo posto con `vuoto`
+// dentro: non si allarga e non si restringe: una colonna che cambia larghezza a
+// ogni click farebbe ballare tutto l'elenco a sinistra.
+//
+// Da telefono gli strati sono una PILA, e quelli coperti restano montati, solo
+// nascosti. Prima si mostrava lo strato più alto e basta, cioè ogni pagina aperta
+// distruggeva quella sotto: tornare indietro voleva dire ricostruire da capo la
+// home — testata, settimana, carosello — con lo scorrimento di nuovo in cima.
+// Adesso l'indietro toglie lo strato di sopra, e sotto c'è la pagina com'era.
+//
+// `intero` è per le pagine che non aprono niente accanto (le statistiche): la
+// prima colonna prende tutta la larghezza. Sta qui dentro e non in un `return`
+// diverso di chi chiama perché cambiare il contenitore fa smontare e rimontare
+// tutto quello che c'è sotto — testata, settimana, carosello — a ogni tocco su
+// Statistiche, con lo scorrimento che torna in cima.
+export function SplitPane({ radice, master = null, detail, vuoto, intero = false }: {
+  radice: ReactNode
+  master?: ReactNode | null
   detail: ReactNode | null
   vuoto?: ReactNode
+  intero?: boolean
 }) {
   const isDesktop = useIsDesktop()
 
-  if (!isDesktop) return <>{detail ?? master}</>
+  if (!isDesktop) {
+    return (
+      <>
+        <Strato coperto={!!(master || detail)}>{radice}</Strato>
+        {master && <Strato coperto={!!detail}>{master}</Strato>}
+        {detail && <Strato coperto={false}>{detail}</Strato>}
+      </>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -36,19 +59,33 @@ export function SplitPane({ master, detail, vuoto }: {
         // come due metà ma come una barra laterale. A metà precisa il rapporto
         // resta lo stesso a ogni larghezza, e l'elenco cresce insieme alla scheda
         // che apre.
-        width: '50%',
+        width: intero ? '100%' : '50%',
         flexShrink: 0,
         height: '100%',
         overflow: 'hidden',
-        borderRight: '1px solid var(--hairline)',
+        borderRight: intero ? 'none' : '1px solid var(--hairline)',
         display: 'flex', flexDirection: 'column',
         position: 'relative',
       }}>
-        {master}
+        {master ?? radice}
       </div>
-      <div style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', position: 'relative', display: intero ? 'none' : undefined }}>
         {detail ?? vuoto}
       </div>
+    </div>
+  )
+}
+
+// Uno strato della pila da telefono. Coperto non si smonta: si nasconde con
+// `visibility`, che smette di disegnarlo e di prendere tocchi e fuoco ma tiene
+// la posizione di scorrimento — con `display: none` Safari la azzererebbe.
+// Scoperto NON scrive `visible`: lo eredita. Gli strati stanno anche uno dentro
+// l'altro (la home dentro lo strato coperto dalle schede), e un `visible`
+// esplicito su un figlio lo farebbe riapparire attraverso il genitore nascosto.
+export function Strato({ coperto, children }: { coperto: boolean; children: ReactNode }) {
+  return (
+    <div aria-hidden={coperto || undefined} style={{ position: 'absolute', inset: 0, visibility: coperto ? 'hidden' : undefined }}>
+      {children}
     </div>
   )
 }

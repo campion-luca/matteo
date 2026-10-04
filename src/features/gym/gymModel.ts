@@ -153,8 +153,25 @@ export const weekSortKey = isoWeekSortKey
 // di inserimento: registrandone una con data arretrata finiva in fondo, e grafici,
 // etichette settimana e "ultima alzata" la trattavano come la più recente.
 // Le voci legacy senza `date` restano davanti (sono le più vecchie).
+//
+// Il confronto è quello semplice fra stringhe, non `localeCompare`: le date sono
+// ISO, e per "2026-09-23" l'ordine dei caratteri è già l'ordine del calendario.
+// `localeCompare` passa dalle regole di collazione della lingua, ed è decine di
+// volte più lento — su uno storico lungo, riordinato a ogni apertura di pagina.
 export function sortedHistory<T extends { date?: string }>(hist: T[]): T[] {
-  return [...hist].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+  return [...hist].sort((a, b) => {
+    const x = a.date ?? '', y = b.date ?? ''
+    return x < y ? -1 : x > y ? 1 : 0
+  })
+}
+
+/** L'ultima voce in ordine di data, cioè `sortedHistory(hist).at(-1)`, senza
+ *  copiare e riordinare tutto lo storico per leggerne una. A pari data vince la
+ *  più in fondo, come nell'ordinamento (che è stabile). */
+export function ultimaVoce<T extends { date?: string }>(hist: T[]): T | undefined {
+  let ultima: T | undefined
+  for (const h of hist) if (!ultima || (h.date ?? '') >= (ultima.date ?? '')) ultima = h
+  return ultima
 }
 
 // Carico effettivamente spostato in una serie. Per un esercizio a corpo libero

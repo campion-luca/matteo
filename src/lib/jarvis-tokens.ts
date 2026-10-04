@@ -20,6 +20,10 @@ export const NUC = {
   //  label  → label, metadati, numeri, bottoni, chip, nav; eyebrow in maiuscoletto spaziato
   font:       "'Inter', system-ui, sans-serif",
   label:      "'Inter', system-ui, sans-serif",
+  //  tempo  → i tempi di gara Hyrox, e solo quelli: si leggono come un
+  //           cronometro, a cifre larghe uguali. Il monospaziato di sistema
+  //           (SF Mono su iPhone e Mac): nessun carattere in più da scaricare.
+  tempo:      "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace",
 } as const
 
 export type AccentColor = 'green' | 'pink' | 'rose' | 'cipria' | 'malva' | 'notte' | 'custom'

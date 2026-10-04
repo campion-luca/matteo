@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
 import type { AccentColor } from '@/lib/jarvis-tokens'
 // Solo il tipo: `import type` sparisce alla compilazione, quindi il fatto che
 // `i18n` importi a sua volta lo store non crea un ciclo a runtime.
@@ -15,6 +15,28 @@ export interface HyroxHistoryEntry {
 export interface HyroxExercise {
   id: string; n: string; unit: 'km' | 'm' | 'rep'; target: number
   history: HyroxHistoryEntry[]
+}
+
+// Una gara Hyrox intera, o una simulazione intera fatta in allenamento, registrata
+// come un evento solo: non otto sessioni sparse negli storici delle stazioni.
+// Prima una gara si "riconosceva" contando quante stazioni erano state registrate
+// lo stesso giorno, e bastava un interruttore lasciato su 500 m per trasformare
+// una simulazione da 1:30 in una stima da 2:16. Qui non c'è niente da indovinare:
+// è una gara perché la si è registrata come tale, ogni tempo è sulla distanza di
+// gara, e c'è anche la Roxzone, che nessuna sessione di allenamento ha.
+export interface HyroxGara {
+  id: string
+  date: string
+  /** Una gara ufficiale, o una simulazione intera fatta in allenamento. */
+  tipo: 'gara' | 'simulazione'
+  /** In double le stazioni si fanno in due: i loro tempi valgono per il double. */
+  categoria: 'singolo' | 'double'
+  /** Gli 8 km di corsa, sommati, in secondi. 0 = non registrata. */
+  corsa: number
+  /** Le stazioni per id (`hx_ski`, …), in secondi. Una che manca non è stata registrata. */
+  stazioni: Record<string, number>
+  /** Tutti i passaggi in Roxzone, sommati, in secondi. */
+  roxzone: number
 }
 
 export interface PalestraHistoryEntry {
@@ -149,6 +171,8 @@ export interface JarvisState {
   /** I gruppi muscolari aggiunti dall'utente (vedi CustomMuscle). */
   customMuscles?: CustomMuscle[]
   gymSchede: GymScheda[]
+  /** Gare e simulazioni intere (vedi HyroxGara). Assente sugli account di prima. */
+  hyroxGare?: HyroxGara[]
   weightLog: WeightLogEntry[]
   /** Quale azzeramento del catalogo è già stato applicato a questo account.
    *  Vive nello stato perché viaggia col blob: il telefono che lo fa lo dice al
@@ -189,7 +213,7 @@ const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
   'darkMode', 'layout', 'bgFuso', 'accentColor', 'customAccentHex',
   'hyroxExercises', 'palestraExercises', 'muscleColors', 'customMuscles', 'gymSchede',
-  'weightLog', 'catalogoReset', 'temaVersione',
+  'hyroxGare', 'weightLog', 'catalogoReset', 'temaVersione',
 ]
 
 // Il filtro a lista chiusa lavora sul PRIMO livello. Quello che vive più in basso
@@ -271,12 +295,68 @@ function pickKnown(data: Partial<JarvisState>): Partial<JarvisState> {
 
 export const JARVIS_STORE_KEY = 'jarvis-store-v4'
 
+// ── Il disco, scritto un attimo dopo ───────────────────────────
+// Lo storage di serie di `persist` trasforma TUTTO lo store in testo e lo scrive
+// in localStorage a ogni `setState`, in modo sincrono, dentro il tocco che l'ha
+// causato e prima che React ridisegni. Con un anno di storico sono centinaia di
+// kilobyte: "Salva alzata", "Termina allenamento", le frecce delle schede
+// pagavano questo prima di mostrare il risultato.
+//
+// Qui la scrittura aspetta 400ms di quiete, e intanto tiene da parte l'ULTIMO
+// stato (gli stati dello store non si modificano mai, si sostituiscono: tenerne
+// il riferimento è sicuro). Dieci modifiche in fila diventano una scrittura sola.
+// Non si perde niente uscendo: quando l'app va in background o si chiude
+// (`visibilitychange`, `pagehide`) la scrittura in attesa parte subito — sono gli
+// stessi due segnali su cui il cloud fa il suo invio immediato.
+const RITARDO_DISCO = 400
+let inAttesa: { name: string; value: StorageValue<JarvisState> } | null = null
+let timerDisco: ReturnType<typeof setTimeout> | undefined
+
+/** Scrive subito l'eventuale stato in attesa. */
+export function scriviSuDisco(): void {
+  clearTimeout(timerDisco)
+  if (!inAttesa) return
+  const { name, value } = inAttesa
+  inAttesa = null
+  try { localStorage.setItem(name, JSON.stringify(value)) } catch { /* quota piena o storage negato */ }
+}
+
+const discoRimandato: PersistStorage<JarvisState> = {
+  getItem: name => {
+    // Una scrittura ancora in attesa è più recente di quello che c'è su disco.
+    if (inAttesa?.name === name) return inAttesa.value
+    try {
+      const raw = localStorage.getItem(name)
+      return raw ? JSON.parse(raw) as StorageValue<JarvisState> : null
+    } catch { return null }
+  },
+  setItem: (name, value) => {
+    inAttesa = { name, value }
+    clearTimeout(timerDisco)
+    timerDisco = setTimeout(scriviSuDisco, RITARDO_DISCO)
+  },
+  // Toglie anche quella in attesa: al logout lo stato vuoto non deve ricomparire
+  // su disco quattrocento millisecondi dopo che il blob è stato cancellato.
+  removeItem: name => {
+    if (inAttesa?.name === name) { inAttesa = null; clearTimeout(timerDisco) }
+    try { localStorage.removeItem(name) } catch { /* niente da fare */ }
+  },
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', scriviSuDisco)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') scriviSuDisco()
+  })
+}
+
 // ── Zustand store ──────────────────────────────────────────────
 const useJarvisStoreBase = create<JarvisState>()(
   persist(
     () => ({ ...EMPTY_STATE }),
     {
       name: JARVIS_STORE_KEY,
+      storage: discoRimandato,
       merge: (persisted, current) => {
         const p = pickKnown(persisted as Partial<JarvisState>)
         return {

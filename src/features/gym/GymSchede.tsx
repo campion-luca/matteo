@@ -7,16 +7,17 @@
 // fine sessione trasforma le spunte in vere alzate nello storico degli esercizi
 // collegati (`linkedExerciseId`), così la scheda alimenta le statistiche invece
 // di restare una lista a parte.
-import { useState, useMemo, useEffect, useRef, type ReactNode, type CSSProperties } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback, memo, type ReactNode, type CSSProperties } from 'react'
 import { NUC, accentFgFor, accentInkFor } from '@/lib/jarvis-tokens'
 import { NucCard } from '@/components/ui/NucComponents'
+import { Cronologia } from '@/components/ui/Cronologia'
 import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtReps, ultimaVoltaPerScheda, quantoFa } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtReps, ultimaVoltaPerScheda, quantoFa } from './gymModel'
 import { fmtDayMonthFull } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
@@ -1302,6 +1303,47 @@ function RigaAlzata({ a, primo, onCorreggi, onElimina }: {
   )
 }
 
+// Un giorno dello storico: chiuso, è la data e quanti esercizi; aperto, le
+// alzate di quel giorno. Partono tutti chiusi — si apre quello che si vuole
+// controllare. Aperti tutti insieme erano un muro di righe, e il giorno che si
+// cercava stava sotto tutti quelli venuti dopo.
+function GiornoStorico({ s, onCorreggi, onElimina }: {
+  s: Sessione
+  onCorreggi?: (a: AlzataSalvata) => void
+  onElimina?: (a: AlzataSalvata) => void
+}) {
+  const t = useT()
+  const [aperto, setAperto] = useState(false)
+  return (
+    <NucCard pad={0} style={{ marginBottom: 8 }}>
+      <button
+        onClick={() => setAperto(a => !a)} aria-expanded={aperto}
+        className="j-focus flex items-center justify-between gap-3 w-full"
+        style={{ padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+      >
+        <span style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>
+          {giornoSessione(s.giorno)}
+        </span>
+        <span className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+          <span style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>
+            {s.alzate.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.alzate.length })}
+          </span>
+          <span style={{ display: 'flex', color: NUC.faint, transform: aperto ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
+            <Icons.chev size={13} stroke={2}/>
+          </span>
+        </span>
+      </button>
+      {aperto && (
+        <div style={{ borderTop: '1px solid var(--hairline-soft)', padding: '4px 8px 6px' }}>
+          {s.alzate.map((a, i) => (
+            <RigaAlzata key={`${a.exerciseId}-${i}`} a={a} primo={i === 0} onCorreggi={onCorreggi} onElimina={onElimina}/>
+          ))}
+        </div>
+      )}
+    </NucCard>
+  )
+}
+
 function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, allievi, appenaSalvate = [], palestraExercises = [], inCorso, onCorreggi, onElimina, onCondividi, onBack, onEdit, onDelete, onStart }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
@@ -1521,24 +1563,16 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
 
       {storico ? (
         <div className="j-scroll-area">
-          <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 12 }}>
-            {t('Tocca un’alzata per correggere chili, colpi o nota.')}
+          <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 8 }}>
+            {t('Apri un giorno per vederne le alzate, poi toccane una per correggere chili, colpi o nota.')}
           </div>
-          {sessioni.map(s => (
-            <NucCard key={s.giorno} pad={13} style={{ marginBottom: 10 }}>
-              <div className="flex items-baseline justify-between gap-2" style={{ marginBottom: 6 }}>
-                <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>
-                  {giornoSessione(s.giorno)}
-                </div>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>
-                  {s.alzate.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.alzate.length })}
-                </div>
-              </div>
-              {s.alzate.map((a, i) => (
-                <RigaAlzata key={`${a.exerciseId}-${i}`} a={a} primo={i === 0} onCorreggi={onCorreggi} onElimina={onElimina}/>
-              ))}
-            </NucCard>
-          ))}
+          <Cronologia
+            voci={sessioni}
+            dataDi={s => s.giorno}
+            chiaveDi={s => s.giorno}
+            conta={n => n === 1 ? t('1 allenamento') : t('{n} allenamenti', { n })}
+            voce={s => <GiornoStorico s={s} onCorreggi={onCorreggi} onElimina={onElimina}/>}
+          />
         </div>
       ) : richieste && ioId ? (
         <div className="j-scroll-area">
@@ -1942,6 +1976,164 @@ function obiettivoColpi(reps: string): number {
   return parseInt(reps) || 0
 }
 
+// Una card dell'allenamento in corso. A parte e memorizzata: prima stava dentro
+// la `map` della pagina, e ogni cifra battuta in un campo ridisegnava TUTTE le
+// card — con, per ciascuna, la ricerca dell'esercizio collegato fra quelli
+// salvati e lo storico intero copiato e riordinato per leggerne l'ultima nota.
+// Adesso cambia identità solo l'avanzamento dell'esercizio toccato (`p`), i
+// comandi sono stabili, e si ridisegna solo la sua card.
+const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p, last, notaPrima, corpo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota }: {
+  e: GymSchedaExercise
+  legatoPrima: boolean
+  color: string
+  p: TrainProgress
+  last?: PalestraExercise
+  notaPrima?: string
+  /** A corpo libero: i chili sono la sola zavorra. */
+  corpo: boolean
+  consiglio: Consiglio | null
+  notaAperta: boolean
+  onToggle: (exId: string, setIdx: number) => void
+  onPeso: (exId: string, setIdx: number, v: string) => void
+  onColpi: (exId: string, setIdx: number, v: string) => void
+  onNota: (exId: string, v: string) => void
+  onUsa: (exId: string, pesi: number[]) => void
+  onUguale: (exId: string) => void
+  onApriNota: (exId: string) => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const dark = useIsDark()
+  const nSets = Math.max(1, e.sets)
+  const target = obiettivoColpi(e.reps)
+  const notaVisibile = notaAperta || !!p.note
+  const exDone = p.checks.length > 0 && p.checks.every(Boolean)
+  return (
+    <div style={{ marginBottom: e.supersetWithNext ? 0 : 10 }}>
+      {legatoPrima && <PonteSuperset/>}
+      <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(legatoPrima, !!e.supersetWithNext), opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
+        <div className="flex items-start justify-between gap-3" style={{ marginBottom: 10 }}>
+          <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48}/>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex items-center gap-2">
+              {exDone && <Icons.check size={15} stroke={2.6} color={color}/>}
+              <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
+            </div>
+            <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
+              {t('obiettivo')} {e.sets} × {e.reps}
+            </div>
+            {last && last.history.length > 0 && (
+              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.accentSoft, marginTop: 3 }}>
+                {t('ultima volta')} {last.current.reps} × {fmtKg({ kg: last.current.kg, ...(corpo ? { bodyweight: true as const } : {}) })}
+              </div>
+            )}
+            {notaPrima && (
+              <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                {t('Nota dell’ultima volta:')} {notaPrima}
+              </div>
+            )}
+            {e.note && (
+              <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.faint, marginTop: 5, lineHeight: 1.5, letterSpacing: 0.1, whiteSpace: 'pre-wrap' }}>
+                {e.note}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5" style={{ flexShrink: 0, alignItems: 'flex-end' }}>
+            {nSets > 1 && (
+              <button onClick={() => onUguale(e.id)} className="flex items-center gap-1" style={TASTINO}>
+                <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
+              </button>
+            )}
+            {!notaVisibile && (
+              <button
+                onClick={() => onApriNota(e.id)}
+                aria-label={`${tData(e.name)} · ${t('Aggiungi nota')}`}
+                className="flex items-center gap-1" style={TASTINO}
+              >
+                <Icons.pencil size={10} stroke={1.8}/> {t('nota')}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {consiglio && (
+          <ConsiglioCarico
+            consiglio={consiglio}
+            serie={nSets}
+            // Il tasto serve solo se c'è qualcosa da cambiare: con il
+            // consiglio già scritto su ogni serie da fare sarebbe un no-op.
+            applicabile={p.weights.some((w, i) => !p.checks[i] && consiglio.pesi[i] !== undefined && parseNum(w) !== consiglio.pesi[i])}
+            onUsa={() => onUsa(e.id, consiglio.pesi)}
+          />
+        )}
+
+        {/* Una riga per serie: spunta + peso + colpi della singola serie.
+            I colpi stanno accanto al peso e non in cima all'esercizio
+            perché è la SINGOLA serie a calare: l'ultima chiude a 6 mentre
+            la prima ha fatto i suoi 10. */}
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: nSets }).map((_, i) => {
+            const on = p.checks[i]
+            const colpi = parseInt(p.reps[i] ?? '') || 0
+            const corta = target > 0 && colpi > 0 && colpi < target
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <button
+                  onClick={() => onToggle(e.id, i)}
+                  aria-pressed={on}
+                  className="flex items-center gap-1.5"
+                  style={{
+                    height: 44, padding: '0 9px', borderRadius: 'var(--radius)', cursor: 'pointer', flexShrink: 0, minWidth: 82,
+                    background: on ? color : 'var(--surface-2)',
+                    border: `1px solid ${on ? color : NUC.hairline}`,
+                    color: on ? onMuscleColor(color) : NUC.dim,
+                    fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.02em',
+                    transition: 'background 120ms',
+                  }}
+                >
+                  {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-sm)', border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
+                  {t('Serie {n}', { n: i + 1 })}
+                </button>
+                {/* Prima i colpi, poi i chili: è l'ordine in cui la serie si
+                    racconta ("10 per 60") e quello in cui si scrive a fine
+                    serie — il peso di solito è già lì dalla volta prima. */}
+                <CampoSerie
+                  value={p.reps[i] ?? ''}
+                  onChange={v => onColpi(e.id, i, v)}
+                  unita={t('colpi')} mode="numeric"
+                  etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · ${t('colpi')}`}
+                  allarme={corta}
+                />
+                <CampoSerie
+                  value={p.weights[i] ?? ''}
+                  onChange={v => onPeso(e.id, i, v)}
+                  // A corpo libero i chili sono la sola zavorra: vuoto = niente.
+                  unita="kg" segnaposto={corpo ? t('Zavorra') : undefined} mode="decimal"
+                  etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · kg`}
+                />
+              </div>
+            )
+          })}
+        </div>
+
+        {notaVisibile && (
+          <textarea
+            value={p.note ?? ''}
+            onChange={ev => onNota(e.id, ev.target.value)}
+            // Aperta a mano, il campo è quello che si voleva: si scrive subito.
+            autoFocus={!p.note}
+            rows={2}
+            aria-label={`${tData(e.name)} · ${t('nota')}`}
+            placeholder={t('Nota su questa sessione…')}
+            className="j-field"
+            style={{ height: 'auto', minHeight: 56, marginTop: 10, padding: '9px 12px', resize: 'vertical', lineHeight: 1.45 }}
+          />
+        )}
+      </NucCard>
+    </div>
+  )
+})
+
 function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, onFinish }: {
   scheda: GymScheda
   palestraExercises: PalestraExercise[]
@@ -1951,7 +2143,6 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
 }) {
   const t = useT()
   const tData = useTData()
-  const dark = useIsDark()
   // Gli esercizi con il campo della nota aperto. Quelli che una nota ce l'hanno
   // già la mostrano comunque: si apre a mano solo per cominciarne una.
   const [noteAperte, setNoteAperte] = useState<Set<string>>(() => new Set())
@@ -2011,64 +2202,86 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     return init
   })
 
-  const toggle = (exId: string, setIdx: number) =>
+  // I comandi delle card sono `useCallback` senza dipendenze: lavorano solo con
+  // l'aggiornamento funzionale di `setProgress`, quindi restano gli stessi per
+  // tutta la sessione e non fanno ridisegnare le card memorizzate (vedi
+  // CardAllenamento).
+  const toggle = useCallback((exId: string, setIdx: number) =>
     setProgress(p => {
       const cur = p[exId]
       const checks = cur.checks.map((c, i) => i === setIdx ? !c : c)
       return { ...p, [exId]: { ...cur, checks } }
-    })
+    }), [])
 
-  const setSetWeight = (exId: string, setIdx: number, weight: string) =>
+  const setSetWeight = useCallback((exId: string, setIdx: number, weight: string) =>
     setProgress(p => {
       const cur = p[exId]
       const weights = cur.weights.map((w, i) => i === setIdx ? normalizzaDecimale(weight) : w)
       return { ...p, [exId]: { ...cur, weights } }
-    })
+    }), [])
 
-  const setNote = (exId: string, note: string) =>
-    setProgress(p => ({ ...p, [exId]: { ...p[exId], note } }))
+  const setNote = useCallback((exId: string, note: string) =>
+    setProgress(p => ({ ...p, [exId]: { ...p[exId], note } })), [])
+
+  const apriNota = useCallback((exId: string) => setNoteAperte(s => new Set(s).add(exId)), [])
 
   // Il carico consigliato, serie per serie, scritto su quelle non ancora
   // spuntate: quelle già fatte sono andate con il peso che avevano, e
   // riscriverle falserebbe lo storico.
-  const usaConsiglio = (exId: string, pesi: number[]) =>
+  const usaConsiglio = useCallback((exId: string, pesi: number[]) =>
     setProgress(p => {
       const cur = p[exId]
       return { ...p, [exId]: { ...cur, weights: cur.weights.map((w, i) => cur.checks[i] || pesi[i] === undefined ? w : fmtNum(pesi[i])) } }
-    })
+    }), [])
 
-  const setSetReps = (exId: string, setIdx: number, reps: string) =>
+  const setSetReps = useCallback((exId: string, setIdx: number, reps: string) =>
     setProgress(p => {
       const cur = p[exId]
       const next = cur.reps.map((r, i) => i === setIdx ? reps.replace(/[^0-9]/g, '') : r)
       return { ...p, [exId]: { ...cur, reps: next } }
-    })
+    }), [])
 
   // Applica peso E colpi della prima serie a tutte. Da quando le righe hanno due
   // campi, ricopiare solo il peso lasciava metà del lavoro a mano proprio nel
   // caso che il tasto esiste per risolvere: le serie tutte uguali.
-  const applyFirstToAll = (exId: string) =>
+  const applyFirstToAll = useCallback((exId: string) =>
     setProgress(p => {
       const cur = p[exId]
       const kg = cur.weights[0] ?? ''
       const rp = cur.reps[0] ?? ''
       return { ...p, [exId]: { ...cur, weights: cur.weights.map(() => kg), reps: cur.reps.map(() => rp) } }
-    })
+    }), [])
 
-  // Il consiglio di ogni esercizio si calcola una volta sola per sessione: dipende
-  // dallo storico, che durante l'allenamento non cambia, e non dai tasti premuti.
-  const consigli = useMemo(() => {
-    const out: Record<string, Consiglio | null> = {}
+  // L'esercizio collegato, la nota dell'ultima volta e se è a corpo libero, una
+  // volta per sessione e non a ogni tasto: dipendono dallo storico, che durante
+  // l'allenamento non cambia. La nota è quella dell'alzata più recente — si
+  // rilegge prima di cominciare, che è quando serve ("sedile al 4", "la spalla
+  // tirava"). Senza esercizio collegato (una scheda dell'allenatore mai fatta)
+  // il corpo libero lo dice la riga della scheda, o il nome.
+  const collegati = useMemo(() => {
+    const out: Record<string, { last?: PalestraExercise; notaPrima?: string; corpo: boolean }> = {}
     for (const e of scheda.exercises) {
-      const linked = resolveLinked(e)
-      // A corpo libero non c'è un perno da spostare: il consiglio sui chili
-      // non avrebbe niente da dire.
-      out[e.id] = corpoLibero(linked ?? { n: e.name, bodyweight: e.bodyweight }) ? null : caricoConsigliato(linked?.history ?? [], e, scheda.id)
+      const last = resolveLinked(e)
+      const notaPrima = last ? ultimaVoce(last.history)?.note : undefined
+      out[e.id] = { last, notaPrima, corpo: corpoLibero(last ?? { n: e.name, bodyweight: e.bodyweight }) }
     }
     return out
     // `resolveLinked` legge solo `palestraExercises`, che è già fra le dipendenze.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheda, palestraExercises])
+
+  // Il consiglio di ogni esercizio si calcola una volta sola per sessione, per lo
+  // stesso motivo.
+  // A corpo libero non c'è un perno da spostare: il consiglio sui chili non
+  // avrebbe niente da dire.
+  const consigli = useMemo(() => {
+    const out: Record<string, Consiglio | null> = {}
+    for (const e of scheda.exercises) {
+      const { last, corpo } = collegati[e.id]
+      out[e.id] = corpo ? null : caricoConsigliato(last?.history ?? [], e, scheda.id)
+    }
+    return out
+  }, [scheda, collegati])
 
   // L'avanzamento conta gli ESERCIZI completati (tutte le serie flaggate), non le
   // singole serie: una volta spuntate tutte le serie l'esercizio è "fatto".
@@ -2103,8 +2316,9 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
 
   // Cosa sta per finire nello storico, esercizio per esercizio. Si calcola solo
   // qui e si legge solo nel riepilogo: è la fotografia del "com'è andata", con
-  // gli scarti dal programma già misurati.
-  const righe = useMemo(() => scheda.exercises.map(e => {
+  // gli scarti dal programma già misurati. A riepilogo chiuso non serve, e non
+  // si rifà a ogni cifra battuta.
+  const righe = useMemo(() => !riepilogo ? [] : scheda.exercises.map(e => {
     const p = progress[e.id]
     const idx = p.checks.map((c, i) => c ? i : -1).filter(i => i >= 0)
     const target = obiettivoColpi(e.reps)
@@ -2122,7 +2336,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       colpiCorti: target > 0 && colpi.some(c => c > 0 && c < target),
       kg: idx.map(i => parseNum(p.weights[i])),
     }
-  }), [scheda, progress])
+  }), [scheda, progress, riepilogo])
 
   return (
     <SchedaPage
@@ -2138,148 +2352,22 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     >
 
       <div className="j-scroll-area">
-        {scheda.exercises.map((e, idx) => {
-          const color = muscleColor(e.muscle, muscleColors)
-          const p = progress[e.id]
-          const nSets = Math.max(1, e.sets)
-          const target = obiettivoColpi(e.reps)
-          const last = resolveLinked(e)
-          const hasLast = !!last && last.history.length > 0
-          // Senza esercizio collegato (una scheda dell'allenatore mai fatta)
-          // lo dice la riga della scheda, o il nome.
-          const corpo = corpoLibero(last ?? { n: e.name, bodyweight: e.bodyweight })
-          // La nota dell'ultima volta: si rilegge prima di cominciare, che è
-          // quando serve ("sedile al 4", "la spalla tirava").
-          const notaPrima = hasLast ? sortedHistory(last!.history)[last!.history.length - 1]?.note : undefined
-          const consiglio = consigli[e.id]
-          const notaVisibile = noteAperte.has(e.id) || !!p.note
-          const exDone = p.checks.length > 0 && p.checks.every(Boolean)
-          const linkedToPrev = idx > 0 && scheda.exercises[idx - 1].supersetWithNext
-          return (
-            <div key={e.id} style={{ marginBottom: e.supersetWithNext ? 0 : 10 }}>
-            {linkedToPrev && <PonteSuperset/>}
-            <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(linkedToPrev, !!e.supersetWithNext), opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
-              <div className="flex items-start justify-between gap-3" style={{ marginBottom: 10 }}>
-                <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48}/>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="flex items-center gap-2">
-                    {exDone && <Icons.check size={15} stroke={2.6} color={color}/>}
-                    <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
-                  </div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
-                    {t('obiettivo')} {e.sets} × {e.reps}
-                  </div>
-                  {hasLast && (
-                    <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.accentSoft, marginTop: 3 }}>
-                      {t('ultima volta')} {last!.current.reps} × {fmtKg({ kg: last!.current.kg, ...(corpo ? { bodyweight: true as const } : {}) })}
-                    </div>
-                  )}
-                  {notaPrima && (
-                    <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
-                      {t('Nota dell’ultima volta:')} {notaPrima}
-                    </div>
-                  )}
-                  {e.note && (
-                    <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.faint, marginTop: 5, lineHeight: 1.5, letterSpacing: 0.1, whiteSpace: 'pre-wrap' }}>
-                      {e.note}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1.5" style={{ flexShrink: 0, alignItems: 'flex-end' }}>
-                  {nSets > 1 && (
-                    <button onClick={() => applyFirstToAll(e.id)} className="flex items-center gap-1" style={TASTINO}>
-                      <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
-                    </button>
-                  )}
-                  {!notaVisibile && (
-                    <button
-                      onClick={() => setNoteAperte(s => new Set(s).add(e.id))}
-                      aria-label={`${tData(e.name)} · ${t('Aggiungi nota')}`}
-                      className="flex items-center gap-1" style={TASTINO}
-                    >
-                      <Icons.pencil size={10} stroke={1.8}/> {t('nota')}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {consiglio && (
-                <ConsiglioCarico
-                  consiglio={consiglio}
-                  serie={nSets}
-                  // Il tasto serve solo se c'è qualcosa da cambiare: con il
-                  // consiglio già scritto su ogni serie da fare sarebbe un no-op.
-                  applicabile={p.weights.some((w, i) => !p.checks[i] && consiglio.pesi[i] !== undefined && parseNum(w) !== consiglio.pesi[i])}
-                  onUsa={() => usaConsiglio(e.id, consiglio.pesi)}
-                />
-              )}
-
-              {/* Una riga per serie: spunta + peso + colpi della singola serie.
-                  I colpi stanno accanto al peso e non in cima all'esercizio
-                  perché è la SINGOLA serie a calare: l'ultima chiude a 6 mentre
-                  la prima ha fatto i suoi 10. */}
-              <div className="flex flex-col gap-2">
-                {Array.from({ length: nSets }).map((_, i) => {
-                  const on = p.checks[i]
-                  const colpi = parseInt(p.reps[i] ?? '') || 0
-                  const corta = target > 0 && colpi > 0 && colpi < target
-                  return (
-                    <div key={i} className="flex items-center gap-2">
-                      <button
-                        onClick={() => toggle(e.id, i)}
-                        aria-pressed={on}
-                        className="flex items-center gap-1.5"
-                        style={{
-                          height: 44, padding: '0 9px', borderRadius: 'var(--radius)', cursor: 'pointer', flexShrink: 0, minWidth: 82,
-                          background: on ? color : 'var(--surface-2)',
-                          border: `1px solid ${on ? color : NUC.hairline}`,
-                          color: on ? onMuscleColor(color) : NUC.dim,
-                          fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.02em',
-                          transition: 'background 120ms',
-                        }}
-                      >
-                        {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-sm)', border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
-                        {t('Serie {n}', { n: i + 1 })}
-                      </button>
-                      {/* Prima i colpi, poi i chili: è l'ordine in cui la serie si
-                          racconta ("10 per 60") e quello in cui si scrive a fine
-                          serie — il peso di solito è già lì dalla volta prima. */}
-                      <CampoSerie
-                        value={p.reps[i] ?? ''}
-                        onChange={v => setSetReps(e.id, i, v)}
-                        unita={t('colpi')} mode="numeric"
-                        etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · ${t('colpi')}`}
-                        allarme={corta}
-                      />
-                      <CampoSerie
-                        value={p.weights[i] ?? ''}
-                        onChange={v => setSetWeight(e.id, i, v)}
-                        // A corpo libero i chili sono la sola zavorra: vuoto = niente.
-                        unita="kg" segnaposto={corpo ? t('Zavorra') : undefined} mode="decimal"
-                        etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · kg`}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-
-              {notaVisibile && (
-                <textarea
-                  value={p.note ?? ''}
-                  onChange={ev => setNote(e.id, ev.target.value)}
-                  // Aperta a mano, il campo è quello che si voleva: si scrive subito.
-                  autoFocus={!p.note}
-                  rows={2}
-                  aria-label={`${tData(e.name)} · ${t('nota')}`}
-                  placeholder={t('Nota su questa sessione…')}
-                  className="j-field"
-                  style={{ height: 'auto', minHeight: 56, marginTop: 10, padding: '9px 12px', resize: 'vertical', lineHeight: 1.45 }}
-                />
-              )}
-            </NucCard>
-            </div>
-          )
-        })}
+        {scheda.exercises.map((e, idx) => (
+          <CardAllenamento
+            key={e.id}
+            e={e}
+            legatoPrima={idx > 0 && !!scheda.exercises[idx - 1].supersetWithNext}
+            color={muscleColor(e.muscle, muscleColors)}
+            p={progress[e.id]}
+            last={collegati[e.id].last}
+            notaPrima={collegati[e.id].notaPrima}
+            corpo={collegati[e.id].corpo}
+            consiglio={consigli[e.id]}
+            notaAperta={noteAperte.has(e.id)}
+            onToggle={toggle} onPeso={setSetWeight} onColpi={setSetReps} onNota={setNote}
+            onUsa={usaConsiglio} onUguale={applyFirstToAll} onApriNota={apriNota}
+          />
+        ))}
       </div>
 
       <div className="j-page-cta">

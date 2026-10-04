@@ -7,7 +7,7 @@
 // La settimana del calendario e non "gli ultimi 7 giorni", come la striscia del
 // Riepilogo: "come sta andando la mia settimana" si legge da lunedì.
 // Tutta la striscia è un tasto e apre il calendario degli allenamenti.
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useJarvisStore } from '@/store/useJarvisStore'
@@ -18,11 +18,17 @@ import { daysShort } from '@/lib/dateFormat'
 import { useT, useLang } from '@/lib/i18n'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
 
-export function SettimanaStrip() {
+// `memo`: non ha props, quindi si ridisegna solo quando cambiano i suoi dati
+// (lo storico, la lingua) e non ogni volta che si ridisegna la home intorno.
+export const SettimanaStrip = memo(function SettimanaStrip() {
   const t = useT()
   const lang = useLang()
   const s = useJarvisStore(useShallow(st => ({ palestra: st.palestraExercises, hyrox: st.hyroxExercises })))
   const [calendario, setCalendario] = useState(false)
+  // Il calendario si monta alla prima apertura e poi resta, per chiudersi con
+  // la sua animazione. Prima era montato da subito: ogni avvio dell'app pagava
+  // la costruzione di un mese di celle che quasi mai si guarda.
+  const [calendarioVisto, setCalendarioVisto] = useState(false)
 
   const giorni = useMemo(() => {
     const oggi = new Date()
@@ -50,7 +56,7 @@ export function SettimanaStrip() {
   return (
     <>
       <button
-        onClick={() => setCalendario(true)}
+        onClick={() => { setCalendarioVisto(true); setCalendario(true) }}
         aria-label={t('Apri il calendario degli allenamenti')}
         className="j-focus"
         style={{
@@ -96,7 +102,7 @@ export function SettimanaStrip() {
             : t('Ultimo allenamento: {quando}', { quando: quantoFa(fermoDa, t) })}
         </div>
       )}
-      <CalendarioAllenamenti open={calendario} onClose={() => setCalendario(false)}/>
+      {calendarioVisto && <CalendarioAllenamenti open={calendario} onClose={() => setCalendario(false)}/>}
     </>
   )
-}
+})

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, memo, lazy, Suspense } from 'react'
 import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
@@ -9,7 +9,7 @@ import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { InstallBanner } from '@/components/InstallBanner'
 import { useShallow } from 'zustand/react/shallow'
-import { useJarvisStore, EMPTY_STATE, JARVIS_STORE_KEY, applyRemoteState } from '@/store/useJarvisStore'
+import { useJarvisStore, EMPTY_STATE, applyRemoteState } from '@/store/useJarvisStore'
 import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
 import { supabase } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoteUpdatedAt, senzaRete } from '@/lib/cloudSync'
@@ -21,7 +21,7 @@ import { riallineaPush } from '@/lib/push'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
-import { readStorage, writeStorage, removeStorage } from '@/lib/safeStorage'
+import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { avviaMessaggi, fermaMessaggi } from '@/lib/messaggiLive'
 
 // ── Lazy-loaded features ───────────────────────────────────────
@@ -48,19 +48,25 @@ function TabFallback() {
 // un riquadro di riepilogo. Adesso l'allenamento È la pagina d'ingresso, il saluto
 // gli sta in cima (SalutoHeader) e il riepilogo si apre da Stats. Senza un secondo
 // posto dove andare, la navigazione a tab non ha più niente da commutare.
-function Contenuto({ onOpenProfile, onOpenUser, onOpenCoach }: {
+//
+// `memo`, con comandi stabili da App: aprire le impostazioni o il profilo cambia
+// lo stato di App, e senza ridisegnava tutto l'allenamento proprio nel momento
+// del tocco. Non scorre lei: scorrono le pagine dentro (`.j-scroll-area`), e un
+// secondo contenitore scorrevole intorno raccoglieva i trascinamenti arrivati in
+// fondo e faceva rimbalzare tutta la schermata.
+const Contenuto = memo(function Contenuto({ onOpenProfile, onOpenUser, onOpenCoach }: {
   onOpenProfile: () => void
   onOpenUser: () => void
   onOpenCoach: () => void
 }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, opacity: 1, overflowY: 'auto' }}>
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
       <Suspense fallback={<TabFallback/>}>
         <JarvisGym onOpenCoach={onOpenCoach} onOpenProfile={onOpenProfile} onOpenUser={onOpenUser}/>
       </Suspense>
     </div>
   )
-}
+})
 
 // ── Cloud sync bridge ──────────────────────────────────────────
 // Salvataggio affidabile del blob utente su Supabase:
@@ -380,6 +386,9 @@ export default function App() {
   // e in quell'attimo il questionario si rimonterebbe da capo.
   const [setupFatto, setSetupFatto] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const apriImpostazioni = useCallback(() => setProfilo('impostazioni'), [])
+  const apriProfilo = useCallback(() => setProfilo('utente'), [])
+  const apriCoach = useCallback(() => { setProfilo(null); setShowCoach(true) }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', !!s.darkMode)
@@ -421,7 +430,10 @@ export default function App() {
         // gruppi creati) restavano in memoria, e chi entrava dopo sullo stesso
         // telefono se li ritrovava — e al primo salvataggio nel proprio cloud.
         useJarvisStore.setState({ ...EMPTY_STATE }, true)
-        removeStorage('local', JARVIS_STORE_KEY)
+        // Da `persist` e non da localStorage direttamente: la scrittura su disco
+        // è rimandata (vedi useJarvisStore), e lo stato vuoto appena impostato è
+        // ancora in attesa — va annullata insieme al blob, o lo ricreerebbe.
+        useJarvisStore.persist.clearStorage()
         // Anche le meta di sync: sono dell'ACCOUNT, non del dispositivo. Restando,
         // l'utente successivo ereditava `dirty`, `lastSyncedAt` e soprattutto gli id
         // `noti` di quello prima — cioè `syncMerge` avrebbe deciso cosa "è nato qui"
@@ -653,12 +665,11 @@ export default function App() {
             </div>
           )}
 
-          {!cloudLoading && booted && (
-            <Contenuto
-              onOpenProfile={() => setProfilo('impostazioni')}
-              onOpenUser={() => setProfilo('utente')}
-              onOpenCoach={() => { setProfilo(null); setShowCoach(true) }}
-            />
+          {/* Sotto lo splash e non dopo: lo splash la copre (zIndex 100), e
+              intanto l'allenamento scarica il suo codice e si disegna. Prima
+              partiva solo a splash finito, e i due tempi si sommavano. */}
+          {!cloudLoading && (
+            <Contenuto onOpenProfile={apriImpostazioni} onOpenUser={apriProfilo} onOpenCoach={apriCoach}/>
           )}
 
           {!cloudLoading && booted && !loadFailed && profiloVuoto && !setupFatto && (

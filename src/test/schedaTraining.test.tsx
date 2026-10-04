@@ -336,7 +336,13 @@ describe('allenamento: le aggiunte di settembre', () => {
     // Di ritorno sul dettaglio: l'orologio in testata apre lo storico.
     const tasti = screen.getAllByRole('button', { name: 'Storico allenamenti' })
     await user.click(tasti[0])
-    expect(screen.getByText(/Tocca un’alzata/)).toBeInTheDocument()
+    expect(screen.getByText(/Apri un giorno/)).toBeInTheDocument()
+
+    // Il giorno parte chiuso: le alzate si vedono solo dopo averlo aperto.
+    const giorno = screen.getByRole('button', { name: /1 esercizio$/, expanded: false })
+    expect(screen.queryByRole('button', { name: /Panca piana3 × 10 – 60 kg/ })).not.toBeInTheDocument()
+    await user.click(giorno)
+    expect(giorno).toHaveAttribute('aria-expanded', 'true')
 
     // Toccare l'alzata apre la correzione, con la nota fra i campi.
     await user.click(screen.getByRole('button', { name: /Panca piana3 × 10 – 60 kg/ }))

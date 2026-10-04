@@ -123,7 +123,11 @@ export function NucSegmented({ options, value, onChange, fontSize = 10 }: NucSeg
 interface NucSubTabsProps { options: SegOption[]; value: string; onChange: (id: string) => void; style?: CSSProperties }
 
 export function NucSubTabs({ options, value, onChange, style }: NucSubTabsProps) {
-  const idx = Math.max(0, options.findIndex(o => o.id === value))
+  // Un valore che non è fra le opzioni = nessuna voce accesa: in Hyrox, con le
+  // statistiche aperte, né Esercizi né Gara è dove si sta. La pillola resta al
+  // suo posto, invisibile, così riappare sotto la voce toccata senza scivolare.
+  const trovato = options.findIndex(o => o.id === value)
+  const idx = Math.max(0, trovato)
   return (
     <div style={{ position: 'relative', display: 'flex', background: 'var(--surface)', border: `1px solid var(--hairline)`, borderRadius: 'var(--radius-sm)', padding: 3, height: 34, ...style }}>
       <div className="nuc-seg-pill" style={{
@@ -131,6 +135,7 @@ export function NucSubTabs({ options, value, onChange, style }: NucSubTabsProps)
         width: `calc((100% - 6px) / ${options.length})`,
         left: 3,
         transform: `translateX(calc(${idx} * 100%))`,
+        opacity: trovato < 0 ? 0 : 1,
         // Il guscio è a `--radius-sm` con 3px di padding: la pillola dentro sta a
         // quel raggio meno il padding, o gli angoli le escono dai suoi.
         borderRadius: 9,

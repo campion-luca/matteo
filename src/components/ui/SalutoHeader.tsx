@@ -47,7 +47,9 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
   )
 
   return (
-    <div className="jarvis-boot" style={{
+    // Niente dissolvenza d'ingresso: questa testata si rimontava a ogni ritorno
+    // alla home, e ogni volta il saluto ricompariva da trasparente in 400ms.
+    <div style={{
       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
       gap: 'clamp(8px, 3vw, 16px)',
       marginBottom: isDesktop ? 20 : 'clamp(10px, 1.8dvh, 18px)',

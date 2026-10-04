@@ -60,6 +60,12 @@ export function fmtMeseAnno(year: number, month: number, lang: Lang = getLang())
   return `${MONTHS[lang][month]} ${year}`
 }
 
+/** "Settembre" · "September" — il nome del mese da solo, per le intestazioni
+ *  della cronologia, dove l'anno sta già nella riga sopra. */
+export function fmtMese(month: number, lang: Lang = getLang()): string {
+  return MONTHS[lang][month] ?? ''
+}
+
 /** Le iniziali dei sette giorni, da lunedì.
  *
  *  La lingua si può passare esplicitamente: chi chiama da dentro un `useMemo` ha
