@@ -181,7 +181,8 @@ export function accentFgFor(hex: string): string {
 }
 
 // ── Layout "Premium" ───────────────────────────────────────────
-// L'accent del layout di default. Non è una palette fra quelle del picker: in
+// L'accent del layout Premium (che da metà settembre a ottobre 2026 è stato
+// quello di default). Non è una palette fra quelle del picker: in
 // Premium si usa SEMPRE questa, qualunque cosa ci sia in `accentColor` (che resta
 // salvato e torna in vigore tornando a Standard). Il resto dei token sta nel
 // blocco `.premium` di globals.css.

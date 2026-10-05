@@ -21,16 +21,19 @@
   <body>
     <!-- Il tema prima di React: senza, la prima pittura usa la carta chiara e poi
          scatta sul nero quando App monta. Legge lo stesso blob dello store; se non
-         c'è (primo avvio) vale il default, Premium. -->
+         c'è (primo avvio) vale il default, Standard scuro. -->
     <script>
       (function () {
-        var layout = 'premium', dark = false
+        var layout = 'standard', dark = true
         try {
           var s = JSON.parse(localStorage.getItem('jarvis-store-v4') || '{}').state || {}
-          // Standard vale solo se scelto DOPO il passaggio a Premium per tutti
-          // (temaVersione 2, vedi TEMA_VERSIONE nello store).
-          if ((s.temaVersione || 0) >= 2 && (s.layout === 'standard' || s.layout === 'neon' || s.layout === 'logbook')) layout = s.layout
-          dark = !!s.darkMode
+          // La scelta salvata vale solo da un blob già passato dal cambio di
+          // tema (temaVersione 2, vedi TEMA_VERSIONE nello store): quelli di
+          // prima lo store li porta sul default, e qui si fa lo stesso.
+          if ((s.temaVersione || 0) >= 2) {
+            if (s.layout === 'premium' || s.layout === 'neon' || s.layout === 'logbook') layout = s.layout
+            dark = !!s.darkMode
+          }
         } catch (e) {}
         var c = document.documentElement.classList
         if (layout === 'premium') c.add('premium')

@@ -730,7 +730,12 @@ export default function App() {
             flex: 1,
             display: 'flex',
             height: '100%',
-            background: NUC.bg,
+            // `backgroundColor`, non `background`: lo shorthand scritto inline
+            // azzera anche `background-image`, e batte la classe `.j-bg-fondo`
+            // che il fondo lo porta. Per qualche versione è andata così — la
+            // pagina principale era una tinta piatta, e aloni e "sfondo fuso" si
+            // vedevano solo nelle impostazioni e all'accesso.
+            backgroundColor: NUC.bg,
             fontFamily: NUC.font,
             color: NUC.ink,
             overflow: 'hidden',
@@ -769,7 +774,8 @@ export default function App() {
               position: 'relative',
               width: '100%',
               height: '100%',
-              background: NUC.bg,
+              // `backgroundColor` e non `background`: vedi il ramo desktop qui sopra.
+              backgroundColor: NUC.bg,
               overflow: 'hidden',
               fontFamily: NUC.font,
               color: NUC.ink,

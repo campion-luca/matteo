@@ -1157,8 +1157,76 @@
    movimento": due livelli grandi una volta e mezza lo schermo che ruotavano senza
    fermarsi mai. Costavano poco alla CPU ma tenevano il compositor al lavoro a ogni
    fotogramma, e su iPhone era il motivo per cui i tocchi arrivavano in ritardo.
-   Tolto su richiesta: il fondo è fermo. */
+   Tolto su richiesta: qui il fondo è fermo. (In Standard scuro ce n'è di nuovo
+   uno che si muove, chiesto in prova a ottobre: vedi il blocco qui sotto.) */
 .j-bg-fondo { background-image: var(--paper-grain); }
+
+/* ── Standard scuro: il fondo (in prova, ott 2026) ───────────────
+   Il tema con cui l'app si presenta. Un bruno quasi nero e due aloni grandi e
+   lenti: uno caldo che sale dall'angolo in basso a destra, uno grigio-azzurro
+   che scende da quello in alto a sinistra. Al posto dei tre aloni bianchi e dei
+   tre arancioni del fondo condiviso qui sopra — che restano a Premium, insieme
+   allo "Sfondo fuso".
+
+   Il CSS è quello scritto dall'utente (un `.bg` fisso con `::before` e
+   `::after` che vanno alla deriva in 32 e 40 secondi), portato sul contenitore
+   che il fondo lo porta già, `.j-bg-fondo`, invece che su un elemento nuovo.
+
+   ATTENZIONE, è un fondo che SI MUOVE, e qui uno c'è già stato (vedi sopra):
+   tolto a settembre perché su iPhone i tocchi arrivavano in ritardo. Questo è
+   più leggero — due cerchi da 70vmax che si spostano con `transform` e basta,
+   quindi li muove il compositor senza ridisegnare niente — ma tiene comunque due
+   livelli grandi in movimento sotto tutta l'app. Se i tocchi tornano lenti, il
+   primo sospetto è lui: basta togliere le due `animation` qui sotto e il fondo
+   resta identico, fermo.
+
+   Il selettore: `.dark` senza Premium, Neon e Logbook — cioè Standard con
+   l'interruttore scuro acceso. Pesa due classi, quanto `.dark.bg-fusione`, e
+   venendo DOPO lo batte: lo sfondo fuso è acceso di serie, e senza questo il
+   fondo nuovo non si vedrebbe mai. */
+.dark:not(.premium, .neon, .logbook) {
+  --bg: #15110e;
+  /* La copia FERMA dei due aloni, nella posizione da cui partono. Serve a chi il
+     fondo lo dipinge da sé sopra la pagina — impostazioni, questionario,
+     accesso, caricamento: sono schermate piene, e quelle in movimento restano
+     sotto. 32.2vmax è dove il gradiente dei cerchi diventa trasparente (il 65%
+     della mezza diagonale di un quadrato da 70vmax). */
+  --paper-grain:
+    radial-gradient(circle 32.2vmax at calc(100% - 10vmax) calc(100% - 5vmax), rgba(201,120,60,.22), transparent),
+    radial-gradient(circle 32.2vmax at 10vmax 5vmax, rgba(110,130,150,.14), transparent);
+}
+/* Sulla pagina principale gli aloni sono i due pseudo-elementi: la copia ferma
+   lì sotto li raddoppierebbe. `isolation` chiude il contenitore in un suo piano,
+   così lo `z-index: -1` li mette dietro a tutto il contenuto ma davanti al
+   colore di fondo — senza, finirebbero dietro al contenitore stesso. */
+.dark:not(.premium, .neon, .logbook) .j-bg-fondo {
+  background-image: none;
+  isolation: isolate;
+}
+.dark:not(.premium, .neon, .logbook) .j-bg-fondo::before,
+.dark:not(.premium, .neon, .logbook) .j-bg-fondo::after {
+  content: '';
+  position: absolute; z-index: -1;
+  width: 70vmax; height: 70vmax; border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+.dark:not(.premium, .neon, .logbook) .j-bg-fondo::before {
+  background: radial-gradient(circle, rgba(201,120,60,.22), transparent 65%);
+  bottom: -30vmax; right: -25vmax;
+  animation: j-deriva-calda 32s ease-in-out infinite alternate;
+}
+.dark:not(.premium, .neon, .logbook) .j-bg-fondo::after {
+  background: radial-gradient(circle, rgba(110,130,150,.14), transparent 65%);
+  top: -30vmax; left: -25vmax;
+  animation: j-deriva-fredda 40s ease-in-out infinite alternate;
+}
+@keyframes j-deriva-calda  { to { transform: translate(-15vmax, -10vmax) scale(1.15); } }
+@keyframes j-deriva-fredda { to { transform: translate(12vmax, 15vmax) scale(.9); } }
+@media (prefers-reduced-motion: reduce) {
+  .dark:not(.premium, .neon, .logbook) .j-bg-fondo::before,
+  .dark:not(.premium, .neon, .logbook) .j-bg-fondo::after { animation: none; }
+}
 
 /* ── Layout "Neon" e "Logbook" ───────────────────────────────────
    Due temi scuri a tinta fissa, costruiti SOPRA `.dark`: App accende `.dark`

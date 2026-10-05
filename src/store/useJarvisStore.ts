@@ -195,9 +195,13 @@ export const TEMA_VERSIONE = 2
 
 export const EMPTY_STATE: JarvisState = {
   userName: '',
-  // Premium è il tema con cui l'app si presenta, e un account nuovo parte già
-  // alla versione di tema corrente: il passaggio forzato è per chi c'era prima.
-  layout: 'premium',
+  // Standard SCURO è il tema con cui l'app si presenta (ott 2026; da metà
+  // settembre era Premium). Scuro e non solo Standard: da solo vorrebbe dire la
+  // carta chiara, e l'app è scura da quando è nata Premium — fondo, superfici,
+  // schermata d'avvio. Un account nuovo parte già alla versione di tema
+  // corrente: il passaggio forzato è per chi c'era prima.
+  layout: 'standard',
+  darkMode: true,
   temaVersione: TEMA_VERSIONE,
   accentColor: 'green',
   hyroxExercises: [],
@@ -243,12 +247,21 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   if (lang === 'de') out.lang = 'en'
   else if (lang !== undefined && lang !== 'it' && lang !== 'en') delete out.lang
 
-  // Premium diventa il tema di TUTTI, anche di chi aveva scelto Standard: con
-  // l'aggiornamento lo si vede subito. Una volta sola per account: il marcatore
-  // resta nel blob, e chi dopo rimette Standard lo tiene.
+  // Il passaggio al tema di default, una volta sola per account: chi arriva con
+  // un blob di PRIMA (o con niente) atterra sul layout con cui l'app si presenta
+  // oggi — Standard scuro, lo stesso di EMPTY_STATE. Il marcatore resta nel blob,
+  // e chi dopo sceglie altro lo tiene. (A metà settembre il default era Premium,
+  // e questo passaggio ci ha portato tutti: chi è già passato non si tocca.)
   if ((out.temaVersione ?? 0) < TEMA_VERSIONE) {
-    out.layout = 'premium'
+    out.layout = 'standard'
+    out.darkMode = true
     out.temaVersione = TEMA_VERSIONE
+  } else if (out.darkMode === undefined) {
+    // Un account già passato che l'interruttore chiaro/scuro non l'ha mai
+    // toccato non ha la chiave nel blob: valeva "chiaro", e deve continuare a
+    // valerlo. Senza dirlo qui erediterebbe lo scuro del nuovo default, e chi
+    // aveva scelto Standard sulla carta chiara se lo troverebbe nero.
+    out.darkMode = false
   }
 
   // `rir` (ripetizioni in riserva) non è più chiesto né usato: senza questa

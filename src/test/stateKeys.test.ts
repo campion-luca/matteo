@@ -170,14 +170,34 @@ describe('filtro delle chiavi di stato', () => {
     }
   })
 
-  // Con l'aggiornamento tutti passano a Premium, anche chi aveva scelto
-  // Standard — ma una volta sola: chi dopo rimette Standard deve tenerlo.
-  it('porta tutti su Premium una volta, poi rispetta la scelta', () => {
-    applyRemoteState({ layout: 'standard' } as unknown as Partial<JarvisState>)
-    expect(get().layout).toBe('premium')
+  // Il layout con cui l'app si presenta: Standard scuro (ott 2026; prima Premium).
+  it('un account nuovo parte da Standard scuro', () => {
+    expect(EMPTY_STATE.layout).toBe('standard')
+    expect(EMPTY_STATE.darkMode).toBe(true)
+  })
+
+  // Un blob di prima del passaggio di tema atterra sul default — ma una volta
+  // sola: chi dopo sceglie altro deve tenerlo.
+  it('porta i blob di prima sul default una volta, poi rispetta la scelta', () => {
+    applyRemoteState({ layout: 'premium', darkMode: false } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('standard')
+    expect(get().darkMode).toBe(true)
     expect(get().temaVersione).toBe(2)
+    applyRemoteState({ layout: 'premium', temaVersione: 2 } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('premium')
+  })
+
+  // Scuro è il default dei NUOVI. Chi c'era già e l'interruttore non l'ha mai
+  // toccato non ha la chiave nel blob: era sul chiaro, e non deve ritrovarsi lo
+  // scuro solo perché è cambiato il punto di partenza degli altri.
+  it('chi c’era già e non aveva mai scelto chiaro o scuro resta sul chiaro', () => {
+    expect(get().darkMode).toBe(true)   // lo stato di partenza, quello nuovo
     applyRemoteState({ layout: 'standard', temaVersione: 2 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('standard')
+    expect(get().darkMode).toBe(false)
+    // Chi lo scuro l'aveva acceso lo tiene.
+    applyRemoteState({ layout: 'standard', darkMode: true, temaVersione: 2 } as unknown as Partial<JarvisState>)
+    expect(get().darkMode).toBe(true)
   })
 
   it('la chiave di persistenza è quella attesa', () => {

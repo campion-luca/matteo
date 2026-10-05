@@ -58,9 +58,10 @@ describe('accentFgFor — inchiostro sopra un fondo accent', () => {
 })
 
 describe('accent di Premium', () => {
-  // Premium è il layout di DEFAULT: il suo accent non passa dal picker (App.tsx
-  // lo sceglie a monte) e quindi non finisce in PALETTE_KEYS. È però il colore
-  // che vede quasi tutti, ed è quello che nessun test copriva quando era bianco.
+  // L'accent di Premium non passa dal picker (App.tsx lo sceglie a monte) e
+  // quindi non finisce in PALETTE_KEYS. Premium è stato a lungo il layout di
+  // default, e molti account ci sono ancora: è un colore che vedono in tanti, ed
+  // è quello che nessun test copriva quando era bianco.
   it('come fondo di un tasto regge il testo sopra', () => {
     expect(contrast(accentFgFor(PREMIUM_ACCENT.accent), PREMIUM_ACCENT.accent)).toBeGreaterThanOrEqual(4.5)
   })

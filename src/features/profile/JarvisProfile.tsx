@@ -298,7 +298,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // Un layout a tema fisso (Premium, Neon, Logbook): il colore lo decide lui, e
   // il picker qui sotto resta sospeso finché non si torna a Standard.
   const monoOn  = temaFisso(s.layout)
-  const nomeLayout = t(LAYOUT_LABELS[s.layout ?? 'premium'])
+  const nomeLayout = t(LAYOUT_LABELS[s.layout ?? 'standard'])
   // Assenti = accese: stesso patto di App.tsx, che è chi legge davvero i due campi.
   const bgFuso  = s.bgFuso ?? true
   const initial = (name.trim() || '?')[0].toUpperCase()
@@ -444,7 +444,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               largo. A 104px di minimo ne stavano tre e il quarto restava solo. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
             {LAYOUTS.map(opt => {
-              const active = (s.layout ?? 'premium') === opt.id
+              const active = (s.layout ?? 'standard') === opt.id
               return (
                 <button key={opt.id} onClick={() => set({ layout: opt.id })} style={{
                   minHeight: 78, padding: '12px 10px', borderRadius: 'var(--radius)',
@@ -471,11 +471,13 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           </div>
         </Section>
 
-        {/* Sfondo — la prova sul fondo dei temi scuri, reversibile da qui.
+        {/* Sfondo — la variante del fondo di Premium, reversibile da qui.
             Assente dallo stato vale ACCESA (vedi App.tsx).
-            Neon e Logbook hanno il fondo piatto per scelta: lì l'interruttore
-            non cambierebbe niente, e un comando che non fa nulla non si mostra. */}
-        {s.layout !== 'neon' && s.layout !== 'logbook' && (
+            Solo in Premium: gli altri layout hanno ciascuno il suo fondo (Standard
+            il bruno coi due aloni che si muovono, Neon e Logbook piatto), lì
+            l'interruttore non cambierebbe niente, e un comando che non fa nulla
+            non si mostra. */}
+        {s.layout === 'premium' && (
           <Section
             title={t('Sfondo fuso')}
             hint={t('Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.')}
