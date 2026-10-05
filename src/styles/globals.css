@@ -1159,3 +1159,136 @@
    fotogramma, e su iPhone era il motivo per cui i tocchi arrivavano in ritardo.
    Tolto su richiesta: il fondo è fermo. */
 .j-bg-fondo { background-image: var(--paper-grain); }
+
+/* ── Layout "Neon" e "Logbook" ───────────────────────────────────
+   Due temi scuri a tinta fissa, costruiti SOPRA `.dark`: App accende `.dark`
+   insieme alla classe del tema (anche con l'interruttore chiaro/scuro spento),
+   quindi superfici piene, tasti a pressione e campi arrivano già dalle regole
+   `:is(.dark, .premium)` qui sopra. Questi blocchi cambiano solo i colori.
+
+   `:root.neon` e non `.neon`: pesa due classi, come `.dark.bg-fusione`, che
+   altrimenti rimetterebbe gli aloni arancioni sul fondo. A parità di peso vince
+   l'ordine: per questo i blocchi stanno IN FONDO al foglio, e lì devono restare.
+
+   L'accent (lime, verde) lo inietta App.tsx da `ACCENT_FISSI` in jarvis-tokens. */
+
+/* Neon — una base quasi nera e UN accento ad alta energia, il lime, riservato a
+   progressi e tasti principali. Tutto il resto è una scala di grigi freddi: è
+   quello che lascia al lime il compito di dire "qui succede qualcosa". */
+:root.neon {
+  /* Quasi nero, non nero: riposa l'occhio e lascia vedere dove comincia una
+     card. Antracite a salire, tre gradini come negli altri temi scuri. */
+  --bg:           #0b0b0f;
+  --surface:      #14141a;
+  --surface-2:    #1e1e26;
+  --input-bg:     #18181f;
+  --surface-pop:  #1b1b23;
+  --surface-menu: #23232c;
+  /* Fondo piatto: una luce arancione accanto al lime sarebbe un secondo accento. */
+  --paper-grain:  none;
+
+  --fg:      #f4f4f6;
+  --fg-soft: #c8c8d0;
+  --fg-mute: #9a9aa6;   /* 5.9:1 su --surface-2, il fondo peggiore */
+
+  --hairline:      rgba(255,255,255,.10);
+  --hairline-soft: rgba(255,255,255,.06);
+  --divider:       rgba(255,255,255,.08);
+
+  /* Titoli di sezione e grassetti restano nei grigi: colorarli sarebbe dare
+     all'app un secondo accento, che è proprio ciò che questo tema non ha. */
+  --tertiary:     #c8c8d0;
+  --tertiary-ink: #c8c8d0;
+  --kraft:        #8a8a96;
+  --chart-2:      #8e8ea0;
+
+  /* Il progresso è lime come l'azione. Il rosso resta: non è un accento, è un
+     avviso, e una serie in calo dev'essere distinguibile da una in crescita. */
+  --ok:              #c8ff00;
+  --ok-soft:         #a9d900;
+  --segnale-su:      #c8ff00;
+  --segnale-giu:     #ff6b5e;
+  --segnale-giu-rgb: 255,107,94;
+  --warn:            #f5b84a;
+  --warn-rgb:        245,184,74;
+  --danger:          #ff6b5e;
+  --danger-strong:   #ff8a80;
+  --danger-rgb:      255,107,94;
+
+  /* Sul lime un pomello chiaro sparisce (1.2:1): da acceso diventa scuro. */
+  --knob:    #f4f4f6;
+  --knob-on: #0b0b0f;
+
+  --track: rgba(255,255,255,.10);
+  --scrim: rgba(0,0,0,.66);
+
+  --shadow-card: none;
+  --shadow-pop:  0 24px 48px -16px rgba(0,0,0,.95);
+  --key-edge:    rgba(0,0,0,.8);
+}
+/* I tasti secondari ("+ Sessione", il "+") di serie scrivono in accent: qui il
+   lime è dei tasti PRINCIPALI, quindi tornano bianchi. */
+.neon :is(.j-btn-log, .j-btn-add) { color: var(--fg); }
+/* L'unico effetto del tema: sotto i tasti pieni l'ombra lunga è del loro colore
+   invece che nera. Una classe sola davanti, apposta: così hover e pressione
+   (che pesano di più, vedi "Tasti a pressione") continuano a vincere e il tasto
+   affonda come negli altri temi scuri. */
+.neon :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    0 var(--j-hard-d, 4px) 0 0 var(--key-edge),
+    0 calc(var(--j-hard-d, 4px) + 10px) 26px -10px rgba(var(--j-rgb), .45);
+}
+
+/* Logbook — il diario del pesista: scuro, neutro, facile da leggere fra una
+   serie e l'altra. Due colori con due mestieri: il VERDE (l'accent) per ciò che
+   è fatto — serie completate, record, progressi — e per il tasto principale; il
+   BLU per le azioni secondarie. */
+:root.logbook {
+  --bg:           #0f1114;
+  --surface:      #1a1d21;
+  --surface-2:    #252930;
+  --input-bg:     #1e2126;
+  --surface-pop:  #22262c;
+  --surface-menu: #2a2f36;
+  --paper-grain:  none;
+
+  --fg:      #f2f4f7;
+  --fg-soft: #c5cad3;
+  --fg-mute: #9aa2ae;   /* 5.6:1 su --surface-2 */
+
+  --hairline:      rgba(255,255,255,.11);
+  --hairline-soft: rgba(255,255,255,.06);
+  --divider:       rgba(255,255,255,.08);
+
+  /* Il blu. Non sta in `--tertiary-ink`: quello colora i TITOLI di sezione, e un
+     titolo blu qui si leggerebbe come una cosa da toccare. Lo prendono solo i
+     tasti secondari (sotto) e la seconda serie dei grafici. */
+  --logbook-blu:  #5aa9ff;   /* 5.9:1 su --surface-2 */
+  --tertiary:     #c5cad3;
+  --tertiary-ink: #c5cad3;
+  --kraft:        #8a929e;
+  --chart-2:      var(--logbook-blu);
+
+  --ok:              #30d158;
+  --ok-soft:         #5ee07f;
+  --segnale-su:      #30d158;
+  --segnale-giu:     #ff6961;
+  --segnale-giu-rgb: 255,105,97;
+  --warn:            #ffb340;
+  --warn-rgb:        255,179,64;
+  --danger:          #ff6961;
+  --danger-strong:   #ff8a84;
+  --danger-rgb:      255,105,97;
+
+  --knob: #ffffff;
+
+  --track: rgba(255,255,255,.10);
+  --scrim: rgba(0,0,0,.62);
+
+  --shadow-card: none;
+  --shadow-pop:  0 24px 48px -16px rgba(0,0,0,.9);
+}
+/* Le azioni secondarie: registrare una sessione, aggiungere, tornare indietro,
+   i tasti a contorno. */
+.logbook :is(.j-btn-log, .j-btn-add, .j-btn-back, .j-btn-ghost) { color: var(--logbook-blu); }

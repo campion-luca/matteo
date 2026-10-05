@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { t, tData, translate, getLang } from '@/lib/i18n'
-import { DE_UI, DE_DATA } from '@/lib/i18n.de'
+import { EN_UI, EN_DATA } from '@/lib/i18n.en'
 import { fmtDayMon, fmtDayMonthFull, fmtShortDate, fmtDayMonth, daysShort } from '@/lib/dateFormat'
 import { isoWeekLabel } from '@/lib/isoDate'
 
-const setLang = (lang: 'it' | 'de') => useJarvisStore.setState({ lang })
+const setLang = (lang: 'it' | 'en') => useJarvisStore.setState({ lang })
 
 // ── Le chiavi usate davvero dal codice ─────────────────────────
 // Il dizionario si allinea a mano al codice, e a mano si sbaglia: una `t()`
-// aggiunta e non tradotta esce in italiano dentro una schermata tedesca, e nessuno
+// aggiunta e non tradotta esce in italiano dentro una schermata inglese, e nessuno
 // se ne accorge finché non la si guarda. Questo test rilegge i sorgenti e chiede
 // che ogni chiave abbia una voce.
 //
@@ -75,18 +75,18 @@ function chiaviRaggiungibili(): Set<string> {
   return out
 }
 
-describe('dizionario tedesco', () => {
+describe('dizionario inglese', () => {
   it('traduce ogni chiave che il codice usa', () => {
     const usate = chiaviUsate()
-    const senza = [...usate].filter(([k]) => !(k in DE_UI)).map(([k, f]) => `${k}  (${f})`)
-    expect(senza, 'chiavi senza traduzione tedesca').toEqual([])
+    const senza = [...usate].filter(([k]) => !(k in EN_UI)).map(([k, f]) => `${k}  (${f})`)
+    expect(senza, 'chiavi senza traduzione inglese').toEqual([])
   })
 
   it('non contiene voci che nessuno usa più', () => {
     // Una voce orfana non rompe niente, ma è il segno di una frase cambiata nel
     // codice e non nel dizionario: da lì in poi quella schermata resta italiana.
     const raggiungibili = chiaviRaggiungibili()
-    const orfane = Object.keys(DE_UI).filter(k => !raggiungibili.has(k))
+    const orfane = Object.keys(EN_UI).filter(k => !raggiungibili.has(k))
     expect(orfane, 'voci del dizionario non più usate').toEqual([])
   })
 
@@ -95,31 +95,33 @@ describe('dizionario tedesco', () => {
     // schermo, e `{nn}` scritto storto stampa la graffa così com'è.
     const segnaposto = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort()
     const rotte: string[] = []
-    for (const [it, de] of Object.entries(DE_UI)) {
+    for (const [it, en] of Object.entries(EN_UI)) {
       const a = segnaposto(it).join(',')
-      const b = segnaposto(de).join(',')
-      if (a !== b) rotte.push(`${it}  →  it:[${a}] de:[${b}]`)
+      const b = segnaposto(en).join(',')
+      if (a !== b) rotte.push(`${it}  →  it:[${a}] en:[${b}]`)
     }
     expect(rotte, 'segnaposto non corrispondenti').toEqual([])
   })
 
   it('non ha traduzioni vuote né rimaste in italiano', () => {
-    const vuote = Object.entries(DE_UI).filter(([, de]) => de.trim() === '').map(([it]) => it)
+    const vuote = Object.entries(EN_UI).filter(([, de]) => de.trim() === '').map(([it]) => it)
     expect(vuote).toEqual([])
     // Qualche voce coincide per forza (nomi propri, sigle): l'elenco è chiuso, e
     // una nuova coincidenza va guardata invece di passare in silenzio.
-    const uguali = Object.entries(DE_UI).filter(([it, de]) => it === de).map(([it]) => it)
+    const uguali = Object.entries(EN_UI).filter(([it, de]) => it === de).map(([it]) => it)
     expect(uguali.sort()).toEqual([
-      // "Personal OS" se n'è andato con la sidebar desktop, che non aveva più
-      // due schermate fra cui commutare.
-      // "Roxzone" è il nome ufficiale della zona di cambio Hyrox, uguale ovunque.
-      // "Coaching" è la stessa parola in tedesco (Duden: das Coaching) ed è quella
-      // che si usa davvero: "Training" c'è, ma è già l'allenamento in sé.
-      // "Chat" è Chat anche in tedesco (der Chat).
-      'Chat', 'Coaching', 'Hyrox', 'Journal', 'Kg', 'Light weight baby', 'Pace',
-      'Personal Coach', 'Premium', 'Roxzone', 'Standard',
-      // "Timer" è la parola che si usa anche in tedesco (der Timer).
-      'Timer', 'Total', 'Trend',
+      // Con l'inglese l'elenco è più lungo che col tedesco: l'italiano della
+      // palestra è pieno di parole inglesi, e quelle restano come sono.
+      //  · nomi propri: Hyrox, Roxzone, Journal, Personal Coach, e i layout
+      //    (Standard, Premium, Neon, Logbook);
+      //  · parole inglesi già nell'interfaccia italiana: Chat, Coaching, Dark
+      //    mode, Log, Pace, Timer, Total, Trend, Volume, superset, email,
+      //    password, info, "Light weight baby";
+      //  · sigle e unità: Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo.
+      'Chat', 'Coaching', 'Dark mode', 'Hyrox', 'Journal', 'Kg', 'Light weight baby',
+      'Log', 'Logbook', 'Neon', 'No', 'Pace', 'Pace (sec/km)', 'Personal Coach', 'Premium', 'Roxzone',
+      'Standard', 'Timer', 'Total', 'Trend', 'Volume', 'email', 'info', 'min',
+      'password', 'sec', 'superset', '{gruppo} — default', '{n} sess.',
     ])
   })
 })
@@ -133,27 +135,27 @@ describe('traduzione', () => {
     expect(t('Salva')).toBe('Salva')
   })
 
-  it('in tedesco pesca dal dizionario', () => {
-    setLang('de')
-    expect(t('Salva')).toBe('Speichern')
-    expect(t('Impostazioni')).toBe('Einstellungen')
+  it('in inglese pesca dal dizionario', () => {
+    setLang('en')
+    expect(t('Salva')).toBe('Save')
+    expect(t('Impostazioni')).toBe('Settings')
   })
 
   it('riempie i segnaposto in tutte e due le lingue', () => {
     expect(t('{n} esercizi', { n: 7 })).toBe('7 esercizi')
-    setLang('de')
-    expect(t('{n} esercizi', { n: 7 })).toBe('7 Übungen')
+    setLang('en')
+    expect(t('{n} esercizi', { n: 7 })).toBe('7 exercises')
   })
 
   it('una chiave senza traduzione ricade sull’italiano invece di sparire', () => {
-    setLang('de')
+    setLang('en')
     expect(t('Questa frase non è nel dizionario')).toBe('Questa frase non è nel dizionario')
   })
 
   it('toglie il prefisso di contesto quando la voce manca', () => {
     // Il fallback deve mostrare la frase, mai il contesto che la disambigua.
     expect(t('grafico|Carico')).toBe('Carico')
-    setLang('de')
+    setLang('en')
     expect(t('grafico|Carico')).toBe('Carico')
   })
 
@@ -168,13 +170,13 @@ describe('nomi di esercizi e gruppi muscolari', () => {
   afterEach(() => useJarvisStore.setState({ ...EMPTY_STATE }, true))
 
   it('traduce quelli del catalogo', () => {
-    setLang('de')
-    expect(tData('Petto')).toBe('Brust')
-    expect(tData('Panca piana')).toBe('Bankdrücken')
+    setLang('en')
+    expect(tData('Petto')).toBe('Chest')
+    expect(tData('Panca piana')).toBe('Bench Press')
   })
 
   it('lascia intatto quello che ha scritto l’utente', () => {
-    setLang('de')
+    setLang('en')
     expect(tData('Panca del lunedì di Gigi')).toBe('Panca del lunedì di Gigi')
   })
 
@@ -184,15 +186,15 @@ describe('nomi di esercizi e gruppi muscolari', () => {
 
   it('non traduce con il dizionario dell’interfaccia', () => {
     // Le due mappe sono separate apposta: un esercizio che qualcuno avesse
-    // chiamato "Salva" non deve diventare "Speichern".
-    setLang('de')
+    // chiamato "Salva" non deve diventare "Save".
+    setLang('en')
     expect(tData('Salva')).toBe('Salva')
   })
 
   it('copre tutti i gruppi muscolari di partenza', () => {
     const gruppi = ['Petto', 'Dorso', 'Spalle', 'Bicipiti', 'Tricipiti', 'Core', 'Gambe', 'Glutei', 'Altro']
-    const senza = gruppi.filter(g => !(g in DE_DATA))
-    expect(senza, 'gruppi muscolari senza nome tedesco').toEqual([])
+    const senza = gruppi.filter(g => !(g in EN_DATA))
+    expect(senza, 'gruppi muscolari senza nome inglese').toEqual([])
   })
 })
 
@@ -208,26 +210,25 @@ describe('date nella lingua scelta', () => {
     expect(isoWeekLabel('2026-08-19')).toBe('W34')
   })
 
-  it('in tedesco cambia anche la punteggiatura, non solo le parole', () => {
-    setLang('de')
-    expect(fmtDayMon('2026-08-19')).toBe('19. Aug')
-    expect(fmtDayMonthFull('2026-08-19')).toBe('19. August')
-    expect(fmtShortDate('2026-08-19')).toBe('19.08.26')
-    expect(fmtDayMonth('2026-08-19')).toBe('19.08.')
+  it('in inglese cambiano le parole, non l’ordine: giorno, mese, anno', () => {
+    // Inglese britannico: "08/19/26" cambierebbe il significato di ogni data.
+    setLang('en')
+    expect(fmtDayMon('2026-08-19')).toBe('19 Aug')
+    expect(fmtDayMonthFull('2026-08-19')).toBe('19 August')
+    expect(fmtShortDate('2026-08-19')).toBe('19/08/26')
+    expect(fmtDayMonth('2026-08-19')).toBe('19/08')
     expect(daysShort()[0]).toBe('Mo')
-    // "KW" è la sigla che in Germania sta sui calendari: "W34" lì non si legge
-    // come una settimana.
-    expect(isoWeekLabel('2026-08-19')).toBe('KW34')
+    expect(isoWeekLabel('2026-08-19')).toBe('W34')
   })
 
-  it('non sposta il giorno nemmeno in tedesco', () => {
-    setLang('de')
-    expect(fmtShortDate('2026-01-01')).toBe('01.01.26')
-    expect(fmtDayMon('2026-01-01')).toBe('1. Jan')
+  it('non sposta il giorno nemmeno in inglese', () => {
+    setLang('en')
+    expect(fmtShortDate('2026-01-01')).toBe('01/01/26')
+    expect(fmtDayMon('2026-01-01')).toBe('1 Jan')
   })
 
   it('restituisce l’input se non è una data', () => {
-    setLang('de')
+    setLang('en')
     expect(fmtShortDate('non-una-data')).toBe('non-una-data')
     expect(fmtDayMon('boh')).toBe('boh')
   })

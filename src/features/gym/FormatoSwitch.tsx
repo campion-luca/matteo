@@ -20,11 +20,12 @@ import type { FormatoHyrox } from './hyroxStima'
 export function FormatoSwitch<T extends string = FormatoHyrox>({ valore, onChange, etichette, valori, etichettaGruppo, style }: {
   valore: T
   onChange: (f: T) => void
-  /** [intera, mezza]: "1 km / 500 m" sull'elenco, la distanza della stazione
-   *  ("50 m / 25 m", "100 rep / 50 rep") dentro la sua pagina. */
+  /** [intera, mezza]: "1 km / 500 m" nelle statistiche e quando si registra, la
+   *  distanza della stazione ("50 m / 25 m", "100 rep / 50 rep") dentro la sua pagina. */
   etichette: [string, string]
   /** I due valori, se non sono intera / mezza: lo stesso interruttore sceglie
-   *  anche la categoria di gara (double / singolo). */
+   *  anche la categoria di gara (double / singolo) e, in cima all'elenco degli
+   *  esercizi, fra sessioni e gare. */
   valori?: [T, T]
   etichettaGruppo?: string
   style?: React.CSSProperties

@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import { toMono } from '@/lib/jarvis-tokens'
+import { toMono, temaFisso } from '@/lib/jarvis-tokens'
 
 /**
- * Layout "Premium": spegne il colore anche nei DATI utente.
+ * I layout a tema fisso (Premium, Neon, Logbook) spengono il colore anche nei
+ * DATI utente: lì il colore è uno, o due, e sta solo dove si tocca.
  *
  * I colori dei gruppi muscolari sono hex salvati nello store
  * e sincronizzati sul cloud, non token CSS: arrivano da JS come `background: cat.color`,
@@ -18,9 +19,9 @@ import { toMono } from '@/lib/jarvis-tokens'
  */
 export function useMono(): { mono: boolean; monoize: (hex: string) => string } {
   const layout = useJarvisStore(st => st.layout)
-  const mono = layout === 'premium'
-  // `toMono` sceglie la banda di grigi in base al fondo: in "Premium" è sempre
-  // scuro, anche con l'interruttore chiaro/scuro spento.
+  const mono = temaFisso(layout)
+  // `toMono` sceglie la banda di grigi in base al fondo: in questi layout è
+  // sempre scuro, anche con l'interruttore chiaro/scuro spento.
   return useMemo(
     () => ({ mono, monoize: (hex: string) => (mono ? toMono(hex, true) : hex) }),
     [mono],

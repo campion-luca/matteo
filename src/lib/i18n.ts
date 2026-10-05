@@ -1,4 +1,6 @@
-// Traduzione dell'interfaccia. Due lingue: italiano (originale) e tedesco.
+// Traduzione dell'interfaccia. Due lingue: italiano (originale) e inglese.
+// (Fino a ott 2026 la seconda era il tedesco: chi l'aveva scelto passa
+// all'inglese, vedi `migrateNested` nello store.)
 //
 // ── Perché la chiave è la frase italiana ───────────────────────
 // Il modello è quello di gettext: `t('Salva')`, non `t('profile.save')`. Con
@@ -7,7 +9,7 @@
 // che si rompe in silenzio quando una chiave è scritta male — `t('profil.save')`
 // non è un errore per il compilatore, è solo una stringa che non esiste.
 // Con la frase come chiave il codice resta leggibile senza saltare al dizionario,
-// e una voce mancante ricade sull'italiano: peggio del tedesco, ma leggibile.
+// e una voce mancante ricade sull'italiano: peggio dell'inglese, ma leggibile.
 //
 // ── Il prefisso di contesto ────────────────────────────────────
 // Quando la stessa parola italiana ha due traduzioni diverse a seconda di dov'è
@@ -16,18 +18,20 @@
 // c'è dopo la barra, mai il prefisso.
 import { useMemo } from 'react'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import { DE_UI, DE_DATA } from './i18n.de'
+import { EN_UI, EN_DATA } from './i18n.en'
 
-export type Lang = 'it' | 'de'
+export type Lang = 'it' | 'en'
 
-export const LANGS: readonly Lang[] = ['it', 'de'] as const
+export const LANGS: readonly Lang[] = ['it', 'en'] as const
 
-/** Nome della lingua nella lingua stessa: in un selettore di lingua "Deutsch"
- *  lo riconosce anche chi non capisce una parola di quelle attorno, "Tedesco" no. */
-export const LANG_LABELS: Record<Lang, string> = { it: 'Italiano', de: 'Deutsch' }
+/** Nome della lingua nella lingua stessa: in un selettore di lingua "English"
+ *  lo riconosce anche chi non capisce una parola di quelle attorno, "Inglese" no. */
+export const LANG_LABELS: Record<Lang, string> = { it: 'Italiano', en: 'English' }
 
-/** Il tag BCP 47 per `<html lang>`, `Intl` e la sintesi vocale. */
-export const LANG_TAGS: Record<Lang, string> = { it: 'it-IT', de: 'de-DE' }
+/** Il tag BCP 47 per `<html lang>`, `Intl` e la sintesi vocale. Inglese
+ *  britannico: l'app misura in chili e chilometri e scrive le date col giorno
+ *  davanti, come l'italiano (vedi dateFormat). */
+export const LANG_TAGS: Record<Lang, string> = { it: 'it-IT', en: 'en-GB' }
 
 export type TVars = Record<string, string | number>
 
@@ -47,7 +51,7 @@ function interpolate(s: string, vars?: TVars): string {
 }
 
 export function translate(lang: Lang, key: string, vars?: TVars): string {
-  const base = lang === 'de' ? (DE_UI[key] ?? stripContext(key)) : stripContext(key)
+  const base = lang === 'en' ? (EN_UI[key] ?? stripContext(key)) : stripContext(key)
   return interpolate(base, vars)
 }
 
@@ -63,8 +67,8 @@ export function t(key: string, vars?: TVars): string {
 }
 
 /** La lingua corrente, dentro un componente. Serve dove non basta tradurre una
- *  frase ma cambia una REGOLA: in italiano "base" scorre minuscolo dentro la riga,
- *  in tedesco "Grundlage" è un sostantivo e minuscolo sarebbe un errore. */
+ *  frase ma cambia una REGOLA — l'ordine delle parole in una data, i nomi dei
+ *  giorni — e chi chiama deve ricalcolare quando la lingua cambia. */
 export function useLang(): Lang {
   return useJarvisStore(s => s.lang ?? 'it')
 }
@@ -85,10 +89,10 @@ export function useT(): TFn {
 // Perciò restano italiani nello store e si traducono solo quando si stampano.
 // Il dizionario è separato da quello dell'interfaccia di proposito: qui dentro
 // passano anche i nomi scritti a mano dall'utente, e un esercizio che qualcuno
-// avesse chiamato "Salva" non deve diventare "Speichern".
+// avesse chiamato "Salva" non deve diventare "Save".
 export function translateData(lang: Lang, name: string): string {
-  if (lang !== 'de') return name
-  return DE_DATA[name] ?? DE_DATA[name.trim()] ?? name
+  if (lang !== 'en') return name
+  return EN_DATA[name] ?? EN_DATA[name.trim()] ?? name
 }
 
 /** Nome di un esercizio o di un gruppo muscolare, pronto da mostrare. Quello che

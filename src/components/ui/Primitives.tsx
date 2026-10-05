@@ -25,10 +25,10 @@ export function useGreeting(name = '') {
     const easter = easterDate(y)
     // Con nome vuoto il saluto va senza virgola ("Buongiorno." invece di "Buongiorno, .").
     const s = name ? `, ${name}.` : '.'
-    // Le ricorrenze restano quelle del calendario italiano anche in tedesco: sono
+    // Le ricorrenze restano quelle del calendario italiano anche in inglese: sono
     // i giorni in cui l'app viene aperta, non una scelta di lingua. Tradotta è la
     // formula, non la data — un 25 aprile non diventa un'altra festa perché la
-    // schermata è in tedesco.
+    // schermata è in inglese.
     if (m === 12 && d === 25) return t('Buon Natale') + s
     if (m === 1  && d === 1)  return t('Buon Anno Nuovo') + s
     if (m === easter.month && (d === easter.day || d === easter.day + 1)) return t('Buona Pasqua') + s

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
-import type { AccentColor } from '@/lib/jarvis-tokens'
+import { temaFisso, type AccentColor, type LayoutFisso } from '@/lib/jarvis-tokens'
 // Solo il tipo: `import type` sparisce alla compilazione, quindi il fatto che
 // `i18n` importi a sua volta lo store non crea un ciclo a runtime.
 import type { Lang } from '@/lib/i18n'
@@ -144,12 +144,16 @@ export interface WeightLogEntry {
 //
 // Prima c'erano 'notte' (bianco/nero che seguiva chiaro/scuro) e 'nero', che è
 // diventato 'premium'. Il valore salvato si converte in `migrateNested`.
-export type LayoutMode = 'standard' | 'premium'
+//
+// 'neon' e 'logbook' (ott 2026) sono fatti come 'premium': scuri sempre, con un
+// accent proprio. L'elenco di quelli a tema fisso sta in jarvis-tokens
+// (`ACCENT_FISSI`), accanto ai loro colori.
+export type LayoutMode = 'standard' | LayoutFisso
 
 export interface JarvisState {
   userName: string
   // La lingua dell'interfaccia. Sta nello stato sincronizzato, non nel
-  // localStorage del dispositivo: chi sceglie il tedesco lo sceglie per sé, non
+  // localStorage del dispositivo: chi sceglie l'inglese lo sceglie per sé, non
   // per il telefono, e se lo ritrova anche aprendo l'app altrove.
   // `undefined` = italiano, che è la lingua in cui l'app è scritta.
   lang?: Lang
@@ -230,7 +234,14 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   // come standard, ma il blob in cloud se lo porterebbe dietro per sempre.
   const layout = out.layout as string | undefined
   if (layout === 'nero') out.layout = 'premium'
-  else if (layout !== undefined && layout !== 'standard' && layout !== 'premium') out.layout = 'standard'
+  else if (layout !== undefined && layout !== 'standard' && !temaFisso(layout)) out.layout = 'standard'
+
+  // Il tedesco non c'è più (ott 2026), al suo posto l'inglese. Chi l'aveva scelto
+  // passa all'inglese e non all'italiano: aveva scelto di NON leggere l'italiano,
+  // e fra le due lingue rimaste quella è la più vicina a ciò che voleva.
+  const lang = out.lang as string | undefined
+  if (lang === 'de') out.lang = 'en'
+  else if (lang !== undefined && lang !== 'it' && lang !== 'en') delete out.lang
 
   // Premium diventa il tema di TUTTI, anche di chi aveva scelto Standard: con
   // l'aggiornamento lo si vede subito. Una volta sola per account: il marcatore

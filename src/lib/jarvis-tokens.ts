@@ -201,6 +201,43 @@ export const PREMIUM_ACCENT: AccentPalette = {
   rgb:        '166,75,50', softRgb: '196,105,80', deepRgb: '136,45,20',
 }
 
+// ── Layout "Neon" e "Logbook" ──────────────────────────────────
+// Gli altri due layout a tema fisso (ott 2026), fatti come Premium: scuri sempre,
+// con un accent proprio che non passa dal picker. Il resto dei token sta nei
+// blocchi `:root.neon` e `:root.logbook` di globals.css.
+//
+// Neon — quasi nero e UN accento ad alta energia, il lime: progressi e tasti
+// principali, nient'altro. È un colore chiarissimo, quindi sopra ci va
+// l'inchiostro scuro (lo sceglie `accentFgFor`) e come testo passa così com'è.
+export const NEON_ACCENT: AccentPalette = {
+  accent:     '#C8FF00', accentSoft: '#DCFF5C', accentDeep: '#9BC700',
+  rgb:        '200,255,0', softRgb: '220,255,92', deepRgb: '155,199,0',
+}
+// Logbook — il diario del pesista: il verde è l'azione e il fatto (serie
+// completate, record, progressi); il blu delle azioni secondarie non è un accent
+// ma il terziario del tema (`--tertiary-ink` in globals.css).
+export const LOGBOOK_ACCENT: AccentPalette = {
+  accent:     '#30D158', accentSoft: '#5EE07F', accentDeep: '#1FA644',
+  rgb:        '48,209,88', softRgb: '94,224,127', deepRgb: '31,166,68',
+}
+
+/** L'accent dei layout a tema fisso. `standard` non c'è: lì vale il picker. */
+export const ACCENT_FISSI = {
+  premium: PREMIUM_ACCENT,
+  neon:    NEON_ACCENT,
+  logbook: LOGBOOK_ACCENT,
+} as const satisfies Record<string, AccentPalette>
+
+/** I layout scuri sempre, che ignorano l'interruttore chiaro/scuro. */
+export type LayoutFisso = keyof typeof ACCENT_FISSI
+
+/** Il layout è uno di quelli a tema fisso? `undefined` (blob di prima) no.
+ *  `hasOwnProperty` e non `in`: il valore arriva dal cloud così com'è, e con
+ *  `in` un `"toString"` passerebbe per un layout. */
+export function temaFisso(layout: string | undefined): layout is LayoutFisso {
+  return layout !== undefined && Object.prototype.hasOwnProperty.call(ACCENT_FISSI, layout)
+}
+
 // Hex dei DATI utente (colore del gruppo muscolare) → grigio.
 // Questi hex sono persistiti nello store e sincronizzati sul cloud: arrivano da JS
 // come `background: cat.color`, quindi nessun override CSS può raggiungerli.

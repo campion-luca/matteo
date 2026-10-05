@@ -24,7 +24,7 @@ import {
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
-import { type FormatoHyrox, unitaFormato, distanzaLeggibile, fmtTempoGara, cifreInTempo, cifreInSec, secInCifre } from './hyroxStima'
+import { type FormatoHyrox, unitaFormato, distanzaLeggibile, registraPasso, unitaDelTempo, fmtTempoGara, cifreInTempo, cifreInSec, secInCifre } from './hyroxStima'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { todayISO } from '@/lib/isoDate'
@@ -85,7 +85,10 @@ export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }:
 
   const totalSec = (parseInt(min) || 0) * 60 + (parseInt(sec) || 0)
   const u = parseFloat(units) || ex.target
-  const paceStr = totalSec > 0 ? pace(totalSec, u, ex.unit) : '—'
+  // La corsa fino al km si registra col passo, non col tempo della frazione:
+  // il campo lo dice, così su 500 m non si scrive 6:00 per leggersi 12:00/km.
+  const passo = registraPasso(ex.id, u)
+  const paceStr = totalSec > 0 ? pace(totalSec, unitaDelTempo(ex.id, u), ex.unit) : '—'
 
   const save = () => {
     if (!totalSec || !u) return
@@ -109,7 +112,7 @@ export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }:
         <div className="j-eyebrow mb-0.5 mt-1">{t('Data')}</div>
         <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
 
-        <div className="j-eyebrow mt-1">{t('Tempo')}</div>
+        <div className="j-eyebrow mt-1">{passo ? t('Passo medio al km') : t('Tempo')}</div>
         <div className="flex gap-2">
           <input value={min} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
           <input value={sec} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
@@ -286,8 +289,10 @@ function conData(date: string): { date?: string; d?: string } {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date, d: weekLabel(date) } : {}
 }
 
-export function EditHyroxHistModal({ entry, unit, onClose, onSave }: {
-  entry: HyroxHistoryEntry; unit: string
+export function EditHyroxHistModal({ entry, id, unit, onClose, onSave }: {
+  entry: HyroxHistoryEntry
+  /** Della stazione: la corsa si corregge col passo, come la si registra. */
+  id: string; unit: string
   onClose: () => void; onSave: (h: HyroxHistoryEntry) => void
 }) {
   const t = useT()
@@ -311,7 +316,7 @@ export function EditHyroxHistModal({ entry, unit, onClose, onSave }: {
             trend e l'unico rimedio era cancellarla e riscriverla. */}
         <div className="j-eyebrow">{t('Data')}</div>
         <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
-        <div className="j-eyebrow mt-1">{t('Tempo')}</div>
+        <div className="j-eyebrow mt-1">{registraPasso(id, parseFloat(units) || entry.units) ? t('Passo medio al km') : t('Tempo')}</div>
         <div className="flex gap-2">
           <input value={minV} onChange={e => setMin(e.target.value)} placeholder={t('min')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
           <input value={secV} onChange={e => setSec(e.target.value)} placeholder={t('sec')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
@@ -902,7 +907,7 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
 // `ExStatsModal`. Riceve le sessioni GIÀ filtrate per distanza: un grafico che
 // mescola 500 m e 1000 m salterebbe su e giù a ogni cambio di formato.
 export function HyroxStatsModal({ ex, hist, onClose }: {
-  ex: Pick<HyroxExercise, 'n' | 'unit'>
+  ex: Pick<HyroxExercise, 'id' | 'n' | 'unit'>
   hist: HyroxHistoryEntry[]
   onClose: () => void
 }) {
@@ -913,11 +918,11 @@ export function HyroxStatsModal({ ex, hist, onClose }: {
   const { times, paces, labels } = useMemo(() => ({
     times:  ord.map(h => h.sec),
     // Lo stesso passo della pagina della stazione: al km, ai 500 m o rep/min.
-    paces:  ord.map(h => ex.unit === 'km' ? Math.round(h.sec / h.units)
+    paces:  ord.map(h => ex.unit === 'km' ? Math.round(h.sec / unitaDelTempo(ex.id, h.units))
       : ex.unit === 'm' ? Math.round((h.sec / h.units) * 500)
       : Math.round((h.units / h.sec) * 60)),
     labels: ord.map(h => h.date ? fmtDayMonth(h.date) : h.d),
-  }), [ord, ex.unit])
+  }), [ord, ex.id, ex.unit])
 
   const best  = times.length ? Math.min(...times) : 0
   const last  = times[times.length - 1]
@@ -978,7 +983,7 @@ export function HyroxStatsModal({ ex, hist, onClose }: {
                     <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>{fmtTime(h.sec)} · {distanzaLeggibile(h.units, ex.unit)}</div>
                     <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{h.date ? fmtShortDate(h.date) : h.d}</div>
                   </div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--j-accent-ink)', flexShrink: 0 }}>{pace(h.sec, h.units, ex.unit)}</div>
+                  <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--j-accent-ink)', flexShrink: 0 }}>{pace(h.sec, unitaDelTempo(ex.id, h.units), ex.unit)}</div>
                 </div>
               ))}
             </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { LEVEL_LABELS, type DistrictStrength, type StrengthLevel } from './gymStrength'
-import { useT, useTData, useLang } from '@/lib/i18n'
+import { useT, useTData } from '@/lib/i18n'
 import {
   VIEWBOX_CORPO, neutri, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, GAMBE_RETRO, type Forma,
 } from './bodyBlocks'
@@ -118,14 +118,9 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
 }) {
   const t = useT()
   const tData = useTData()
-  const lang = useLang()
-  // Il livello scorre dentro la riga ("base · 82 kg · 1.10× peso"), e in italiano
-  // ci sta minuscolo. In tedesco no: "Grundlage" è un sostantivo, e minuscolo
-  // sarebbe un errore di ortografia, non una scelta di stile.
-  const livello = (l: StrengthLevel) => {
-    const etichetta = t(LEVEL_LABELS[l])
-    return lang === 'de' ? etichetta : etichetta.toLowerCase()
-  }
+  // Il livello scorre dentro la riga ("base · 82 kg · 1.10× peso"), e ci sta
+  // minuscolo, in italiano come in inglese.
+  const livello = (l: StrengthLevel) => t(LEVEL_LABELS[l]).toLowerCase()
   const [side, setSide] = useState<'front' | 'back'>('front')
   const [picked, setPicked] = useState<string | null>(null)
 

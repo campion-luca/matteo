@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { accentFgFor, accentInkFor, ACCENT_PALETTES, paletteFor, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
+import { accentFgFor, accentInkFor, ACCENT_PALETTES, ACCENT_FISSI, temaFisso, paletteFor, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
 
 const LIGHT_CARD = '#f7f3e8'
 const DARK_CARD = '#1c1c1c'
@@ -72,6 +72,46 @@ describe('accent di Premium', () => {
   it('sceglie la crema e non l’inchiostro scuro', () => {
     // La terracotta è scura: con l'inchiostro caldo sopra si leggerebbe appena.
     expect(accentFgFor(PREMIUM_ACCENT.accent)).toBe('#f2f7f0')
+  })
+})
+
+describe('accent di Neon e Logbook', () => {
+  // Come Premium: scelti a monte da App.tsx, fuori dal picker. Il fondo di
+  // riferimento è la `--surface-2` di ciascun tema (globals.css), il caso peggiore.
+  const TEMI = [
+    { nome: 'neon', surface2: '#1e1e26' },
+    { nome: 'logbook', surface2: '#252930' },
+  ] as const
+
+  it.each(TEMI)('$nome: come fondo di un tasto regge il testo sopra', ({ nome }) => {
+    const accent = ACCENT_FISSI[nome].accent
+    expect(contrast(accentFgFor(accent), accent)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each(TEMI)('$nome: come testo sul fondo del tema raggiunge AA', ({ nome, surface2 }) => {
+    expect(contrast(accentInkFor(ACCENT_FISSI[nome].accent, true), surface2)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('sono chiari: sopra ci va l’inchiostro scuro, non la crema', () => {
+    // Sul lime la crema starebbe a 1.2:1.
+    expect(accentFgFor(ACCENT_FISSI.neon.accent)).toBe('#26221b')
+    expect(accentFgFor(ACCENT_FISSI.logbook.accent)).toBe('#26221b')
+  })
+
+  it('il testo secondario dei due temi regge sul loro fondo peggiore', () => {
+    expect(contrast('#9a9aa6', '#1e1e26')).toBeGreaterThanOrEqual(4.5)   // --fg-mute di Neon
+    expect(contrast('#9aa2ae', '#252930')).toBeGreaterThanOrEqual(4.5)   // --fg-mute di Logbook
+    expect(contrast('#5aa9ff', '#252930')).toBeGreaterThanOrEqual(4.5)   // il blu di Logbook
+  })
+
+  it('temaFisso riconosce i layout scuri sempre, e non Standard', () => {
+    expect(temaFisso('premium')).toBe(true)
+    expect(temaFisso('neon')).toBe(true)
+    expect(temaFisso('logbook')).toBe(true)
+    expect(temaFisso('standard')).toBe(false)
+    expect(temaFisso(undefined)).toBe(false)
+    // Un nome di proprietà ereditata non è un layout.
+    expect(temaFisso('toString')).toBe(false)
   })
 })
 

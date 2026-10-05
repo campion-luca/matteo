@@ -29,11 +29,13 @@
           var s = JSON.parse(localStorage.getItem('jarvis-store-v4') || '{}').state || {}
           // Standard vale solo se scelto DOPO il passaggio a Premium per tutti
           // (temaVersione 2, vedi TEMA_VERSIONE nello store).
-          if (s.layout === 'standard' && (s.temaVersione || 0) >= 2) layout = 'standard'
+          if ((s.temaVersione || 0) >= 2 && (s.layout === 'standard' || s.layout === 'neon' || s.layout === 'logbook')) layout = s.layout
           dark = !!s.darkMode
         } catch (e) {}
         var c = document.documentElement.classList
         if (layout === 'premium') c.add('premium')
+        // Neon e Logbook sono temi scuri costruiti sopra `.dark` (vedi App.tsx).
+        if (layout === 'neon' || layout === 'logbook') { c.add(layout); dark = true }
         if (dark) c.add('dark')
       })()
     </script>

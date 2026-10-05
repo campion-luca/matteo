@@ -10,8 +10,8 @@
 // Le anteprime (LayoutSwatch) sono disegnate a mano invece che con screenshot:
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
-import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
-import { useStore, useJarvisStore, type LayoutMode } from '@/store/useJarvisStore'
+import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, ACCENT_FISSI, temaFisso } from '@/lib/jarvis-tokens'
+import { useStore, useJarvisStore, type JarvisState, type LayoutMode } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
@@ -49,7 +49,43 @@ const PALETTE_KEYS = ['green', 'rose', 'malva'] as const
 const LAYOUTS: Array<{ id: LayoutMode; label: string; hint: string }> = [
   { id: 'standard', label: 'Standard', hint: 'I colori del tema scelto sopra.' },
   { id: 'premium',  label: 'Premium',  hint: 'Sempre nero, vetro e contorni bianchi. Ignora l’interruttore chiaro/scuro.' },
+  { id: 'neon',     label: 'Neon',     hint: 'Quasi nero con un solo accento lime, per progressi e tasti principali.' },
+  { id: 'logbook',  label: 'Logbook',  hint: 'Scuro e sobrio: verde per serie fatte e record, blu per le azioni secondarie.' },
 ]
+const LAYOUT_LABELS = Object.fromEntries(LAYOUTS.map(l => [l.id, l.label])) as Record<LayoutMode, string>
+
+// ── La conferma ────────────────────────────────────────────────
+// Qui quasi niente ha un tasto "Salva": interruttori, temi e campi scrivono
+// nello store mentre li tocchi. È comodo, ma chi cambia qualcosa si aspetta di
+// sentirsi dire che è stato preso — senza, resta il dubbio di dover cercare un
+// tasto che non c'è. Così a ogni modifica compare "Salvato" in testata, per un
+// paio di secondi.
+//
+// Guarda lo store e non i singoli tasti: una voce aggiunta domani è coperta da
+// sola. L'elenco è chiuso perché da qui dentro si cambiano solo queste cose, e
+// lo store intero cambia anche per conto suo (un'alzata corretta
+// dall'allenatore, per dire) mentre la pagina è aperta.
+const CAMPI_IMPOSTAZIONI = [
+  'lang', 'darkMode', 'layout', 'bgFuso', 'accentColor', 'customAccentHex',
+  'userName', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob', 'weightLog',
+] as const satisfies ReadonlyArray<keyof JarvisState>
+const DURATA_CONFERMA = 1800
+
+function useSalvato(attivo: boolean): boolean {
+  const [salvato, setSalvato] = useState(false)
+  useEffect(() => {
+    if (!attivo) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const smetti = useJarvisStore.subscribe((ora, prima) => {
+      if (!CAMPI_IMPOSTAZIONI.some(k => ora[k] !== prima[k])) return
+      setSalvato(true)
+      clearTimeout(timer)
+      timer = setTimeout(() => setSalvato(false), DURATA_CONFERMA)
+    })
+    return () => { smetti(); clearTimeout(timer); setSalvato(false) }
+  }, [attivo])
+  return salvato
+}
 
 // Sezione: una sola struttura per tutte. Prima ogni blocco aveva il suo gap
 // (8/14/12/12/10) e i divider erano ripetuti a mano; il risultato era il vuoto
@@ -89,7 +125,9 @@ function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => 
       cursor: disabled ? 'default' : 'pointer', position: 'relative', opacity: disabled ? 0.6 : 1,
       transition: 'all 220ms',
     }}>
-      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 'var(--radius-pill)', background: 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
+      {/* `--knob-on` lo dichiarano solo i temi con un accent chiarissimo (il
+          lime di Neon), dove il pomello chiaro da acceso non si vedrebbe. */}
+      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 'var(--radius-pill)', background: on ? 'var(--knob-on, var(--knob))' : 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
     </button>
   )
 }
@@ -115,10 +153,13 @@ function EditToggle({ editing, onToggle }: { editing: boolean; onToggle: () => v
 
 // Pastiglia bicolore: mostra cosa fa il layout invece di dirlo. "Standard" campiona
 // l'accent vivo, "Premium" il fondo nero con il segno bianco sopra — che è
-// esattamente il suo contrasto.
+// esattamente il suo contrasto. "Neon" il suo fondo e il suo unico accento,
+// "Logbook" i suoi due colori.
 const SWATCH: Record<LayoutMode, [string, string]> = {
   standard: ['var(--j-accent)', 'var(--j-accent-soft)'],
   premium:  ['#000000', '#ffffff'],
+  neon:     ['#0b0b0f', ACCENT_FISSI.neon.accent],
+  logbook:  [ACCENT_FISSI.logbook.accent, '#5aa9ff'],
 }
 
 function LayoutSwatch({ mode }: { mode: LayoutMode }) {
@@ -181,6 +222,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   const [pwdLoading, setPwdLoading] = useState(false)
   const [pwdError, setPwdError] = useState<string | null>(null)
   const [pwdOk, setPwdOk] = useState(false)
+  const salvato = useSalvato(open)
 
   useEffect(() => {
     if (open) {
@@ -236,12 +278,11 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     onClose()
   }
 
-  // Stessa punteggiatura del resto delle date: barre in italiano, punti in
-  // tedesco (vedi dateFormat).
+  // Giorno, mese, anno con le barre: vale in italiano e in inglese (vedi dateFormat).
   const formatDob = (v: string) => {
     if (!v) return '—'
     const [y, m, d] = v.split('-')
-    return s.lang === 'de' ? `${d}.${m}.${y}` : `${d}/${m}/${y}`
+    return `${d}/${m}/${y}`
   }
 
   const handleLogout = async () => {
@@ -254,7 +295,10 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   }
 
   const current = s.accentColor ?? 'green'
-  const monoOn  = s.layout === 'premium'
+  // Un layout a tema fisso (Premium, Neon, Logbook): il colore lo decide lui, e
+  // il picker qui sotto resta sospeso finché non si torna a Standard.
+  const monoOn  = temaFisso(s.layout)
+  const nomeLayout = t(LAYOUT_LABELS[s.layout ?? 'premium'])
   // Assenti = accese: stesso patto di App.tsx, che è chi legge davvero i due campi.
   const bgFuso  = s.bgFuso ?? true
   const initial = (name.trim() || '?')[0].toUpperCase()
@@ -262,7 +306,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // Stessa risoluzione di App.tsx, altrimenti l'avatar mente: leggeva ACCENT_PALETTES
   // diretto, senza `paletteFor` né `adjustPaletteForDark`, e restava verde in dark mode
   // mentre tutta l'app passava all'oro (e cadeva sul verde con accentColor 'custom').
-  const base = monoOn ? PREMIUM_ACCENT : paletteFor(current, s.customAccentHex)
+  const base = temaFisso(s.layout) ? ACCENT_FISSI[s.layout] : paletteFor(current, s.customAccentHex)
   const pal  = (!monoOn && s.darkMode) ? adjustPaletteForDark(base) : base
 
   if (!mount) return null
@@ -308,17 +352,32 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
             c'è niente da salvare — tema e widget si applicano al tocco — e un tasto
             che non fa nulla è peggio di un tasto assente. Lo spazio resta occupato
             perché il titolo, che è centrato, altrimenti scivolerebbe a destra. */}
-        {pannello || !mieiDati ? (
-          <div style={{ width: 62, height: 34, flexShrink: 0 }} aria-hidden/>
-        ) : (
-          /* PROTOTIPO ombra hard — vedi .j-hard in globals.css */
-          <button onClick={handleSave} className="j-hard" style={{
-            height: 34, padding: '0 14px', borderRadius: 'var(--radius-sm)',
-            background: 'var(--j-accent)', border: 'none',
-            color: 'var(--j-accent-fg)', fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
-            cursor: 'pointer',
-          }}>{t('Salva')}</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, minWidth: 62, height: 34, flexShrink: 0 }}>
+          {/* La conferma (vedi `useSalvato`). Sta SEMPRE nel flusso e cambia solo
+              opacità: comparendo dal nulla sposterebbe il titolo a ogni tocco. E
+              sta accanto a "Salva", non al suo posto: chi esce dal campo del nome
+              toccando proprio "Salva" si vedrebbe sparire il tasto da sotto il dito. */}
+          <span role="status" style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
+            color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
+            opacity: salvato ? 1 : 0, transition: 'opacity var(--motion-fast) var(--ease)',
+          }}>
+            {/* Il testo c'è solo quando serve: un lettore di schermo annuncia
+                una regione `status` quando il suo contenuto cambia, non quando
+                diventa opaca. */}
+            <Icons.check size={12} stroke={2.6}/>{salvato ? t('Salvato') : <span aria-hidden>{t('Salvato')}</span>}
+          </span>
+          {!pannello && mieiDati && (
+            /* PROTOTIPO ombra hard — vedi .j-hard in globals.css */
+            <button onClick={handleSave} className="j-hard" style={{
+              height: 34, padding: '0 14px', borderRadius: 'var(--radius-sm)',
+              background: 'var(--j-accent)', border: 'none',
+              color: 'var(--j-accent-fg)', fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
+              cursor: 'pointer',
+            }}>{t('Salva')}</button>
+          )}
+        </div>
       </div>
       </div>
 
@@ -334,7 +393,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         />
 
         {/* Tema colore */}
-        <Section title={t('Tema colore')} hint={monoOn ? t('Sospeso dal layout {layout} — torna attivo con Standard.', { layout: t('Premium') }) : undefined}>
+        <Section title={t('Tema colore')} hint={monoOn ? t('Sospeso dal layout {layout} — torna attivo con Standard.', { layout: nomeLayout }) : undefined}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, opacity: monoOn ? 0.5 : 1, transition: 'opacity 220ms' }}>
             {PALETTE_KEYS.map(c => {
               const p = ACCENT_PALETTES[c]
@@ -381,7 +440,9 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
 
         {/* Cambio layout */}
         <Section title={t('Cambio layout')}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: 8 }}>
+          {/* Quattro layout: due per riga sul telefono, in fila su uno schermo
+              largo. A 104px di minimo ne stavano tre e il quarto restava solo. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
             {LAYOUTS.map(opt => {
               const active = (s.layout ?? 'premium') === opt.id
               return (
@@ -411,12 +472,16 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         </Section>
 
         {/* Sfondo — la prova sul fondo dei temi scuri, reversibile da qui.
-            Assente dallo stato vale ACCESA (vedi App.tsx). */}
-        <Section
-          title={t('Sfondo fuso')}
-          hint={t('Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.')}
-          right={<Toggle on={bgFuso} onClick={() => set({ bgFuso: !bgFuso })} label={t('Sfondo fuso')}/>}
-        />
+            Assente dallo stato vale ACCESA (vedi App.tsx).
+            Neon e Logbook hanno il fondo piatto per scelta: lì l'interruttore
+            non cambierebbe niente, e un comando che non fa nulla non si mostra. */}
+        {s.layout !== 'neon' && s.layout !== 'logbook' && (
+          <Section
+            title={t('Sfondo fuso')}
+            hint={t('Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.')}
+            right={<Toggle on={bgFuso} onClick={() => set({ bgFuso: !bgFuso })} label={t('Sfondo fuso')}/>}
+          />
+        )}
 
         </div>
       ) : (
@@ -563,7 +628,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           <CardImpostazione
             icon={<Icons.book size={20} stroke={1.6}/>}
             label={t('Cambio tema')}
-            sotto={monoOn ? t('Premium') : `${t(PALETTE_LABELS[current] ?? current)}${s.darkMode ? ` · ${t('scuro')}` : ''}`}
+            sotto={monoOn ? nomeLayout : `${t(PALETTE_LABELS[current] ?? current)}${s.darkMode ? ` · ${t('scuro')}` : ''}`}
             onClick={() => setPannello('tema')}
           />
         </div>
@@ -690,7 +755,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
 // capisce quando l'app è nella lingua sbagliata. Chi apre le impostazioni per
 // TORNARE indietro sta guardando parole che non legge, e "Sprache" non lo aiuta;
 // il tricolore sì. Per lo stesso motivo sotto ogni bandiera c'è il nome della
-// lingua scritto NELLA lingua — "Deutsch", non "Tedesco".
+// lingua scritto NELLA lingua — "English", non "Inglese".
 function LinguaSection() {
   const [s, set] = useStore()
   const t = useT()
@@ -711,7 +776,7 @@ function LinguaSection() {
         // accorge qui invece che a schermata cambiata.
         title: translate(target, 'Impostare la lingua su {lingua}?', { lingua: LANG_LABELS[target] }),
         // Il corpo resta nella lingua CORRENTE, cioè l'unica che chi legge sa di
-        // capire. Un dialogo tutto in tedesco che chiede di passare al tedesco
+        // capire. Un dialogo tutto in inglese che chiede di passare all'inglese
         // presuppone risolta la domanda che sta ponendo.
         body: t('Tutta l’app passa in {lingua}. Puoi tornare indietro da qui quando vuoi.', { lingua: LANG_LABELS[target] }),
         cta: translate(target, 'Sì, cambia lingua'),

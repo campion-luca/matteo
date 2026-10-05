@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, memo, lazy, Suspense } from '
 import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
-import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, PREMIUM_ACCENT } from '@/lib/jarvis-tokens'
+import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, ACCENT_FISSI, temaFisso } from '@/lib/jarvis-tokens'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { UpdateToast } from '@/components/UpdateToast'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
@@ -390,13 +390,23 @@ export default function App() {
   const apriProfilo = useCallback(() => setProfilo('utente'), [])
   const apriCoach = useCallback(() => { setProfilo(null); setShowCoach(true) }, [])
 
+  // Neon e Logbook sono temi scuri fatti SOPRA `.dark`: ne prendono superfici
+  // piene, tasti a pressione e campi, e ci cambiano sopra i colori (vedi i blocchi
+  // `:root.neon` / `:root.logbook` in globals.css). Perciò accendono `.dark` anche
+  // con l'interruttore spento. Premium no: ha le sue regole e lo scavalca.
+  const neon = s.layout === 'neon'
+  const logbook = s.layout === 'logbook'
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', !!s.darkMode)
-  }, [s.darkMode])
+    document.documentElement.classList.toggle('dark', !!s.darkMode || neon || logbook)
+  }, [s.darkMode, neon, logbook])
+  useEffect(() => {
+    document.documentElement.classList.toggle('neon', neon)
+    document.documentElement.classList.toggle('logbook', logbook)
+  }, [neon, logbook])
 
   // `<html lang>` non è cosmesi: è quello che dice al lettore di schermo con che
   // pronuncia leggere la pagina, e al browser con che regole sillabare e proporre
-  // la traduzione. Sbagliato, un testo tedesco viene letto ad alta voce con
+  // la traduzione. Sbagliato, un testo inglese viene letto ad alta voce con
   // fonetica italiana.
   useEffect(() => {
     document.documentElement.lang = LANG_TAGS[s.lang ?? 'it']
@@ -569,11 +579,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, loadAttempt])
 
-  // In "Premium" la variante si sceglie qui e `adjustPaletteForDark` va scavalcata.
+  // Nei layout a tema fisso l'accent è il loro (terracotta in Premium, lime in
+  // Neon, verde in Logbook) e `adjustPaletteForDark` va scavalcata.
   // `accentColor` resta intatto nello store e torna in vigore con il layout standard.
   const basePalette = paletteFor(s.accentColor, s.customAccentHex)
-  const palette = premium
-    ? PREMIUM_ACCENT                                   // terracotta, sempre
+  const palette = temaFisso(s.layout)
+    ? ACCENT_FISSI[s.layout]
     : (s.darkMode ? adjustPaletteForDark(basePalette) : basePalette)
 
   const handleBoot = () => {
@@ -581,10 +592,10 @@ export default function App() {
     setBooted(true)
   }
 
-  // "Premium" ha il fondo scuro anche con l'interruttore chiaro/scuro spento: chi
-  // calcola la leggibilità deve saperlo, o spingerebbe l'accent verso la carta
-  // chiara mentre sta su nero pieno.
-  const fondoScuro = premium || !!s.darkMode
+  // I layout a tema fisso hanno il fondo scuro anche con l'interruttore
+  // chiaro/scuro spento: chi calcola la leggibilità deve saperlo, o spingerebbe
+  // l'accent verso la carta chiara mentre sta su nero pieno.
+  const fondoScuro = temaFisso(s.layout) || !!s.darkMode
 
   // Account appena creato: nessun dato anagrafico, da nessuna parte. Non basta
   // che manchi UN campo — chi ha già usato l'app e non ha mai messo l'altezza non

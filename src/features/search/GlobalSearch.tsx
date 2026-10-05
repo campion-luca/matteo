@@ -50,7 +50,7 @@ export function GlobalSearch({ open, onClose, onApri }: GlobalSearchProps) {
   const index = useMemo<Result[]>(() => {
     const out: Result[] = []
     // Nomi ed etichette si traducono qui, all'indicizzazione: la ricerca lavora
-    // sul testo che l'utente VEDE, quindi in tedesco "Brust" deve trovare gli
+    // sul testo che l'utente VEDE, quindi in inglese "Chest" deve trovare gli
     // esercizi di petto. `t` e `tData` fra le dipendenze rifanno l'indice al
     // cambio lingua.
     s.palestra.forEach(e => out.push({ label: tData(e.n), sub: tData(e.muscle), run: () => onApri({ tipo: 'esercizio', id: e.id }) }))

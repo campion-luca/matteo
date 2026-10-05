@@ -47,13 +47,16 @@ import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal } from './gymModals'
 import type { RecordItem } from './gymModals'
-import { HyroxCard, HyroxDetail, RaceSummary } from './GymHyrox'
+import { HyroxCard, HyroxDetail, RaceSummary, StazioniInGara } from './GymHyrox'
 import { FormatoSwitch } from './FormatoSwitch'
-import { type FormatoHyrox, sessioniDel, aDistanzaIntera, categoriaStima } from './hyroxStima'
+import { type FormatoHyrox, sessioniDel, formatoSessione, aDistanzaIntera, categoriaStima } from './hyroxStima'
 import { todayISO } from '@/lib/isoDate'
 import { GlobalSearch, type Trovato } from '@/features/search/GlobalSearch'
 
 type MuscleView = 'vol' | 'sessioni'
+/** Cosa mostra l'elenco degli esercizi Hyrox: le sessioni di allenamento, o i
+ *  tempi fatti nelle gare e nelle simulazioni registrate. */
+type VistaHyrox = 'sessioni' | 'gare'
 
 // Lo switch della tabella per muscolo: chili spostati o volte che l'hai allenato.
 // Vive nell'etichetta di sezione, che cambia titolo con lui — è quello a dire cosa
@@ -1622,6 +1625,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const mode: GymMode = stats ? 'stats' : tab
   // Hyrox si apre sulla gara: il tempo stimato è la domanda con cui ci si entra.
   const [hyroxSubTab, setHyroxSubTab] = useState<'gara' | 'esercizi'>('gara')
+  // Dentro Esercizi: le sessioni di allenamento, o i tempi delle gare registrate.
+  const [vistaHyrox, setVistaHyrox] = useState<VistaHyrox>('sessioni')
   // La gara registrata aperta nel modale: 'nuova' per una da scrivere.
   const [garaAperta, setGaraAperta] = useState<HyroxGara | 'nuova' | null>(null)
   const { confirmDelete } = useConfirmDelete()
@@ -1742,6 +1747,17 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const correggiGiornata = (data: string) => set(st => ({
     hyroxExercises: st.hyroxExercises.map(e => ({ ...e, history: aDistanzaIntera(e.history, e.target, data) })),
   }))
+
+  // La pagina di una stazione mostra una distanza alla volta (un 500 m e un
+  // 1000 m non stanno sullo stesso grafico). Dall'elenco, che ora le mescola, la
+  // si apre sulla distanza dell'ultima sessione: è quella appena vista sulla
+  // card, e aprendo si deve ritrovare lei — non un "Nessuna sessione da 1000 m".
+  const apriStazione = (ex: HyroxExercise) => {
+    const ordinate = sortedHistory(ex.history)
+    const ultima = ordinate[ordinate.length - 1]
+    if (ultima) setFormatoHyrox(formatoSessione(ultima, ex.target))
+    setSelectedHyrox(ex)
+  }
 
   const deleteHyroxExercise = (ex: HyroxExercise) => {
     set(st => ({ hyroxExercises: st.hyroxExercises.filter(e => e.id !== ex.id) }))
@@ -2021,24 +2037,35 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
 
             {hyroxSubTab === 'esercizi' && (
               <>
-                {/* In cima a tutte le stazioni, non ripetuto dentro ciascuna card: la
-                    scelta vale per l'intera sezione. Le etichette sono quelle della
-                    corsa — il segmento che dà il ritmo a tutta la gara — mentre
-                    dentro una stazione diventano le sue distanze. */}
-                <FormatoSwitch valore={formatoHyrox} onChange={setFormatoHyrox} etichette={['1 km', '500 m']} style={{ marginBottom: 14 }}/>
+                {/* Gli esercizi come in palestra: da una parte quello che si
+                    registra allenandosi (le sessioni), dall'altra i tempi fatti
+                    nelle gare e nelle simulazioni registrate. Qui c'era
+                    "1 km | 500 m": la distanza adesso è scritta su ogni riga, e
+                    a sceglierla si è rimasti in due — il modale quando si
+                    registra, la pagina della stazione quando si guarda lo storico. */}
+                <FormatoSwitch<VistaHyrox>
+                  valore={vistaHyrox} onChange={setVistaHyrox}
+                  valori={['sessioni', 'gare']} etichette={[t('Sessioni'), t('Gare')]}
+                  etichettaGruppo={t('Sessioni o gare')} style={{ marginBottom: 14 }}
+                />
 
-                <NucEyebrow>{formatoHyrox === 'mezzo' ? t('Corsa · 8 × 500 m') : t('Corsa · 8 × 1 km')}</NucEyebrow>
-                <div onClick={() => setSelectedHyrox(runStationData)} style={{ cursor: 'pointer' }}>
-                  <HyroxCard ex={runStationData} formato={formatoHyrox} onLog={e => { e?.stopPropagation?.(); setLogHyrox(runStationData) }}/>
-                </div>
+                {vistaHyrox === 'gare' ? (
+                  <StazioniInGara raceStations={raceStationData} gare={gare} onRegistra={() => setGaraAperta('nuova')}/>
+                ) : (
+                  <>
+                    <NucEyebrow>{t('Corsa')}</NucEyebrow>
+                    <div onClick={() => apriStazione(runStationData)} style={{ cursor: 'pointer' }}>
+                      <HyroxCard ex={runStationData} onLog={e => { e?.stopPropagation?.(); setLogHyrox(runStationData) }}/>
+                    </div>
 
-                <div style={{ marginTop: 8 }}><NucEyebrow>{t('Stazioni gara')}</NucEyebrow></div>
-                {raceStationData.map(ex => (
-                  <div key={ex.id} onClick={() => setSelectedHyrox(ex)} style={{ cursor: 'pointer' }}>
-                    <HyroxCard ex={ex} formato={formatoHyrox} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
-                  </div>
-                ))}
-
+                    <div style={{ marginTop: 8 }}><NucEyebrow>{t('Stazioni gara')}</NucEyebrow></div>
+                    {raceStationData.map(ex => (
+                      <div key={ex.id} onClick={() => apriStazione(ex)} style={{ cursor: 'pointer' }}>
+                        <HyroxCard ex={ex} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
+                      </div>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </>

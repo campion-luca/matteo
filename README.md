@@ -1,6 +1,6 @@
 # Matteo — Personal OS
 
-PWA personale in italiano e tedesco: **allenamenti** (palestra e Hyrox) e una
+PWA personale in italiano e inglese: **allenamenti** (palestra e Hyrox) e una
 **home** che apre sull'allenamento e riassume la settimana, più due strumenti a
 parte — **Budget** e **Personal Coach** (fabbisogno calorico e andamento del peso).
 
@@ -95,8 +95,10 @@ ripeterla: una guida scritta a mano diverge dal codice al primo tuning.
 
 ### Aspetto e accessibilità
 
-- **3 palette** (Journal, Rosa, Malva) e **3 layout** (Standard, Notte, Nero),
-  combinabili con l'interruttore chiaro/scuro.
+- **4 layout**: Standard, che segue l'interruttore chiaro/scuro e una delle
+  **3 palette** (Journal, Rosa, Malva), e tre a tema fisso, scuri sempre —
+  Premium (terracotta), Neon (quasi nero, un solo accento lime) e Logbook
+  (verde per ciò che è fatto, blu per le azioni secondarie).
 - Contrasto **AA garantito per costruzione**: `accentInkFor` e `accentFgFor`
   spingono l'accent lontano dalla superficie finché non supera 4.5:1, e un test
   lo verifica su tutte le palette in entrambi i temi.
@@ -105,9 +107,11 @@ ripeterla: una guida scritta a mano diverge dal codice al primo tuning.
   impostazioni dei moduli: è una colonna sempre presente accanto al contenuto, e
   ripetere gli stessi comandi dentro la pagina significava due posti dove cercare
   la stessa cosa. Su mobile, dove la sidebar non c'è, restano in cima alla home.
-- **Due lingue**, italiano e tedesco, con le bandiere nelle impostazioni. Cambia
+- **Due lingue**, italiano e inglese, con le bandiere nelle impostazioni. Cambia
   a schermata accesa, senza ricaricare, e segue l'account invece del dispositivo:
-  chi sceglie il tedesco se lo ritrova anche aprendo l'app altrove.
+  chi sceglie l'inglese se lo ritrova anche aprendo l'app altrove. (Fino a
+  ottobre 2026 la seconda lingua era il tedesco: chi l'aveva scelto passa
+  all'inglese.)
 - Focus trap, `Escape`, blocco scroll e ripristino del focus su tutti i dialog;
   `prefers-reduced-motion` rispettato.
 
@@ -159,7 +163,7 @@ store al primo avvio, e il gruppo muscolare fa anche da chiave dei colori in
 `muscleColors`. Restano italiani su disco e si traducono solo quando si stampano
 (`tData`), con un dizionario separato: quello che l'utente ha scritto lui esce
 sempre com'è stato scritto. Un test rilegge i sorgenti e fallisce se una `t()`
-non ha la sua voce tedesca, se una voce non è più agganciata a niente, o se una
+non ha la sua voce inglese, se una voce non è più agganciata a niente, o se una
 traduzione perde per strada un segnaposto.
 
 **Personal Coach** — due account si collegano con un codice generato
@@ -317,7 +321,7 @@ src/
 │   └── auth/ profile/ boot/
 ├── hooks/               # useModalA11y, useIsDesktop, useMono, useIsDark, …
 ├── lib/                 # supabase, cloudSync, syncMeta, isoDate, dateFormat,
-│                        # i18n (+ i18n.de, il dizionario tedesco),
+│                        # i18n (+ i18n.en, il dizionario inglese),
 │                        # jarvis-tokens, metricInfo, uid, safeStorage
 ├── store/useJarvisStore.ts
 ├── styles/globals.css   # token del tema + base Tailwind

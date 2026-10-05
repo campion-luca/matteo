@@ -95,6 +95,22 @@ const mediana = (xs: number[]) => {
 
 export const CORSA_ID = 'hx_run'
 
+// ── La corsa si registra col passo ─────────────────────────────
+/** La stazione si chiama "Corsa avg pace" e si registra con quello che dice
+ *  l'orologio: il passo medio, che è al km anche quando le frazioni erano da
+ *  500 m. Fino al km, quindi, il tempo scritto È il passo, e la distanza dice
+ *  solo quanto erano lunghe le frazioni: dividere per quella faceva di un 6:00
+ *  su 500 m un 12:00 al km. Sopra il km il tempo è un totale (8 km in 42:40). */
+export function registraPasso(id: string, units: number): boolean {
+  return id === CORSA_ID && units <= 1
+}
+
+/** La distanza a cui si riferisce il tempo di una sessione: quella fatta, o il
+ *  km per una corsa registrata col passo. È per questa che si divide. */
+export function unitaDelTempo(id: string, units: number): number {
+  return registraPasso(id, units) ? 1 : units
+}
+
 // ── Il profilo, per i segmenti che mancano ──────────────────────
 /** Un'amatore di riferimento, da solo e fresco, sulla distanza di gara (la
  *  corsa è al km). Non conta il valore assoluto: conta la PROPORZIONE fra i
@@ -128,8 +144,9 @@ export const GIORNI_DELTA = 30
 /** Da dove viene un tempo. È quello che la pagina scrive sotto ogni numero. */
 export type Fonte =
   | { tipo: 'allenamento'; data: string }
-  /** Una sessione a metà distanza, portata all'intera con Riegel. */
-  | { tipo: 'mezza'; data: string; daUnita: number; k: number }
+  /** Una sessione a metà distanza, portata all'intera con Riegel: `fattore` è
+   *  per quanto si è moltiplicato il suo tempo. */
+  | { tipo: 'mezza'; data: string; daUnita: number; fattore: number }
   | { tipo: 'gara' | 'simulazione'; data: string }
   | { tipo: 'profilo' }
   | { tipo: 'ipotesi' }
@@ -182,7 +199,7 @@ function pbStazione(ex: Segmento, gare: HyroxGara[], categoria: Categoria | null
     if (!(h.sec > 0) || !entro(h.date, fino)) continue
     const sec = proietta(h.sec, h.units, ex.target, k)
     if (formatoSessione(h, ex.target) === 'intero') intere.push({ sec, fonte: { tipo: 'allenamento', data: h.date } })
-    else mezze.push({ sec, fonte: { tipo: 'mezza', data: h.date, daUnita: h.units, k } })
+    else mezze.push({ sec, fonte: { tipo: 'mezza', data: h.date, daUnita: h.units, fattore: sec / h.sec } })
   }
   for (const g of gare) {
     const sec = g.stazioni[ex.id]
@@ -192,17 +209,25 @@ function pbStazione(ex: Segmento, gare: HyroxGara[], categoria: Categoria | null
   return migliore(intere) ?? migliore(mezze)
 }
 
-/** Il miglior passo al km. Dalle sessioni di corsa (registrate al km, o su più
- *  km: il passo è la media) e dalle gare, dove gli 8 km si fanno in due anche in
- *  double — corrono tutti e due — quindi valgono in entrambe le categorie. */
+/** Il miglior passo al km. Dalle sessioni di corsa (fino al km il tempo scritto
+ *  è già il passo, vedi `registraPasso`; su più km è la media) e dalle gare,
+ *  dove gli 8 km si fanno in due anche in double — corrono tutti e due — quindi
+ *  valgono in entrambe le categorie. */
 function pbCorsa(ex: Segmento, gare: HyroxGara[], fino?: string): Candidato | null {
   const k = ESPONENTE[ex.id] ?? ESPONENTE_DEFAULT
   const intere: Candidato[] = []
   const mezze: Candidato[] = []
   for (const h of ex.history) {
     if (!(h.sec > 0) || !(h.units > 0) || !entro(h.date, fino)) continue
-    if (formatoSessione(h, ex.target) === 'intero') intere.push({ sec: h.sec / h.units, fonte: { tipo: 'allenamento', data: h.date } })
-    else mezze.push({ sec: proietta(h.sec, h.units, 1, k), fonte: { tipo: 'mezza', data: h.date, daUnita: h.units, k } })
+    const passo = h.sec / unitaDelTempo(CORSA_ID, h.units)
+    if (formatoSessione(h, ex.target) === 'intero') {
+      intere.push({ sec: passo, fonte: { tipo: 'allenamento', data: h.date } })
+      continue
+    }
+    // Una frazione corta si corre più svelta di un km: a quel passo dura
+    // passo × distanza, e Riegel la porta al km. Sul passo è un 4%, non un doppio.
+    const sec = proietta(passo * h.units, h.units, 1, k)
+    mezze.push({ sec, fonte: { tipo: 'mezza', data: h.date, daUnita: h.units, fattore: sec / passo } })
   }
   for (const g of gare) {
     if (!(g.corsa > 0) || !entro(g.date, fino)) continue

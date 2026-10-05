@@ -17,7 +17,7 @@ describe('filtro delle chiavi di stato', () => {
     // Un valore riconoscibile per ogni chiave: se il filtro ne scarta una,
     // qui manca e il test dice esattamente quale.
     const remote = {
-      userName: 'Luca', lang: 'de', userAge: 31, userSex: 'F', userWeight: 78, userHeight: 168, userDob: '1995-03-02',
+      userName: 'Luca', lang: 'en', userAge: 31, userSex: 'F', userWeight: 78, userHeight: 168, userDob: '1995-03-02',
       darkMode: true, layout: 'premium', accentColor: 'rose', customAccentHex: '#abcdef',
       hyroxExercises: [], palestraExercises: [], muscleColors: { Petto: '#111111' },
       gymSchede: [],
@@ -33,9 +33,19 @@ describe('filtro delle chiavi di stato', () => {
     expect(get().darkMode).toBe(true)
     expect(get().layout).toBe('premium')
     // La lingua è una preferenza dell'utente, non del dispositivo: se il filtro
-    // la scartasse, chi ha scelto il tedesco se lo ritroverebbe in italiano al
+    // la scartasse, chi ha scelto l'inglese se lo ritroverebbe in italiano al
     // primo accesso da un altro telefono.
-    expect(get().lang).toBe('de')
+    expect(get().lang).toBe('en')
+  })
+
+  // Il tedesco è stato tolto (ott 2026): chi l'aveva scelto non deve restare con
+  // una lingua che non esiste più — l'app la tratterebbe da italiano, ma il blob
+  // se la porterebbe dietro per sempre.
+  it('porta il tedesco, che non c’è più, sull’inglese', () => {
+    applyRemoteState({ lang: 'de' } as unknown as Partial<JarvisState>)
+    expect(get().lang).toBe('en')
+    applyRemoteState({ lang: 'it' } as unknown as Partial<JarvisState>)
+    expect(get().lang).toBe('it')
   })
 
   it('scarta i campi delle schede rimosse', () => {
@@ -149,6 +159,15 @@ describe('filtro delle chiavi di stato', () => {
     expect(get().layout).toBe('premium')
     applyRemoteState({ layout: 'notte', temaVersione: 2 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('standard')
+  })
+
+  // Neon e Logbook sono layout veri: il filtro dei valori orfani non deve
+  // prenderli per tali e riportarli a Standard a ogni caricamento.
+  it('tiene i layout a tema fisso', () => {
+    for (const layout of ['premium', 'neon', 'logbook'] as const) {
+      applyRemoteState({ layout, temaVersione: 2 })
+      expect(get().layout).toBe(layout)
+    }
   })
 
   // Con l'aggiornamento tutti passano a Premium, anche chi aveva scelto

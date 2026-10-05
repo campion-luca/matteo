@@ -7,52 +7,52 @@
 // celle da poche decine di pixel), e il formato non deve cambiare con la lingua
 // del DISPOSITIVO — segue quella scelta nell'app, che è un'altra cosa.
 //
-// ── Il separatore cambia con la lingua, non solo le parole ─────
-// L'italiano scrive "19/08/26" e "19 agosto"; il tedesco scrive "19.08.26" e
-// "19. August", col punto che è un ordinale ("il diciannovesimo") e non un
-// abbellimento. Una data tedesca con le barre si legge come una data straniera,
-// quindi qui cambia anche la punteggiatura.
+// ── Cambiano le parole, non l'ordine ───────────────────────────
+// L'inglese dell'app è quello britannico: giorno, mese, anno, con le barre,
+// esattamente come l'italiano ("19/08/26", "19 Aug"). Chi legge in inglese e
+// misura in chili e chilometri una data col giorno davanti la legge senza
+// pensarci; "08/19/26" invece cambierebbe il significato di ogni data già a
+// schermo. (Col tedesco cambiava anche la punteggiatura — "19.08.26" — e questo
+// file aveva un ramo per ogni formato: con l'inglese non servono più.)
 import { getLang, type Lang } from '@/lib/i18n'
 
-// I mesi già nella forma in cui vanno stampati. In tedesco i nomi dei mesi sono
-// sostantivi e restano maiuscoli: non si possono abbassare come in italiano.
+// I mesi già nella forma in cui vanno stampati.
 const MONTHS: Record<Lang, readonly string[]> = {
   it: ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
        'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'],
-  de: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-       'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June',
+       'July', 'August', 'September', 'October', 'November', 'December'],
 }
 
 // Forma breve, già minuscola in italiano: le eyebrow ("13 AGO — 19 AGO") le
-// alza il CSS con `text-transform`, non questo file.
+// alza il CSS con `text-transform`, non questo file. In inglese i mesi sono
+// nomi propri e restano maiuscoli.
 const MONTHS_SHORT: Record<Lang, readonly string[]> = {
   it: ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'],
-  de: ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
 }
 
 // La settimana inizia di lunedì, come la griglia del calendario e la settimana ISO.
 const DAYS_SHORT: Record<Lang, readonly string[]> = {
   it: ['Lu', 'Ma', 'Me', 'Gi', 'Ve', 'Sa', 'Do'],
-  de: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+  en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
 }
 
 // Nomi interi dei giorni, da lunedì. In italiano minuscoli (vanno dentro la
-// frase: "martedì 15 settembre"), in tedesco maiuscoli come ogni sostantivo.
+// frase: "martedì 15 settembre"), in inglese maiuscoli come vuole la lingua.
 const DAYS_LONG: Record<Lang, readonly string[]> = {
   it: ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'],
-  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
 }
 
-/** "martedì 15 settembre" · "Dienstag, 15. September" — la data in cima alla home.
+/** "martedì 15 settembre" · "Tuesday 15 September" — la data in cima alla home.
  *  Senza anno: è sempre oggi, e l'anno lo sa già chi guarda. Prende una `Date`
  *  locale e non una stringa ISO perché il giorno della settimana va letto dal
  *  calendario, e da una ISO servirebbe comunque ricostruire la `Date`. */
 export function fmtGiornoLungo(d: Date, lang: Lang = getLang()): string {
   const giorno = DAYS_LONG[lang][(d.getDay() + 6) % 7]
   const mese = MONTHS[lang][d.getMonth()]
-  return lang === 'de'
-    ? `${giorno}, ${d.getDate()}. ${mese}`
-    : `${giorno} ${d.getDate()} ${mese.toLowerCase()}`
+  return `${giorno} ${d.getDate()} ${lang === 'it' ? mese.toLowerCase() : mese}`
 }
 
 /** "Settembre 2026" · "September 2026" — il titolo di un mese del calendario. */
@@ -82,29 +82,22 @@ function monthIndex(iso: string): number {
   return Number.isFinite(m) ? m - 1 : -1
 }
 
-/** "19 ago" · "19. Aug" — etichetta compatta per periodi, range e sottotitoli. */
+/** "19 ago" · "19 Aug" — etichetta compatta per periodi, range e sottotitoli. */
 export function fmtDayMon(iso: string): string {
   const mi = monthIndex(iso)
   if (mi < 0) return iso
-  const lang = getLang()
-  const giorno = Number(iso.split('-')[2])
-  return lang === 'de'
-    ? `${giorno}. ${MONTHS_SHORT.de[mi]}`
-    : `${giorno} ${MONTHS_SHORT.it[mi]}`
+  return `${Number(iso.split('-')[2])} ${MONTHS_SHORT[getLang()][mi]}`
 }
 
-/** "19 Agosto" · "19. August" — forma estesa, per i titoli di giornata. */
+/** "19 Agosto" · "19 August" — forma estesa, per i titoli di giornata. */
 export function fmtDayMonthFull(iso: string): string {
   const mi = monthIndex(iso)
   if (mi < 0) return iso
-  const lang = getLang()
-  const giorno = Number(iso.split('-')[2])
-  return lang === 'de'
-    ? `${giorno}. ${MONTHS.de[mi]}`
-    : `${giorno} ${MONTHS.it[mi]}`
+  return `${Number(iso.split('-')[2])} ${MONTHS[getLang()][mi]}`
 }
 
-/** "19/08/26" · "19.08.26" — forma numerica compatta usata negli storici.
+/** "19/08/26" — forma numerica compatta usata negli storici, uguale nelle due
+ *  lingue.
  *
  * Non usa `new Date(iso).toLocaleDateString()`: quel costruttore interpreta
  * "YYYY-MM-DD" come mezzanotte UTC, e a ovest di Greenwich stampa il giorno
@@ -112,18 +105,16 @@ export function fmtDayMonthFull(iso: string): string {
 export function fmtShortDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
   if (!m) return iso
-  return getLang() === 'de'
-    ? `${m[3]}.${m[2]}.${m[1].slice(2)}`
-    : `${m[3]}/${m[2]}/${m[1].slice(2)}`
+  return `${m[3]}/${m[2]}/${m[1].slice(2)}`
 }
 
-/** "21/08" · "21.08." — giorno e mese soli. Sull'asse dei grafici l'anno è
+/** "21/08" — giorno e mese soli. Sull'asse dei grafici l'anno è
  *  ridondante (la serie è cronologica) e costa tre caratteri per punto: senza,
  *  le date ci stanno tutte invece di essere diradate una sì e due no. */
 export function fmtDayMonth(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
   if (!m) return iso
-  return getLang() === 'de' ? `${m[3]}.${m[2]}.` : `${m[3]}/${m[2]}`
+  return `${m[3]}/${m[2]}`
 }
 
 
@@ -147,9 +138,6 @@ export function fmtQuando(iso: string, adesso = new Date()): string {
   const giorno = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
   const scarto = Math.round((giorno(adesso) - giorno(d)) / 86_400_000)
   if (scarto === 0) return ora
-  if (scarto === 1) return `${getLang() === 'de' ? 'gestern' : 'ieri'} ${ora}`
-  const gm = getLang() === 'de'
-    ? `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`
-    : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-  return `${gm} ${ora}`
+  if (scarto === 1) return `${getLang() === 'en' ? 'yesterday' : 'ieri'} ${ora}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${ora}`
 }

@@ -1,6 +1,5 @@
 // Date in formato ISO locale e settimana ISO 8601: le due convenzioni di tempo
 // condivise da palestra, schede e Personal Coach.
-import { getLang } from '@/lib/i18n'
 
 export function localISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -39,12 +38,9 @@ export function isoWeek(iso: string): IsoWeek {
   }
 }
 
-// Etichetta compatta mostrata all'utente: "W28" in italiano, "KW28" in tedesco.
-// Non è una traduzione di comodo — "KW" (Kalenderwoche) è la sigla che in Germania
-// sta sui calendari e nei fogli di allenamento, e "W28" lì non si legge come una
-// settimana.
+// Etichetta compatta mostrata all'utente: "W28", in italiano come in inglese.
 export function isoWeekLabel(iso: string): string {
-  return `${getLang() === 'de' ? 'KW' : 'W'}${isoWeek(iso).week}`
+  return `W${isoWeek(iso).week}`
 }
 
 // Chiave di ordinamento cronologica (anno ISO + settimana zero-padded, es. "2026-W05"):

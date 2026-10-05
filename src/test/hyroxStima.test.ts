@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  formatoSessione, sessioniDel, unitaFormato, distanzaLeggibile, proietta,
+  formatoSessione, sessioniDel, unitaFormato, distanzaLeggibile, proietta, registraPasso, unitaDelTempo,
   stimaPB, categoriaStima, totaleGara, giornateAMeta, aDistanzaIntera, fmtDelta, fmtTempoGara,
   ESPONENTE, RIFERIMENTO, ROXZONE_PASSAGGI, ROXZONE_SEC,
 } from '@/features/gym/hyroxStima'
@@ -99,11 +99,35 @@ describe('la stima è la somma dei tuoi PB', () => {
     expect(s.corsa.passoKm).toBe(320)
   })
 
+  it('la corsa fino al km si registra col passo, le altre col tempo della distanza', () => {
+    expect(registraPasso('hx_run', 0.5)).toBe(true)
+    expect(registraPasso('hx_run', 1)).toBe(true)
+    expect(registraPasso('hx_run', 8)).toBe(false)
+    expect(unitaDelTempo('hx_run', 0.5)).toBe(1)
+    expect(unitaDelTempo('hx_run', 8)).toBe(8)
+    // Solo la corsa: 500 m di SkiErg, o un esercizio dell'utente a km, restano tempi.
+    expect(unitaDelTempo('hx_ski', 500)).toBe(500)
+    expect(unitaDelTempo('mio-esercizio', 0.5)).toBe(0.5)
+  })
+
+  it('un passo di 6:00 su frazioni da 500 m non diventa 12:00 al km', () => {
+    // Il passo è quello dell'orologio, già al km: Riegel lo ritocca del 4%
+    // perché le frazioni erano corte, non lo raddoppia.
+    const s = stimaPB(corsa(sess(RECENTE, 360, 0.5)), stazioni(RECENTE), [], OGGI)
+    expect(s.corsa.passoKm).toBeCloseTo(360 * Math.pow(2, ESPONENTE.hx_run - 1), 5)
+    expect(Math.round(s.corsa.passoKm!)).toBe(375)
+    expect(s.corsa.fonte).toMatchObject({ tipo: 'mezza', daUnita: 0.5 })
+
+    // Con una corsa al km, anche più lenta, vince quella e resta com'è.
+    const t = stimaPB(corsa(sess(RECENTE, 360, 0.5), sess(VECCHIO, 390, 1)), stazioni(RECENTE), [], OGGI)
+    expect(t.corsa.passoKm).toBe(390)
+  })
+
   it('una mezza si porta all’intera solo dove di intere non ce n’è', () => {
     const soloMezza = es('hx_ski', 1000, 'm', [sess(RECENTE, 120, 500)])
     const s = stimaPB(corsa(sess(RECENTE, 300, 1)), [soloMezza, ...stazioni(RECENTE).slice(1)], [], OGGI)
     expect(s.stazioni[0].pb.sec).toBeCloseTo(proietta(120, 500, 1000, ESPONENTE.hx_ski), 5)
-    expect(s.stazioni[0].pb.fonte?.tipo).toBe('mezza')
+    expect(s.stazioni[0].pb.fonte).toMatchObject({ tipo: 'mezza', fattore: expect.closeTo(Math.pow(2, ESPONENTE.hx_ski), 5) })
 
     // Con un'intera, anche più lenta della proiezione, vince l'intera.
     const conIntera = es('hx_ski', 1000, 'm', [sess(RECENTE, 120, 500), sess(VECCHIO, 280, 1000)])
