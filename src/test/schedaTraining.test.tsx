@@ -43,7 +43,14 @@ async function apriAllenamento(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /inizia allenamento/i }))
 }
 
-const alzate = () => useJarvisStore.getState().palestraExercises.find(e => e.n === 'Panca piana')?.history ?? []
+const alzate = (nome = 'Panca piana') => useJarvisStore.getState().palestraExercises.find(e => e.n === nome)?.history ?? []
+
+// Due alzate a mano di un paio di mesi fa: l'esercizio non è nuovo. Su uno
+// nuovo il consiglio non fa salire per le prime due settimane (vedi più sotto).
+const daMesi = (kg: number) => [
+  { d: 'W', date: giorniFa(63), kg, reps: 10, sets_n: 3 },
+  { d: 'W', date: giorniFa(56), kg, reps: 10, sets_n: 3 },
+]
 
 describe('esecuzione di una scheda', () => {
   it('i colpi partono dall’obiettivo e si salvano com’è andata davvero', async () => {
@@ -178,7 +185,7 @@ describe('allenamento: le aggiunte di settembre', () => {
       palestraExercises: [{
         id: 'px1', n: 'Panca piana', muscle: 'Petto',
         current: { kg: 60, reps: 10, sets_n: 3 },
-        history: [{ d: 'W37', date: giorniFa(7), kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
+        history: [...daMesi(55), { d: 'W37', date: giorniFa(7), kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
       }],
     })
     const user = userEvent.setup()
@@ -197,7 +204,7 @@ describe('allenamento: le aggiunte di settembre', () => {
       palestraExercises: [{
         id: 'px1', n: 'Panca piana', muscle: 'Petto',
         current: { kg: 62.5, reps: 10, sets_n: 3 },
-        history: [{ d: 'W37', date: giorniFa(7), kg: 62.5, reps: 10, sets_n: 3, setWeights: [60, 60, 62.5], scheda: { id: 'sc1', nome: 'Spinta A' } }],
+        history: [...daMesi(55), { d: 'W37', date: giorniFa(7), kg: 62.5, reps: 10, sets_n: 3, setWeights: [60, 60, 62.5], scheda: { id: 'sc1', nome: 'Spinta A' } }],
       }],
     })
     const user = userEvent.setup()
@@ -236,6 +243,24 @@ describe('allenamento: le aggiunte di settembre', () => {
     expect(screen.queryByText('Puoi salire')).not.toBeInTheDocument()
   })
 
+  it('su un esercizio nuovo non dice di salire: prima l’esecuzione', async () => {
+    useJarvisStore.setState({
+      palestraExercises: [{
+        id: 'px1', n: 'Panca piana', muscle: 'Petto',
+        current: { kg: 60, reps: 10, sets_n: 3 },
+        // Tutto fatto la settimana scorsa — che era anche la prima in assoluto.
+        history: [{ d: 'W37', date: giorniFa(7), kg: 60, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' } }],
+      }],
+    })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    expect(screen.getByText('Esercizio nuovo')).toBeInTheDocument()
+    expect(screen.getByText(/cura l’esecuzione/)).toBeInTheDocument()
+    expect(screen.queryByText('Puoi salire')).not.toBeInTheDocument()
+    // Gli stessi carichi sono già nei campi: niente da applicare.
+    expect(screen.queryByRole('button', { name: 'Usa' })).not.toBeInTheDocument()
+  })
+
   it('l’alzata ricorda cosa chiedeva la scheda quel giorno', async () => {
     const user = userEvent.setup()
     await apriAllenamento(user)
@@ -265,6 +290,58 @@ describe('allenamento: le aggiunte di settembre', () => {
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
     const h = useJarvisStore.getState().palestraExercises.find(e => e.n === 'Trazioni')?.history ?? []
     expect(h[h.length - 1]).toMatchObject({ bodyweight: true, kg: 0, sets_n: 2 })
+  })
+
+  // ── L'ordine degli esercizi ──────────────────────────────────
+  // Le spinte con i manubri dopo la panca non sono le spinte fatte per prime:
+  // l'alzata si ricorda con che muscolo ci si è arrivati, e il consiglio della
+  // volta dopo ne tiene conto.
+  const panca = { id: 'se1', name: 'Panca piana', sets: 3, reps: '10', muscle: 'Petto' }
+  const spinte = { id: 'se2', name: 'Spinte con manubri', sets: 3, reps: '10', muscle: 'Petto' }
+
+  it('l’alzata ricorda quanti esercizi dello stesso muscolo aveva davanti', async () => {
+    useJarvisStore.setState({ gymSchede: [{ ...scheda, exercises: [panca, spinte] }] })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    for (const n of [1, 2, 3]) for (const tasto of screen.getAllByRole('button', { name: `Serie ${n}` })) await user.click(tasto)
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate('Panca piana')[0].giaFatti).toBe(0)
+    expect(alzate('Spinte con manubri')[0].giaFatti).toBe(1)
+  })
+
+  it('un esercizio saltato non ha stancato niente', async () => {
+    useJarvisStore.setState({ gymSchede: [{ ...scheda, exercises: [panca, spinte] }] })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    // La panca è occupata: si fanno solo le spinte.
+    for (const n of [1, 2, 3]) await user.click(screen.getAllByRole('button', { name: `Serie ${n}` })[1])
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate('Panca piana')).toHaveLength(0)
+    expect(alzate('Spinte con manubri')[0].giaFatti).toBe(0)
+  })
+
+  it('scambiando due esercizi di petto, uno sale e l’altro no', async () => {
+    const fatta = (kg: number, giaFatti: number) =>
+      ({ d: 'W37', date: giorniFa(7), kg, reps: 10, sets_n: 3, scheda: { id: 'sc1', nome: 'Spinta A' }, giaFatti })
+    useJarvisStore.setState({
+      // La settimana scorsa: panca, poi spinte. Oggi la scheda le ha scambiate.
+      gymSchede: [{ ...scheda, exercises: [spinte, panca] }],
+      palestraExercises: [
+        { id: 'px1', n: 'Panca piana', muscle: 'Petto', current: { kg: 60, reps: 10, sets_n: 3 }, history: [...daMesi(55), fatta(60, 0)] },
+        { id: 'px2', n: 'Spinte con manubri', muscle: 'Petto', current: { kg: 20, reps: 10, sets_n: 3 }, history: [...daMesi(18), fatta(20, 1)] },
+      ],
+    })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    // Le spinte, per prime e a petto fresco: si sale, di poco.
+    expect(screen.getByText(/Oggi ci arrivi più fresco: prova a salire/)).toBeInTheDocument()
+    expect(screen.getByText(/22 kg/)).toBeInTheDocument()
+    // La panca, per seconda: tutto fatto a 60, ma non è il giorno per salire.
+    expect(screen.getByText('Muscolo già stanco')).toBeInTheDocument()
+    expect(screen.getByText(/potrebbe essere più faticoso/)).toBeInTheDocument()
+    expect(screen.queryByText(/62,5 kg/)).not.toBeInTheDocument()
   })
 
   it('uscendo a metà, l’elenco propone di riprendere da dove si era', async () => {

@@ -911,6 +911,13 @@ export const EN_UI: Record<string, string> = {
   'L’ultima volta l’ultima serie è salita e ha retto: oggi {alte} serie su {serie} a {kg} kg.': 'Last time the last set went up and held: today {alte} of {serie} sets at {kg} kg.',
   'Ripeti i carichi dell’ultima volta.': 'Repeat last time’s loads.',
   'Dopo lo stop': 'After the break',
+  'Esercizio nuovo': 'New exercise',
+  'Muscolo già stanco': 'Muscle already tired',
+  'Lo fai da poco: per le prime due settimane resta su questi carichi e cura l’esecuzione. Del peso si riparla dopo.': 'You’ve only just started it: for the first two weeks stay on these loads and focus on technique. The weight can wait.',
+  'È ancora un esercizio nuovo: l’ultima volta tutto fatto a {kg} kg, puoi provare a salire, ma di poco. Prima viene l’esecuzione.': 'It’s still a new exercise: last time everything done at {kg} kg, so you can try going up, but only slightly. Technique comes first.',
+  'L’ultima volta lo facevi con il muscolo già stanco da un altro esercizio. Oggi ci arrivi più fresco: prova a salire, di poco.': 'Last time you did it with the muscle already tired from another exercise. Today you get to it fresher: try going up, slightly.',
+  'L’ultima volta non hai chiuso tutto, ma il muscolo era già stanco da un altro esercizio. Oggi ci arrivi più fresco: riprova con gli stessi carichi.': 'Last time you didn’t finish everything, but the muscle was already tired from another exercise. Today you get to it fresher: try the same loads again.',
+  'Oggi lo fai dopo un altro esercizio per lo stesso muscolo, e l’ultima volta ci arrivavi più fresco: potrebbe essere più faticoso. Tieni questi carichi, senza salire.': 'Today it comes after another exercise for the same muscle, and last time you got to it fresher: it may feel harder. Keep these loads, without going up.',
 
   // ── Grafici dell'allievo e correzione delle alzate ──
   'Il tuo allenatore ha corretto un’alzata': 'Your coach corrected a lift',

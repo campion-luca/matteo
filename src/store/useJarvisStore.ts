@@ -67,6 +67,12 @@ export interface PalestraHistoryEntry {
   // col programma di oggi: tre serie su tre diventano "tre su quattro, meglio
   // scendere" (vedi caricoConsigliato).
   piano?: { sets: number; reps: string }
+  // Quanti esercizi dello STESSO gruppo muscolare erano già stati fatti, in
+  // quella sessione, prima di questo: la panca per prima è 0, le spinte con i
+  // manubri subito dopo sono 1. Gli stessi chili non valgono uguale a muscolo
+  // fresco e a muscolo stanco, e il consiglio sui carichi deve saperlo (vedi
+  // caricoConsigliato). Assente sulle alzate di prima, e su quelle a mano.
+  giaFatti?: number
   // Il nome dell'allenatore che ha corretto questa alzata (vedi lib/correzioni).
   // Sta scritto sull'alzata perché chi la rilegge deve sapere che quei numeri
   // non sono più quelli che aveva scritto lui.

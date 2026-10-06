@@ -27,7 +27,7 @@ import { corpoLibero, quotaCorpo } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio } from './gymShared'
 import { TimerRecupero, TimerIcona } from './TimerRecupero'
-import { caricoConsigliato, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
+import { caricoConsigliato, contaPerMuscolo, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { todayISO, giorniTra } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
@@ -337,6 +337,9 @@ export function GymSchede({ onBack, apri }: {
     // Quello che finisce nello storico, esercizio per esercizio: serve alla
     // striscia "appena salvato" del dettaglio (vedi `appenaSalvate`).
     const salvate: AlzataSalvata[] = []
+    // Solo gli esercizi fatti davvero, nell'ordine della scheda: uno saltato
+    // non ha stancato niente.
+    const giaFatti = contaPerMuscolo()
 
     scheda.exercises.forEach(se => {
       const r = results.find(x => x.id === se.id)
@@ -370,6 +373,8 @@ export function GymSchede({ onBack, apri }: {
         // Cosa chiedeva la scheda oggi: serve a non giudicare questa alzata
         // con il programma di domani, se la scheda cambia.
         piano: { sets: Math.max(1, se.sets), reps: se.reps },
+        // E con che muscolo ci si è arrivati: fresco, o già al lavoro da prima.
+        giaFatti: giaFatti(target?.muscle ?? se.muscle),
         ...(variesKg ? { setWeights: doneWeights } : {}),
         ...(variesReps ? { setReps: doneReps } : {}),
         // A corpo libero i chili scritti sono la zavorra: senza il segno, dieci
@@ -1910,19 +1915,29 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
 }) {
   const t = useT()
   const { verso, kg, pesi, da, motivo, fatte, cima, alte } = consiglio
-  // Lo stop ha un colore suo: non è un verso, è un avviso.
-  const colore = motivo === 'stop' ? 'var(--warn)' : verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.dim
+  // Lo stop e il muscolo già stanco hanno un colore loro: non sono un verso,
+  // sono un avviso.
+  const avviso = motivo === 'stop' || motivo === 'affaticato'
+  const colore = avviso ? 'var(--warn)' : verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.dim
   const freccia = verso === 'su' ? '↑' : verso === 'giu' ? '↓' : '='
   // "Valuta" e "devi" non sono la stessa cosa, e il titolo lo dice prima del
   // perché: una settimana piena è un permesso, due sono un ordine.
   const titolo =
-    motivo === 'valuta' ? t('Puoi salire')
+    motivo === 'valuta' || motivo === 'primoAumento' || (motivo === 'fresco' && verso === 'su') ? t('Puoi salire')
     : motivo === 'devi' ? t('Devi salire')
     : motivo === 'stop' ? t('Dopo lo stop')
+    : motivo === 'nuovo' ? t('Esercizio nuovo')
+    : motivo === 'affaticato' ? t('Muscolo già stanco')
     : t('Carico consigliato')
   const perche =
     motivo === 'valuta' ? t('L’ultima volta tutte le serie e i colpi a {kg} kg: valuta un aumento leggero.', { kg: fmtNum(da) })
     : motivo === 'devi' ? t('Due settimane di fila tutto fatto a {kg} kg: è ora di salire.', { kg: fmtNum(da) })
+    : motivo === 'nuovo' ? t('Lo fai da poco: per le prime due settimane resta su questi carichi e cura l’esecuzione. Del peso si riparla dopo.')
+    : motivo === 'primoAumento' ? t('È ancora un esercizio nuovo: l’ultima volta tutto fatto a {kg} kg, puoi provare a salire, ma di poco. Prima viene l’esecuzione.', { kg: fmtNum(da) })
+    : motivo === 'fresco' ? (verso === 'su'
+      ? t('L’ultima volta lo facevi con il muscolo già stanco da un altro esercizio. Oggi ci arrivi più fresco: prova a salire, di poco.')
+      : t('L’ultima volta non hai chiuso tutto, ma il muscolo era già stanco da un altro esercizio. Oggi ci arrivi più fresco: riprova con gli stessi carichi.'))
+    : motivo === 'affaticato' ? t('Oggi lo fai dopo un altro esercizio per lo stesso muscolo, e l’ultima volta ci arrivavi più fresco: potrebbe essere più faticoso. Tieni questi carichi, senza salire.')
     : motivo === 'estendi' ? (alte === serie
       ? t('L’ultima volta le ultime serie sono salite e hanno retto: oggi tutte a {kg} kg.', { kg: fmtNum(kg) })
       : t('L’ultima volta l’ultima serie è salita e ha retto: oggi {alte} serie su {serie} a {kg} kg.', { alte: alte ?? 0, serie, kg: fmtNum(kg) }))
@@ -2273,12 +2288,15 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   // Il consiglio di ogni esercizio si calcola una volta sola per sessione, per lo
   // stesso motivo.
   // A corpo libero non c'è un perno da spostare: il consiglio sui chili non
-  // avrebbe niente da dire.
+  // avrebbe niente da dire. Ma il muscolo lo stanca lo stesso, e nel conto di
+  // chi viene prima ci sta anche lui.
   const consigli = useMemo(() => {
     const out: Record<string, Consiglio | null> = {}
+    const giaFatti = contaPerMuscolo()
     for (const e of scheda.exercises) {
       const { last, corpo } = collegati[e.id]
-      out[e.id] = corpo ? null : caricoConsigliato(last?.history ?? [], e, scheda.id)
+      const riga = { sets: e.sets, reps: e.reps, giaFatti: giaFatti(last?.muscle ?? e.muscle) }
+      out[e.id] = corpo ? null : caricoConsigliato(last?.history ?? [], riga, scheda.id)
     }
     return out
   }, [scheda, collegati])
