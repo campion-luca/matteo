@@ -1,0 +1,265 @@
+COME RAGIONA L'APP SUI CARICHI
+==============================
+Aggiornato al 6 ottobre 2026.
+
+Questo foglio dice, a parole, cosa fa l'app quando ti propone un peso
+mentre esegui una scheda: quando parla, quando sta zitta, in che ordine
+applica le regole e dove ancora non arriva. Va aggiornato ogni volta
+che una regola cambia.
+
+
+1. IN BREVE
+-----------
+Mentre esegui una scheda, sopra le serie di ogni esercizio può comparire
+una card con un peso consigliato e il motivo. Il consiglio nasce da
+com'è andata l'ultima volta che hai fatto QUELL'esercizio con QUELLA
+scheda. Tre idee guidano tutto:
+
+  - prima viene l'esecuzione, poi il peso;
+  - si sale sempre di poco (mai più di 2,5 kg), perché lo stesso numero
+    su due attrezzi o due marche diverse non è lo stesso carico;
+  - un consiglio senza motivo non serve: il perché è sempre scritto.
+
+
+2. QUANDO IL CONSIGLIO C'È, E QUANDO NO
+---------------------------------------
+C'è solo se:
+
+  - stai eseguendo una scheda (non sulle alzate registrate a mano);
+  - quell'esercizio l'hai già fatto con quella scheda;
+  - la prima volta con quella scheda è stata in una settimana passata.
+    La settimana va da lunedì a domenica: se hai cominciato la scheda
+    lunedì e la rifai giovedì, non c'è ancora un consiglio.
+
+Non c'è mai per:
+
+  - gli esercizi a corpo libero (trazioni, piegamenti, addominali...),
+    nemmeno con la zavorra;
+  - i massimali dichiarati;
+  - le alzate registrate a 0 kg.
+
+SCHEDA NUOVA. Per tutta la prima settimana non dice niente, anche se
+gli esercizi li fai da anni: trovi solo l'ultimo peso registrato, già
+scritto nei campi. In una scheda nuova l'ordine o il modo di eseguire
+possono essere diversi, e si vedrà dalla seconda settimana.
+
+
+3. IL PESO CHE TROVI GIÀ SCRITTO NEI CAMPI
+------------------------------------------
+È un'altra cosa rispetto al consiglio, e c'è sempre:
+
+  - i chili sono quelli dell'ultima volta che hai fatto quell'esercizio,
+    ovunque: con un'altra scheda o registrato a mano. Se le serie
+    avevano pesi diversi, li ritrovi serie per serie;
+  - i colpi sono l'obiettivo della scheda. Con un intervallo ("8-10")
+    è il numero più basso, 8. Con "max" il campo resta vuoto.
+
+Il consiglio non si scrive da solo: per applicarlo tocchi "Usa", che lo
+mette sulle serie non ancora spuntate. Quelle già fatte restano com'erano.
+
+
+4. COSA VUOL DIRE "L'ULTIMA VOLTA È ANDATA BENE"
+------------------------------------------------
+"L'ultima volta" è l'ultima sessione fatta con quella scheda. È andata
+bene se valgono tutte e tre:
+
+  - hai fatto tutte le serie previste;
+  - nessuna serie è rimasta sotto il minimo di colpi (con "8-10", sotto
+    gli 8; con "max" i colpi non si guardano);
+  - non hai mai abbassato il peso da una serie a una successiva.
+
+Basta una sola di queste cose mancata perché non si salga.
+
+
+5. LE REGOLE, IN ORDINE
+-----------------------
+L'app le guarda dall'alto in basso e si ferma alla prima che vale.
+
+ 1. DOPO UNO STOP
+    Più di 10 giorni dall'ultima volta che hai fatto quell'esercizio con
+    quella scheda.
+    -> Stessi carichi, né su né giù, con l'avviso che farai più fatica.
+    Vale comunque sia andata l'ultima volta.
+    I giorni di stop si vedono anche in home, nell'elenco delle schede,
+    nel dettaglio della scheda e nella vista dell'allenatore.
+
+ 2. LA SCHEDA È CAMBIATA
+    Le serie o i colpi di quell'esercizio non sono più quelli dell'ultima
+    volta (da 3 a 4 serie, da 8 a 10 colpi...).
+    -> Stessi carichi: l'ultima volta non si giudica col programma di oggi.
+
+ 3. L'ULTIMA VOLTA È ANDATA MALE
+    Una serie saltata, una serie sotto il minimo di colpi, o il peso
+    abbassato a metà.
+    -> Si scende di un passo su tutte le serie (60 diventa 57,5).
+    Caso particolare: se a non reggere è stata solo l'ultima serie, che
+    avevi alzato (60 - 60 - 62,5 con l'ultima corta), torni a 60 su tutte.
+    Eccezione: se l'ultima volta il muscolo era già stanco da un altro
+    esercizio e oggi ci arrivi più fresco (vedi punto 7), non scendi:
+    riprovi con gli stessi carichi.
+
+ Da qui in giù l'ultima volta è andata bene.
+
+ 4. OGGI IL MUSCOLO ARRIVA PIÙ STANCO
+    Oggi prima di questo esercizio ne hai altri per lo stesso muscolo, e
+    l'ultima volta no (la panca fatta per seconda invece che per prima).
+    -> "Muscolo già stanco": stessi carichi, senza salire, con l'avviso
+    che potrebbe essere più faticoso.
+
+ 5. L'ESERCIZIO È NUOVO
+    Lo hai fatto in meno di due settimane diverse.
+    -> "Esercizio nuovo": stessi carichi, cura l'esecuzione. Del peso si
+    riparla dopo la seconda settimana.
+
+ 6. OGGI IL MUSCOLO ARRIVA PIÙ FRESCO
+    L'ultima volta lo facevi dopo un altro esercizio per lo stesso
+    muscolo, oggi no (le spinte con manubri fatte per prime invece che
+    dopo la panca).
+    -> "Puoi salire": un passo in più su ogni serie.
+
+ 7. TUTTE LE SERIE ALLO STESSO PESO
+    -> Un passo in più su tutte le serie. Cambia il tono:
+       - "Puoi salire", con scritto "ma di poco, prima viene
+         l'esecuzione": è la terza settimana di un esercizio nuovo.
+         È un permesso, mai un ordine.
+       - "Devi salire": due settimane di fila, tutte e due andate bene,
+         allo stesso peso. "Di fila" vuol dire a non più di 13 giorni.
+       - "Puoi salire": in tutti gli altri casi (una settimana sola
+         andata bene, o due ma a pesi diversi).
+
+ 8. LE ULTIME SERIE ERANO PIÙ PESANTI DELLE ALTRE
+    Solo con due pesi in tutto: 60 - 60 - 62,5.
+    -> Una serie in più col peso alto: 60 - 62,5 - 62,5. La settimana
+    dopo 62,5 su tutte e tre, e da lì si torna al punto 7.
+
+ 9. TUTTO IL RESTO
+    Per esempio una piramide con tre pesi diversi (50 - 55 - 60).
+    -> Ripeti i carichi dell'ultima volta.
+
+
+6. DI QUANTO SI SALE O SI SCENDE (IL "PASSO")
+---------------------------------------------
+  - sotto i 10 kg ........... 1 kg
+  - da 10 a meno di 30 kg ... 2 kg
+  - da 30 kg in su .......... 2,5 kg
+
+Mai di più. Sui pesi leggeri il passo è più corto perché da 8 a 10,5
+sarebbe un quarto in più.
+
+
+7. COME CAPISCE SE IL MUSCOLO È FRESCO O STANCO
+-----------------------------------------------
+Ogni alzata fatta da una scheda si ricorda quanti esercizi dello stesso
+gruppo muscolare avevi già fatto prima, in quella sessione. La panca per
+prima vale 0; le spinte con manubri subito dopo valgono 1.
+
+Oggi l'app conta quanti esercizi dello stesso gruppo ci sono prima di
+questo nella scheda, e confronta: meno di allora = più fresco, più di
+allora = più stanco, uguale = non cambia niente.
+
+  - Contano solo gli esercizi fatti davvero (almeno una serie spuntata):
+    se l'ultima volta la panca era occupata e l'hai saltata, le spinte
+    risultano fatte a muscolo fresco.
+  - Conta solo il gruppo muscolare principale dell'esercizio.
+  - Gli esercizi nel gruppo "Altro" non stancano nessuno.
+  - Un esercizio a corpo libero stanca il muscolo come gli altri, anche
+    se per lui il consiglio non c'è.
+  - L'ordine cambia in due modi: riordinando la scheda, o saltando
+    l'esercizio che veniva prima.
+
+
+8. COME CAPISCE SE UN ESERCIZIO È NUOVO
+---------------------------------------
+Conta in quante settimane diverse hai fatto quell'esercizio, guardando
+TUTTO il suo storico: qualsiasi scheda, e anche le alzate a mano. La
+settimana in corso non conta.
+
+  - 1 settimana ...... "Esercizio nuovo", non si sale
+  - 2 settimane ...... "Puoi salire", ma di poco
+  - 3 o più .......... le regole di tutti
+
+Se è andata male si scende lo stesso, nuovo o no.
+
+
+9. COME SI LEGGE LA CARD
+------------------------
+  - Titolo: Puoi salire / Devi salire / Dopo lo stop / Esercizio nuovo /
+    Muscolo già stanco / Carico consigliato.
+  - Freccia e colore: su in verde, giù in rosso, uguale in grigio.
+    Lo stop e il muscolo stanco sono avvisi e hanno il colore degli
+    avvisi.
+  - Se le serie hanno pesi diversi li scrive tutti (60 - 62,5 - 62,5).
+  - Sotto c'è sempre il motivo.
+  - "Usa" compare solo se c'è qualcosa da cambiare nei campi.
+
+
+10. CHI HA DECISO COSA
+----------------------
+Decise da te (1 ottobre 2026):
+  - solo per le schede, e solo dopo almeno una settimana di scheda;
+  - aumento sempre piccolo, massimo 2,5 kg;
+  - una settimana andata bene = "puoi", due di fila = "devi";
+  - ultima serie salita = la volta dopo una serie in più col peso alto;
+  - più di 10 giorni di stop = né su né giù, con l'avviso;
+  - a corpo libero niente consiglio sui chili: servirà un programma
+    diverso, basato sui colpi.
+
+Decise da te (6 ottobre 2026):
+  - esercizio nuovo: si sale solo dopo la seconda settimana, e di poco;
+  - ordine degli esercizi: più fresco si sale, più stanco no;
+  - scheda nuova: la prima settimana solo l'ultimo peso registrato.
+
+Proposte da me e accettate da te (6 ottobre 2026):
+  - andata male a muscolo stanco, oggi fresco: si riprova senza scendere;
+  - a muscolo fresco sale di un passo ogni serie, non solo l'ultima;
+  - conta solo il muscolo principale;
+  - nuovo e più fresco insieme: vince "nuovo", non si sale;
+  - più stanco e nuovo insieme: si mostra l'avviso del muscolo stanco.
+
+
+11. DOVE NON ARRIVA ANCORA
+--------------------------
+Sull'ordine degli esercizi:
+  - Vale solo dentro la stessa scheda, e solo per gli allenamenti
+    registrati dal 6 ottobre 2026 in poi: quelli di prima non sanno in
+    che ordine erano.
+  - L'app dà per buono l'ordine della scheda. Se in palestra fai gli
+    esercizi in un altro ordine, non lo sa.
+  - Il consiglio si calcola a inizio allenamento, pensando che farai
+    tutti gli esercizi che vengono prima. Se oggi ne salti uno, l'avviso
+    "muscolo già stanco" resta anche se non è più vero.
+  - Non conta i muscoli secondari: i tricipiti dopo la panca risultano
+    freschi.
+
+Sul quando salire:
+  - Stessa scheda due volte a settimana: guarda l'ultima sessione, non
+    la settimana. Lunedì "puoi salire" a 62,5; se va bene, giovedì dice
+    di nuovo "puoi salire" a 65.
+  - Intervallo di colpi: basta il minimo. Con "8-10", tre serie da 8
+    fanno già dire "puoi salire". Non aspetta che arrivi a 10 su tutte.
+  - Piramidi con tre pesi diversi: dice sempre "ripeti", non propone mai
+    di salire.
+  - Non conosce gli scatti dell'attrezzo: propone 62,5 anche su una
+    macchina che sale di 5 in 5.
+
+Su casi particolari:
+  - Lo stesso esercizio due volte nella stessa scheda (3 x 5 pesante e
+    poi 3 x 12 leggero): sulla prima riga legge "la scheda è cambiata" e
+    propone i chili della seconda.
+  - Una serie spuntata con i chili lasciati vuoti vale 0 kg: la volta
+    dopo l'app crede che tu abbia alleggerito e dice di scendere.
+  - Guarda solo quella scheda. Non sa se ieri hai allenato lo stesso
+    muscolo con un'altra scheda, o se hai fatto Hyrox.
+
+Su quello che manca del tutto:
+  - nessuna progressione per il corpo libero;
+  - l'allenatore non vede il consiglio e non può prescrivere un carico.
+
+
+12. DOVE STA NEL CODICE
+-----------------------
+  - Le regole:          src/features/gym/caricoConsigliato.ts
+  - Le prove:           src/test/caricoConsigliato.test.ts
+  - La card e "Usa":    src/features/gym/GymSchede.tsx (ConsiglioCarico)
+  - Cosa salva l'alzata a fine allenamento:
+                        src/features/gym/GymSchede.tsx (finishTraining)
