@@ -89,6 +89,16 @@ export function fmtDayMon(iso: string): string {
   return `${Number(iso.split('-')[2])} ${MONTHS_SHORT[getLang()][mi]}`
 }
 
+/** Giorno e mese breve SEPARATI — `{ giorno: 19, mese: 'ago' }` — per chi li
+ *  disegna uno sopra l'altro (la data che fa da punto elenco negli storici).
+ *  `null` se la stringa non è una data. */
+export function giornoEMese(iso: string): { giorno: number; mese: string } | null {
+  const mi = monthIndex(iso)
+  const giorno = Number(iso.split('-')[2])
+  if (mi < 0 || mi > 11 || !Number.isFinite(giorno)) return null
+  return { giorno, mese: MONTHS_SHORT[getLang()][mi] }
+}
+
 /** "19 Agosto" · "19 August" — forma estesa, per i titoli di giornata. */
 export function fmtDayMonthFull(iso: string): string {
   const mi = monthIndex(iso)

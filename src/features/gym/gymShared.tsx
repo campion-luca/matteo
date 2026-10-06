@@ -1,8 +1,11 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
+import { Icons } from '@/components/ui/Icons'
 import { useT } from '@/lib/i18n'
+import { giornoEMese } from '@/lib/dateFormat'
 import { fotoEsercizio } from './eserciziFoto'
 import { MuscleIcon } from './MuscleIcons'
+import { fmtNum, type VariazioneCarico } from './gymModel'
 
 // Componenti di disegno condivisi fra i pezzi della scheda Allenamento.
 // Stavano in cima a JarvisGym, ma li usano modali, hyrox e statistiche: tenerli
@@ -223,6 +226,146 @@ export function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo
   return (
     <div style={{ ...cornice, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-mute)' }}>
       <MuscleIcon muscle={muscolo || 'Altro'} size={Math.round(lato * 0.7)} stroke={1.5}/>
+    </div>
+  )
+}
+
+// ── Le righe degli storici ─────────────────────────────────────
+// I tre pezzi con cui sono fatte le righe di uno storico — le alzate di un
+// esercizio, gli allenamenti di una scheda: la data a sinistra, il segnale di
+// quanto è cambiato il carico, e i tre puntini con le azioni. Stanno qui perché
+// le due schermate devono leggersi allo stesso modo.
+
+// La data fa da PUNTO dell'elenco: il giorno grande, il mese sotto in piccolo.
+// Stava in una riga grigia sotto i chili, scritta per intero ("24/09/26") e
+// uguale su tutte le righe: adesso è lei a dire dove comincia un'alzata e dove
+// finisce quella prima. Senza anno — lo storico è già diviso per mesi.
+export function DataPunto({ iso, ripiego }: {
+  iso?: string
+  /** Cosa scrivere se il giorno non c'è: le alzate più vecchie hanno solo
+   *  l'etichetta della settimana ("W38"). */
+  ripiego?: string
+}) {
+  const d = iso ? giornoEMese(iso) : null
+  return (
+    <div style={{ width: 34, flexShrink: 0, textAlign: 'center', paddingTop: 1 }}>
+      {d ? (
+        <>
+          <div style={{ fontFamily: NUC.font, fontSize: 20, fontWeight: 600, lineHeight: 1, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}>{d.giorno}</div>
+          <div style={{ fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: NUC.faint, marginTop: 4 }}>{d.mese}</div>
+        </>
+      ) : (
+        <div style={{ fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.06em', color: NUC.faint, paddingTop: 5 }}>{ripiego ?? '—'}</div>
+      )}
+    </div>
+  )
+}
+
+// Quanto è cambiato il carico dalla volta prima: verde se è salito, rosso se è
+// sceso, grigio se è rimasto dov'era. Il colore è quello dei segnali (vero
+// anche in Premium, che --ok e --danger li scolora), e la freccia lo ripete per
+// chi i due colori non li distingue.
+export function SegnaleCarico({ variazione, record, primo, massimale }: {
+  variazione: VariazioneCarico | null
+  /** Quel giorno è stato battuto il proprio meglio. */
+  record?: boolean
+  /** La prima alzata di tutte: non c'è niente con cui confrontarla. */
+  primo?: boolean
+  /** Un massimale dichiarato: sta fuori dal confronto, e lo si dice. */
+  massimale?: boolean
+}) {
+  const t = useT()
+  const delta = variazione?.delta ?? 0
+  const colore = delta > 0 ? 'var(--segnale-su)' : delta < 0 ? 'var(--segnale-giu)' : NUC.faint
+  const unita = variazione?.unita === 'colpi' ? t('colpi') : 'kg'
+  const etichetta = (testo: string) => (
+    <span style={{
+      padding: '2px 6px', borderRadius: 6,
+      background: 'color-mix(in srgb, var(--j-accent) 16%, transparent)', color: 'var(--j-accent-ink)',
+      fontFamily: NUC.label, fontSize: 9.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+    }}>{testo}</span>
+  )
+  return (
+    <div className="flex items-center" style={{ gap: 7, marginTop: 5, minHeight: 16, flexWrap: 'wrap' }}>
+      {massimale && etichetta(t('Massimale'))}
+      {record && !massimale && etichetta('PR')}
+      {variazione ? (
+        <span className="flex items-center" style={{ gap: 4, fontFamily: NUC.label, fontSize: 11.5, fontWeight: delta === 0 ? 500 : 600, color: colore, fontVariantNumeric: 'tabular-nums' }}>
+          {delta !== 0 && (
+            <span aria-hidden="true" style={{ display: 'flex', transform: `rotate(${delta > 0 ? -90 : 90}deg)` }}>
+              <Icons.arrow size={12} stroke={2.4}/>
+            </span>
+          )}
+          {delta === 0
+            ? t('carico invariato')
+            : `${delta > 0 ? '+' : '−'}${fmtNum(Math.abs(delta))} ${unita}`}
+        </span>
+      ) : primo ? (
+        <span style={{ fontFamily: NUC.label, fontSize: 11.5, color: NUC.faint }}>{t('prima alzata')}</span>
+      ) : null}
+    </div>
+  )
+}
+
+// I tre puntini in fondo alla riga. Modifica e cestino stavano tutti e due a
+// vista su ogni riga, a un dito l'uno dall'altro: due bersagli da 26px ripetuti
+// per ogni alzata, per due gesti che si fanno di rado. Dietro i puntini la riga
+// resta una riga, e il cestino non è più il vicino di casa della matita.
+export function MenuAzioni({ etichetta, azioni }: {
+  /** Cosa dice il tasto al lettore di schermo ("Azioni sull'alzata"). */
+  etichetta: string
+  azioni: Array<{ nome: string; icona: ReactNode; pericolo?: boolean; onClick: () => void }>
+}) {
+  const [aperto, setAperto] = useState(false)
+  const guscio = useRef<HTMLDivElement>(null)
+
+  // Si chiude toccando fuori o con Esc: un menù che resta aperto mentre si
+  // scorre lo storico finisce sopra un'altra riga, e sembra il suo.
+  useEffect(() => {
+    if (!aperto) return
+    const fuori = (e: PointerEvent) => { if (!guscio.current?.contains(e.target as Node)) setAperto(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAperto(false) }
+    document.addEventListener('pointerdown', fuori)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', fuori); document.removeEventListener('keydown', esc) }
+  }, [aperto])
+
+  return (
+    <div ref={guscio} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setAperto(a => !a)}
+        aria-label={etichetta} aria-haspopup="menu" aria-expanded={aperto}
+        className="j-hit j-focus flex items-center justify-center"
+        style={{
+          width: 30, height: 30, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+          background: aperto ? 'var(--surface-2)' : 'transparent', border: 'none', color: NUC.faint,
+        }}
+      >
+        <Icons.dots size={18}/>
+      </button>
+      {aperto && (
+        <div role="menu" style={{
+          position: 'absolute', top: '100%', right: 0, zIndex: 30, marginTop: 4, minWidth: 156,
+          background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 'var(--radius)',
+          boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
+        }}>
+          {azioni.map((a, i) => (
+            <button
+              key={a.nome} role="menuitem"
+              onClick={() => { setAperto(false); a.onClick() }}
+              className="j-riga-gruppo flex items-center gap-2.5 w-full"
+              style={{
+                padding: '12px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                borderTop: i === 0 ? 'none' : '1px solid var(--divider)',
+                fontFamily: NUC.font, fontSize: 14, color: a.pericolo ? 'var(--danger)' : NUC.ink,
+              }}
+            >
+              <span style={{ display: 'flex', flexShrink: 0 }}>{a.icona}</span>
+              {a.nome}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

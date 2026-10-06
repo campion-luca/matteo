@@ -197,7 +197,11 @@ export interface JarvisState {
 // La versione del tema corrente. Alzarla rimette tutti gli account sul layout di
 // default una volta, al primo caricamento dopo l'aggiornamento; poi la scelta
 // dell'utente torna a valere.
-export const TEMA_VERSIONE = 2
+//   2 → Standard scuro (metà settembre: Premium; inizio ottobre: Standard scuro
+//       per i soli account nuovi).
+//   3 → Standard · Journal · scuro per TUTTI, anche per chi aveva scelto Premium,
+//       Neon, Logbook o un'altra palette (6 ott 2026, chiesto così).
+export const TEMA_VERSIONE = 3
 
 export const EMPTY_STATE: JarvisState = {
   userName: '',
@@ -255,12 +259,16 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
 
   // Il passaggio al tema di default, una volta sola per account: chi arriva con
   // un blob di PRIMA (o con niente) atterra sul layout con cui l'app si presenta
-  // oggi — Standard scuro, lo stesso di EMPTY_STATE. Il marcatore resta nel blob,
-  // e chi dopo sceglie altro lo tiene. (A metà settembre il default era Premium,
-  // e questo passaggio ci ha portato tutti: chi è già passato non si tocca.)
+  // oggi — Standard, palette Journal, scuro: lo stesso di EMPTY_STATE. Il
+  // marcatore resta nel blob, e chi dopo sceglie altro lo tiene.
+  // La palette va rimessa insieme al layout: `accentColor` vale solo in Standard,
+  // e chi arrivava da Premium con una Rosa scelta mesi prima se la ritroverebbe
+  // adesso, senza averla chiesta.
   if ((out.temaVersione ?? 0) < TEMA_VERSIONE) {
     out.layout = 'standard'
     out.darkMode = true
+    out.accentColor = 'green'
+    delete out.customAccentHex
     out.temaVersione = TEMA_VERSIONE
   } else if (out.darkMode === undefined) {
     // Un account già passato che l'interruttore chiaro/scuro non l'ha mai

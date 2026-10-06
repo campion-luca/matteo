@@ -10,6 +10,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { fmtKg, fmtNum, fmtVol, setRepsOf } from '@/features/gym/gymModel'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { fmtShortDate, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
@@ -39,7 +40,7 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto, onCo
     // Le assegnate prima: a parità di id è la versione dell'allenatore a dire
     // cosa andava fatto.
     const schede = [...schedeAssegnate, ...(data.gymSchede ?? []).filter(s => !schedeAssegnate.some(a => a.id === s.id))]
-    const giorniHyrox = (data.hyroxExercises ?? []).flatMap(ex => ex.history.map(h => h.date)).filter(Boolean)
+    const giorniHyrox = hyroxVisibili(data.hyroxExercises).flatMap(ex => ex.history.map(h => h.date)).filter(Boolean)
     return analizzaGiornate(data.palestraExercises ?? [], schede, data.userWeight ?? 0, giorniHyrox)
   }, [data, schedeAssegnate])
 

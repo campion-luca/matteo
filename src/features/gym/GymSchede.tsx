@@ -17,15 +17,15 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtReps, ultimaVoltaPerScheda, quantoFa } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico } from './gymModel'
 import { fmtDayMonthFull } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, copreAltra, timerChiuso, ricordaTimerChiuso } from './sessioneInCorso'
-import { corpoLibero, quotaCorpo } from './catalogo'
+import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
-import { FacciaEsercizio } from './gymShared'
+import { FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from './gymShared'
 import { TimerRecupero, TimerIcona } from './TimerRecupero'
 import { caricoConsigliato, contaPerMuscolo, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { todayISO, giorniTra } from '@/lib/isoDate'
@@ -103,9 +103,11 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
 }
 
 // Bottone icona quadrato nell'intestazione (matita, grafico, cestino): stessa
-// forma per tutti, il colore lo passa chi lo usa.
-// `size`: 40 accanto al bottone "+" dell'elenco (stessa altezza), 36 altrove.
-const iconBtn = (danger = false, size = 36): CSSProperties => ({
+// forma per tutti, il colore lo passa chi lo usa. Va sempre insieme alla classe
+// `j-hard`: è l'ombra che lo fa leggere come un tasto, la stessa del "+" e del
+// tasto indietro — senza, tre quadrati col bordo sottile sembravano etichette.
+// `size`: 44 come il "+" e il tasto indietro; 40 accanto al "+" dell'elenco.
+const iconBtn = (danger = false, size = 44): CSSProperties => ({
   width: size, height: size, borderRadius: 'var(--radius)', cursor: 'pointer',
   background: danger ? 'rgba(var(--danger-rgb),0.06)' : 'var(--surface)',
   border: danger ? '1px solid rgba(var(--danger-rgb),0.18)' : `1px solid ${NUC.hairline}`,
@@ -650,7 +652,7 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
       sub={schede.length === 1 ? t('1 scheda') : t('{n} schede', { n: schede.length })}
       azioni={<>
         {hasExercises && (
-          <button onClick={onReport} title={t('Report gruppi muscolari')} className="flex items-center justify-center" style={iconBtn(false, 40)}>
+          <button onClick={onReport} title={t('Report gruppi muscolari')} className="j-hard flex items-center justify-center" style={iconBtn(false, 40)}>
             <Icons.chart size={17} stroke={1.8}/>
           </button>
         )}
@@ -769,6 +771,16 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
 }
 
 // ── Form creazione / modifica scheda (pagina a parte) ──────────
+// L'etichetta sopra ogni campo del form. Erano a 9px nel grigio più tenue, cioè
+// dello stesso peso del segnaposto dentro il campo: nome, serie, colpi e nota
+// si leggevano come un blocco solo di rettangoli uguali. Adesso hanno il colore
+// dei titoli di sezione dell'app e un corpo che si legge: prima si vede COSA si
+// sta compilando, poi il campo.
+const ETICHETTA_CAMPO: CSSProperties = {
+  fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.12em',
+  textTransform: 'uppercase', color: 'var(--tertiary-ink)', marginBottom: 5,
+}
+
 interface FormRow { id: string; name: string; sets: string; reps: string; linkedExerciseId?: string; muscle: string; bodyweight: boolean; note: string; supersetWithNext: boolean }
 
 export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, onSaveDraft, onDelete }: {
@@ -925,13 +937,19 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
     >
 
       <div className="j-scroll-area">
-        <input
-          value={title}
-          onChange={e => { clearFeedback(); setTitle(e.target.value) }}
-          placeholder={t('Nome scheda (es. Upper A)')}
-          className="j-field"
-          style={{ marginBottom: 14, fontFamily: NUC.font, fontSize: 16 }}
-        />
+        {/* Il nome della scheda ha la sua etichetta e un filo d'accent a
+            sinistra: è il campo che dà il nome a tutto il resto, e stava in
+            cima alla pagina identico ai campi degli esercizi sotto. */}
+        <label style={{ display: 'block', marginBottom: 18 }}>
+          <div style={ETICHETTA_CAMPO}>{t('Nome della scheda')}</div>
+          <input
+            value={title}
+            onChange={e => { clearFeedback(); setTitle(e.target.value) }}
+            placeholder={t('Nome scheda (es. Upper A)')}
+            className="j-field"
+            style={{ height: 50, fontFamily: NUC.font, fontSize: 17, fontWeight: 500, borderLeft: '3px solid var(--j-accent)' }}
+          />
+        </label>
 
         {rows.map((r, idx) => {
           const suggestions = focused === r.id ? suggestionsFor(r) : []
@@ -940,16 +958,29 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
           const linkedToPrev = idx > 0 && rows[idx - 1].supersetWithNext
           return (
             <div key={r.id}>
-            <NucCard pad={12} style={{ marginBottom: r.supersetWithNext ? 4 : 10, borderLeft: r.muscle ? `3px solid ${color}` : undefined }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.12em', color: NUC.faint, textTransform: 'uppercase' }}>
-                  {t('Esercizio {n}', { n: idx + 1 })}
-                  {linkedToPrev && (
-                    <span style={{ marginLeft: 8, color: 'var(--j-accent-ink)' }}>· {t('superset')}</span>
-                  )}
-                  {r.linkedExerciseId && (
-                    <span style={{ marginLeft: 8, color: NUC.accentSoft }}>· {t('collegato')}</span>
-                  )}
+            {/* Il filo a sinistra c'è sempre: del gruppo muscolare appena lo si
+                sa, dell'accent prima. Senza, una riga ancora vuota era una card
+                grigia fra card grigie. Il numero sta in un bollino dello stesso
+                colore, così le card si contano a colpo d'occhio scorrendo. */}
+            <NucCard pad={14} style={{ marginBottom: r.supersetWithNext ? 4 : 12, borderLeft: `3px solid ${r.muscle ? color : 'var(--j-accent)'}` }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+                <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                  <span aria-hidden="true" className="flex items-center justify-center" style={{
+                    width: 24, height: 24, flexShrink: 0, borderRadius: 'var(--radius-pill)',
+                    background: r.muscle ? color : 'var(--j-accent)',
+                    color: r.muscle ? onMuscleColor(color) : 'var(--j-accent-fg)',
+                    fontFamily: NUC.label, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                  }}>{idx + 1}</span>
+                  <span style={{ fontFamily: NUC.label, fontSize: 11, fontWeight: 600, letterSpacing: '.12em', color: NUC.ink, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span className="sr-only">{t('Esercizio {n}', { n: idx + 1 })}</span>
+                    <span aria-hidden="true">{t('Esercizio')}</span>
+                    {linkedToPrev && (
+                      <span style={{ marginLeft: 8, color: 'var(--tertiary-ink)' }}>· {t('superset')}</span>
+                    )}
+                    {r.linkedExerciseId && (
+                      <span style={{ marginLeft: 8, color: 'var(--j-accent-ink)' }}>· {t('collegato')}</span>
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => move(r.id, -1)} disabled={idx === 0} title={t('Sposta su')} className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1 }}>
@@ -967,6 +998,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
               </div>
 
               {/* Nome con ricerca simultanea */}
+              <div style={ETICHETTA_CAMPO}>{t('Nome')}</div>
               <div style={{ position: 'relative' }}>
                 <input
                   value={r.name}
@@ -974,7 +1006,9 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   onFocus={() => setFocused(r.id)}
                   onBlur={() => setTimeout(() => setFocused(f => f === r.id ? null : f), 150)}
                   placeholder={t('Nome esercizio')}
+                  aria-label={t('Nome esercizio')}
                   className="j-field"
+                  style={{ fontWeight: 500 }}
                 />
                 {suggestions.length > 0 && (
                   // Il menù galleggia SOPRA i campi sotto: con `--surface`, che nei
@@ -1003,21 +1037,27 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                 )}
               </div>
 
-              {/* Serie · Colpi */}
-              <div className="flex gap-2" style={{ marginTop: 8 }}>
-                <label style={{ flex: 1 }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 3 }}>{t('Serie')}</div>
-                  <input value={r.sets} onChange={e => patch(r.id, { sets: e.target.value.replace(/[^0-9]/g, '') })} inputMode="numeric" placeholder="3" className="j-field"/>
+              {/* Serie · Colpi: sono i due numeri che fanno la riga, e stanno in
+                  un riquadro loro, più chiaro della card, con le cifre grandi e
+                  al centro — si distinguono dal nome sopra e dalla nota sotto
+                  anche senza leggere le etichette. */}
+              <div className="flex gap-2.5" style={{
+                marginTop: 12, padding: '10px 10px 12px', borderRadius: 'var(--radius)',
+                background: 'var(--surface-2)', border: '1px solid var(--hairline-soft)',
+              }}>
+                <label style={{ flex: 1, minWidth: 0 }}>
+                  <div style={ETICHETTA_CAMPO}>{t('Serie')}</div>
+                  <input value={r.sets} onChange={e => patch(r.id, { sets: e.target.value.replace(/[^0-9]/g, '') })} inputMode="numeric" placeholder="3" className="j-field" style={{ textAlign: 'center', fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}/>
                 </label>
-                <label style={{ flex: 1 }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 3 }}>{t('Colpi')}</div>
+                <label style={{ flex: 1.4, minWidth: 0 }}>
+                  <div style={ETICHETTA_CAMPO}>{t('Colpi')}</div>
                   <div className="flex gap-1.5">
                     <input
                       value={r.reps}
                       onChange={e => patch(r.id, { reps: e.target.value })}
                       placeholder="8"
                       className="j-field"
-                      style={{ flex: 1, minWidth: 0 }}
+                      style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}
                     />
                     {/* "max" è un obiettivo che un numero non sa dire: le serie a
                         cedimento non hanno un bersaglio da centrare, si va finché
@@ -1037,7 +1077,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                       aria-pressed={r.reps.trim().toLowerCase() === 'max'}
                       style={{
                         flexShrink: 0, padding: '0 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
-                        background: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : 'var(--surface-2)',
+                        background: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : 'var(--surface)',
                         border: `1px solid ${r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : NUC.hairline}`,
                         color: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent-fg)' : NUC.dim,
                         fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase',
@@ -1052,8 +1092,8 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
 
               {/* Gruppo muscolare: richiesto solo se l'esercizio è nuovo (non collegato) */}
               {!r.linkedExerciseId && r.name.trim() !== '' && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 3 }}>
+                <div style={{ marginTop: 12 }}>
+                  <div style={ETICHETTA_CAMPO}>
                     {t('Gruppo muscolare')}
                   </div>
                   <select value={r.muscle} onChange={e => patch(r.id, { muscle: e.target.value })} className="j-field">
@@ -1080,9 +1120,11 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
               )}
 
               {/* Nota (opzionale): mostrata anche durante l'allenamento */}
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 3 }}>
-                  {t('Nota')} <span style={{ opacity: 0.55 }}>{t('(opzionale)')}</span>
+              <div style={{ marginTop: 12 }}>
+                {/* Grigia e non del colore delle altre: è l'unica cosa della
+                    riga che si può lasciare vuota, e si deve capire da lontano. */}
+                <div style={{ ...ETICHETTA_CAMPO, color: NUC.faint }}>
+                  {t('Nota')} <span style={{ opacity: 0.7, fontWeight: 500 }}>{t('(opzionale)')}</span>
                 </div>
                 <textarea
                   value={r.note}
@@ -1093,7 +1135,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   placeholder={t('Testo')}
                   className="j-field"
                   rows={2}
-                  style={{ resize: 'none', lineHeight: 1.5 }}
+                  style={{ resize: 'none', lineHeight: 1.5, borderStyle: 'dashed' }}
                 />
               </div>
             </NucCard>
@@ -1121,8 +1163,9 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         })}
 
         <button onClick={addRow} className="flex items-center justify-center gap-2 w-full" style={{
-          height: 44, borderRadius: 'var(--radius)', background: 'var(--surface)', border: `1px dashed ${NUC.hairline}`,
-          color: NUC.dim, cursor: 'pointer', fontFamily: NUC.label, fontSize: 11, letterSpacing: '.06em', marginBottom: 16,
+          height: 48, borderRadius: 'var(--radius)', cursor: 'pointer', marginBottom: 16,
+          background: 'color-mix(in srgb, var(--j-accent) 8%, var(--surface))', border: '1px dashed var(--j-accent)',
+          color: 'var(--j-accent-ink)', fontFamily: NUC.label, fontSize: 12.5, fontWeight: 600, letterSpacing: '.04em',
         }}>
           <Icons.plus size={15} stroke={2}/> {t('Aggiungi esercizio')}
         </button>
@@ -1255,11 +1298,17 @@ function giornoSessione(giorno: string): string {
   return anno === String(new Date().getFullYear()) ? fmtDayMonthFull(giorno) : `${fmtDayMonthFull(giorno)} ${anno}`
 }
 
+/** Cosa si sa di un'alzata dello storico di una scheda: di quanto è cambiato il
+ *  carico dall'ultima volta che si è fatto QUELL'esercizio con QUESTA scheda. */
+interface Andamento { variazione: VariazioneCarico | null; primo: boolean }
+
 // Una riga di alzata registrata: nome, colpi × chili, la nota se c'è. Toccata
-// si corregge; il cestino, dove c'è, la toglie.
-function RigaAlzata({ a, primo, onCorreggi, onElimina }: {
+// si corregge; dietro i tre puntini, dove ci sono, la si toglie. I chili sono
+// il testo più forte della riga, come nello storico dell'esercizio.
+function RigaAlzata({ a, primo, andamento, onCorreggi, onElimina }: {
   a: AlzataSalvata
   primo: boolean
+  andamento?: Andamento
   onCorreggi?: (a: AlzataSalvata) => void
   onElimina?: (a: AlzataSalvata) => void
 }) {
@@ -1267,7 +1316,7 @@ function RigaAlzata({ a, primo, onCorreggi, onElimina }: {
   const tData = useTData()
   const h = a.entry
   return (
-    <div className="flex items-center gap-2" style={{ borderTop: primo ? 'none' : '1px solid var(--hairline-soft)' }}>
+    <div className="flex items-center gap-1" style={{ borderTop: primo ? 'none' : '1px solid var(--hairline-soft)' }}>
       <button
         onClick={() => onCorreggi?.(a)}
         className="flex items-center justify-between gap-3 j-riga-gruppo"
@@ -1280,72 +1329,98 @@ function RigaAlzata({ a, primo, onCorreggi, onElimina }: {
           <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {tData(a.nome)}
           </span>
+          {andamento && (
+            <SegnaleCarico variazione={andamento.variazione} primo={andamento.primo} massimale={!!h.maxLift}/>
+          )}
           {h.note && (
-            <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 2, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 3, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {h.note}
             </span>
           )}
         </span>
-        <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.2 }}>
-          {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
+        <span className="flex items-baseline" style={{ flexShrink: 0, gap: 6 }}>
+          <span style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.dim, fontVariantNumeric: 'tabular-nums' }}>{h.sets_n} × {fmtReps(h)}</span>
+          <span style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 600, letterSpacing: -0.2, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}>{fmtKgVerso(h)}</span>
         </span>
-        <span style={{ flexShrink: 0, color: NUC.faint, display: 'flex' }}><Icons.pencil size={12} stroke={1.8}/></span>
+        {!onElimina && <span style={{ flexShrink: 0, color: NUC.faint, display: 'flex' }}><Icons.pencil size={12} stroke={1.8}/></span>}
       </button>
       {onElimina && (
-        <button
-          onClick={() => onElimina(a)}
-          aria-label={t('Elimina alzata')}
-          className="j-hit flex items-center justify-center"
-          style={{
-            width: 28, height: 28, borderRadius: 'var(--radius-sm)', flexShrink: 0, cursor: 'pointer',
-            background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)',
-          }}
-        >
-          <Icons.trash size={11} stroke={1.6}/>
-        </button>
+        <MenuAzioni
+          etichetta={t('Azioni sull’alzata')}
+          azioni={[
+            { nome: t('Modifica'), icona: <Icons.pencil size={14} stroke={1.8}/>, onClick: () => onCorreggi?.(a) },
+            { nome: t('Elimina'), icona: <Icons.trash size={14} stroke={1.6}/>, pericolo: true, onClick: () => onElimina(a) },
+          ]}
+        />
       )}
     </div>
   )
 }
 
-// Un giorno dello storico: chiuso, è la data e quanti esercizi; aperto, le
-// alzate di quel giorno. Partono tutti chiusi — si apre quello che si vuole
-// controllare. Aperti tutti insieme erano un muro di righe, e il giorno che si
+// Un giorno dello storico, fatto come un'alzata nello storico di un esercizio:
+// la data è il punto dell'elenco, accanto quanti esercizi, e sotto in quanti si
+// è saliti o scesi di carico rispetto alla volta prima. Toccato si apre sulle
+// alzate di quel giorno.
+//
+// Aperto in partenza c'è solo l'ultimo allenamento: è quello che si viene a
+// guardare. Aperti tutti insieme erano un muro di righe, e il giorno che si
 // cercava stava sotto tutti quelli venuti dopo.
-function GiornoStorico({ s, onCorreggi, onElimina }: {
+function GiornoStorico({ s, apertoAllInizio, andamento, onCorreggi, onElimina }: {
   s: Sessione
+  apertoAllInizio: boolean
+  andamento: Map<PalestraHistoryEntry, Andamento>
   onCorreggi?: (a: AlzataSalvata) => void
   onElimina?: (a: AlzataSalvata) => void
 }) {
   const t = useT()
-  const [aperto, setAperto] = useState(false)
+  const [aperto, setAperto] = useState(apertoAllInizio)
+  const variazioni = s.alzate.map(a => andamento.get(a.entry)?.variazione?.delta ?? 0)
+  const saliti = variazioni.filter(d => d > 0).length
+  const scesi = variazioni.filter(d => d < 0).length
+  // Il primo allenamento con la scheda non ha una volta prima con cui misurarsi.
+  const primoDiTutti = s.alzate.every(a => andamento.get(a.entry)?.primo)
+  const segno = (n: number, su: boolean) => (
+    <span className="flex items-center" style={{ gap: 4, fontFamily: NUC.label, fontSize: 11.5, fontWeight: 600, color: su ? 'var(--segnale-su)' : 'var(--segnale-giu)', fontVariantNumeric: 'tabular-nums' }}>
+      <span aria-hidden="true" style={{ display: 'flex', transform: `rotate(${su ? -90 : 90}deg)` }}><Icons.arrow size={12} stroke={2.4}/></span>
+      {su ? t('{n} in salita', { n }) : t('{n} in calo', { n })}
+    </span>
+  )
   return (
-    <NucCard pad={0} style={{ marginBottom: 8 }}>
+    <div style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
       <button
         onClick={() => setAperto(a => !a)} aria-expanded={aperto}
-        className="j-focus flex items-center justify-between gap-3 w-full"
-        style={{ padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+        className="j-focus flex items-start gap-3 w-full"
+        style={{ padding: '11px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
       >
-        <span style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink }}>
-          {giornoSessione(s.giorno)}
-        </span>
-        <span className="flex items-center gap-2" style={{ flexShrink: 0 }}>
-          <span style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>
+        <DataPunto iso={s.giorno} ripiego={s.giorno}/>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 17, fontWeight: 600, lineHeight: 1.15, letterSpacing: -0.2, color: NUC.ink }}>
             {s.alzate.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.alzate.length })}
           </span>
-          <span style={{ display: 'flex', color: NUC.faint, transform: aperto ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
-            <Icons.chev size={13} stroke={2}/>
+          <span className="flex items-center" style={{ gap: 10, marginTop: 5, minHeight: 16, flexWrap: 'wrap' }}>
+            {saliti > 0 && segno(saliti, true)}
+            {scesi > 0 && segno(scesi, false)}
+            {saliti === 0 && scesi === 0 && (
+              <span style={{ fontFamily: NUC.label, fontSize: 11.5, color: NUC.faint }}>
+                {primoDiTutti ? t('primo allenamento') : t('carichi invariati')}
+              </span>
+            )}
           </span>
+        </span>
+        <span style={{ display: 'flex', alignSelf: 'center', flexShrink: 0, color: NUC.faint, transform: aperto ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
+          <Icons.chev size={13} stroke={2}/>
         </span>
       </button>
       {aperto && (
-        <div style={{ borderTop: '1px solid var(--hairline-soft)', padding: '4px 8px 6px' }}>
+        // Rientrate quanto la data: le alzate stanno SOTTO il giorno a cui
+        // appartengono, non accanto al giorno dopo.
+        <div style={{ padding: '0 0 8px 38px' }}>
           {s.alzate.map((a, i) => (
-            <RigaAlzata key={`${a.exerciseId}-${i}`} a={a} primo={i === 0} onCorreggi={onCorreggi} onElimina={onElimina}/>
+            <RigaAlzata key={`${a.exerciseId}-${i}`} a={a} primo={i === 0} andamento={andamento.get(a.entry)} onCorreggi={onCorreggi} onElimina={onElimina}/>
           ))}
         </div>
       )}
-    </NucCard>
+    </div>
   )
 }
 
@@ -1395,6 +1470,25 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
   // La terza faccia: gli allenamenti già fatti con questa scheda, uno per giorno.
   const [storico, setStorico] = useState(false)
   const sessioni = useMemo(() => sessioniDellaScheda(scheda, palestraExercises), [scheda, palestraExercises])
+  // Per ogni alzata dello storico, di quanto è cambiato il carico dall'ultima
+  // volta con QUESTA scheda: si scorre dall'allenamento più vecchio tenendo, per
+  // esercizio, l'ultima alzata di lavoro incontrata.
+  const andamento = useMemo(() => {
+    const out = new Map<PalestraHistoryEntry, Andamento>()
+    const ultima = new Map<string, PalestraHistoryEntry>()
+    const perId = new Map(palestraExercises.map(e => [e.id, e]))
+    for (const ses of [...sessioni].reverse()) {
+      for (const a of ses.alzate) {
+        const ex = perId.get(a.exerciseId)
+        // A colpi e non a chili: vedi ExerciseDetail in JarvisGym.
+        const soloColpi = !!ex && aColpi(ex) && ex.history.every(h => h.kg === 0)
+        const prima = ultima.get(a.exerciseId)
+        out.set(a.entry, { variazione: variazioneCarico(prima, a.entry, soloColpi), primo: !prima })
+        if (!a.entry.maxLift) ultima.set(a.exerciseId, a.entry)
+      }
+    }
+    return out
+  }, [sessioni, palestraExercises])
   // Da quanti giorni non si fa questa scheda. `null` se mai, o se l'ultima
   // sessione è così vecchia da non avere una data.
   const ultimoGiorno = sessioni[0]?.giorno
@@ -1485,85 +1579,102 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
         ? t('Richieste a {chi}', { chi: daCoach ?? '' })
         : storico
           ? t('Storico allenamenti')
-        : daCoach
-          ? t('da {chi}', { chi: daCoach })
           : scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: scheda.exercises.length })}
-      azioni={<>
-        {/* Il punto interrogativo: la porta fra le due facce della scheda. Sta a
-            sinistra degli altri perché è l'unico che non fa niente di definitivo,
-            e perché quando c'è un messaggio da leggere è il primo da vedere. */}
-        {/* L'orologio: gli allenamenti già fatti. Solo se ce n'è almeno uno —
-            un tasto che apre una pagina vuota è una promessa non mantenuta. */}
-        {sessioni.length > 0 && !richieste && (
-          <button
-            onClick={() => setStorico(v => !v)}
-            aria-pressed={storico}
-            aria-label={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
-            title={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
-            className="j-hard flex items-center justify-center"
-            style={{
-              ...iconBtn(),
-              ...(storico ? {
-                background: 'var(--j-accent)',
-                border: '1px solid var(--j-accent)',
-                color: 'var(--j-accent-fg)',
-              } : {}),
-            }}
-          >
-            <Icons.clock size={16} stroke={1.9}/>
-          </button>
-        )}
-        {puoiChiedere && !storico && (
-          <button
-            onClick={() => setRichieste(r => !r)}
-            aria-pressed={richieste}
-            aria-label={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
-            title={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
-            className="j-hard flex items-center justify-center"
-            style={{
-              ...iconBtn(),
-              position: 'relative',
-              ...(richieste ? {
-                background: 'var(--j-accent)',
-                border: '1px solid var(--j-accent)',
-                color: 'var(--j-accent-fg)',
-              } : {}),
-            }}
-          >
-            <Icons.help size={17} stroke={1.9}/>
-            {/* Aperta la vista il badge sparisce perché i messaggi sono appena
-                stati letti: lasciarlo lì sarebbe un contatore di cose già viste. */}
-            {!richieste && <BadgeNonLetti n={daLeggere} style={{ position: 'absolute', top: -6, right: -6 }}/>}
-          </button>
-        )}
-        {puoiCondividere && (
-          <button
-            onClick={() => setCondividiAperto(true)}
-            aria-label={t('Condividi la scheda')}
-            className="flex items-center justify-center" style={iconBtn()}
-          >
-            <Icons.share size={15} stroke={1.8}/>
-          </button>
-        )}
-        {/* Matita O cestino, mai tutti e due.
-            Sulle schede MIE c'è la matita, e l'eliminazione sta là dentro (vedi
-            `onDelete` di SchedaFormPage): un cestino a fianco della matita era il
-            vicino di casa del tasto che si preme più spesso.
-            Sulle schede ASSEGNATE la matita non c'è — sono il lavoro
-            dell'allenatore, e riscriverle qui vorrebbe dire che i due si allenano
-            su due versioni diverse senza saperlo — quindi il cestino resta in
-            testata: rifiutarla si può, e senza matita non ha un altro posto dove
-            stare. */}
-        {daCoach ? (
-          <button onClick={onDelete} aria-label={t('Elimina scheda')} className="flex items-center justify-center" style={iconBtn(true)}>
-            <Icons.trash size={15} stroke={1.6}/>
-          </button>
-        ) : (
-          <button onClick={onEdit} aria-label={t('Modifica')} className="flex items-center justify-center" style={iconBtn()}>
-            <Icons.pencil size={15} stroke={1.8}/>
-          </button>
-        )}
-      </>}
+      // I comandi stanno in una riga loro sotto il titolo, non accanto: con tre
+      // tasti il titolo non ci stava e i tasti andavano a capo da soli, a destra,
+      // lasciando mezza riga vuota. In quel vuoto adesso c'è da dove viene la
+      // scheda — scritta da te, o mandata da un allenatore e da quale.
+      extra={
+        <div className="flex items-center justify-between gap-3" style={{ marginTop: 14 }}>
+          <div className="flex items-center gap-2.5" style={{ minWidth: 0 }}>
+            <span style={{ display: 'flex', flexShrink: 0, color: daCoach ? 'var(--j-accent-ink)' : NUC.faint }}>
+              {daCoach ? <Icons.chat size={18} stroke={1.7}/> : <Icons.user size={18} stroke={1.7}/>}
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: NUC.faint }}>
+                {daCoach ? t('Dal coach') : t('Scheda')}
+              </span>
+              <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 14.5, fontWeight: 500, color: NUC.ink, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {daCoach ?? t('Creata da te')}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+            {/* L'orologio: gli allenamenti già fatti. Solo se ce n'è almeno uno —
+                un tasto che apre una pagina vuota è una promessa non mantenuta. */}
+            {sessioni.length > 0 && !richieste && (
+              <button
+                onClick={() => setStorico(v => !v)}
+                aria-pressed={storico}
+                aria-label={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
+                title={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
+                className="j-hard flex items-center justify-center"
+                style={{
+                  ...iconBtn(),
+                  ...(storico ? {
+                    background: 'var(--j-accent)',
+                    border: '1px solid var(--j-accent)',
+                    color: 'var(--j-accent-fg)',
+                  } : {}),
+                }}
+              >
+                <Icons.clock size={18} stroke={1.9}/>
+              </button>
+            )}
+            {/* Il punto interrogativo: la porta fra le due facce della scheda. */}
+            {puoiChiedere && !storico && (
+              <button
+                onClick={() => setRichieste(r => !r)}
+                aria-pressed={richieste}
+                aria-label={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
+                title={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
+                className="j-hard flex items-center justify-center"
+                style={{
+                  ...iconBtn(),
+                  position: 'relative',
+                  ...(richieste ? {
+                    background: 'var(--j-accent)',
+                    border: '1px solid var(--j-accent)',
+                    color: 'var(--j-accent-fg)',
+                  } : {}),
+                }}
+              >
+                <Icons.help size={19} stroke={1.9}/>
+                {/* Aperta la vista il badge sparisce perché i messaggi sono appena
+                    stati letti: lasciarlo lì sarebbe un contatore di cose già viste. */}
+                {!richieste && <BadgeNonLetti n={daLeggere} style={{ position: 'absolute', top: -6, right: -6 }}/>}
+              </button>
+            )}
+            {puoiCondividere && (
+              <button
+                onClick={() => setCondividiAperto(true)}
+                aria-label={t('Condividi la scheda')}
+                className="j-hard flex items-center justify-center" style={iconBtn()}
+              >
+                <Icons.share size={17} stroke={1.8}/>
+              </button>
+            )}
+            {/* Matita O cestino, mai tutti e due.
+                Sulle schede MIE c'è la matita, e l'eliminazione sta là dentro (vedi
+                `onDelete` di SchedaFormPage): un cestino a fianco della matita era il
+                vicino di casa del tasto che si preme più spesso.
+                Sulle schede ASSEGNATE la matita non c'è — sono il lavoro
+                dell'allenatore, e riscriverle qui vorrebbe dire che i due si allenano
+                su due versioni diverse senza saperlo — quindi il cestino resta in
+                testata: rifiutarla si può, e senza matita non ha un altro posto dove
+                stare. */}
+            {daCoach ? (
+              <button onClick={onDelete} aria-label={t('Elimina scheda')} className="j-hard flex items-center justify-center" style={iconBtn(true)}>
+                <Icons.trash size={17} stroke={1.6}/>
+              </button>
+            ) : (
+              <button onClick={onEdit} aria-label={t('Modifica')} className="j-hard flex items-center justify-center" style={iconBtn()}>
+                <Icons.pencil size={17} stroke={1.8}/>
+              </button>
+            )}
+          </div>
+        </div>
+      }
     >
 
       {storico ? (
@@ -1571,12 +1682,19 @@ function SchedaDetailPage({ scheda, muscleColors, assegnata, ioId, mioNome, alli
           <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 8 }}>
             {t('Apri un giorno per vederne le alzate, poi toccane una per correggere chili, colpi o nota.')}
           </div>
+          {/* Per mese e senza anno, come lo storico di un esercizio. */}
           <Cronologia
+            anni={false}
             voci={sessioni}
             dataDi={s => s.giorno}
             chiaveDi={s => s.giorno}
             conta={n => n === 1 ? t('1 allenamento') : t('{n} allenamenti', { n })}
-            voce={s => <GiornoStorico s={s} onCorreggi={onCorreggi} onElimina={onElimina}/>}
+            voce={s => (
+              <GiornoStorico
+                s={s} apertoAllInizio={s.giorno === sessioni[0]?.giorno}
+                andamento={andamento} onCorreggi={onCorreggi} onElimina={onElimina}
+              />
+            )}
           />
         </div>
       ) : richieste && ioId ? (

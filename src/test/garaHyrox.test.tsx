@@ -9,6 +9,13 @@ import { cifreInTempo, cifreInSec, secInCifre } from '@/features/gym/hyroxStima'
 import { RACE_STATIONS } from '@/features/gym/gymModel'
 import { todayISO } from '@/lib/isoDate'
 
+// Hyrox nell'app è spento (vedi hyroxAttivo). Qui lo si riaccende: finché il suo
+// codice resta nel repo, le sue prove devono continuare a dire se funziona.
+vi.mock('@/features/gym/hyroxAttivo', () => ({
+  HYROX_ATTIVO: true,
+  hyroxVisibili: (lista?: unknown[]) => lista ?? [],
+}))
+
 // Hyrox si apre sulla gara: il tempo stimato, da dove viene, e il + per
 // registrare una gara o una simulazione intera, Roxzone compresa.
 

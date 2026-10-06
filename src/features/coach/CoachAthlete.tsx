@@ -19,6 +19,7 @@ import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
 import { perMuscolo } from './gruppi'
 import { TendinaGruppo } from './TendinaGruppo'
 import { quotaCorpo, corpoLibero } from '@/features/gym/catalogo'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
 import { fmtDayMonth, daysShort } from '@/lib/dateFormat'
@@ -57,7 +58,7 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
   const tData = useTData()
   const peso = data.userWeight ?? 0
   const palestra = useMemo(() => data.palestraExercises ?? [], [data.palestraExercises])
-  const hyrox = useMemo(() => data.hyroxExercises ?? [], [data.hyroxExercises])
+  const hyrox = useMemo(() => hyroxVisibili(data.hyroxExercises), [data.hyroxExercises])
   const conStorico = useMemo(() => palestra.filter(ex => ex.history.length > 0).length, [palestra])
 
   // ── Le sessioni, raggruppate per giornata ────────────────────

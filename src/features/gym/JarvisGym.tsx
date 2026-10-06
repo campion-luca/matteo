@@ -21,8 +21,8 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  displayMuscle, exColor, MUSCLE_COLORS, fmtKg, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
-  effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce,
+  displayMuscle, exColor, MUSCLE_COLORS, fmtKg, fmtKgVerso, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
+  effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
 import { useMuscleColors } from './useMuscleColors'
@@ -40,7 +40,7 @@ import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { useNonLetti } from '@/lib/messaggiLive'
 import { BadgeNonLetti } from '@/features/coach/messaggiUI'
-import { LineChart, FacciaEsercizio } from './gymShared'
+import { LineChart, FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from './gymShared'
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
@@ -48,6 +48,7 @@ import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal } from './gymModals'
 import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary, StazioniInGara } from './GymHyrox'
+import { HYROX_ATTIVO } from './hyroxAttivo'
 import { FormatoSwitch } from './FormatoSwitch'
 import { type FormatoHyrox, sessioniDel, formatoSessione, aDistanzaIntera, categoriaStima } from './hyroxStima'
 import { todayISO } from '@/lib/isoDate'
@@ -166,14 +167,17 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
           // la riga e lasciavano un buco a destra. In `dvh` con un tetto, perché
           // su un telefono basso l'altezza è la risorsa scarsa e queste card
           // vengono prima dei gruppi muscolari.
-          height: 'clamp(56px, 8.5dvh, 78px)',
-          minWidth: 0, borderRadius: 'var(--radius)', cursor: 'pointer',
+          // Più alte di com'erano (56–78px): sopra non c'è più «Pesi | Hyrox», e
+          // lo spazio che ha lasciato è andato a loro. Icona, testo e distanze
+          // crescono nello stesso rapporto, o la card più grande sembrerebbe vuota.
+          height: 'clamp(78px, 12.5dvh, 112px)',
+          minWidth: 0, borderRadius: 'var(--radius-lg)', cursor: 'pointer',
           backgroundColor: on ? 'var(--j-accent)' : 'var(--surface)',
           border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
           color: on ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 'clamp(3px, 0.7dvh, 6px)',
-          padding: '0 4px',
+          gap: 'clamp(6px, 1.2dvh, 10px)',
+          padding: '0 6px',
           transition: 'background-color 200ms, border-color 200ms, color 200ms',
         }}
       >
@@ -181,7 +185,7 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
         {/* Non più in maiuscoletto spaziato: sono nomi di posti dove si va, e
             in maiuscolo a 9px "STATISTICHE" si decifra invece di leggersi. */}
         <span style={{
-          fontFamily: NUC.label, fontSize: 'clamp(10px, 2.9vw, 12px)', fontWeight: 500,
+          fontFamily: NUC.label, fontSize: 'clamp(12px, 3.5vw, 14.5px)', fontWeight: 500,
           letterSpacing: '.01em', textAlign: 'center', lineHeight: 1.2,
         }}>{label}</span>
         {/* A cavallo dell'angolo, non dentro: la card è alta poco più di
@@ -192,10 +196,10 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
     )
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(6px, 2vw, 8px)', marginTop: 10, maxWidth: 520 }}>
-      {card('coach',  t('Coaching'),    <Icons.chat    size={22} stroke={1.7} style={ICONA_AZIONE}/>, onCoach)}
-      {card('schede', t('Schede'),      <Icons.bookOpen size={22} stroke={1.7} style={ICONA_AZIONE}/>, onSchede)}
-      {card('stats',  t('Statistiche'), <Icons.chart    size={22} stroke={1.7} style={ICONA_AZIONE}/>, onStats)}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 14, maxWidth: 640 }}>
+      {card('coach',  t('Coaching'),    <Icons.chat    size={30} stroke={1.6} style={ICONA_AZIONE}/>, onCoach)}
+      {card('schede', t('Schede'),      <Icons.bookOpen size={30} stroke={1.6} style={ICONA_AZIONE}/>, onSchede)}
+      {card('stats',  t('Statistiche'), <Icons.chart    size={30} stroke={1.6} style={ICONA_AZIONE}/>, onStats)}
     </div>
   )
 }
@@ -570,7 +574,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
           <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, color: NUC.ink }}>{tData(ex.n)}</div>
-            <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{t('Scopri di più')} · {t('{n} sessioni', { n: hist.length })}</div>
+            <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color, dark) }}>{t('Andamento')} · {t('{n} sessioni', { n: hist.length })}</div>
           </div>
         </div>
       </div>
@@ -679,6 +683,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   // Lo storico si legge dalla più recente; l'indice vero viaggia con l'alzata,
   // perché modifica ed eliminazione lavorano su `hist` in ordine cronologico.
   const dalPiuRecente = useMemo(() => hist.map((h, idx) => ({ h, idx })).reverse(), [hist])
+  // Per ogni alzata: quanto è cambiato il carico dalla volta prima, e se quel
+  // giorno è stato un record. Stesso indice di `hist`.
+  const andamento = useMemo(() => andamentoStorico(hist, bodyWeight, soloColpi), [hist, bodyWeight, soloColpi])
 
   return (
     <>
@@ -737,6 +744,13 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             griglia: nessun esercizio resta senza.
             Alta in `dvh` e non in pixel: è decorazione, e su un telefono basso deve
             cedere il posto allo storico, che è il contenuto. */}
+        {/* Il riquadro largo quanto la pagina serve solo a dare un posto al
+            trend: l'immagine è quadrata e sta al centro, e ai suoi lati resta
+            del vuoto. In basso a sinistra, a filo col fondo dell'immagine e
+            quindi subito sopra "Nuova alzata", ci sta una freccia — si vede
+            arrivando, senza doverla cercare sotto lo storico. */}
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+        {hist.length > 0 && <TrendAlzate valori={soloColpi ? colpi : hist.map(h => entry1RM(h, bodyWeight))}/>}
         <div style={{
           // Quadrata e centrata, non una fascia a tutta larghezza: stesa su 350px e
           // alta 170 tagliava a metà un'immagine che è quadrata — nel riquadro
@@ -747,7 +761,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
           // di essere nel posto giusto, e lo storico sotto deve salire.
           width: 'min(100%, clamp(96px, 19dvh, 176px))',
           aspectRatio: '1 / 1',
-          margin: '0 auto 10px',
+          margin: '0 auto',
           borderRadius: 'var(--radius)',
           background: 'var(--surface-2)', border: '1px solid var(--hairline)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -762,102 +776,97 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
             : <MuscleIcon muscle={ex.muscle} size={96} style={{ height: '78%', width: 'auto', maxWidth: '60%' }}/>}
         </div>
+        </div>
 
         <button onClick={onLog} className="j-btn-accent" style={{ width: '100%', marginBottom: 16 }}>
           <Icons.plus size={16} stroke={2}/> {t('Nuova alzata')}
         </button>
 
         <button onClick={() => setHistOpen(o => !o)} className="w-full flex items-center justify-between px-0.5 bg-transparent border-none cursor-pointer" style={{ marginBottom: histOpen ? 10 : 16 }}>
-          <div className="j-eyebrow">{t('Storico')}</div>
+          <div className="j-eyebrow">{t('Sessioni')}</div>
           <div className="flex items-center gap-1.5">
-            <div className="j-eyebrow">{hist.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: hist.length })}</div>
+            <div className="j-eyebrow" style={{ fontVariantNumeric: 'tabular-nums' }}>{hist.length}</div>
             <div style={{ color: NUC.faint, transform: histOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
               <Icons.chev size={12} stroke={2}/>
             </div>
           </div>
         </button>
 
-        {histOpen && hist.length > 0 && <TrendAlzate valori={soloColpi ? colpi : hist.map(h => entry1RM(h, bodyWeight))}/>}
-
         {histOpen && hist.length === 0 && <div className="j-empty">{t('Nessuna sessione registrata')}</div>}
 
-        {/* Per anno e per mese: aperti solo i più recenti (vedi Cronologia). */}
+        {/* Per mese, senza la riga dell'anno; aperto solo il mese più recente
+            (vedi Cronologia). */}
         {histOpen && hist.length > 0 && (
           <Cronologia
+            anni={false}
             voci={dalPiuRecente}
             dataDi={v => v.h.date}
             chiaveDi={v => v.idx}
             conta={n => n === 1 ? t('1 sessione') : t('{n} sessioni', { n })}
-            voce={({ h, idx: realIdx }) => {
-              const dateStr = h.date ? fmtShortDate(h.date) : h.d
-              return (
-                <div className="flex items-center gap-2 py-2.5" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, color: NUC.ink, letterSpacing: -0.2 }}>
-                      {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
-                    </div>
-                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
-                    {h.note && <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.dim, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{h.note}</div>}
-                    {/* I numeri non sono più quelli scritti da me: va detto. */}
-                    {h.correttaDa && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', marginTop: 2 }}>{t('corretta da {chi}', { chi: h.correttaDa })}</div>}
-                    {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
+            voce={({ h, idx: realIdx }) => (
+              // La data è il punto dell'elenco; accanto, i chili — che sono ciò
+              // che si viene a leggere, e per questo sono il testo più grande
+              // della riga — e sotto di quanto sono cambiati dalla volta prima.
+              <div className="flex items-start gap-3" style={{ padding: '11px 0', borderBottom: '1px solid var(--hairline-soft)' }}>
+                <DataPunto iso={h.date} ripiego={h.d}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex items-baseline" style={{ gap: 7, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: NUC.label, fontSize: 13.5, color: NUC.dim, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {h.sets_n} × {fmtReps(h)}
+                    </span>
+                    <span aria-hidden="true" style={{ color: NUC.faint }}>·</span>
+                    <span style={{ fontFamily: NUC.font, fontSize: 20, fontWeight: 600, lineHeight: 1.1, letterSpacing: -0.3, color: NUC.ink, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmtKgVerso(h)}
+                    </span>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    {/* `--j-accent-ink` e non `NUC.accentSoft`: quest'ultimo è tarato per
-                        stare SU una superficie accent, e come testo sulla carta si ferma
-                        a 4.0:1 — sotto AA. Il token "da testo" è AA per costruzione. */}
-                    <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
-                    {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
-                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5 }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => setEditHistEntry({ entry: h, idx: realIdx })} style={{
-                      width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                      background: 'var(--surface)', border: '1px solid var(--hairline)',
-                      color: NUC.faint, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Icons.pencil size={10} stroke={1.8}/>
-                    </button>
-                    <button onClick={() => confirmDelete(() => deleteHistEntry(realIdx), t('Alzata'))} style={{
-                      width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0,
-                      background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
-                      color: 'var(--danger)', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}><Icons.trash size={11} stroke={1.6}/></button>
-                  </div>
+                  <SegnaleCarico
+                    variazione={andamento[realIdx]?.variazione ?? null}
+                    record={andamento[realIdx]?.record}
+                    primo={realIdx === 0}
+                    massimale={!!h.maxLift}
+                  />
+                  {h.note && <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.dim, marginTop: 5, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{h.note}</div>}
+                  {/* I numeri non sono più quelli scritti da me: va detto. */}
+                  {h.correttaDa && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', marginTop: 4 }}>{t('corretta da {chi}', { chi: h.correttaDa })}</div>}
                 </div>
-              )
-            }}
+                {/* Il massimale (stimato, o dichiarato) di quel giorno: un numero
+                    solo, nel colore dell'azione. `--j-accent-ink` e non
+                    `NUC.accentSoft`: quest'ultimo è tarato per stare SU una
+                    superficie accent, e come testo sulla carta si ferma a 4.0:1. */}
+                <div
+                  title={soloColpi ? t('Serie migliore') : h.maxLift ? t('Massimale') : t('Massimale stimato')}
+                  style={{ flexShrink: 0, alignSelf: 'center', minWidth: 30, textAlign: 'right', fontFamily: NUC.label, fontSize: 16, fontWeight: 600, color: 'var(--j-accent-ink)', letterSpacing: -0.3, fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}
+                </div>
+                <div style={{ alignSelf: 'center' }}>
+                  <MenuAzioni
+                    etichetta={t('Azioni sull’alzata')}
+                    azioni={[
+                      { nome: t('Modifica'), icona: <Icons.pencil size={14} stroke={1.8}/>, onClick: () => setEditHistEntry({ entry: h, idx: realIdx }) },
+                      { nome: t('Elimina'), icona: <Icons.trash size={14} stroke={1.6}/>, pericolo: true, onClick: () => confirmDelete(() => deleteHistEntry(realIdx), t('Alzata')) },
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
           />
         )}
 
         {kgs.length >= 2 ? (
-          <div onClick={onOpenCharts} style={{ cursor: 'pointer' }}>
-            {/* "tutti i grafici" era un testo grigio da 10px accanto al titolo:
-                si leggeva come una didascalia, non come la porta d'ingresso agli
-                altri grafici, e chi non ci provava per caso non scopriva mai che
-                il grafico si apre. Adesso ha il bordo e il colore dei controlli —
-                le stesse due cose per cui il "peso diverso per serie" era stato
-                riquadrato — e il corpo cresce quanto basta a farlo notare senza
-                che rubi la scena al titolo di sezione. */}
-            <NucEyebrow right={
-              <span className="j-hard j-hard-sm" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '5px 10px',
-                background: 'var(--surface)', border: '1px solid var(--fg-mute)',
-                borderRadius: 'var(--radius)', cursor: 'pointer',
-                fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
-                letterSpacing: '.1em', textTransform: 'uppercase',
-                color: 'var(--j-accent-ink)',
-              }}>
-                {t('Scopri di più')} <Icons.chev size={12} stroke={2.2}/>
-              </span>
-            }>{soloColpi ? t('Colpi') : t('Carico (kg)')}</NucEyebrow>
-            <NucCard pad={12} style={{ marginBottom: 12 }}>
-              <LineChart data={soloColpi ? colpi : kgs} labels={kgLabels} height={96} color="var(--j-accent)" yAxis labelSize={9}/>
-            </NucCard>
-          </div>
+          <>
+            {/* Niente titolo sopra: che sia il carico lo dice la scala, e il tasto
+                sotto dice dove porta. "Scopri di più" era una pillola accanto a
+                un titolo — due cose da leggere per un'azione sola. */}
+            <div onClick={onOpenCharts} style={{ cursor: 'pointer', marginTop: 16 }}>
+              <NucCard pad={12}>
+                <LineChart data={soloColpi ? colpi : kgs} labels={kgLabels} height={96} color="var(--j-accent)" yAxis labelSize={9}/>
+              </NucCard>
+            </div>
+            <button onClick={onOpenCharts} className="j-btn-log" style={{ marginTop: 8, marginBottom: 16 }}>
+              <Icons.chart size={15} stroke={1.8}/> {t('Visualizza grafico andamento')}
+            </button>
+          </>
         ) : (
           hist.length > 0 && <div className="j-empty" style={{ marginTop: 4 }}>{t('Registra almeno 2 alzate per vedere i grafici')}</div>
         )}
@@ -886,8 +895,11 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
 }
 
 // ── Trend delle alzate ─────────────────────────────────────────
-// Una freccia sola sotto lo storico, per capire a colpo d'occhio se si sta
-// salendo o scendendo senza leggere le righe una per una.
+// Una freccia sola accanto all'immagine dell'esercizio, per capire a colpo
+// d'occhio se si sta salendo o scendendo senza leggere le righe una per una.
+// È un'informazione da un'occhiata: la freccia e la parola, nient'altro — la
+// frase che la spiega ("in miglioramento", "in calo") resta per il lettore di
+// schermo e al passaggio del mouse.
 //
 // Si guarda il massimale stimato — l'unico numero che mette sullo stesso piano
 // 80 kg × 5 e 70 kg × 10 — e si confronta l'ultima alzata con la media delle tre
@@ -909,18 +921,23 @@ function trendAlzate(valori: number[]): 'su' | 'giu' | 'piatto' {
 
 function TrendAlzate({ valori }: { valori: number[] }) {
   const t = useT()
+  // Con meno di tre alzate non c'è una tendenza da dire, e una freccia piatta
+  // lì direbbe "invariato" di qualcosa che non è ancora cominciato.
+  if (valori.filter(x => x > 0).length < TREND_MIN_SESSIONI) return null
   const verso = trendAlzate(valori)
   const colore = verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.faint
   const rotazione = verso === 'su' ? -90 : verso === 'giu' ? 90 : 0
-  const descrizione = verso === 'su' ? t('in miglioramento') : verso === 'giu' ? t('in calo')
-    : valori.length < TREND_MIN_SESSIONI ? t('servono almeno 3 alzate') : t('invariato')
+  const descrizione = verso === 'su' ? t('in miglioramento') : verso === 'giu' ? t('in calo') : t('invariato')
   return (
-    <div className="flex items-center gap-2 px-0.5" style={{ marginTop: -4, marginBottom: 8 }} aria-label={`${t('Trend')}: ${descrizione}`}>
+    <div
+      className="flex items-center gap-1.5"
+      style={{ position: 'absolute', left: 2, bottom: 2 }}
+      role="img" aria-label={`${t('Trend')}: ${descrizione}`} title={`${t('Trend')}: ${descrizione}`}
+    >
       <span style={{ color: colore, display: 'flex', transform: `rotate(${rotazione}deg)` }}>
-        <Icons.arrow size={16} stroke={2.2}/>
+        <Icons.arrow size={18} stroke={2.4}/>
       </span>
-      <span style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: colore }}>{t('Trend')}</span>
-      <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{descrizione}</span>
+      <span style={{ fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: colore }}>{t('Trend')}</span>
     </div>
   )
 }
@@ -972,13 +989,20 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
             onChange={e => setTesto(e.target.value)}
             onFocus={() => setAttivo(true)}
             onBlur={() => { setAttivo(false); if (testo !== nota) onSalva(testo.trim()) }}
-            placeholder={t('Un promemoria per la prossima volta: presa, sedile, tempi…')}
+            // Due parole, non una frase: quella lunga andava a capo dentro un
+            // campo alto una riga e restava tagliata a metà, storta rispetto al
+            // bordo. Piccolo e velato lo fa `.j-nota-campo` (un segnaposto non
+            // si può vestire dallo stile in linea).
+            placeholder={t('Esecuzione, modalità…')}
             aria-label={t('Note dell’esercizio')}
             rows={1}
-            className="j-field"
+            className="j-field j-nota-campo"
             style={{
+              // Interlinea in pixel e non in proporzione: il segnaposto è più
+              // piccolo del testo, e con un'interlinea relativa la sua riga
+              // sarebbe più bassa — cioè lui starebbe più in alto del centro.
               width: '100%', height: 38, minHeight: 38, maxHeight: 38, padding: '8px 12px',
-              resize: 'none', overflowY: 'auto', lineHeight: 1.45, fontSize: 14,
+              resize: 'none', overflowY: 'auto', lineHeight: '20px', fontSize: 14,
               fontFamily: NUC.font, display: 'block',
             }}
           />
@@ -1131,8 +1155,9 @@ const TESTO_CARD: React.CSSProperties = {
   minWidth: 0, width: '100%',
 }
 
-// Le icone dei quattro comandi: seguono l'altezza come la card che le contiene.
-const ICONA_AZIONE: React.CSSProperties = { width: 'clamp(18px, 4.4dvh, 26px)', height: 'auto' }
+// Le icone dei tre comandi: seguono l'altezza come la card che le contiene, e
+// ne tengono il rapporto (un terzo scarso) ora che la card è più alta.
+const ICONA_AZIONE: React.CSSProperties = { width: 'clamp(24px, 4dvh, 34px)', height: 'auto' }
 
 // ── La card e la riga "+" ──────────────────────────────────────
 // Aggiungere un gruppo o un esercizio era un tasto nell'intestazione, lontano
@@ -1924,6 +1949,10 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       />
     ) : (
       <ExerciseDetail
+        // Una pagina per esercizio, non una sola che cambia contenuto: aprendone
+        // un altro lo storico riparte col solo mese più recente aperto, invece
+        // di ereditare le tendine aperte su quello di prima.
+        key={esercizioAperto.id}
         ex={esercizioAperto}
         onBack={() => { setSelectedExercise(null); setShowExerciseCharts(false) }}
         onLog={() => setLogPalestra(esercizioAperto)}
@@ -1975,7 +2004,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           onSettings={onOpenProfile}
         />
         <SettimanaStrip/>
-        <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
+        {/* «Pesi | Hyrox» c'è solo con Hyrox acceso (vedi hyroxAttivo): spento,
+            l'app è solo palestra e un interruttore con una voce sola non
+            commuta niente. */}
+        {HYROX_ATTIVO && (
+          <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
+        )}
         {/* Il menù è dei pesi: in Hyrox Coach e Schede non hanno niente da fare, e
             Statistiche scende sotto Esercizi e Gara (vedi TastoStatistiche).
             Stats è un interruttore: si ripreme la card per tornare alla lista. */}

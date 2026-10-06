@@ -415,20 +415,29 @@ describe('allenamento: le aggiunte di settembre', () => {
     await user.click(tasti[0])
     expect(screen.getByText(/Apri un giorno/)).toBeInTheDocument()
 
-    // Il giorno parte chiuso: le alzate si vedono solo dopo averlo aperto.
-    const giorno = screen.getByRole('button', { name: /1 esercizio$/, expanded: false })
-    expect(screen.queryByRole('button', { name: /Panca piana3 × 10 – 60 kg/ })).not.toBeInTheDocument()
+    // L'ultimo allenamento parte aperto: è quello che si viene a guardare. La
+    // data fa da punto elenco e sotto c'è il segnale — qui "primo allenamento",
+    // perché non c'è una volta prima con cui misurarsi.
+    const giorno = screen.getByRole('button', { name: /1 esercizio/, expanded: true })
+    expect(giorno).toHaveTextContent('primo allenamento')
+    const riga = screen.getByRole('button', { name: /Panca piana.*3 × 10.*60 kg/ })
+    expect(riga).toHaveTextContent('prima alzata')
+
+    // Si richiude e si riapre.
     await user.click(giorno)
-    expect(giorno).toHaveAttribute('aria-expanded', 'true')
+    expect(giorno).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: /Panca piana.*60 kg/ })).not.toBeInTheDocument()
+    await user.click(giorno)
 
     // Toccare l'alzata apre la correzione, con la nota fra i campi.
-    await user.click(screen.getByRole('button', { name: /Panca piana3 × 10 – 60 kg/ }))
+    await user.click(screen.getByRole('button', { name: /Panca piana.*60 kg/ }))
     await user.type(screen.getByPlaceholderText('Nota su questa sessione…'), 'presa larga')
     await user.click(screen.getByRole('button', { name: 'Salva' }))
     expect(alzate()[0].note).toBe('presa larga')
 
-    // Il cestino la toglie, dopo la conferma.
-    await user.click(screen.getByRole('button', { name: 'Elimina alzata' }))
+    // Dietro i tre puntini la si toglie, dopo la conferma.
+    await user.click(screen.getByRole('button', { name: 'Azioni sull’alzata' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Elimina' }))
     await user.click(screen.getByRole('button', { name: /sì, elimina/i }))
     expect(alzate()).toHaveLength(0)
   })

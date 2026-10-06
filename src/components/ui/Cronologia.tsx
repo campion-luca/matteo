@@ -33,7 +33,7 @@ const TESTATA: CSSProperties = {
   background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
 }
 
-export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c => c }: {
+export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c => c, anni: conAnni = true }: {
   /** Già nell'ordine in cui vanno lette dentro un mese (di solito dalla più recente). */
   voci: readonly T[]
   /** La data ISO della voce ("2026-09-23"); `undefined` per le voci senza giorno. */
@@ -45,6 +45,12 @@ export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c 
   voce: (v: T, primo: boolean) => ReactNode
   /** Il contenitore delle voci di un mese: una card, una colonna distanziata. */
   gruppo?: (contenuto: ReactNode) => ReactNode
+  /** `false` = solo i mesi, senza la riga dell'anno sopra. Per ora tutto lo
+   *  storico sta in un anno solo, e una riga "2026" in cima a ogni elenco è una
+   *  tendina in più da aprire per non dire niente. Un mese di un ALTRO anno si
+   *  porta l'anno accanto al nome, così il giorno che ce ne saranno due non si
+   *  confondono. */
+  anni?: boolean
 }) {
   const t = useT()
   const { anni, senzaData } = perAnnoEMese(voci, dataDi)
@@ -59,9 +65,30 @@ export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c 
 
   const elenco = (lista: T[]) => gruppo(lista.map((v, i) => <div key={chiaveDi(v)}>{voce(v, i === 0)}</div>))
 
+  const mese = (m: (typeof anni)[number]['mesi'][number], conAnno: boolean) => {
+    const meseAperto = aperto(m.chiave)
+    return (
+      <div key={m.chiave}>
+        <button
+          onClick={() => cambia(m.chiave)} aria-expanded={meseAperto} className="j-focus"
+          style={{ ...TESTATA, padding: '11px 2px 8px' }}
+        >
+          <span style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--tertiary-ink)' }}>
+            {fmtMese(m.mese)}{conAnno ? ` ${m.anno}` : ''}
+          </span>
+          <span style={CONTA}>{conta(m.voci.length)}<Freccia aperto={meseAperto}/></span>
+        </button>
+        {meseAperto && elenco(m.voci)}
+      </div>
+    )
+  }
+  const questAnno = new Date().getFullYear()
+
   return (
     <div>
-      {anni.map((a, ai) => {
+      {!conAnni && anni.flatMap(a => a.mesi).map(m => mese(m, m.anno !== questAnno))}
+
+      {conAnni && anni.map((a, ai) => {
         const ka = `anno-${a.anno}`
         const annoAperto = aperto(ka)
         return (
@@ -74,23 +101,7 @@ export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c 
               <span style={CONTA}>{conta(a.totale)}<Freccia aperto={annoAperto}/></span>
             </button>
 
-            {annoAperto && a.mesi.map(m => {
-              const meseAperto = aperto(m.chiave)
-              return (
-                <div key={m.chiave}>
-                  <button
-                    onClick={() => cambia(m.chiave)} aria-expanded={meseAperto} className="j-focus"
-                    style={{ ...TESTATA, padding: '11px 2px 8px' }}
-                  >
-                    <span style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--tertiary-ink)' }}>
-                      {fmtMese(m.mese)}
-                    </span>
-                    <span style={CONTA}>{conta(m.voci.length)}<Freccia aperto={meseAperto}/></span>
-                  </button>
-                  {meseAperto && elenco(m.voci)}
-                </div>
-              )
-            })}
+            {annoAperto && a.mesi.map(m => mese(m, false))}
           </section>
         )
       })}

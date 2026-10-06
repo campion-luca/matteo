@@ -11,6 +11,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore } from '@/store/useJarvisStore'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { localISO } from '@/lib/isoDate'
 import { daysShort, fmtDayMonthFull, fmtMeseAnno } from '@/lib/dateFormat'
 import { useT, useTData, useLang } from '@/lib/i18n'
@@ -21,7 +22,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
   const t = useT()
   const tData = useTData()
   const lang = useLang()
-  const s = useJarvisStore(useShallow(st => ({ palestra: st.palestraExercises, hyrox: st.hyroxExercises })))
+  const s = useJarvisStore(useShallow(st => ({ palestra: st.palestraExercises, hyrox: hyroxVisibili(st.hyroxExercises) })))
 
   const oggi = new Date()
   const oggiISO = localISO(oggi)

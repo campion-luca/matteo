@@ -108,6 +108,21 @@ export function fmtKg(h: { kg: number; bodyweight?: true; setWeights?: number[] 
   return h.kg > 0 ? `BW +${fmtNum(h.kg)} kg` : 'BW'
 }
 
+/** Come `fmtKg`, ma dice anche il VERSO quando i chili cambiano fra le serie:
+ *  "30 → 32,5 kg" se dalla prima all'ultima si è solo saliti (o solo scesi).
+ *  L'intervallo "30–35 kg" resta per chi è andato su e giù, dove una freccia
+ *  racconterebbe un percorso che non c'è stato. */
+export function fmtKgVerso(h: { kg: number; bodyweight?: true; setWeights?: number[] }): string {
+  const sw = h.setWeights
+  if (!sw || sw.length < 2) return fmtKg(h)
+  const primo = sw[0], ultimo = sw[sw.length - 1]
+  const sale = sw.every((w, i) => i === 0 || w >= sw[i - 1])
+  const scende = sw.every((w, i) => i === 0 || w <= sw[i - 1])
+  if (primo === ultimo || (!sale && !scende)) return fmtKg(h)
+  const tratto = `${fmtNum(primo)} → ${fmtNum(ultimo)} kg`
+  return h.bodyweight ? `BW +${tratto}` : tratto
+}
+
 // I colpi dell'alzata, come li si legge in lista. Gemello di `fmtKg`: con colpi
 // per serie mostra l'intervallo ("6–10"), perché scrivere il solo valore
 // rappresentativo farebbe leggere "3 × 10" a un allenamento che è andato 10, 8, 6.
@@ -261,6 +276,54 @@ export function recordFor(prev: PalestraHistoryEntry[], entry: PalestraHistoryEn
   // Pareggiare non è battere: con `>=` un allenamento ripetuto uguale avrebbe
   // annunciato un record ogni volta.
   return next > best ? { prev: Math.round(best), next: Math.round(next) } : null
+}
+
+// ── Quanto è cambiato il carico dalla volta prima ──────────────
+// Il segnale sotto ogni alzata dello storico: verde se si è saliti, rosso se si
+// è scesi, e di quanto. Si confronta il carico più ALTO delle due alzate — con
+// 60·60·62,5 il carico della giornata è 62,5, non la media — e il peso corporeo
+// non c'entra: a corpo libero si confronta la sola zavorra, che è la parte che
+// si sceglie.
+//
+// Un massimale dichiarato sta fuori dal confronto, da tutte e due le parti: è
+// una singola a un carico che non è quello di lavoro, e messo in fila direbbe
+// "+40 kg" quel giorno e "−40 kg" la volta dopo.
+export interface VariazioneCarico { delta: number; unita: 'kg' | 'colpi' }
+
+const caricoAlto = (h: PalestraHistoryEntry) => Math.max(...setLoads(h))
+
+/** La variazione di `questa` rispetto a `prima`. `soloColpi` per gli esercizi
+ *  che non vanno a chili: lì si confronta la serie più lunga. `null` se non
+ *  c'è una volta prima, o se una delle due è un massimale. */
+export function variazioneCarico(
+  prima: PalestraHistoryEntry | undefined,
+  questa: PalestraHistoryEntry,
+  soloColpi = false,
+): VariazioneCarico | null {
+  if (!prima || prima.maxLift || questa.maxLift) return null
+  if (soloColpi) return { delta: colpiMigliori(questa) - colpiMigliori(prima), unita: 'colpi' }
+  return { delta: Math.round((caricoAlto(questa) - caricoAlto(prima)) * 100) / 100, unita: 'kg' }
+}
+
+/** Per ogni alzata di uno storico GIÀ in ordine di data: quanto è cambiato il
+ *  carico dall'ultima alzata di lavoro prima di lei, e se quel giorno è stato
+ *  un record (stessa regola di `recordFor`, o i colpi per chi va a colpi). */
+export function andamentoStorico(
+  hist: PalestraHistoryEntry[],
+  bodyWeightKg = 0,
+  soloColpi = false,
+): Array<{ variazione: VariazioneCarico | null; record: boolean }> {
+  const metro = (h: PalestraHistoryEntry) => soloColpi ? colpiMigliori(h) : entry1RM(h, bodyWeightKg)
+  let ultimaDiLavoro: PalestraHistoryEntry | undefined
+  let meglio = -Infinity
+  return hist.map((h, i) => {
+    const variazione = variazioneCarico(ultimaDiLavoro, h, soloColpi)
+    // La prima alzata non batte niente: come in `recordFor`.
+    const record = i > 0 && metro(h) > meglio
+    meglio = Math.max(meglio, metro(h))
+    if (!h.maxLift) ultimaDiLavoro = h
+    return { variazione, record }
+  })
 }
 
 // ── Da quanto non ci si allena ─────────────────────────────────

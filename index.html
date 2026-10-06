@@ -28,9 +28,9 @@
         try {
           var s = JSON.parse(localStorage.getItem('jarvis-store-v4') || '{}').state || {}
           // La scelta salvata vale solo da un blob già passato dal cambio di
-          // tema (temaVersione 2, vedi TEMA_VERSIONE nello store): quelli di
+          // tema (temaVersione 3, vedi TEMA_VERSIONE nello store): quelli di
           // prima lo store li porta sul default, e qui si fa lo stesso.
-          if ((s.temaVersione || 0) >= 2) {
+          if ((s.temaVersione || 0) >= 3) {
             if (s.layout === 'premium' || s.layout === 'neon' || s.layout === 'logbook') layout = s.layout
             dark = !!s.darkMode
           }

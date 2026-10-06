@@ -11,6 +11,7 @@ import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { useT, useTData } from '@/lib/i18n'
 
@@ -38,7 +39,7 @@ export function GlobalSearch({ open, onClose, onApri }: GlobalSearchProps) {
   const t = useT()
   const tData = useTData()
   const s = useJarvisStore(useShallow(st => ({
-    palestra: st.palestraExercises, hyrox: st.hyroxExercises, schede: st.gymSchede,
+    palestra: st.palestraExercises, hyrox: hyroxVisibili(st.hyroxExercises), schede: st.gymSchede,
   })))
   const isDesktop = useIsDesktop()
   const [q, setQ] = useState('')

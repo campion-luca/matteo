@@ -32,6 +32,8 @@ export const Icons = {
   chev:     (p: IconProps = {}) => ic(<><path d="M9 6l6 6-6 6"/></>, p),
   chevL:    (p: IconProps = {}) => ic(<><path d="M15 6l-6 6 6 6"/></>, p),
   back:     (p: IconProps = {}) => ic(<><path d="M15 6l-6 6 6 6"/></>, p),
+  // Tre puntini in colonna: "altre azioni su questa riga".
+  dots:     (p: IconProps = {}) => ic(<><circle cx="12" cy="5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="19" r="1.3" fill="currentColor"/></>, p),
   play:     (p: IconProps = {}) => ic(<><path d="M7 5l12 7-12 7V5z" fill="currentColor"/></>, p),
   chart:    (p: IconProps = {}) => ic(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>, p),
   check:    (p: IconProps = {}) => ic(<><path d="M5 12l5 5L20 7"/></>, p),

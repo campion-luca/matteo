@@ -11,6 +11,7 @@ import { memo, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useJarvisStore } from '@/store/useJarvisStore'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { localISO, giorniTra, todayISO } from '@/lib/isoDate'
 import { ultimoAllenamento, quantoFa } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
@@ -23,7 +24,7 @@ import { CalendarioAllenamenti } from './CalendarioAllenamenti'
 export const SettimanaStrip = memo(function SettimanaStrip() {
   const t = useT()
   const lang = useLang()
-  const s = useJarvisStore(useShallow(st => ({ palestra: st.palestraExercises, hyrox: st.hyroxExercises })))
+  const s = useJarvisStore(useShallow(st => ({ palestra: st.palestraExercises, hyrox: hyroxVisibili(st.hyroxExercises) })))
   const [calendario, setCalendario] = useState(false)
   // Il calendario si monta alla prima apertura e poi resta, per chiudersi con
   // la sua animazione. Prima era montato da subito: ogni avvio dell'app pagava

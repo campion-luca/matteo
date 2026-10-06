@@ -298,6 +298,15 @@
     font-size: 14px; font-weight: 400; letter-spacing: .28em;
   }
 
+  /* Il campo degli appunti di un esercizio. Il segnaposto ereditava corpo e
+     colore del testo vero: grande e scuro quanto un appunto già scritto, sembrava
+     un contenuto e non un invito. Più piccolo e velato; l'altezza della riga è
+     quella del campo (in pixel, vedi NoteEsercizio), così resta al centro. */
+  .j-nota-campo::placeholder {
+    color: var(--fg-mute); opacity: .5;
+    font-size: 12.5px;
+  }
+
   /* I picker nativi data/ora hanno un min-width intrinseco largo: vanno tenuti
      comprimibili così non sforano mai il modale nelle righe flex affiancate.
      Padding orizzontale ridotto per non far tagliare l'anno dall'icona calendario. */

@@ -438,7 +438,8 @@ export const EN_UI: Record<string, string> = {
   'Carico (kg)': 'Load (kg)',
   'kg stim.': 'kg est.',
   'Alzata': 'Lift',
-  'Scopri di più': 'See more',
+  'Andamento': 'Progress',
+  'Visualizza grafico andamento': 'View progress chart',
   'Registra almeno 2 alzate per vedere i grafici': 'Log at least 2 lifts to see the charts',
   'Servono almeno 2 sessioni per visualizzare i grafici': 'Charts need at least 2 sessions',
   'Miglior alzata': 'Best lift',
@@ -453,8 +454,7 @@ export const EN_UI: Record<string, string> = {
   'Note': 'Notes',
   'Le tue': 'Yours',
   'Note dell’esercizio': 'Exercise notes',
-  'Un promemoria per la prossima volta: presa, sedile, tempi…':
-    'A reminder for next time: grip, seat, tempo…',
+  'Esecuzione, modalità…': 'Execution, method…',
 
   // ── Statistiche ──────────────────────────────────────────────
   'Volume per muscolo': 'Volume per muscle',
@@ -612,7 +612,9 @@ export const EN_UI: Record<string, string> = {
   'Elimina esercizio': 'Delete exercise',
   'in miglioramento': 'improving',
   'in calo': 'declining',
-  'servono almeno 3 alzate': 'at least 3 lifts needed',
+  'carico invariato': 'same load',
+  'prima alzata': 'first lift',
+  'Azioni sull’alzata': 'Lift actions',
   'invariato': 'unchanged',
   'Conferma la data': 'Confirm date',
   'Oggi': 'Today',
@@ -857,7 +859,13 @@ export const EN_UI: Record<string, string> = {
   'questo messaggio': 'this message',
 
   // ── Allenamento: nota, carico consigliato, storico della scheda ──
-  'Elimina alzata': 'Delete lift',
+  '{n} in salita': '{n} up',
+  '{n} in calo': '{n} down',
+  'primo allenamento': 'first workout',
+  'carichi invariati': 'same loads',
+  'Dal coach': 'From coach',
+  'Creata da te': 'Created by you',
+  'Nome della scheda': 'Plan name',
   'Storico allenamenti': 'Workout history',
 
   // ── Hyrox: la gara stimata e le gare registrate ──

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, ultimaVoce, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa } from '@/features/gym/gymModel'
+import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, ultimaVoce, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa, fmtKgVerso, variazioneCarico, andamentoStorico } from '@/features/gym/gymModel'
 import { isoWeek, giorniTra } from '@/lib/isoDate'
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 
@@ -237,5 +237,71 @@ describe('ultimaVoce', () => {
 
   it('senza voci non c’è un’ultima', () => {
     expect(ultimaVoce([])).toBeUndefined()
+  })
+})
+
+// Le righe dello storico: i chili col loro verso, e il segnale di quanto sono
+// cambiati dalla volta prima.
+describe('fmtKgVerso — i chili di un’alzata, col verso fra le serie', () => {
+  it('stesso peso su tutte le serie: un numero solo', () => {
+    expect(fmtKgVerso(entry({ kg: 60 }))).toBe('60 kg')
+    expect(fmtKgVerso(entry({ kg: 60, setWeights: [60, 60, 60] }))).toBe('60 kg')
+  })
+
+  it('solo in salita o solo in discesa: dalla prima all’ultima, con la freccia', () => {
+    expect(fmtKgVerso(entry({ kg: 32.5, setWeights: [30, 30, 32.5] }))).toBe('30 → 32,5 kg')
+    expect(fmtKgVerso(entry({ kg: 60, setWeights: [60, 55, 50] }))).toBe('60 → 50 kg')
+  })
+
+  it('su e giù: resta l’intervallo, una freccia racconterebbe un percorso che non c’è', () => {
+    expect(fmtKgVerso(entry({ kg: 60, setWeights: [50, 60, 55] }))).toBe('50–60 kg')
+  })
+
+  it('a corpo libero la freccia è sulla zavorra', () => {
+    expect(fmtKgVerso(entry({ kg: 10, bodyweight: true, setWeights: [5, 10] }))).toBe('BW +5 → 10 kg')
+  })
+})
+
+describe('variazioneCarico — quanto è cambiato il carico dalla volta prima', () => {
+  it('confronta il carico più alto delle due alzate', () => {
+    expect(variazioneCarico(entry({ kg: 30 }), entry({ kg: 32.5, setWeights: [30, 30, 32.5] }))).toEqual({ delta: 2.5, unita: 'kg' })
+    expect(variazioneCarico(entry({ kg: 62.5 }), entry({ kg: 60 }))).toEqual({ delta: -2.5, unita: 'kg' })
+    expect(variazioneCarico(entry({ kg: 60 }), entry({ kg: 60 }))).toEqual({ delta: 0, unita: 'kg' })
+  })
+
+  it('senza una volta prima non c’è niente da dire', () => {
+    expect(variazioneCarico(undefined, entry({ kg: 60 }))).toBeNull()
+  })
+
+  it('un massimale sta fuori dal confronto, da tutte e due le parti', () => {
+    expect(variazioneCarico(entry({ kg: 60 }), entry({ kg: 100, reps: 1, sets_n: 1, maxLift: true }))).toBeNull()
+    expect(variazioneCarico(entry({ kg: 100, reps: 1, sets_n: 1, maxLift: true }), entry({ kg: 60 }))).toBeNull()
+  })
+
+  it('chi va a colpi si confronta sui colpi', () => {
+    expect(variazioneCarico(entry({ reps: 12 }), entry({ reps: 15, setReps: [15, 12, 10] }), true)).toEqual({ delta: 3, unita: 'colpi' })
+  })
+})
+
+describe('andamentoStorico — il segnale di ogni alzata dello storico', () => {
+  const storico = [
+    entry({ date: '2026-09-01', kg: 60 }),
+    entry({ date: '2026-09-08', kg: 62.5 }),
+    entry({ date: '2026-09-15', kg: 100, reps: 1, sets_n: 1, maxLift: true }),
+    entry({ date: '2026-09-22', kg: 60 }),
+  ]
+
+  it('la prima non ha confronto e non è un record', () => {
+    expect(andamentoStorico(storico)[0]).toEqual({ variazione: null, record: false })
+  })
+
+  it('chi sale batte il proprio meglio', () => {
+    expect(andamentoStorico(storico)[1]).toEqual({ variazione: { delta: 2.5, unita: 'kg' }, record: true })
+  })
+
+  it('dopo un massimale ci si confronta con l’ultima alzata di lavoro, non con lui', () => {
+    const [, , massimale, dopo] = andamentoStorico(storico)
+    expect(massimale.variazione).toBeNull()
+    expect(dopo).toEqual({ variazione: { delta: -2.5, unita: 'kg' }, record: false })
   })
 })

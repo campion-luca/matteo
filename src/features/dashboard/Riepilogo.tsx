@@ -19,6 +19,7 @@ import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { localISO } from '@/lib/isoDate'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { districtStrength } from '@/features/gym/gymStrength'
@@ -51,7 +52,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
     userWeight: st.userWeight,
     userSex: st.userSex,
     palestra: st.palestraExercises,
-    hyrox: st.hyroxExercises,
+    hyrox: hyroxVisibili(st.hyroxExercises),
   })))
   const isDesktop = useIsDesktop()
   const [showCalendario, setShowCalendario] = useState(false)

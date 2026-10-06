@@ -22,7 +22,7 @@ describe('filtro delle chiavi di stato', () => {
       hyroxExercises: [], palestraExercises: [], muscleColors: { Petto: '#111111' },
       gymSchede: [],
       weightLog: [{ date: '2026-08-01', kg: 78 }],
-      temaVersione: 2,
+      temaVersione: 3,
     } as unknown as Partial<JarvisState>
 
     applyRemoteState(remote)
@@ -155,9 +155,9 @@ describe('filtro delle chiavi di stato', () => {
   // deve atterrare su un layout che esiste, non restare un valore orfano risalvato
   // per sempre.
   it('converte i layout rinominati o rimossi', () => {
-    applyRemoteState({ layout: 'nero', temaVersione: 2 } as unknown as Partial<JarvisState>)
+    applyRemoteState({ layout: 'nero', temaVersione: 3 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('premium')
-    applyRemoteState({ layout: 'notte', temaVersione: 2 } as unknown as Partial<JarvisState>)
+    applyRemoteState({ layout: 'notte', temaVersione: 3 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('standard')
   })
 
@@ -165,7 +165,7 @@ describe('filtro delle chiavi di stato', () => {
   // prenderli per tali e riportarli a Standard a ogni caricamento.
   it('tiene i layout a tema fisso', () => {
     for (const layout of ['premium', 'neon', 'logbook'] as const) {
-      applyRemoteState({ layout, temaVersione: 2 })
+      applyRemoteState({ layout, temaVersione: 3 })
       expect(get().layout).toBe(layout)
     }
   })
@@ -182,9 +182,27 @@ describe('filtro delle chiavi di stato', () => {
     applyRemoteState({ layout: 'premium', darkMode: false } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('standard')
     expect(get().darkMode).toBe(true)
-    expect(get().temaVersione).toBe(2)
-    applyRemoteState({ layout: 'premium', temaVersione: 2 } as unknown as Partial<JarvisState>)
+    expect(get().temaVersione).toBe(3)
+    applyRemoteState({ layout: 'premium', temaVersione: 3 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('premium')
+  })
+
+  // Il passaggio del 6 ott 2026 vale per TUTTI: anche chi era già passato dal
+  // precedente (versione 2) e aveva scelto Premium con un'altra palette atterra
+  // su Standard · Journal · scuro.
+  it('porta su Standard · Journal · scuro anche chi aveva già scelto altro', () => {
+    applyRemoteState({
+      layout: 'premium', darkMode: false, accentColor: 'rose', customAccentHex: '#abcdef', temaVersione: 2,
+    } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('standard')
+    expect(get().darkMode).toBe(true)
+    expect(get().accentColor).toBe('green')
+    expect(get().customAccentHex).toBeUndefined()
+    expect(get().temaVersione).toBe(3)
+    // E da lì la scelta torna sua.
+    applyRemoteState({ layout: 'neon', accentColor: 'rose', temaVersione: 3 } as unknown as Partial<JarvisState>)
+    expect(get().layout).toBe('neon')
+    expect(get().accentColor).toBe('rose')
   })
 
   // Scuro è il default dei NUOVI. Chi c'era già e l'interruttore non l'ha mai
@@ -192,11 +210,11 @@ describe('filtro delle chiavi di stato', () => {
   // scuro solo perché è cambiato il punto di partenza degli altri.
   it('chi c’era già e non aveva mai scelto chiaro o scuro resta sul chiaro', () => {
     expect(get().darkMode).toBe(true)   // lo stato di partenza, quello nuovo
-    applyRemoteState({ layout: 'standard', temaVersione: 2 } as unknown as Partial<JarvisState>)
+    applyRemoteState({ layout: 'standard', temaVersione: 3 } as unknown as Partial<JarvisState>)
     expect(get().layout).toBe('standard')
     expect(get().darkMode).toBe(false)
     // Chi lo scuro l'aveva acceso lo tiene.
-    applyRemoteState({ layout: 'standard', darkMode: true, temaVersione: 2 } as unknown as Partial<JarvisState>)
+    applyRemoteState({ layout: 'standard', darkMode: true, temaVersione: 3 } as unknown as Partial<JarvisState>)
     expect(get().darkMode).toBe(true)
   })
 

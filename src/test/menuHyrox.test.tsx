@@ -5,6 +5,13 @@ import { JarvisGym } from '@/features/gym/JarvisGym'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 
+// Hyrox nell'app è spento (vedi hyroxAttivo). Qui lo si riaccende: finché il suo
+// codice resta nel repo, le sue prove devono continuare a dire se funziona.
+vi.mock('@/features/gym/hyroxAttivo', () => ({
+  HYROX_ATTIVO: true,
+  hyroxVisibili: (lista?: unknown[]) => lista ?? [],
+}))
+
 // Il menù sotto lo switch Pesi/Hyrox cambia con lo switch. Coaching, Schede e
 // Statistiche sono il menù dei pesi; in Hyrox resta solo Statistiche, sotto
 // Esercizi e Gara, e mostra i tempi — non i pesi.
