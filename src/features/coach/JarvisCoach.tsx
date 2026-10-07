@@ -78,8 +78,12 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
   // ma serve un titolo anche mentre il dato sta ancora arrivando).
   const [aperto, setAperto] = useState<CoachLink | null>(null)
 
-  const ricarica = useCallback(async () => {
-    setCaricamento(true)
+  // `piano` = senza la scritta "Caricamento…": per gli aggiornamenti che
+  // arrivano mentre si sta guardando la pagina. Con la scritta, tutta la
+  // schermata si smontava e rimontava — e "Collegato a Luca", appena comparso
+  // sotto il campo del codice, spariva prima di potersi leggere.
+  const ricarica = useCallback(async (piano = false) => {
+    if (!piano) setCaricamento(true)
     setErrore(null)
     try {
       const [inv, cs, as] = await Promise.all([
@@ -87,17 +91,34 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
         myCoaches(userId),
         myAthletes(userId),
       ])
-      setInvito(inv)
+      // Un coach c'è già: un codice ancora valido non serve più a nessuno (se
+      // ne può avere uno solo), e la sua card non è nemmeno a schermo per
+      // annullarlo. Si toglie da sé invece di restare in giro per sette giorni.
+      if (inv && cs.length > 0) {
+        void revokeInvite(userId).catch(() => { /* scade comunque da solo */ })
+        setInvito(null)
+      } else {
+        setInvito(inv)
+      }
       setAllenatori(cs)
       setAtleti(as)
     } catch (e) {
-      setErrore(messaggio(e))
+      if (!piano) setErrore(messaggio(e))
     } finally {
-      setCaricamento(false)
+      if (!piano) setCaricamento(false)
     }
   }, [userId])
 
   useEffect(() => { void ricarica() }, [ricarica])
+
+  // Chi ha dato il proprio codice e sta guardando questa pagina vede comparire
+  // il coach appena quello lo riscatta: l'avviso "ti seguo" arriva come
+  // messaggio (vedi `collega`), e quando ne arriva uno nuovo si rilegge chi mi
+  // segue. Prima restava a schermo il codice già consumato e "Nessuno", finché
+  // non si usciva e rientrava.
+  const { messaggi: tuttiIMessaggi } = useMessaggi()
+  const collegamenti = useMemo(() => tuttiIMessaggi.filter(m => m.tipo === 'collegamento').length, [tuttiIMessaggi])
+  useEffect(() => { if (collegamenti > 0) void ricarica(true) }, [collegamenti, ricarica])
 
   // I nomi di chi seguo e di chi mi segue, per l'elenco dei messaggi.
   const nomi = useMemo(() => {
@@ -189,9 +210,10 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
         {ruolo === 'messaggi' && <CoachMessaggi userId={userId} userName={userName} nomi={nomi}/>}
         <div hidden={ruolo !== 'allenatore'}>
         <LatoAllenatore
+          userId={userId}
           userName={userName}
           atleti={atleti}
-          onCollegato={ricarica}
+          onCollegato={() => { void ricarica(true) }}
           onApri={setAperto}
           onRimuovi={link => confirmDelete(
             () => { void scollega(link, () => setAtleti(a => a.filter(x => x.athlete_id !== link.athlete_id))) },
@@ -254,8 +276,44 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
     }
   }
 
+  // Un allenatore per volta. Finché ce n'è uno il codice non si genera: darne
+  // un altro in giro vorrebbe dire due persone a seguire lo stesso allievo, con
+  // due schede e due voci sugli stessi esercizi. La regola vera sta nel database
+  // (vedi redeem_coach_code); qui la si dice prima che qualcuno ci provi.
+  const seguito = allenatori.length > 0
+
   return (
     <>
+      {seguito && (
+        <>
+          <NucEyebrow>{allenatori.length === 1 ? t('Il tuo coach') : t('I tuoi coach')}</NucEyebrow>
+          {allenatori.map(l => (
+            <NucCard key={l.coach_id} pad={18} style={{ marginBottom: 12, borderLeft: '3px solid var(--j-accent)' }}>
+              {/* Il nome in grande: è la risposta a "chi mi sta seguendo", e
+                  stava in una riga da 15px uguale a quelle di un elenco. */}
+              <div style={{ fontFamily: NUC.font, fontSize: 30, fontWeight: 600, lineHeight: 1.1, letterSpacing: -0.4, color: 'var(--fg)', overflowWrap: 'anywhere' }}>
+                {l.coach_name || t('Allenatore')}
+              </div>
+              <div style={{ fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.08em', color: 'var(--fg-mute)', marginTop: 6 }}>
+                {t('Ti segue dal {data}', { data: fmtShortDate(l.created_at.slice(0, 10)) })}
+              </div>
+              <div style={{ fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.5, color: 'var(--fg-soft)', marginTop: 10 }}>
+                {t('Vede i tuoi allenamenti, il volume e l’andamento del peso, e può correggere un’alzata scritta male.')}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <Bottone onClick={() => onScrivi(l)}>{t('Scrivigli')}</Bottone>
+                <Bottone onClick={() => onRimuovi(l)} variante="chiaro">{t('Scollega')}</Bottone>
+              </div>
+            </NucCard>
+          ))}
+          <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.55, color: 'var(--fg-mute)', margin: '2px 2px 18px' }}>
+            {t('Si può avere un solo coach per volta: per cambiarlo, scollegati prima da quello che hai.')}
+          </div>
+        </>
+      )}
+
+      {!seguito && (
+      <>
       <NucEyebrow>{t('Il tuo codice')}</NucEyebrow>
       <NucCard pad={16} style={{ marginBottom: 18 }}>
         <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)', marginBottom: 14 }}>
@@ -298,28 +356,16 @@ function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore,
       </NucCard>
 
       <NucEyebrow>{t('Chi vede i tuoi allenamenti')}</NucEyebrow>
-      {allenatori.length === 0 ? (
-        <div className="j-empty">{t('Nessuno. I tuoi dati sono solo tuoi.')}</div>
-      ) : (
-        <NucCard pad={0}>
-          {allenatori.map((l, i) => (
-            <RigaPersona
-              key={l.coach_id}
-              nome={l.coach_name || t('Allenatore')}
-              sotto={`${t('Dal {data}', { data: fmtShortDate(l.created_at.slice(0, 10)) })} · ${t('tocca per scrivergli')}`}
-              primo={i === 0}
-              onApri={() => onScrivi(l)}
-              onRimuovi={() => onRimuovi(l)}
-            />
-          ))}
-        </NucCard>
+      <div className="j-empty">{t('Nessuno. I tuoi dati sono solo tuoi.')}</div>
+      </>
       )}
     </>
   )
 }
 
 // ── Lato "segui": inserisco il codice ──────────────────────────
-function LatoAllenatore({ userName, atleti, onCollegato, onApri, onRimuovi }: {
+function LatoAllenatore({ userId, userName, atleti, onCollegato, onApri, onRimuovi }: {
+  userId: string
   userName: string
   atleti: CoachLink[]
   onCollegato: () => void
@@ -336,8 +382,16 @@ function LatoAllenatore({ userName, atleti, onCollegato, onApri, onRimuovi }: {
     setLavoro(true); setEsito(null)
     try {
       const r = await redeemCode(codice, userName.trim())
-      setEsito({ testo: `Collegato a ${r.athlete_name || 'questa persona'}.`, tono: 'ok' })
+      setEsito({ testo: t('Collegato a {chi}.', { chi: r.athlete_name || t('questa persona') }), tono: 'ok' })
       setCodice('')
+      // L'allievo lo viene a sapere subito, e sa da chi: è il primo messaggio
+      // della chat fra i due, e gli arriva come notifica. Prima il collegamento
+      // nasceva in silenzio — il codice l'aveva dato lui, ma chi lo avesse usato
+      // lo scopriva solo andando a guardare.
+      avvisa(bozzaChat({
+        coachId: userId, athleteId: r.athlete_id, autore: userId, autoreNome: userName, tipo: 'collegamento',
+        testo: t('Da adesso ti seguo io: vedo i tuoi allenamenti e possiamo scriverci da qui.'),
+      }))
       onCollegato()
     } catch (e) {
       setEsito({ testo: messaggio(e), tono: 'errore' })
@@ -486,11 +540,18 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // `chiudi: false` per la bozza: il form resta aperto sull'elenco di cosa
   // manca. Chiudendolo, quell'elenco non si leggeva mai e la bozza sembrava un
   // salvataggio riuscito — con una scheda che l'allievo non vede.
-  const salva = (sc: GymScheda, chiudi = true) => {
+  //
+  // Restituisce la promessa, e la lascia fallire: il form deve sapere se il
+  // salvataggio è riuscito, o direbbe "niente da salvare" a chi sta per uscire
+  // con le modifiche ancora solo sullo schermo.
+  const salva = (sc: GymScheda, chiudi = true): Promise<void> => {
     setSalvataggio(null)
     // Nuova o già assegnata: lo si guarda PRIMA di salvare, dopo ci sarebbe comunque.
-    const nuova = !assegnate.some(r => r.id === sc.id)
-    salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', sc)
+    // Una bozza che diventa scheda è nuova anche lei: l'allievo le bozze non le
+    // vede, e "ho aggiornato la scheda" di una che non ha mai visto non dice niente.
+    const prima = assegnate.find(r => r.id === sc.id)
+    const nuova = !prima || !!prima.scheda.draft
+    return salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', sc)
       .then(() => {
         if (chiudi) setForm(null)
         ricarica()
@@ -501,7 +562,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
             : t('Ho aggiornato la scheda «{scheda}».', { scheda: sc.title }))
         }
       })
-      .catch(e => setSalvataggio(messaggio(e)))
+      .catch(e => { setSalvataggio(messaggio(e)); throw e })
   }
 
   const nome = dati?.userName || link.athlete_name || t('Allievo')
@@ -575,7 +636,13 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           onSave={salva}
           // Anche la bozza si salva: il lavoro non si perde. Resta però invisibile
           // all'allievo, che vede solo le schede complete (vedi GymSchede).
-          onSaveDraft={sc => salva({ ...sc, draft: true }, false)}
+          // Proprio per questo NON su una scheda che l'allievo sta già usando:
+          // salvata come bozza per un campo rimasto vuoto gli spariva dall'app,
+          // senza che nessuno dei due lo sapesse. Lì il form dice cosa manca e
+          // lascia la scheda com'era.
+          onSaveDraft={form.scheda && assegnate.some(r => r.id === form.scheda!.id && !r.scheda.draft)
+            ? undefined
+            : sc => salva({ ...sc, draft: true }, false)}
         />
       </div>
     )

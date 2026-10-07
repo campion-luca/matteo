@@ -534,10 +534,16 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     if (!hasValues) return
     // Con peso variabile: `kg` = serie più pesante (rappresentativa), e i pesi
     // per serie salvati solo se effettivamente diversi tra loro.
-    const weights = perSet ? perSetNums.slice(0, nSets) : []
+    // Con un attrezzo, una riga lasciata senza chili non è una serie fatta
+    // (vedi `serieValide` in riassuntoAllenamento): non si salva a 0 kg, si
+    // toglie, e le serie contate sono quelle rimaste.
+    const tenute = perSet
+      ? perSetNums.slice(0, nSets).map((w, i) => (isBodyweight || w > 0 ? i : -1)).filter(i => i >= 0)
+      : []
+    const weights = tenute.map(i => perSetNums[i])
     const varies = perSet && weights.length > 1 && new Set(weights).size > 1
     const kgOut = perSet ? (weights.length ? Math.max(...weights) : 0) : (isBodyweight ? (zavorraN || 0) : kgN)
-    const repsPerSet = perSet ? perSetReps.slice(0, nSets) : []
+    const repsPerSet = tenute.map(i => perSetReps[i])
     const variesReps = perSet && repsPerSet.length > 1 && new Set(repsPerSet).size > 1
     // Col peso variabile il valore rappresentativo è la serie più pesante: i
     // colpi che l'accompagnano devono essere i SUOI, o `kg × reps` descriverebbe
@@ -547,7 +553,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     onSave({
       d: weekLabel(date), date,
       kg: kgOut,
-      reps: repsOut, sets_n: setsN,
+      reps: repsOut, sets_n: perSet ? tenute.length : setsN,
       ...(varies ? { setWeights: weights } : {}),
       ...(variesReps ? { setReps: repsPerSet } : {}),
       ...(isBodyweight ? { bodyweight: true as const } : {}),
@@ -635,6 +641,13 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
                 </div>
               ))}
             </div>
+            {/* Con un attrezzo le righe senza chili non si salvano (vedi `save`):
+                lo si dice qui, mentre le si può ancora riempire. */}
+            {!isBodyweight && perSetNums.some(w => w > 0) && perSetNums.some(w => !(w > 0)) && (
+              <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--warn)' }}>
+                {t('Le serie senza chili non vengono salvate.')}
+              </div>
+            )}
           </>
         ) : isBodyweight ? (
           <>
@@ -1160,6 +1173,9 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
     let kgN: number
     let repsOut = repsN
     if (perSet) {
+      // Qui le righe a 0 kg NON si tolgono, a differenza del log: è un'alzata
+      // che esiste già, e aprirla per aggiungere una nota non deve cambiarle
+      // il numero di serie in silenzio. Chi vuole toglierne una abbassa "Serie".
       const nums = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseNum(setWeightsStr[i]))
       if (!isBodyweight && !nums.some(w => w > 0)) return
       const rps = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseInt(setRepsStr[i]) || repsN)

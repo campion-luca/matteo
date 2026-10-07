@@ -89,3 +89,65 @@ describe('recupero delle alzate nate in locale', () => {
     expect(recuperaCreatiInLocale(locale, palestra(), idsNoti(base))).toBeNull()
   })
 })
+
+// Due alzate dello stesso esercizio nello stesso giorno avevano la stessa chiave:
+// bastava che il remoto avesse quella giornata perché la seconda sembrasse "già
+// là", e in un conflitto spariva.
+describe('due alzate dello stesso esercizio nello stesso giorno', () => {
+  const alz = (date: string, kg: number) => ({ d: 'W', date, kg, reps: 8, sets_n: 3 })
+  const conStorico = (id: string, history: ReturnType<typeof alz>[]): PalestraExercise =>
+    ({ id, n: id, muscle: 'Petto', current: { kg: 0, reps: 0, sets_n: 0 }, history })
+  const palestra = (...ex: PalestraExercise[]) => ({ gymSchede: [], palestraExercises: ex })
+
+  it('la seconda, nata qui, si recupera', () => {
+    const base = palestra(conStorico('panca', [alz('2026-10-07', 60)]))
+    const remoto = palestra(conStorico('panca', [alz('2026-10-07', 60)]))
+    const locale = palestra(conStorico('panca', [alz('2026-10-07', 60), alz('2026-10-07', 70)]))
+    const panca = recuperaCreatiInLocale(locale, remoto, idsNoti(base))?.palestraExercises[0]
+    expect(panca?.history.map(h => h.kg)).toEqual([60, 70])
+  })
+
+  it('la prima corretta resta una correzione, non una terza alzata', () => {
+    const base = palestra(conStorico('panca', [alz('2026-10-07', 60), alz('2026-10-07', 70)]))
+    const remoto = palestra(conStorico('panca', [alz('2026-10-07', 60), alz('2026-10-07', 70)]))
+    const locale = palestra(conStorico('panca', [alz('2026-10-07', 62.5), alz('2026-10-07', 70)]))
+    expect(recuperaCreatiInLocale(locale, remoto, idsNoti(base))).toBeNull()
+  })
+
+  it('le chiavi salvate prima di questa regola continuano a valere', () => {
+    // La prima alzata del giorno ha la chiave di sempre, senza numero.
+    expect(idsNoti(palestra(conStorico('panca', [alz('2026-10-07', 60), alz('2026-10-07', 70)]))).alzate)
+      .toEqual(['panca|2026-10-07', 'panca|2026-10-07|2'])
+  })
+})
+
+// Le pesate nascono su un telefono solo, una per giorno: come le schede, una
+// fatta sul dispositivo rimasto indietro non deve sparire.
+describe('le pesate nei conflitti', () => {
+  const con = (...giorni: Array<[string, number]>) => ({ gymSchede: [], palestraExercises: [], weightLog: giorni.map(([date, kg]) => ({ date, kg })) })
+
+  it('una pesata nata qui si recupera, in ordine di data', () => {
+    const base = con(['2026-10-01', 80])
+    const remoto = con(['2026-10-01', 80], ['2026-10-06', 79.5])
+    const locale = con(['2026-10-01', 80], ['2026-10-04', 79.8])
+    expect(recuperaCreatiInLocale(locale, remoto, idsNoti(base))?.weightLog?.map(x => x.date))
+      .toEqual(['2026-10-01', '2026-10-04', '2026-10-06'])
+  })
+
+  it('lo stesso giorno pesato su due dispositivi: vince il remoto', () => {
+    const base = con(['2026-10-01', 80])
+    expect(recuperaCreatiInLocale(con(['2026-10-01', 80], ['2026-10-06', 79]), con(['2026-10-01', 80], ['2026-10-06', 81]), idsNoti(base))).toBeNull()
+  })
+
+  it('una pesata cancellata altrove non torna', () => {
+    const base = con(['2026-10-01', 80], ['2026-10-02', 80.2])
+    expect(recuperaCreatiInLocale(con(['2026-10-01', 80], ['2026-10-02', 80.2]), con(['2026-10-01', 80]), idsNoti(base))).toBeNull()
+  })
+
+  it('con le meta di una versione precedente non si rimette dentro niente', () => {
+    // Senza l'elenco dei giorni noti non si distingue "nata qui" da "cancellata altrove".
+    const noti = { schede: [], esercizi: [] }
+    expect(recuperaCreatiInLocale(con(['2026-10-04', 79.8]), con(), noti)).toBeNull()
+  })
+})
+

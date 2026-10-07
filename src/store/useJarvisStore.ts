@@ -67,6 +67,14 @@ export interface PalestraHistoryEntry {
   // col programma di oggi: tre serie su tre diventano "tre su quattro, meglio
   // scendere" (vedi caricoConsigliato).
   piano?: { sets: number; reps: string }
+  // Quanto è durato TUTTO l'allenamento di cui questa alzata fa parte, in
+  // secondi: dalla prima serie spuntata a "Termina". Sta su ogni alzata della
+  // sessione, uguale per tutte, perché un archivio delle sessioni non c'è — un
+  // allenamento si ricompone dalle sue alzate (vedi `sessioniDellaScheda`), e
+  // così la durata arriva anche a chi segue l'allievo senza un campo nuovo al
+  // primo livello dello stato. Assente sulle alzate a mano, su quelle di prima,
+  // e se la sessione è rimasta aperta troppo a lungo per fidarsi dell'orologio.
+  durataSec?: number
   // Quanti esercizi dello STESSO gruppo muscolare erano già stati fatti, in
   // quella sessione, prima di questo: la panca per prima è 0, le spinte con i
   // manubri subito dopo sono 1. Gli stessi chili non valgono uguale a muscolo
@@ -192,7 +200,27 @@ export interface JarvisState {
    *  `migrateNested`). Viaggia col blob per lo stesso motivo di `catalogoReset`:
    *  il passaggio va fatto una volta per account, non una per dispositivo. */
   temaVersione?: number
+  /** Con quale versione dei dati è stato scritto questo stato (vedi
+   *  `VERSIONE_DATI`). */
+  versioneDati?: number
 }
+
+// ── La versione dei dati ───────────────────────────────────────
+// Il salvataggio manda su TUTTO lo stato, e lo stato passa da una lista chiusa
+// di chiavi (`STATE_KEYS`): una versione dell'app che non conosce una chiave la
+// scarta leggendo, e al primo salvataggio la toglie dal cloud per tutti i
+// dispositivi. È successo che bastasse una scheda del browser lasciata aperta
+// su una versione di qualche giorno prima.
+//
+// Questo numero è la difesa: lo scrive chi salva, e chi trova nel cloud un
+// numero più ALTO del proprio sa di essere indietro — non salva, e chiede di
+// aggiornare l'app (vedi CloudSyncBridge). Le versioni uscite prima di questa
+// regola non la conoscono e non la rispettano: protegge da qui in avanti.
+//
+// VA ALZATO ogni volta che si aggiunge una chiave a `STATE_KEYS`. Per un campo
+// nuovo DENTRO una struttura che c'è già (un'alzata, una scheda) non serve: il
+// filtro lavora al primo livello, e quelli le versioni vecchie li conservano.
+export const VERSIONE_DATI = 1
 
 // La versione del tema corrente. Alzarla rimette tutti gli account sul layout di
 // default una volta, al primo caricamento dopo l'aggiornamento; poi la scelta
@@ -213,6 +241,7 @@ export const EMPTY_STATE: JarvisState = {
   layout: 'standard',
   darkMode: true,
   temaVersione: TEMA_VERSIONE,
+  versioneDati: VERSIONE_DATI,
   accentColor: 'green',
   hyroxExercises: [],
   palestraExercises: [],
@@ -231,7 +260,7 @@ const STATE_KEYS: (keyof JarvisState)[] = [
   'userName', 'lang', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob',
   'darkMode', 'layout', 'bgFuso', 'accentColor', 'customAccentHex',
   'hyroxExercises', 'palestraExercises', 'muscleColors', 'customMuscles', 'gymSchede',
-  'hyroxGare', 'weightLog', 'catalogoReset', 'temaVersione',
+  'hyroxGare', 'weightLog', 'catalogoReset', 'temaVersione', 'versioneDati',
 ]
 
 // Il filtro a lista chiusa lavora sul PRIMO livello. Quello che vive più in basso
@@ -241,6 +270,12 @@ const STATE_KEYS: (keyof JarvisState)[] = [
 // per sempre finché qualcuno non li tocca.
 function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   const out: Partial<JarvisState> = { ...data }
+
+  // Quello che esce da qui è stato letto — e, dove serviva, potato — da QUESTA
+  // versione dell'app: è questo il numero che porterà con sé al prossimo
+  // salvataggio. Chi ha trovato un numero più alto nel cloud non arriva a
+  // salvare (vedi `VERSIONE_DATI`).
+  out.versioneDati = VERSIONE_DATI
 
   // Layout rinominati/rimossi (set 2026): 'nero' è diventato 'premium', 'notte' non
   // esiste più e torna a 'standard'. Senza, un valore vecchio non combacerebbe con

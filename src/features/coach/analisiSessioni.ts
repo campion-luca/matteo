@@ -60,6 +60,9 @@ export interface Giornata {
   caloCarico: number
   /** Esercizi con carico salito rispetto all'ultima volta. */
   caricoSalito: number
+  /** Quanto è durato l'allenamento, in secondi, se l'app dell'allievo l'ha
+   *  misurato. Con due schede nello stesso giorno, la somma delle due. */
+  durataSec?: number
 }
 
 const norm = (s: string) => s.trim().toLowerCase()
@@ -186,8 +189,14 @@ export function analizzaGiornate(
     }
 
     const tutti = [...gruppi.values()].flatMap(g => g.esercizi)
+    // La durata sta su ogni alzata della sessione, uguale per tutte: se ne
+    // prende una per scheda, e si sommano le schede del giorno.
+    const durate = new Map<string, number>()
+    for (const a of alzate) if (a.h.durataSec) durate.set(a.h.scheda?.id ?? '', a.h.durataSec)
+    const durataSec = [...durate.values()].reduce((s, x) => s + x, 0)
     giornate.push({
       date,
+      ...(durataSec ? { durataSec } : {}),
       volume: alzate.reduce((s, a) => s + entryVolume(a.h, pesoCorporeo * quotaCorpo(a.ex)), 0),
       // Le schede prima, le alzate a mano in fondo.
       gruppi: [...gruppi.values()].sort((a, b) => Number(!a.scheda) - Number(!b.scheda)),

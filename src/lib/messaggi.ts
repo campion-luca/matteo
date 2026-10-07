@@ -35,10 +35,12 @@ export type TipoMessaggio =
   // La chat diretta: un messaggio scritto a mano…
   | 'chat'
   // …e gli avvisi che l'app scrive per conto di chi ha fatto la cosa.
-  | 'allenamento' | 'scheda' | 'nota' | 'correzione'
+  // `collegamento` è il primo di tutti: un allenatore ha appena preso in carico
+  // l'allievo, che deve saperlo (e sapere chi è) senza andarselo a cercare.
+  | 'allenamento' | 'scheda' | 'nota' | 'correzione' | 'collegamento'
 
 /** I tipi che l'app scrive da sé. Si mostrano come avvisi, non come frasi dette. */
-export const TIPI_AVVISO: readonly TipoMessaggio[] = ['allenamento', 'scheda', 'nota', 'correzione']
+export const TIPI_AVVISO: readonly TipoMessaggio[] = ['allenamento', 'scheda', 'nota', 'correzione', 'collegamento']
 
 // ── Il filo diretto ────────────────────────────────────────────
 const PREFISSO_CHAT = 'chat~'

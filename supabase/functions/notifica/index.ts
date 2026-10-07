@@ -11,6 +11,15 @@
 // E il messaggio deve essere scritto da chi chiama — altrimenti basterebbe
 // conoscere un id per far ripartire le notifiche degli altri.
 //
+// Due controlli in più, perché il primo da solo lasciava un varco: chi aveva
+// scritto anche UN solo messaggio poteva richiamare la funzione con quell'id
+// quante volte voleva, e far vibrare il telefono dell'altro per sempre — anche
+// dopo che l'altro lo aveva scollegato.
+//   • il collegamento fra i due deve esistere ADESSO;
+//   • il messaggio dev'essere appena stato scritto (vedi FRESCO_MS). `created_at`
+//     non si può ritoccare dopo — l'UPDATE è concesso solo sulle spunte di
+//     lettura — quindi un messaggio vecchio resta vecchio.
+//
 // ── Da configurare (una volta) ─────────────────────────────────
 // Secret della funzione, in Supabase → Edge Functions → Secrets:
 //   VAPID_PUBLIC_KEY   la stessa di VITE_VAPID_PUBLIC_KEY nell'app
@@ -32,8 +41,14 @@ const risposta = (stato: number, corpo: Record<string, unknown>) =>
 
 const taglia = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
+/** Entro quanto dalla scrittura un messaggio può far partire la sua notifica.
+ *  Dieci minuti coprono chi scrive con poca rete e l'orologio del telefono un
+ *  po' storto; oltre, è un messaggio che la sua notifica l'ha già avuta. */
+const FRESCO_MS = 10 * 60 * 1000
+
 interface Messaggio {
   id: string
+  created_at: string
   scheda_id: string
   scheda_titolo: string | null
   coach_id: string
@@ -81,11 +96,24 @@ Deno.serve(async req => {
 
     const { data: m } = await admin
       .from('coach_messaggi')
-      .select('id, scheda_id, scheda_titolo, coach_id, athlete_id, autore, autore_nome, esercizio_nome, tipo, testo')
+      .select('id, created_at, scheda_id, scheda_titolo, coach_id, athlete_id, autore, autore_nome, esercizio_nome, tipo, testo')
       .eq('id', messaggio_id)
       .maybeSingle<Messaggio>()
     if (!m) return risposta(404, { errore: 'messaggio non trovato' })
     if (m.autore !== chi.user.id) return risposta(403, { errore: 'il messaggio non è tuo' })
+
+    // Non è un errore: la notifica di questo messaggio è già partita a suo
+    // tempo, e non riparte.
+    const eta = Date.now() - new Date(m.created_at).getTime()
+    if (!(Math.abs(eta) <= FRESCO_MS)) return risposta(200, { inviate: 0, motivo: 'messaggio non recente' })
+
+    const { data: legame } = await admin
+      .from('coach_links')
+      .select('coach_id')
+      .eq('coach_id', m.coach_id)
+      .eq('athlete_id', m.athlete_id)
+      .maybeSingle()
+    if (!legame) return risposta(200, { inviate: 0, motivo: 'collegamento sciolto' })
 
     const destinatario = m.autore === m.coach_id ? m.athlete_id : m.coach_id
     const { data: iscrizioni } = await admin

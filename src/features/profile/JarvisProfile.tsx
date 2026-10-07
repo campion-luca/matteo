@@ -17,7 +17,7 @@ import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
 import { Icons } from '@/components/ui/Icons'
 import { supabase } from '@/lib/supabase'
-import { disattivaPush } from '@/lib/push'
+import { esci } from '@/lib/uscita'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
 import { Flag } from '@/components/ui/Flags'
@@ -285,13 +285,47 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     return `${d}/${m}/${y}`
   }
 
-  const handleLogout = async () => {
-    // PRIMA di uscire, finché c'è la sessione per farlo: questo dispositivo
-    // smette di ricevere le notifiche dell'account. Senza, chi entra dopo sullo
-    // stesso telefono si vedrebbe arrivare i messaggi di chi è uscito.
-    await disattivaPush().catch(() => { /* niente iscrizione, o niente rete: si esce lo stesso */ })
-    await supabase.auth.signOut()
+  // Esce da QUESTO telefono soltanto, dopo aver provato a mandare al cloud
+  // quello che manca, e anche senza rete (vedi lib/uscita).
+  const [uscendo, setUscendo] = useState(false)
+  const { confirmDelete: chiedi } = useConfirmDelete()
+  const esciDavvero = async () => {
+    if (uscendo) return
+    setUscendo(true)
+    await esci().catch(() => { /* l'uscita non deve mai restare a metà */ })
+    setUscendo(false)
     onClose()
+  }
+  // Un tocco solo non basta più: adesso "Logout" esce anche senza rete, e nel
+  // seminterrato della palestra vorrebbe dire restare fuori dall'app finché non
+  // torna il segnale. Quello che non è ancora nel cloud non si perde (resta su
+  // questo telefono, vedi lib/proprietario), e lo si dice.
+  const handleLogout = () => chiedi(() => { void esciDavvero() }, t('Logout'), {
+    eyebrow: t('Logout'),
+    title: t('Uscire dall’account?'),
+    body: t('Esci solo da questo dispositivo. Quello che non è ancora salvato nel cloud, e un allenamento lasciato a metà, restano qui: li ritrovi rientrando su questo telefono. Per rientrare serve la rete.'),
+    cta: t('Esci'),
+  })
+
+  // ── Una copia dei propri dati ────────────────────────────────
+  // Tutto lo stato dell'account in un file, sul dispositivo. Nel cloud c'è una
+  // riga sola per utente, riscritta a ogni salvataggio: senza una copia, quello
+  // che un errore di sincronizzazione porta via non c'è modo di riaverlo. Il
+  // file è lo stesso oggetto che l'app salva, leggibile. (L'app non sa ancora
+  // rileggerlo: è una copia da tenere, non un ripristino a un tocco.)
+  const esporta = () => {
+    const stato = useJarvisStore.getState()
+    const file = new Blob([JSON.stringify({ app: 'matteo', esportato: new Date().toISOString(), dati: stato }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `matteo-${todayISO()}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    // Un minuto, non un secondo: su iPhone Safari chiede conferma prima di
+    // scaricare, e con l'indirizzo già revocato il file non c'era più.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
   const current = s.accentColor ?? 'green'
@@ -696,11 +730,30 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           )}
         </div>
 
+        {/* Una copia dei dati, prima dell'uscita: è il posto dove la si cerca. */}
+        <div className="j-profile-sec">
+          <button
+            onClick={esporta}
+            style={{
+              width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
+              background: 'none', border: '1px solid var(--hairline)',
+              fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
+              color: 'var(--fg-soft)', cursor: 'pointer',
+            }}
+          >
+            {t('Esporta i miei dati')}
+          </button>
+          <div style={{ fontFamily: NUC.label, fontSize: 10, lineHeight: 1.5, color: 'var(--fg-mute)', marginTop: 7, textAlign: 'center' }}>
+            {t('Scarica un file con allenamenti, schede e pesate: una copia tua, fuori dall’app.')}
+          </div>
+        </div>
+
         {/* Logout — wrapper: il divider è un border-top sulla sezione, e sul bottone
             si sommerebbe al bordo che ha già. */}
         <div className="j-profile-sec">
           <button
             onClick={handleLogout}
+            disabled={uscendo}
             style={{
               width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
               background: 'none', border: '1px solid var(--hairline)',
@@ -711,7 +764,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--danger)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--danger)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--fg-mute)' }}
           >
-            {t('Logout')}
+            {uscendo ? t('Attendi…') : t('Logout')}
           </button>
         </div>
 

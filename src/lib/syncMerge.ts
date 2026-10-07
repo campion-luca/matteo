@@ -19,7 +19,7 @@
 // Un id che il locale ha, il remoto no e l'ultimo sync nemmeno è nato qui.
 // Uno che c'era all'ultimo sync e il remoto non ha più è stato cancellato
 // altrove, e non va resuscitato.
-import type { GymScheda, HyroxGara, JarvisState, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
+import type { GymScheda, HyroxGara, JarvisState, PalestraExercise, PalestraHistoryEntry, WeightLogEntry } from '@/store/useJarvisStore'
 
 export interface NotiAlSync {
   schede: string[]
@@ -29,24 +29,41 @@ export interface NotiAlSync {
   alzate?: string[]
   /** Le gare Hyrox registrate. Assente nelle meta salvate prima che esistessero. */
   gare?: string[]
+  /** I giorni delle pesate presenti all'ultimo sync. Assente nelle meta di prima. */
+  pesate?: string[]
 }
 
-type Recuperabile = Pick<JarvisState, 'gymSchede' | 'palestraExercises' | 'hyroxGare'>
+type Recuperabile = Pick<JarvisState, 'gymSchede' | 'palestraExercises' | 'hyroxGare'> & Partial<Pick<JarvisState, 'weightLog'>>
 
 /** Un'alzata si riconosce da esercizio e giorno, non dai suoi numeri: così una
  *  correzione (80 → 85 kg) resta la stessa alzata e non ne nasce una seconda,
  *  e le alzate non hanno bisogno di un id proprio. Le voci senza data, vecchie,
- *  ricadono sull'etichetta della settimana. */
-const chiaveAlzata = (exId: string, h: PalestraHistoryEntry) => `${exId}|${h.date ?? h.d}`
+ *  ricadono sull'etichetta della settimana.
+ *
+ *  Dalla SECONDA alzata dello stesso esercizio nello stesso giorno la chiave
+ *  porta anche il suo numero d'ordine. Senza, la seconda aveva la chiave della
+ *  prima: bastava che il remoto avesse quella giornata perché la seconda
+ *  risultasse "già là", e in un conflitto si perdeva. La prima resta senza
+ *  numero, così le chiavi salvate fin qui continuano a valere. */
+function chiaviAlzate(exId: string, history: PalestraHistoryEntry[]): string[] {
+  const viste = new Map<string, number>()
+  return history.map(h => {
+    const giorno = h.date ?? h.d
+    const n = (viste.get(giorno) ?? 0) + 1
+    viste.set(giorno, n)
+    return n === 1 ? `${exId}|${giorno}` : `${exId}|${giorno}|${n}`
+  })
+}
 
 export function idsNoti(s: Recuperabile): NotiAlSync {
   const alzate = new Set<string>()
-  for (const ex of s.palestraExercises ?? []) for (const h of ex.history ?? []) alzate.add(chiaveAlzata(ex.id, h))
+  for (const ex of s.palestraExercises ?? []) for (const k of chiaviAlzate(ex.id, ex.history ?? [])) alzate.add(k)
   return {
     schede: (s.gymSchede ?? []).map(x => x.id),
     esercizi: (s.palestraExercises ?? []).map(x => x.id),
     alzate: [...alzate],
     gare: (s.hyroxGare ?? []).map(x => x.id),
+    pesate: (s.weightLog ?? []).map(x => x.date),
   }
 }
 
@@ -72,9 +89,10 @@ function conAlzateNateQui(
   const out = remoti.map(rem => {
     const loc = localePerId.get(rem.id)
     if (!loc) return rem
-    const nelRemoto = new Set((rem.history ?? []).map(h => chiaveAlzata(rem.id, h)))
-    const nuove = (loc.history ?? []).filter(h => {
-      const k = chiaveAlzata(rem.id, h)
+    const nelRemoto = new Set(chiaviAlzate(rem.id, rem.history ?? []))
+    const chiaviLocali = chiaviAlzate(rem.id, loc.history ?? [])
+    const nuove = (loc.history ?? []).filter((_, i) => {
+      const k = chiaviLocali[i]
       return !nelRemoto.has(k) && !giaNote.has(k)
     })
     if (!nuove.length) return rem
@@ -86,6 +104,22 @@ function conAlzateNateQui(
     return { ...rem, history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
   })
   return trovate ? out : null
+}
+
+/** Le pesate del remoto con dentro quelle nate qui: un giorno che il remoto non
+ *  ha e che all'ultimo sync non c'era. Una pesata è una riga per giorno, quindi
+ *  il giorno fa da id; lo stesso giorno pesato su due dispositivi resta "vince
+ *  il remoto", come due correzioni alla stessa alzata. `null` se non c'è niente
+ *  da aggiungere — o se chi chiama non ha passato le pesate. */
+function conPesateNateQui(
+  locali: WeightLogEntry[] | undefined, remote: WeightLogEntry[] | undefined, noti: string[] | undefined,
+): WeightLogEntry[] | null {
+  if (!locali?.length) return null
+  const nelRemoto = new Set((remote ?? []).map(x => x.date))
+  const giaNote = new Set(noti ?? [])
+  const nuove = locali.filter(x => !nelRemoto.has(x.date) && !giaNote.has(x.date))
+  if (!nuove.length) return null
+  return [...(remote ?? []), ...nuove].sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /** Le schede, gli esercizi e le alzate nati su questo dispositivo che il remoto
@@ -100,15 +134,23 @@ export function recuperaCreatiInLocale(
   locale: Recuperabile,
   remoto: Recuperabile,
   noti: NotiAlSync | null,
-): { gymSchede: GymScheda[]; palestraExercises: PalestraExercise[]; hyroxGare: HyroxGara[] } | null {
+): { gymSchede: GymScheda[]; palestraExercises: PalestraExercise[]; hyroxGare: HyroxGara[]; weightLog?: WeightLogEntry[] } | null {
   const schede = soloQui(locale.gymSchede ?? [], remoto.gymSchede ?? [], noti?.schede)
   const esercizi = soloQui(locale.palestraExercises ?? [], remoto.palestraExercises ?? [], noti?.esercizi)
   const conAlzate = conAlzateNateQui(locale.palestraExercises ?? [], remoto.palestraExercises ?? [], noti?.alzate)
   const gare = soloQui(locale.hyroxGare ?? [], remoto.hyroxGare ?? [], noti?.gare)
-  if (schede.length === 0 && esercizi.length === 0 && !conAlzate && gare.length === 0) return null
+  // Le pesate: anche loro nascono su un telefono solo e per giorno, e una fatta
+  // la mattina sul telefono rimasto indietro spariva come spariva una scheda.
+  // Senza `noti.pesate` (meta di prima) NON si recupera niente: lì non si sa
+  // distinguere una pesata nata qui da una cancellata altrove, e a differenza
+  // delle schede le pesate si cancellano di rado ma si accumulano per anni —
+  // rimetterle tutte dentro al primo conflitto sarebbe peggio.
+  const pesate = noti?.pesate ? conPesateNateQui(locale.weightLog, remoto.weightLog, noti.pesate) : null
+  if (schede.length === 0 && esercizi.length === 0 && !conAlzate && gare.length === 0 && !pesate) return null
   return {
     gymSchede: [...(remoto.gymSchede ?? []), ...schede],
     palestraExercises: [...(conAlzate ?? remoto.palestraExercises ?? []), ...esercizi],
     hyroxGare: [...(remoto.hyroxGare ?? []), ...gare],
+    ...(pesate ? { weightLog: pesate } : {}),
   }
 }

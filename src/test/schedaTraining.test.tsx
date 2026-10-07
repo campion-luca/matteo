@@ -59,6 +59,9 @@ describe('esecuzione di una scheda', () => {
 
     // Precompilati sull'obiettivo della scheda: chi rispetta il programma non tocca nulla.
     expect(screen.getByLabelText('Panca piana · serie 1 · colpi')).toHaveValue('10')
+    // I chili invece vanno scritti: una serie con attrezzo senza chili non conta.
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
 
     await user.click(screen.getByRole('button', { name: 'Serie 1' }))
     await user.click(screen.getByRole('button', { name: 'Serie 2' }))
@@ -95,6 +98,8 @@ describe('esecuzione di una scheda', () => {
     const user = userEvent.setup()
     await apriAllenamento(user)
 
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
     for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
     await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
@@ -174,6 +179,7 @@ describe('allenamento: le aggiunte di settembre', () => {
     await apriAllenamento(user)
     await user.click(screen.getByRole('button', { name: 'Panca piana · Aggiungi nota' }))
     await user.type(screen.getByLabelText('Panca piana · nota'), 'sedile al 4')
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
     await user.click(screen.getByRole('button', { name: 'Serie 1' }))
     await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
@@ -303,6 +309,7 @@ describe('allenamento: le aggiunte di settembre', () => {
     useJarvisStore.setState({ gymSchede: [{ ...scheda, exercises: [panca, spinte] }] })
     const user = userEvent.setup()
     await apriAllenamento(user)
+    for (const nome of ['Panca piana', 'Spinte con manubri']) for (const n of [1, 2, 3]) await user.type(screen.getByLabelText(`${nome} · serie ${n} · kg`), '40')
     for (const n of [1, 2, 3]) for (const tasto of screen.getAllByRole('button', { name: `Serie ${n}` })) await user.click(tasto)
     await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
@@ -315,6 +322,7 @@ describe('allenamento: le aggiunte di settembre', () => {
     const user = userEvent.setup()
     await apriAllenamento(user)
     // La panca è occupata: si fanno solo le spinte.
+    for (const n of [1, 2, 3]) await user.type(screen.getByLabelText(`Spinte con manubri · serie ${n} · kg`), '24')
     for (const n of [1, 2, 3]) await user.click(screen.getAllByRole('button', { name: `Serie ${n}` })[1])
     await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
@@ -441,4 +449,239 @@ describe('allenamento: le aggiunte di settembre', () => {
     await user.click(screen.getByRole('button', { name: /sì, elimina/i }))
     expect(alzate()).toHaveLength(0)
   })
+
+  // ── Ottobre: le serie senza chili, il giorno giusto, la durata, un allenamento alla volta ──
+
+  it('una serie spuntata senza chili non è una serie fatta: lo si dice, e non si salva', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    // Solo la prima ha i chili; le altre due sono spuntate a vuoto.
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    // Il campo che manca si accende subito, non a fine allenamento.
+    expect(screen.getByLabelText('Panca piana · serie 2 · kg')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Panca piana · serie 1 · kg')).not.toHaveAttribute('aria-invalid')
+
+    // E la card non si dice "fatta": la barra in cima resta a zero.
+    expect(screen.getByText('0/1 esercizi completati')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    expect(screen.getByText(/senza chili non vengono salvate/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    // Una serie a 60, non tre di cui due a zero: prima finiva nello storico
+    // [60, 0, 0], e il consiglio la volta dopo diceva "hai dovuto alleggerire".
+    expect(alzate()).toHaveLength(1)
+    expect(alzate()[0]).toMatchObject({ kg: 60, sets_n: 1 })
+    expect(alzate()[0].setWeights).toBeUndefined()
+  })
+
+  it('se nessuna serie ha i chili l’esercizio è saltato, e non c’è niente da salvare', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    expect(screen.getByText(/senza chili: non conta/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /chiudi senza salvare/i }))
+    expect(alzate()).toHaveLength(0)
+  })
+
+  it('a corpo libero i chili vuoti sono legittimi: è la zavorra', async () => {
+    useJarvisStore.setState({ gymSchede: [{ ...scheda, exercises: [{ id: 'se1', name: 'Trazioni', sets: 2, reps: '8', muscle: 'Dorso' }] }] })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    for (const n of [1, 2]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    expect(screen.getByLabelText('Trazioni · serie 1 · kg')).not.toHaveAttribute('aria-invalid')
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate('Trazioni')[0]).toMatchObject({ kg: 0, sets_n: 2, bodyweight: true })
+  })
+
+  // L'allenamento rimasto aperto: cominciato trenta ore fa, mai chiuso.
+  const aperto = (quando: number, schedaId = 'sc1') => localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+    schedaId, salvataA: quando, iniziataA: quando,
+    progress: { se1: { checks: [true, true, false], weights: ['60', '60', '60'], reps: ['10', '10', '10'] } },
+  }))
+
+  it('un allenamento chiuso il giorno dopo finisce nel giorno in cui è stato fatto', async () => {
+    const inizio = Date.now() - 30 * 60 * 60 * 1000
+    aperto(inizio)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    // In elenco è detto per quello che è, non "in corso".
+    expect(screen.getByText(/allenamento non chiuso/i)).toBeInTheDocument()
+    await user.click(screen.getByText(/tocca per riprendere/i))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate()[0].date).toBe(localISO(new Date(inizio)))
+    expect(alzate()[0].sets_n).toBe(2)
+    // Trenta ore non sono la durata di un allenamento: non la si scrive.
+    expect(alzate()[0].durataSec).toBeUndefined()
+  })
+
+  it('la durata va dalla prima serie spuntata a «Termina», e arriva su ogni alzata', async () => {
+    aperto(Date.now() - 50 * 60 * 1000)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText(/tocca per riprendere/i))
+    // In testata, accanto agli esercizi fatti.
+    expect(screen.getByLabelText('Durata dell’allenamento')).toHaveTextContent('50 min')
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    const sec = alzate()[0].durataSec!
+    expect(sec).toBeGreaterThanOrEqual(50 * 60)
+    expect(sec).toBeLessThan(51 * 60)
+    expect(alzate()[0].date).toBe(localISO(new Date()))
+  })
+
+  it('con un allenamento a metà su un’altra scheda, prima di cominciarne uno si chiede', async () => {
+    const altra = { ...scheda, id: 'sc2', title: 'Tirata B', exercises: [{ id: 'sx1', name: 'Lat machine', sets: 3, reps: '10', muscle: 'Dorso' }] }
+    useJarvisStore.setState({ gymSchede: [scheda, altra] })
+    aperto(Date.now() - 10 * 60 * 1000)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText('Tirata B'))
+    await user.click(screen.getByRole('button', { name: /inizia allenamento/i }))
+
+    // Non parte: chiede, e dice cosa si perde.
+    expect(screen.getByText('Hai già avviato un allenamento')).toBeInTheDocument()
+    expect(screen.getByText(/«Spinta A» è a metà: 2 serie su 3/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /termina allenamento/i })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('jarvis-sessione-in-corso-v1')!).schedaId).toBe('sc1')
+
+    await user.click(screen.getByRole('button', { name: /chiudi e inizia questo/i }))
+    expect(screen.getByRole('button', { name: /termina allenamento/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Lat machine · serie 1 · kg')).toBeInTheDocument()
+  })
+
+  it('riprendere lo STESSO allenamento non chiede niente', async () => {
+    aperto(Date.now() - 10 * 60 * 1000)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText('Spinta A', { selector: 'div' }))
+    await user.click(screen.getByRole('button', { name: /riprendi allenamento/i }))
+    expect(screen.queryByText('Hai già avviato un allenamento')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // ── Il corpo libero che l'app non sa ──────────────────────────
+  // Un "Dip" creato a mano, o mandato da un allenatore senza il segno: non ha
+  // chili da scrivere, e senza una via d'uscita non si sarebbe più potuto salvare.
+
+  it('un esercizio senza chili si dice a corpo libero dalla sua card, e da lì conta', async () => {
+    useJarvisStore.setState({ gymSchede: [{ ...scheda, exercises: [{ id: 'se1', name: 'Dip alle parallele', sets: 2, reps: '10', muscle: 'Petto' }] }] })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    for (const n of [1, 2]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    expect(screen.getByLabelText('Dip alle parallele · serie 1 · kg')).toHaveAttribute('aria-invalid', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'È a corpo libero' }))
+    expect(screen.getByLabelText('Dip alle parallele · serie 1 · kg')).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByText('1/1 esercizi completati')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate('Dip alle parallele')[0]).toMatchObject({ kg: 0, sets_n: 2, bodyweight: true })
+    // E l'esercizio adesso lo sa: la prossima volta non lo si richiede.
+    expect(useJarvisStore.getState().palestraExercises.find(e => e.n === 'Dip alle parallele')?.bodyweight).toBe(true)
+  })
+
+  it('un esercizio che l’ultima volta è stato fatto senza chili è a corpo libero di fatto', async () => {
+    useJarvisStore.setState({
+      gymSchede: [{ ...scheda, exercises: [{ id: 'se1', name: 'Plank', sets: 2, reps: '30', muscle: 'Core' }] }],
+      palestraExercises: [{ id: 'p9', n: 'Plank', muscle: 'Core', current: { kg: 0, reps: 30, sets_n: 2 }, history: [{ d: 'W', date: giorniFa(7), kg: 0, reps: 30, sets_n: 2 }] }],
+    })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    for (const n of [1, 2]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    expect(screen.getByLabelText('Plank · serie 1 · kg')).not.toHaveAttribute('aria-invalid')
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate('Plank')).toHaveLength(2)
+  })
+
+  // ── L'allenamento di un altro giorno rimasto aperto ───────────
+  const rimastoAperto = (quando: number) => localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+    schedaId: 'sc1', salvataA: quando, iniziataA: quando,
+    progress: { se1: { checks: [true, false, false], weights: ['60', '60', '60'], reps: ['10', '10', '10'] } },
+  }))
+
+  it('dal dettaglio non si "riprende": si chiude quello di quel giorno, o lo si scarta e si comincia oggi', async () => {
+    rimastoAperto(Date.now() - 3 * 24 * 60 * 60 * 1000)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText('Spinta A', { selector: 'div' }))
+    expect(screen.getByRole('button', { name: /chiudi l’allenamento del/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /riprendi allenamento/i })).not.toBeInTheDocument()
+
+    // Chi è qui per allenarsi oggi lo dice, e parte da zero.
+    await user.click(screen.getByRole('button', { name: 'Scartalo e inizia oggi' }))
+    await user.click(screen.getByRole('button', { name: 'Scarta e inizia oggi' }))
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'false')
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate()).toHaveLength(1)
+    expect(alzate()[0].date).toBe(localISO(new Date()))
+  })
+
+  it('chiudendolo, la pagina dice per tutto il tempo in che giorno finisce', async () => {
+    const quando = Date.now() - 3 * 24 * 60 * 60 * 1000
+    rimastoAperto(quando)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText('Spinta A', { selector: 'div' }))
+    await user.click(screen.getByRole('button', { name: /chiudi l’allenamento del/i }))
+    expect(screen.getByText(/rimasto aperto: quello che salvi da qui finisce in quel giorno/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate()[0].date).toBe(localISO(new Date(quando)))
+  })
+
+  it('chiudere un allenamento di giorni fa non riporta indietro il precompilato', async () => {
+    // Ieri, a mano, 85 kg; tre giorni fa un allenamento a 60 rimasto aperto.
+    useJarvisStore.setState({ palestraExercises: [{ id: 'p1', n: 'Panca piana', muscle: 'Petto', current: { kg: 85, reps: 5, sets_n: 3 }, history: [{ d: 'W', date: giorniFa(1), kg: 85, reps: 5, sets_n: 3 }] }] })
+    rimastoAperto(Date.now() - 3 * 24 * 60 * 60 * 1000)
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText(/tocca per riprendere/i))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    const panca = useJarvisStore.getState().palestraExercises[0]
+    expect(panca.history).toHaveLength(2)
+    expect(panca.current.kg).toBe(85)
+  })
+
+  it('una sessione salvata dalla versione di prima resta nel suo giorno, senza una durata inventata', async () => {
+    const ieri = Date.now() - 20 * 60 * 60 * 1000
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'sc1', salvataA: ieri,
+      progress: { se1: { checks: [true, true, false], weights: ['60', '60', '60'], reps: ['10', '10', '10'] } },
+    }))
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText(/tocca per riprendere/i))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    expect(alzate()[0].date).toBe(localISO(new Date(ieri)))
+    expect(alzate()[0].durataSec).toBeUndefined()
+  })
+
+  it('la durata conta da quando si entra: chi spunta tutto alla fine non ha fatto due minuti', async () => {
+    const avvio = Date.now() - 45 * 60 * 1000
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'sc1', salvataA: avvio, avviataA: avvio, iniziataA: Date.now() - 90 * 1000,
+      progress: { se1: { checks: [true, true, true], weights: ['60', '60', '60'], reps: ['10', '10', '10'] } },
+    }))
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText(/tocca per riprendere/i))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    const sec = alzate()[0].durataSec!
+    expect(sec).toBeGreaterThanOrEqual(45 * 60)
+    expect(sec).toBeLessThan(46 * 60)
+  })
 })
+

@@ -101,6 +101,32 @@ describe('il riassunto di un allenamento finito', () => {
     const esiti = [serie('b', [true, true, true], ['', '', ''])]
     expect(contaAllenamento(scheda, esiti).serieCorte).toBe(0)
   })
+
+  // Le serie spuntate senza chili, con un attrezzo, valgono come non fatte:
+  // l'allenatore deve leggere lo stesso allenamento che finisce nello storico.
+  it('una serie con attrezzo senza chili non conta; a corpo libero sì', () => {
+    const esiti = [
+      { id: 'a', checks: [true, true, true], reps: ['8', '8', '8'], weights: ['60', '', '0'] },             // ne resta una
+      { id: 'b', checks: [true, true, true], reps: ['12', '12', '12'], weights: ['', '', ''] },             // saltato
+      { id: 'c', checks: [true, true], reps: ['14', '11'], weights: ['', ''], corpo: true },                 // corpo libero: valgono
+    ]
+    expect(contaAllenamento(scheda, esiti)).toEqual({ fatti: 2, totali: 3, serieMancanti: 2, serieCorte: 0 })
+  })
+
+  it('dice quanto è durato, se lo si sa', () => {
+    const esiti = [serie('a', [true, true, true], ['8', '9', '10']), serie('b', [true, true, true], ['12', '12', '12']), serie('c', [true, true], ['14', '11'])]
+    expect(riassuntoAllenamento(scheda, esiti, t, 52 * 60)).toBe('Allenamento finito: «Lunedì» in 52 min. tutto come da scheda')
+    expect(riassuntoAllenamento(scheda, esiti, t, 65 * 60)).toContain('in 1 h 05')
+  })
+
+  it('porta la nota scritta su un esercizio saltato, che nello storico non avrebbe posto', () => {
+    const esiti = [
+      serie('a', [true, true, true], ['8', '9', '10']),
+      { ...serie('b', [false, false, false], ['12', '12', '12']), note: 'macchina rotta' },
+      { ...serie('c', [true, true], ['14', '11']), note: 'bene' },   // fatto: la sua nota sta nell'alzata
+    ]
+    expect(riassuntoAllenamento(scheda, esiti, t)).toBe('Allenamento finito: «Lunedì». 1 esercizio saltato — Sui saltati: Croci: macchina rotta')
+  })
 })
 
 describe('la chiave delle notifiche', () => {

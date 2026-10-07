@@ -23,9 +23,15 @@ export interface SyncMeta {
    *  in un conflitto, cosa è nato qui e cosa è stato cancellato altrove (vedi
    *  syncMerge). `null` per le meta scritte da versioni precedenti. */
   noti: NotiAlSync | null
+  /** L'`updated_at` del salvataggio partito e non ancora confermato. Serve a
+   *  riconoscere la PROPRIA scrittura quando la risposta si perde per strada
+   *  (poco segnale, app sospesa): il dato è arrivato al server, noi non lo
+   *  sappiamo, e al giro dopo il remoto risulta "cambiato da qualcun altro".
+   *  Se l'orario remoto è questo, quel qualcun altro siamo noi. */
+  inViaggio: string | null
 }
 
-const EMPTY: SyncMeta = { lastSyncedAt: null, dirty: false, noti: null }
+const EMPTY: SyncMeta = { lastSyncedAt: null, dirty: false, noti: null, inViaggio: null }
 
 // ── Dov'è la verità ────────────────────────────────────────────
 // In MEMORIA. `localStorage` è solo il modo di farla sopravvivere a un riavvio.
@@ -54,6 +60,7 @@ function dalloStorage(): SyncMeta {
       lastSyncedAt: typeof parsed.lastSyncedAt === 'string' ? parsed.lastSyncedAt : null,
       dirty: parsed.dirty === true,
       noti: noti && Array.isArray(noti.schede) && Array.isArray(noti.esercizi) ? noti : null,
+      inViaggio: typeof parsed.inViaggio === 'string' ? parsed.inViaggio : null,
     }
   } catch {
     return { ...EMPTY }
@@ -99,7 +106,46 @@ export function markDirty(): void {
  *  `noti` = gli id dello stato che in quel momento è uguale al remoto; senza, si
  *  tengono quelli di prima. */
 export function setSynced(updatedAt: string | null, noti?: NotiAlSync): void {
-  write({ lastSyncedAt: updatedAt, dirty: false, noti: noti ?? getSyncMeta().noti })
+  write({ lastSyncedAt: updatedAt, dirty: false, noti: noti ?? getSyncMeta().noti, inViaggio: null })
+}
+
+/** Da chiamare un attimo PRIMA di spedire un salvataggio, con l'orario che gli
+ *  si sta per dare (vedi `inViaggio`). */
+export function segnaInViaggio(marca: string): void {
+  write({ ...getSyncMeta(), inViaggio: marca })
+}
+
+/** Il remoto porta l'orario del nostro salvataggio rimasto senza risposta: era
+ *  arrivato. Si aggiorna quello che si sa del remoto e basta — `dirty` resta
+ *  com'è, perché da allora qui può essere cambiato altro. */
+export function confermaRemoto(updatedAt: string): void {
+  write({ ...getSyncMeta(), lastSyncedAt: updatedAt, inViaggio: null })
+}
+
+/** Da chiamare quando si scopre che il cloud è stato scritto da un'app più
+ *  NUOVA di questa (vedi `VERSIONE_DATI` nello store). Lo stato che c'è qui ha
+ *  già perso le chiavi che questa versione non conosce: dopo l'aggiornamento
+ *  NON deve risalire tale e quale, o le toglierebbe anche dal cloud. Senza un
+ *  ultimo sync noto il prossimo avvio vede un conflitto — applica il remoto, e
+ *  di qui recupera solo ciò che è stato creato (vedi syncMerge). */
+export function dimenticaUltimoSync(): void {
+  const meta = getSyncMeta()
+  if (meta.lastSyncedAt === null && meta.inViaggio === null) return
+  write({ ...meta, lastSyncedAt: null, inViaggio: null })
+}
+
+/** Rimette le meta com'erano: serve a chi riprende i dati messi da parte
+ *  all'uscita (vedi lib/proprietario). */
+export function ripristinaSyncMeta(meta: SyncMeta): void {
+  write({ ...EMPTY, ...meta })
+}
+
+/** Due orari sono lo stesso istante? Non si confrontano le stringhe: il server
+ *  restituisce "…+00:00" dove noi abbiamo scritto "…Z". */
+export function stessoIstante(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false
+  const x = Date.parse(a), y = Date.parse(b)
+  return Number.isFinite(x) && x === y
 }
 
 export type InitialSyncDecision = 'applyRemote' | 'keepLocalAndPush' | 'applyRemoteConflict'
@@ -131,5 +177,9 @@ export function remotoCambiato(remoto: string | null, noto: string | null): bool
  */
 export function decideInitialSync(remoteUpdatedAt: string | null, meta: SyncMeta): InitialSyncDecision {
   if (!meta.dirty) return 'applyRemote'
+  // Il remoto è la nostra ultima scrittura, di cui non era tornata la risposta
+  // (l'app chiusa a metà, il segnale caduto): non è un altro dispositivo. Quello
+  // che c'è qui è almeno altrettanto recente, e si tiene.
+  if (stessoIstante(remoteUpdatedAt, meta.inViaggio)) return 'keepLocalAndPush'
   return remotoCambiato(remoteUpdatedAt, meta.lastSyncedAt) ? 'applyRemoteConflict' : 'keepLocalAndPush'
 }

@@ -297,7 +297,7 @@ export function SegnaleCarico({ variazione, record, primo, massimale }: {
             </span>
           )}
           {delta === 0
-            ? t('carico invariato')
+            ? (variazione.unita === 'colpi' ? t('colpi invariati') : t('carico invariato'))
             : `${delta > 0 ? '+' : '−'}${fmtNum(Math.abs(delta))} ${unita}`}
         </span>
       ) : primo ? (
@@ -318,6 +318,11 @@ export function MenuAzioni({ etichetta, azioni }: {
 }) {
   const [aperto, setAperto] = useState(false)
   const guscio = useRef<HTMLDivElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+
+  // Sull'ultima riga dell'elenco il menù si apre sotto il bordo della parte che
+  // scorre: lo si porta a vista, o si toccherebbe un tasto che non si vede.
+  useEffect(() => { if (aperto) menu.current?.scrollIntoView?.({ block: 'nearest' }) }, [aperto])
 
   // Si chiude toccando fuori o con Esc: un menù che resta aperto mentre si
   // scorre lo storico finisce sopra un'altra riga, e sembra il suo.
@@ -344,7 +349,7 @@ export function MenuAzioni({ etichetta, azioni }: {
         <Icons.dots size={18}/>
       </button>
       {aperto && (
-        <div role="menu" style={{
+        <div ref={menu} role="menu" style={{
           position: 'absolute', top: '100%', right: 0, zIndex: 30, marginTop: 4, minWidth: 156,
           background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 'var(--radius)',
           boxShadow: 'var(--shadow-pop)', overflow: 'hidden',

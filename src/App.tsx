@@ -9,14 +9,16 @@ import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { InstallBanner } from '@/components/InstallBanner'
 import { useShallow } from 'zustand/react/shallow'
-import { useJarvisStore, EMPTY_STATE, applyRemoteState } from '@/store/useJarvisStore'
+import { useJarvisStore, applyRemoteState, VERSIONE_DATI } from '@/store/useJarvisStore'
 import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
-import { supabase } from '@/lib/supabase'
-import { loadUserData, saveUserData, fetchRemoteUpdatedAt, senzaRete } from '@/lib/cloudSync'
+import { supabase, sessioneSuDisco, erroreDiRete } from '@/lib/supabase'
+import { loadUserData, saveUserData, fetchRemoto, senzaRete } from '@/lib/cloudSync'
 import { useSyncStatus } from '@/lib/syncStatus'
-import { getSyncMeta, setSynced, markDirty, clearSyncMeta, decideInitialSync, remotoCambiato } from '@/lib/syncMeta'
-import { dimenticaSchedeRicevute } from '@/lib/coach'
+import { getSyncMeta, setSynced, markDirty, decideInitialSync, remotoCambiato, segnaInViaggio, confermaRemoto, stessoIstante, dimenticaUltimoSync } from '@/lib/syncMeta'
+import { myCoaches } from '@/lib/coach'
 import { correzioniPer, eliminaCorrezioni, applicaCorrezioni } from '@/lib/correzioni'
+import { proprietario, segnaProprietario, parcheggia, riprendi, svuotaDatiLocali, pulisciParcheggi } from '@/lib/proprietario'
+import { cercaAggiornamento } from '@/lib/aggiornamento'
 import { riallineaPush } from '@/lib/push'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
@@ -73,8 +75,12 @@ const Contenuto = memo(function Contenuto({ onOpenProfile, onOpenUser, onOpenCoa
 //  • nessun save fallisce in silenzio (errore → stato 'error' + retry)
 //  • flush immediato alla chiusura dell'app (visibilitychange/pagehide)
 //  • con più dispositivi vince il dato più recente (no clobber cieco)
-function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
+function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount, onAllineato }: {
   userId: string; initialUpdatedAt: string | null; pushOnMount: boolean
+  /** Il locale e il cloud coincidono: un salvataggio riuscito, una rilettura
+   *  riuscita, o la conferma che non era cambiato niente. Serve a chi era
+   *  partito senza rete per sapere che adesso il cloud ha risposto. */
+  onAllineato?: () => void
 }) {
   const saveTimer = useRef<ReturnType<typeof setTimeout>>()
   const retryTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -88,6 +94,9 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
   // un salvataggio era in viaggio: lo stato inviato è quello di prima, e segnare
   // il locale come "sincronizzato" la farebbe dimenticare.
   const modifiche = useRef(0)
+  // Sempre l'ultima versione, senza far ripartire l'effetto qui sotto.
+  const allineato = useRef(onAllineato)
+  allineato.current = onAllineato
 
   useEffect(() => {
     lastKnownUpdatedAt.current = initialUpdatedAt
@@ -95,6 +104,30 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
 
   useEffect(() => {
     const { setStatus, setRetry } = useSyncStatus.getState()
+    // Questo bridge è ancora quello in servizio? Un salvataggio partito non si
+    // può richiamare, e quando torna può trovare un'altra sessione: l'account è
+    // uscito, o ne è entrato un altro. Da smontato non deve più toccare lo
+    // store, le meta o lo stato della sincronizzazione — applicava il remoto
+    // di prima sopra i dati di chi era appena rientrato.
+    let vivo = true
+    // Finché il cloud non ha risposto una prima volta (vedi il giro in fondo).
+    let maiAllineato = true
+    const dettoAllineato = () => { maiAllineato = false; allineato.current?.() }
+
+    // Il cloud è stato scritto da un'app più NUOVA di questa? Allora questa non
+    // deve salvare: manderebbe su lo stato come lo conosce lei, cioè senza le
+    // cose aggiunte dopo, e le toglierebbe a tutti i dispositivi. Si ferma, lo
+    // dice (vedi SyncPills) e cerca l'aggiornamento. E dimentica a che punto
+    // era il cloud: lo stato che ha in mano ha già perso quello che non
+    // conosce, e dopo l'aggiornamento non deve risalire tale e quale.
+    const troppoNuovo = (versione: number): boolean => {
+      if (versione <= VERSIONE_DATI) return false
+      useSyncStatus.getState().setVecchia(true)
+      dimenticaUltimoSync()
+      cercaAggiornamento()
+      return true
+    }
+
     const performSave = async () => {
       if (inFlight.current) { dirty.current = true; return }
       // Niente da mandare, niente da salvare. Prima si salvava a ogni uscita
@@ -102,6 +135,9 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
       // dati vecchi diventava così "il più recente", e l'altro — trovandolo tale —
       // buttava le proprie modifiche. È così che spariva una scheda appena creata.
       if (!getSyncMeta().dirty) return
+      // App vecchia: le modifiche restano qui, segnate, e partono dopo
+      // l'aggiornamento.
+      if (useSyncStatus.getState().vecchia) return
       inFlight.current = true
       dirty.current = false
       clearTimeout(retryTimer.current)
@@ -109,10 +145,26 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
       try {
         // Un altro dispositivo ha salvato dopo di noi? Allora scarica e applica
         // il suo dato invece di sovrascriverlo (politica: vince il più recente).
-        const remote = await fetchRemoteUpdatedAt(userId)
-        if (remotoCambiato(remote, lastKnownUpdatedAt.current)) {
+        const remoto = await fetchRemoto(userId)
+        if (!vivo) return
+        if (troppoNuovo(remoto.versione)) { setStatus('idle'); setRetry(null); return }
+
+        // Prima di gridare al conflitto: quell'orario "nuovo" è il NOSTRO? Un
+        // salvataggio può arrivare al server senza che ne torni la risposta —
+        // poco segnale, l'app sospesa un attimo dopo — e al giro dopo il remoto
+        // risulta cambiato. Trattarlo da conflitto voleva dire ricaricare la
+        // propria copia di qualche secondo prima sopra il lavoro fatto dopo, e
+        // leggere "Aggiornato da un altro dispositivo" senza altri dispositivi.
+        if (remotoCambiato(remoto.updatedAt, lastKnownUpdatedAt.current) && stessoIstante(remoto.updatedAt, getSyncMeta().inViaggio)) {
+          confermaRemoto(remoto.updatedAt!)
+          lastKnownUpdatedAt.current = remoto.updatedAt
+        }
+
+        if (remotoCambiato(remoto.updatedAt, lastKnownUpdatedAt.current)) {
           const res = await loadUserData(userId)
+          if (!vivo) return
           if (res) {
+            if (troppoNuovo(Number(res.data.versioneDati) || 0)) { setStatus('idle'); setRetry(null); return }
             const locale = useJarvisStore.getState()
             const base = getSyncMeta().noti
             applyRemoteState(res.data)
@@ -124,21 +176,35 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
             // nello store lo segna come modifica e lo fa ripartire verso il cloud.
             const recupero = recuperaCreatiInLocale(locale, useJarvisStore.getState(), base)
             if (recupero) useJarvisStore.setState(recupero)
+            else dettoAllineato()
           }
           setStatus('idle')
           setRetry(null)
           return
         }
         const inviate = modifiche.current
-        const savedAt = await saveUserData(userId, useJarvisStore.getState())
+        // L'orario si sceglie e si SCRIVE prima di partire: se la risposta non
+        // torna, è da lui che al giro dopo si riconosce la propria scrittura.
+        const marca = new Date().toISOString()
+        segnaInViaggio(marca)
+        // Lo stato che parte, e cosa contiene: gli id "noti al cloud" sono
+        // QUESTI, non quelli dello stato al ritorno. Presi dopo, una scheda
+        // creata durante un salvataggio lento risultava già nota senza essere
+        // mai salita, e al conflitto successivo non veniva recuperata.
+        const inviato = useJarvisStore.getState()
+        const notiInviati = idsNoti(inviato)
+        const savedAt = await saveUserData(userId, inviato, marca)
+        if (!vivo) return
         lastKnownUpdatedAt.current = savedAt
-        setSynced(savedAt, idsNoti(useJarvisStore.getState()))
+        setSynced(savedAt, notiInviati)
         // Una modifica arrivata durante il viaggio non era nello stato inviato:
         // resta da mandare, e il prossimo giro deve trovarla segnata.
         if (modifiche.current !== inviate) markDirty()
+        else dettoAllineato()
         setStatus('idle')
         setRetry(null)
       } catch {
+        if (!vivo) return
         // Rete / sessione scaduta / RLS: segnala l'errore e riprova più tardi.
         setStatus('error')
         setRetry(() => performSave)
@@ -146,7 +212,7 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
       } finally {
         inFlight.current = false
         // Cambiamenti arrivati durante il save: pianifica un nuovo giro.
-        if (dirty.current) {
+        if (vivo && dirty.current) {
           clearTimeout(saveTimer.current)
           saveTimer.current = setTimeout(() => { void performSave() }, 1500)
         }
@@ -190,16 +256,20 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
       if (getSyncMeta().dirty) { void performSave(); return }
       inFlight.current = true
       try {
-        const remote = await fetchRemoteUpdatedAt(userId)
-        if (!remotoCambiato(remote, lastKnownUpdatedAt.current)) return
+        const remoto = await fetchRemoto(userId)
+        if (!vivo) return
+        if (troppoNuovo(remoto.versione)) return
+        if (!remotoCambiato(remoto.updatedAt, lastKnownUpdatedAt.current)) { dettoAllineato(); return }
         const res = await loadUserData(userId)
         // Nel frattempo si è toccato qualcosa: non si applica sopra, ci pensa
         // il salvataggio che quella modifica ha già pianificato.
-        if (!res || getSyncMeta().dirty) return
+        if (!vivo || !res || getSyncMeta().dirty) return
+        if (troppoNuovo(Number(res.data.versioneDati) || 0)) return
         applyRemoteState(res.data)
         lastKnownUpdatedAt.current = res.updatedAt
         setSynced(res.updatedAt, idsNoti(useJarvisStore.getState()))
         useSyncStatus.getState().setNotice(t('Aggiornato da un altro dispositivo'))
+        dettoAllineato()
       } catch {
         // Rete assente o lenta: si resta sul dato locale, senza allarmi. Non è
         // un salvataggio fallito, e il prossimo ritorno ci riprova.
@@ -215,15 +285,32 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount }: {
     }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', flushNow)
+    // Tornata la rete si rilegge (o si spinge) subito, senza aspettare che l'app
+    // esca e rientri: chi è partito nel seminterrato e risale al piano di sopra
+    // resta sulla stessa schermata.
+    const tornataLaRete = () => { void rileggi() }
+    window.addEventListener('online', tornataLaRete)
+    // E finché il cloud non ha risposto una prima volta si riprova ogni venti
+    // secondi: il telefono non sempre dice di essere stato senza rete (un
+    // segnale debole non è "offline"), e chi tiene l'app aperta sulla scheda
+    // senza toccare niente restava con l'avviso "dati cloud non caricati"
+    // finché non la toccava. Dopo la prima risposta il giro non fa più niente.
+    const giroFinoAlPrimoSi = setInterval(() => { if (maiAllineato && !senzaRete()) void rileggi() }, 20_000)
+    // Per chi sta uscendo dall'account: vedi lib/uscita.
+    useSyncStatus.getState().setSalvaOra(flushNow)
 
     // Modifiche fatte offline che il load ha deciso di tenere: vanno spinte subito,
     // senza aspettare che l'utente tocchi qualcosa (potrebbe non farlo mai più).
     if (pushOnMount) void performSave()
 
     return () => {
+      vivo = false
       unsub()
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', flushNow)
+      window.removeEventListener('online', tornataLaRete)
+      clearInterval(giroFinoAlPrimoSi)
+      useSyncStatus.getState().setSalvaOra(null)
       clearTimeout(saveTimer.current)
       clearTimeout(retryTimer.current)
       setStatus('idle')
@@ -252,8 +339,32 @@ function CorrezioniBridge({ userId }: { userId: string }) {
       if (inCorso || senzaRete()) return
       inCorso = true
       try {
-        const correzioni = await correzioniPer(userId)
-        if (!correzioni.length) return
+        const tutte = await correzioniPer(userId)
+        if (!tutte.length) return
+        // Solo quelle di chi mi segue ANCORA. Una correzione lasciata in sospeso
+        // da un allenatore che poi ho scollegato non si applica: prima restava
+        // in tabella e riscriveva la mia alzata alla prima apertura, a rapporto
+        // chiuso. Si toglie e basta.
+        const legati = new Set((await myCoaches(userId)).map(l => l.coach_id))
+        const correzioni = tutte.filter(c => legati.has(c.coach_id))
+        const orfane = tutte.filter(c => !legati.has(c.coach_id)).map(c => c.id)
+        // Si tolgono quelle senza più un bersaglio e quelle già fatte — ma solo
+        // se quello che c'è su QUESTO telefono è lo stato vero: niente modifiche
+        // in sospeso, e il cloud fermo a dove lo si conosce. Altrimenti il
+        // giudizio "non ha più un bersaglio" è dato su dati di ieri: un secondo
+        // telefono rimasto indietro, a cui l'alzata corretta non era ancora
+        // arrivata, la cancellava come persa — e con lei il lavoro
+        // dell'allenatore. Finché non si è allineati la correzione resta lì.
+        //
+        // La domanda al cloud viene PRIMA, e da qui in giù non si aspetta più
+        // niente: lo store su cui si giudica e le meta che dicono se è
+        // allineato vanno letti nello stesso istante. Con un'attesa in mezzo,
+        // la rilettura del cloud (che parte sullo stesso ritorno in primo
+        // piano) poteva arrivare fra le due letture: il giudizio dato sui dati
+        // vecchi veniva creduto perché le meta, lette dopo, erano già nuove.
+        const remoto = await fetchRemoto(userId)
+        const meta = getSyncMeta()
+        const alPasso = !meta.dirty && !remotoCambiato(remoto.updatedAt, meta.lastSyncedAt)
         const esito = applicaCorrezioni(useJarvisStore.getState().palestraExercises, correzioni)
         if (esito.applicate.length) {
           // Segna lo stato come modificato: il bridge del cloud lo salva.
@@ -262,11 +373,7 @@ function CorrezioniBridge({ userId }: { userId: string }) {
             ? t('Il tuo allenatore ha corretto un’alzata')
             : t('Il tuo allenatore ha corretto {n} alzate', { n: esito.applicate.length }))
         }
-        // Si tolgono quelle senza più un bersaglio, e quelle già fatte — ma
-        // queste solo se il dato corretto è arrivato al cloud (niente modifiche
-        // in sospeso): finché non c'è, la correzione resta lì a garanzia.
-        const daTogliere = [...esito.perse, ...(getSyncMeta().dirty ? [] : esito.giaFatte)]
-        await eliminaCorrezioni(daTogliere)
+        await eliminaCorrezioni([...orfane, ...(alPasso ? [...esito.perse, ...esito.giaFatte] : [])])
       } catch {
         // Tabella non ancora creata, o rete: non è un errore da mostrare. Si
         // riprova al prossimo ritorno sull'app.
@@ -305,7 +412,21 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
   const status = useSyncStatus(s => s.status)
   const retry  = useSyncStatus(s => s.retry)
   const notice = useSyncStatus(s => s.notice)
+  const vecchia = useSyncStatus(s => s.vecchia)
 
+  // Prima di tutto: finché l'app è indietro non salva niente, e chi la usa deve
+  // saperlo — le serie che registra restano sul telefono fino all'aggiornamento.
+  if (vecchia) {
+    return (
+      // Toccarla cerca la versione nuova; a ricaricare è il tasto "Aggiorna" che
+      // compare in basso quando c'è (vedi UpdateToast): una ricarica alla cieca
+      // riaprirebbe la stessa versione vecchia.
+      <button onClick={cercaAggiornamento} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
+        {PILL_DOT}
+        {t('App da aggiornare — per ora non salvo nel cloud')}
+      </button>
+    )
+  }
   if (loadFailed) {
     return (
       <button onClick={onRetryLoad} style={{ ...PILL_STYLE, cursor: 'pointer' }}>
@@ -333,6 +454,10 @@ function SyncPills({ loadFailed, onRetryLoad }: { loadFailed: boolean; onRetryLo
   return null
 }
 
+/** Quanto si aspetta `getSession()` prima di partire dalla sessione salvata sul
+ *  telefono (vedi l'effetto d'avvio in App). */
+const ATTESA_SESSIONE_MS = 2500
+
 // ── App shell ──────────────────────────────────────────────────
 export default function App() {
   // Solo i campi che l'involucro legge davvero. Con lo store intero ogni
@@ -355,6 +480,15 @@ export default function App() {
   // telefono — o niente. Chi deve ragionare sui dati veri (le correzioni
   // dell'allenatore) aspetta questo.
   const [cloudPronto, setCloudPronto] = useState(false)
+  // Per CHI è stato deciso cosa c'è nello store: l'id dell'utente il cui
+  // caricamento è arrivato in fondo (riuscito, fallito o saltato perché senza
+  // rete). `!cloudLoading` non basta: resta `false` da una sessione all'altra,
+  // e rientrando dopo un'uscita il bridge del cloud si montava per un giro con
+  // lo stato della sessione di PRIMA, mentre il caricamento rimetteva nello
+  // store i dati messi da parte — e li salvava contro un orario vecchio,
+  // sovrascrivendoli col remoto. Finché questo non è l'utente di adesso, non si
+  // monta niente che legga o scriva i suoi dati.
+  const [caricatoPer, setCaricatoPer] = useState<string | null>(null)
   // Incrementato dalla pill "riprova": è la dipendenza che ritriggera il load.
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [initialUpdatedAt, setInitialUpdatedAt] = useState<string | null>(null)
@@ -432,30 +566,62 @@ export default function App() {
   }, [bgFuso])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
+    // ── Chi è entrato su questo telefono ─────────────────────────
+    // `getSession()` non è una lettura: con l'accesso scaduto (dura un'ora)
+    // prova a rinnovarlo, e senza rete — o con la rete che pende — ci mette fino
+    // a un minuto prima di rispondere "nessuna sessione". In quel minuto lo
+    // schermo restava nero, e poi compariva il login: nel seminterrato della
+    // palestra l'app non si apriva, con tutti i dati lì sul telefono.
+    //
+    // La sessione salvata dice già chi è entrato, e basta per mostrargli i suoi
+    // dati locali (a ogni richiesta il token lo giudica comunque il server):
+    //  • senza rete si parte subito da lei;
+    //  • con la rete si aspetta la risposta vera, ma non più di qualche secondo;
+    //  • se la risposta è "non sono riuscito a rinnovare per colpa della rete"
+    //    si resta dentro. Fuori si va solo se l'accesso non c'è davvero più.
+    const suDisco = sessioneSuDisco()
+    let risposto = false
+    if (suDisco && senzaRete()) setSession(suDisco)
+    const attesa = suDisco
+      ? setTimeout(() => { if (!risposto) setSession(s => (s === undefined ? suDisco : s)) }, ATTESA_SESSIONE_MS)
+      : undefined
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      risposto = true
+      clearTimeout(attesa)
+      if (!session && suDisco && error && erroreDiRete(error)) setSession(s => s ?? suDisco)
+      else setSession(session)
+    }).catch(() => {
+      risposto = true
+      clearTimeout(attesa)
+      setSession(s => s ?? suDisco)
+    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        // `true` = SOSTITUISCE lo stato invece di fonderlo. Fondendo, i campi che
-        // EMPTY_STATE non nomina (sesso, peso, altezza, data di nascita, lingua,
-        // gruppi creati) restavano in memoria, e chi entrava dopo sullo stesso
-        // telefono se li ritrovava — e al primo salvataggio nel proprio cloud.
-        useJarvisStore.setState({ ...EMPTY_STATE }, true)
-        // Da `persist` e non da localStorage direttamente: la scrittura su disco
-        // è rimandata (vedi useJarvisStore), e lo stato vuoto appena impostato è
-        // ancora in attesa — va annullata insieme al blob, o lo ricreerebbe.
-        useJarvisStore.persist.clearStorage()
-        // Anche le meta di sync: sono dell'ACCOUNT, non del dispositivo. Restando,
-        // l'utente successivo ereditava `dirty`, `lastSyncedAt` e soprattutto gli id
-        // `noti` di quello prima — cioè `syncMerge` avrebbe deciso cosa "è nato qui"
-        // guardando gli id di un altro.
-        clearSyncMeta()
-        dimenticaSchedeRicevute()
+        // Quello che non era ancora arrivato al cloud si mette da parte per chi
+        // sta uscendo, prima di svuotare: lo ritrova rientrando su questo
+        // telefono (vedi lib/proprietario). Prima si cancellava e basta.
+        const chi = proprietario()
+        if (chi) parcheggia(chi)
+        svuotaDatiLocali()
+        segnaProprietario(null)
+        // Tutto quello che valeva per la sessione appena finita torna a zero:
+        // restando, il prossimo ingresso — anche dello stesso utente — partiva
+        // con l'orario del cloud, lo stato "non sincronizzato" e il "già
+        // caricato" di prima.
+        setCaricatoPer(null)
+        setCloudPronto(false)
+        setLoadFailed(false)
+        setInitialUpdatedAt(null)
+        setPushOnMount(false)
+        setSetupFatto(false)
+        const stato = useSyncStatus.getState()
+        stato.setStatus('idle'); stato.setRetry(null); stato.setVecchia(false)
       }
       // link "password dimenticata": mostra la schermata per impostare la nuova password
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)
       setSession(session)
     })
-    return () => subscription.unsubscribe()
+    return () => { clearTimeout(attesa); subscription.unsubscribe() }
   }, [])
 
   // L'azzeramento del catalogo, una volta per account (vedi resetCatalogo.ts).
@@ -499,6 +665,26 @@ export default function App() {
   useEffect(() => {
     if (!session?.user) return
 
+    // Di chi sono i dati che stanno sul telefono? Se sono di un ALTRO account —
+    // una sessione cambiata senza passare dall'uscita, come un link di conferma
+    // aperto nello stesso browser — si tolgono prima di tutto, mettendo da
+    // parte quello che il loro proprietario non aveva ancora inviato. Senza,
+    // restavano nello store e al primo salvataggio salivano nel cloud di chi è
+    // entrato adesso. E se chi entra aveva lasciato qui qualcosa di non
+    // inviato, lo ritrova: da lì in poi vale come una modifica fatta senza rete.
+    const io = session.user.id
+    // Un caricamento partito non si può richiamare: se quando torna l'utente è
+    // cambiato (o è stato chiesto di riprovare) non deve più decidere niente.
+    let vivo = true
+    const prima = proprietario()
+    if (prima && prima !== io) {
+      parcheggia(prima)
+      svuotaDatiLocali()
+    }
+    segnaProprietario(io)
+    riprendi(io)
+    pulisciParcheggi()
+
     // Senza rete non si aspetta niente: si va dritti al dato locale.
     // È lo stesso identico percorso del load fallito (vedi il .catch qui sotto),
     // solo istantaneo invece che dopo il timeout. Serve al caso più frequente di
@@ -511,6 +697,7 @@ export default function App() {
       setPushOnMount(false)
       setLoadFailed(true)
       setCloudLoading(false)
+      setCaricatoPer(io)
       return
     }
 
@@ -518,15 +705,35 @@ export default function App() {
     setLoadFailed(false)
     loadUserData(session.user.id)
       .then(res => {
+        if (!vivo) return
         // solo se ci sono dati nel cloud li carico; se null (nessuna riga) tengo lo stato locale.
         // MAI azzerare a EMPTY: eviterebbe la sovrascrittura del vuoto sul cloud.
         const meta = getSyncMeta()
+        // Il cloud è stato scritto da un'app più nuova di questa: applicarlo
+        // qui vorrebbe dire passarlo dal filtro delle chiavi che questa
+        // versione conosce, e poi risalvarlo senza le altre. Non si applica e
+        // non si salva: si resta su quello che c'è sul telefono, e si chiede
+        // l'aggiornamento (vedi `troppoNuovo` nel bridge).
+        if (res && (Number(res.data.versioneDati) || 0) > VERSIONE_DATI) {
+          useSyncStatus.getState().setVecchia(true)
+          dimenticaUltimoSync()
+          cercaAggiornamento()
+          setInitialUpdatedAt(null)
+          setPushOnMount(false)
+          setCloudLoading(false)
+          setCaricatoPer(io)
+          return
+        }
         if (res) {
           // `decideInitialSync` è ciò che impedisce al remoto stale di cancellare
           // le modifiche fatte offline: vedi src/lib/syncMeta.ts.
           const decision = decideInitialSync(res.updatedAt, meta)
           setInitialUpdatedAt(res.updatedAt)
           if (decision === 'keepLocalAndPush') {
+            // Il remoto è la nostra scrittura rimasta senza risposta: lo si
+            // scrive, o al prossimo avvio — se nel frattempo il nuovo invio
+            // fallisce — tornerebbe a sembrare quella di un altro dispositivo.
+            if (stessoIstante(res.updatedAt, meta.inViaggio)) confermaRemoto(res.updatedAt!)
             if (azzeraSeServe()) markDirty()
             setPushOnMount(true)
           } else {
@@ -557,8 +764,10 @@ export default function App() {
         }
         setCloudLoading(false)
         setCloudPronto(true)
+        setCaricatoPer(io)
       })
       .catch(() => {
+        if (!vivo) return
         // Load fallito (rete/server): non tocco i dati, ma il bridge lo monto lo stesso —
         // senza, un allenamento registrato offline non verrebbe MAI inviato. Parte da
         // `lastSyncedAt` persistito e non da null, così il pre-check di `performSave`
@@ -573,7 +782,9 @@ export default function App() {
         setPushOnMount(false)
         setLoadFailed(true)
         setCloudLoading(false)
+        setCaricatoPer(io)
       })
+    return () => { vivo = false }
     // Deve rieseguire solo al cambio di utente (e su richiesta di retry): session.user
     // viene letto dentro ma non deve ritriggerare il load a ogni nuovo oggetto session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -591,6 +802,11 @@ export default function App() {
     writeStorage('session', 'jarvis-booted', '1')
     setBooted(true)
   }
+
+  const alAllineamento = useCallback(() => {
+    setLoadFailed(false)
+    setCloudPronto(true)
+  }, [])
 
   // I layout a tema fisso hanno il fondo scuro anche con l'interruttore
   // chiaro/scuro spento: chi calcola la leggibilità deve saperlo, o spingerebbe
@@ -629,6 +845,11 @@ export default function App() {
 
   if (session === undefined) return null
 
+  // Lo store contiene i dati di chi è entrato ADESSO, e il caricamento ha finito
+  // di decidere cosa tenere (vedi `caricatoPer`). Prima di questo non si monta
+  // niente che li legga o li scriva: né il bridge, né le pagine.
+  const pronto = !!session && !cloudLoading && caricatoPer === session.user.id
+
   // Shared content that lives inside the content area (both layouts)
   const innerContent = (
     <>
@@ -640,11 +861,20 @@ export default function App() {
 
       {session && !recovering && (
         <>
-          {!cloudLoading && <CloudSyncBridge userId={session.user.id} initialUpdatedAt={initialUpdatedAt} pushOnMount={pushOnMount}/>}
-          {cloudPronto && !cloudLoading && <CorrezioniBridge userId={session.user.id}/>}
+          {pronto && (
+            <CloudSyncBridge
+              userId={session.user.id} initialUpdatedAt={initialUpdatedAt} pushOnMount={pushOnMount}
+              // Chi era partito senza rete: adesso il cloud ha risposto e i dati
+              // sono allineati. Si spegne l'avviso "Dati cloud non caricati", che
+              // prima restava acceso per tutta la sessione anche a sincronizzazione
+              // ripresa, e partono le correzioni dell'allenatore.
+              onAllineato={alAllineamento}
+            />
+          )}
+          {cloudPronto && pronto && <CorrezioniBridge userId={session.user.id}/>}
           <SyncPills loadFailed={loadFailed} onRetryLoad={() => setLoadAttempt(n => n + 1)}/>
 
-          {cloudLoading && (
+          {!pronto && (
             <div style={{
               position: 'absolute', inset: 0, zIndex: 50,
               background: 'var(--bg)', backgroundImage: 'var(--paper-grain)',
@@ -679,17 +909,17 @@ export default function App() {
           {/* Sotto lo splash e non dopo: lo splash la copre (zIndex 100), e
               intanto l'allenamento scarica il suo codice e si disegna. Prima
               partiva solo a splash finito, e i due tempi si sommavano. */}
-          {!cloudLoading && (
+          {pronto && (
             <Contenuto onOpenProfile={apriImpostazioni} onOpenUser={apriProfilo} onOpenCoach={apriCoach}/>
           )}
 
-          {!cloudLoading && booted && !loadFailed && profiloVuoto && !setupFatto && (
+          {pronto && booted && !loadFailed && profiloVuoto && !setupFatto && (
             <Suspense fallback={null}>
               <FirstSetup onDone={() => setSetupFatto(true)}/>
             </Suspense>
           )}
 
-          {!cloudLoading && !booted && (
+          {pronto && !booted && (
             <Suspense fallback={null}>
               <JarvisBoot onDone={handleBoot}/>
             </Suspense>

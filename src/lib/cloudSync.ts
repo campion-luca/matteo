@@ -55,21 +55,32 @@ export async function loadUserData(userId: string): Promise<LoadResult | null> {
   return { data: data.data as Partial<JarvisState>, updatedAt: data.updated_at ?? null }
 }
 
-// Legge solo il timestamp della riga remota, senza scaricare il blob:
-// serve al bridge per capire se un altro dispositivo ha salvato più di recente.
-export async function fetchRemoteUpdatedAt(userId: string): Promise<string | null> {
+export interface Remoto {
+  /** L'`updated_at` della riga, `null` se la riga non c'è ancora. */
+  updatedAt: string | null
+  /** La versione dei dati scritta da chi ha salvato per ultimo (vedi
+   *  `VERSIONE_DATI` nello store). 0 per i blob di prima che esistesse. */
+  versione: number
+}
+
+// Legge solo il timestamp della riga remota e la versione dei dati, senza
+// scaricare il blob: serve al bridge per capire se un altro dispositivo ha
+// salvato più di recente, e se l'ha fatto con un'app più nuova di questa.
+export async function fetchRemoto(userId: string): Promise<Remoto> {
   const { signal, fine } = scadenza()
   let data, error
   try {
     ({ data, error } = await supabase
       .from('user_data')
-      .select('updated_at')
+      // `data->versioneDati`: un campo solo del blob, pescato dal database.
+      .select('updated_at, versione:data->versioneDati')
       .eq('user_id', userId)
       .abortSignal(signal)
       .maybeSingle())
   } finally { fine() }
   if (error) throw error
-  return data?.updated_at ?? null
+  const riga = data as { updated_at?: string | null; versione?: unknown } | null
+  return { updatedAt: riga?.updated_at ?? null, versione: Number(riga?.versione) || 0 }
 }
 
 // Salva lo stato e restituisce l'`updated_at` scritto. Lancia in caso di errore
@@ -81,14 +92,19 @@ export async function fetchRemoteUpdatedAt(userId: string): Promise<string | nul
 // volta, non ne partiva più nessuno fino al riavvio dell'app.
 const ATTESA_SALVATAGGIO_MS = 15000
 
-export async function saveUserData(userId: string, state: JarvisState): Promise<string> {
+//
+// `marca` è l'orario che il salvataggio porta con sé. Lo sceglie chi chiama e
+// non questa funzione, perché chi chiama deve ricordarselo PRIMA di partire: se
+// la risposta non torna, è da quell'orario che riconoscerà la propria scrittura
+// (vedi `inViaggio` in syncMeta).
+export async function saveUserData(userId: string, state: JarvisState, marca = new Date().toISOString()): Promise<string> {
   const { signal, fine } = scadenza(ATTESA_SALVATAGGIO_MS)
   let data, error
   try {
     ({ data, error } = await supabase
       .from('user_data')
       .upsert(
-        { user_id: userId, data: state, updated_at: new Date().toISOString() },
+        { user_id: userId, data: state, updated_at: marca },
         { onConflict: 'user_id' }
       )
       .select('updated_at')
@@ -96,6 +112,10 @@ export async function saveUserData(userId: string, state: JarvisState): Promise<
       .single())
   } finally { fine() }
   if (error) throw error
-  if (!data) throw new Error('salvataggio senza risposta')
-  return data.updated_at as string
+  // Senza l'orario scritto non c'è prova che il salvataggio sia avvenuto: una
+  // risposta vuota o di un'altra forma (un proxy, una pagina d'errore con 200)
+  // non deve far dire "sincronizzato".
+  const scritto = (data as { updated_at?: unknown } | null)?.updated_at
+  if (typeof scritto !== 'string' || !scritto) throw new Error('salvataggio senza risposta')
+  return scritto
 }

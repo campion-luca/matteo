@@ -19,12 +19,21 @@ const KEY = 'jarvis-sessione-in-corso-v1'
 /** Il timer di recupero fra le serie: vedi in fondo al file. */
 const KEY_RECUPERO = 'jarvis-recupero-v1'
 
-/** Quanto resta valida una sessione lasciata a metà. Un allenamento lungo dura
- *  due ore; dodici coprono anche chi si ferma a mangiare e torna. Oltre, quello
- *  che si ritrova spuntato non è più "dove ero rimasto" ma un ricordo di ieri,
- *  e ripresentarlo come sessione in corso farebbe registrare un allenamento
- *  falso. */
-const VALIDA_PER_MS = 12 * 60 * 60 * 1000
+// ── Quanto resta una sessione lasciata a metà ──────────────────
+// Due soglie, non una.
+//
+// Dopo dodici ore non è più "dove ero rimasto": è l'allenamento di ieri rimasto
+// aperto. Prima a quel punto spariva, in silenzio — e con lei le serie di chi
+// aveva solo dimenticato "Salva e chiudi". Adesso resta, ma si presenta per
+// quello che è (`vecchia`): chi la ritrova decide se salvarla o scartarla, e se
+// la salva finisce nel GIORNO in cui è stata fatta, non in quello in cui la si
+// chiude.
+//
+// Dopo una settimana si butta davvero: nessuno torna a chiudere un allenamento
+// di sette giorni prima, e tenerlo vorrebbe dire chiedere per sempre "ne hai già
+// uno aperto" a chi vuole solo cominciare.
+const VECCHIA_DOPO_MS = 12 * 60 * 60 * 1000
+const VALIDA_PER_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface SerieInCorso {
   checks: boolean[]
@@ -37,31 +46,55 @@ export interface SerieInCorso {
 interface Salvata {
   schedaId: string
   salvataA: number
+  /** Quando è stata spuntata la PRIMA serie: da lì si misura quanto è durato
+   *  l'allenamento, e quel giorno è la sua data. Assente finché non si spunta
+   *  niente, e nelle sessioni salvate da una versione precedente. */
+  iniziataA?: number
+  /** Quando si è entrati nell'allenamento per cominciarlo: l'ultima volta che
+   *  la pagina è stata aperta senza ancora niente di spuntato. È da qui che si
+   *  misura la DURATA, non dalla prima spunta: chi spunta le serie tutte
+   *  insieme alla fine avrebbe un allenamento di due minuti. */
+  avviataA?: number
+  /** L'inizio è stato ricostruito, non visto (una sessione salvata dalla
+   *  versione di prima, che non lo scriveva): il giorno è attendibile, la
+   *  durata no, e non la si registra. */
+  stimata?: boolean
   progress: Record<string, SerieInCorso>
 }
 
-/** Una sessione salvata combacia con la scheda solo se gli esercizi sono ancora
- *  gli stessi e con lo stesso numero di serie. Se la scheda è stata modificata
- *  nel frattempo — un esercizio tolto, le serie portate da 4 a 3 — rimetterci
- *  dentro i vecchi array darebbe spunte su serie che non esistono più. */
-function combacia(s: Salvata, scheda: GymScheda): boolean {
-  if (s.schedaId !== scheda.id) return false
-  if (Object.keys(s.progress).length !== scheda.exercises.length) return false
-  return scheda.exercises.every(e => {
-    const p = s.progress[e.id]
-    const n = Math.max(1, e.sets)
-    return !!p
-      && Array.isArray(p.checks) && p.checks.length === n
-      && Array.isArray(p.weights) && p.weights.length === n
-      && Array.isArray(p.reps) && p.reps.length === n
-  })
+/** Porta le serie salvate al numero di serie di oggi: quelle in più si
+ *  tagliano, quelle che mancano nascono non spuntate, col peso e i colpi
+ *  dell'ultima che c'era. */
+function ridimensiona(p: SerieInCorso, n: number): SerieInCorso {
+  const lungo = <T,>(v: T[], vuoto: T) => Array.from({ length: n }, (_, i) => v[i] ?? v[v.length - 1] ?? vuoto)
+  return {
+    checks: Array.from({ length: n }, (_, i) => p.checks[i] === true),
+    weights: lungo(p.weights, ''),
+    reps: lungo(p.reps, ''),
+    ...(p.note ? { note: p.note } : {}),
+  }
 }
 
-/** La sessione lasciata a metà su QUESTA scheda, se c'è ed è ancora valida.
- *  `null` in ogni altro caso: scheda diversa, scaduta, modificata, o illeggibile. */
+const integra = (p: SerieInCorso | undefined): p is SerieInCorso =>
+  !!p && Array.isArray(p.checks) && Array.isArray(p.weights) && Array.isArray(p.reps)
+
+/** La sessione lasciata a metà su QUESTA scheda, adattata a com'è la scheda
+ *  adesso. `null` se non c'è, se è di un'altra scheda o se è scaduta.
+ *
+ *  Se nel frattempo la scheda è cambiata — una serie in più, un esercizio tolto,
+ *  l'allenatore che l'ha ritoccata mentre ci si allenava — non si butta tutto
+ *  come si faceva: quello che è stato spuntato sugli esercizi che ci sono ancora
+ *  resta. Degli esercizi tolti si perdono le spunte (non c'è più dove metterle);
+ *  quelli nuovi non compaiono qui, e chi chiama li fa partire da zero. */
 export function leggiSessione(scheda: GymScheda, ora = Date.now()): Record<string, SerieInCorso> | null {
   const s = leggiSalvata(ora)
-  return s && combacia(s, scheda) ? s.progress : null
+  if (!s || s.schedaId !== scheda.id) return null
+  const out: Record<string, SerieInCorso> = {}
+  for (const e of scheda.exercises) {
+    const p = s.progress[e.id]
+    if (integra(p)) out[e.id] = ridimensiona(p, Math.max(1, e.sets))
+  }
+  return out
 }
 
 function leggiSalvata(ora: number): Salvata | null {
@@ -83,26 +116,112 @@ function haLavoro(progress: Record<string, SerieInCorso>): boolean {
   return Object.values(progress).some(p => p?.checks?.some(Boolean) || !!p?.note?.trim())
 }
 
+export interface SessioneAperta {
+  schedaId: string
+  fatte: number
+  totali: number
+  /** Quando è cominciata (la prima spunta), in ms. Per le sessioni di prima,
+   *  che non lo sapevano, l'ultima volta che sono state toccate. */
+  iniziataA: number
+  /** Ferma da più di dodici ore: è un allenamento rimasto aperto, non uno in
+   *  corso. */
+  vecchia: boolean
+}
+
 /** L'allenamento lasciato a metà, qualunque sia la scheda: serve a dirlo fuori
- *  dalla pagina dell'allenamento ("Riprendi"), che è dove lo si cerca dopo
- *  essere usciti. `null` se non c'è, se è scaduto o se non è mai stato toccato. */
-export function sessioneAperta(ora = Date.now()): { schedaId: string; fatte: number; totali: number } | null {
+ *  dalla pagina dell'allenamento ("Riprendi"), e a chiedere prima di cominciarne
+ *  un altro. `null` se non c'è, se è scaduto o se non è mai stato toccato. */
+export function sessioneAperta(ora = Date.now()): SessioneAperta | null {
   const s = leggiSalvata(ora)
   if (!s || !haLavoro(s.progress)) return null
   const tutte = Object.values(s.progress).flatMap(p => p?.checks ?? [])
-  return { schedaId: s.schedaId, fatte: tutte.filter(Boolean).length, totali: tutte.length }
+  return {
+    schedaId: s.schedaId,
+    fatte: tutte.filter(Boolean).length,
+    totali: tutte.length,
+    iniziataA: s.iniziataA ?? s.salvataA,
+    // Sull'INIZIO e non sull'ultima volta che è stata toccata: basta riaprire la
+    // pagina perché venga risalvata, e un allenamento di venerdì riaperto il
+    // mercoledì tornava a dirsi "in corso".
+    vecchia: ora - (s.iniziataA ?? s.salvataA) > VECCHIA_DOPO_MS,
+  }
+}
+
+/** Quando è cominciato l'allenamento in corso su questa scheda (la prima
+ *  spunta), in ms. `null` se non è ancora stato spuntato niente. È il GIORNO
+ *  dell'allenamento. */
+export function inizioSessione(schedaId: string, ora = Date.now()): number | null {
+  const s = leggiSalvata(ora)
+  return s && s.schedaId === schedaId && typeof s.iniziataA === 'number' ? s.iniziataA : null
+}
+
+/** Da quando far partire l'orologio della durata, in ms: da quando si è entrati
+ *  per cominciare, o in mancanza dalla prima spunta. `null` se non c'è, o se
+ *  l'inizio è solo stimato — allora la durata non si misura. */
+export function orologioSessione(schedaId: string, ora = Date.now()): number | null {
+  const s = leggiSalvata(ora)
+  if (!s || s.schedaId !== schedaId || s.stimata) return null
+  return s.avviataA ?? s.iniziataA ?? null
+}
+
+/** Da chiamare entrando nell'allenamento. Finché non c'è niente di spuntato
+ *  l'orologio riparte a ogni ingresso: aprire la scheda la mattina per
+ *  guardarla e allenarsi la sera non è un allenamento di otto ore. Con delle
+ *  serie già spuntate non fa niente — si sta riprendendo. */
+export function segnaAvvio(schedaId: string, ora = Date.now()): void {
+  const s = leggiSalvata(ora)
+  const stessa = s && s.schedaId === schedaId ? s : null
+  // L'allenamento vero è su un'altra scheda: questa è solo aperta, e scrivere
+  // qui lo cancellerebbe (vedi `copreAltra`).
+  if (s && !stessa && haLavoro(s.progress)) return
+  if (stessa && Object.values(stessa.progress).some(p => p?.checks?.some(Boolean))) return
+  const salvata: Salvata = { schedaId, salvataA: ora, avviataA: ora, progress: stessa?.progress ?? {} }
+  writeStorage('local', KEY, JSON.stringify(salvata))
 }
 
 /** Salvare questa sessione cancellerebbe quella, già cominciata, di un'altra
  *  scheda? Succede aprendo un'altra scheda solo per guardarla: finché qui non
- *  si spunta niente, l'allenamento vero resta quello di prima. */
+ *  si spunta niente, l'allenamento vero resta quello di prima. (Per cominciarne
+ *  davvero un altro si passa dalla domanda di GymSchede, che chiude il primo.) */
 export function copreAltra(schedaId: string, progress: Record<string, SerieInCorso>, ora = Date.now()): boolean {
   const s = leggiSalvata(ora)
   return !!s && s.schedaId !== schedaId && haLavoro(s.progress) && !haLavoro(progress)
 }
 
 export function salvaSessione(schedaId: string, progress: Record<string, SerieInCorso>, ora = Date.now()): void {
-  writeStorage('local', KEY, JSON.stringify({ schedaId, salvataA: ora, progress } satisfies Salvata))
+  // L'inizio si scrive una volta, alla prima spunta, e poi si conserva: a ogni
+  // salvataggio si rilegge quello di prima. Se le spunte tornano tutte a zero
+  // l'allenamento non è più cominciato, e l'orologio riparte con la prossima.
+  const prima = leggiSalvata(ora)
+  const stessa = prima && prima.schedaId === schedaId ? prima : null
+  const spuntato = Object.values(progress).some(p => p?.checks?.some(Boolean))
+  // Una sessione salvata dalla versione di prima ha le spunte ma non l'inizio.
+  // Prenderlo da adesso la sposterebbe a oggi: si prende l'ultima volta che è
+  // stata toccata, che è il meglio che si sa, e si ricorda che è una stima.
+  const avevaSpunte = !!stessa && Object.values(stessa.progress).some(p => p?.checks?.some(Boolean))
+  const ricostruita = !!stessa && stessa.iniziataA === undefined && avevaSpunte
+  const iniziataA = spuntato ? stessa?.iniziataA ?? (ricostruita ? stessa!.salvataA : ora) : undefined
+  const stimata = spuntato && (stessa?.stimata === true || ricostruita)
+  const salvata: Salvata = {
+    schedaId, salvataA: ora,
+    ...(iniziataA !== undefined ? { iniziataA } : {}),
+    ...(stessa?.avviataA !== undefined ? { avviataA: stessa.avviataA } : {}),
+    ...(stimata ? { stimata: true } : {}),
+    progress,
+  }
+  writeStorage('local', KEY, JSON.stringify(salvata))
+}
+
+/** L'allenamento a metà così com'è scritto, per metterlo da parte quando
+ *  l'account esce (vedi lib/proprietario). `null` se non c'è niente di fatto. */
+export function esportaSessione(ora = Date.now()): string | null {
+  const s = leggiSalvata(ora)
+  return s && haLavoro(s.progress) ? JSON.stringify(s) : null
+}
+
+/** Rimette al suo posto un allenamento messo da parte con `esportaSessione`. */
+export function importaSessione(raw: string): void {
+  writeStorage('local', KEY, raw)
 }
 
 /** Da chiamare quando la sessione è finita davvero: a quel punto i dati stanno

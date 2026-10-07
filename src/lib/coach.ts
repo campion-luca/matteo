@@ -70,7 +70,7 @@ export async function createInvite(userId: string, athleteName: string): Promise
     // 23505 = violazione di unicità: codice già preso, se ne prova un altro.
     if ((error as { code?: string }).code !== '23505') throw error
   }
-  throw new Error('Non è stato possibile generare un codice. Riprova.')
+  throw new Error(t('Non è stato possibile generare un codice. Riprova.'))
 }
 
 export async function revokeInvite(userId: string): Promise<void> {
@@ -117,7 +117,7 @@ export async function redeemCode(code: string, coachName: string): Promise<{ ath
   })
   if (error) throw new Error(translateCoachError(error.message))
   const row = Array.isArray(data) ? data[0] : data
-  if (!row) throw new Error('Codice non valido o scaduto.')
+  if (!row) throw new Error(t('Codice non valido o scaduto.'))
   return row as { athlete_id: string; athlete_name: string | null }
 }
 
@@ -311,7 +311,16 @@ export function translateCoachError(message: string): string {
   const m = message.toUpperCase()
   if (m.includes('CODICE_NON_VALIDO')) return t('Codice non valido o scaduto.')
   if (m.includes('CODICE_TUO')) return t('Questo è il tuo codice: dallo a chi deve seguirti.')
+  // Un allenatore per volta (vedi redeem_coach_code): chi vuole cambiarlo si
+  // scollega prima da quello che ha.
+  if (m.includes('GIA_SEGUITO')) return t('Questa persona ha già un coach: deve prima scollegarsi da quello.')
   if (m.includes('NON_AUTENTICATO')) return t('Sessione scaduta. Esci e rientra.')
+  // La rete: una richiesta lasciata cadere perché non rispondeva (vedi
+  // `authedFetch`) o rifiutata dal browser. Prima arrivava a schermo il testo
+  // grezzo dell'errore, in inglese.
+  if (m.includes('ABORTERROR') || m.includes('ACCESSO NON RINNOVATO') || m.includes('FAILED TO FETCH') || m.includes('NETWORKERROR') || m.includes('LOAD FAILED')) {
+    return t('La rete non risponde. Riprova fra poco.')
+  }
   // Funzione o tabella mancanti: lo schema non è stato ancora eseguito.
   if (m.includes('DOES NOT EXIST') || m.includes('PGRST202') || m.includes('SCHEMA CACHE')
       || m.includes('PGRST205')) {

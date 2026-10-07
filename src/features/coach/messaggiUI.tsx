@@ -43,7 +43,8 @@ export function EtichettaTipo({ tipo }: { tipo: TipoMessaggio }) {
   // Gli avvisi che l'app scrive da sé: l'etichetta è ciò che li distingue da una
   // frase detta — "allenamento finito" non l'ha digitato nessuno.
   if (tipo !== 'info' && tipo !== 'sostituzione') {
-    const nome = tipo === 'allenamento' ? t('allenamento') : tipo === 'scheda' ? t('scheda') : tipo === 'nota' ? t('nota') : t('correzione')
+    const nome = tipo === 'allenamento' ? t('allenamento') : tipo === 'scheda' ? t('scheda') : tipo === 'nota' ? t('nota')
+      : tipo === 'collegamento' ? t('collegamento') : t('correzione')
     return (
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -52,7 +53,8 @@ export function EtichettaTipo({ tipo }: { tipo: TipoMessaggio }) {
         fontFamily: NUC.label, fontSize: 8.5, fontWeight: 700,
         letterSpacing: '.12em', textTransform: 'uppercase',
       }}>
-        {tipo === 'allenamento' ? <Icons.check size={9} stroke={2.6}/> : tipo === 'scheda' ? <Icons.book size={9} stroke={2.2}/> : <Icons.pencil size={9} stroke={2.2}/>}
+        {tipo === 'allenamento' ? <Icons.check size={9} stroke={2.6}/> : tipo === 'scheda' ? <Icons.book size={9} stroke={2.2}/>
+          : tipo === 'collegamento' ? <Icons.user size={9} stroke={2.2}/> : <Icons.pencil size={9} stroke={2.2}/>}
         {nome}
       </span>
     )

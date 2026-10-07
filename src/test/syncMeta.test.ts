@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { decideInitialSync, getSyncMeta, markDirty, setSynced, clearSyncMeta, resetSyncMeta, type SyncMeta } from '@/lib/syncMeta'
+import { decideInitialSync, getSyncMeta, markDirty, setSynced, clearSyncMeta, resetSyncMeta, segnaInViaggio, confermaRemoto, stessoIstante, type SyncMeta } from '@/lib/syncMeta'
 
-const meta = (o: Partial<SyncMeta> = {}): SyncMeta => ({ lastSyncedAt: null, dirty: false, noti: null, ...o })
+const meta = (o: Partial<SyncMeta> = {}): SyncMeta => ({ lastSyncedAt: null, dirty: false, noti: null, inViaggio: null, ...o })
 
 describe('decideInitialSync', () => {
   it('applica il remoto quando non ci sono modifiche locali pendenti', () => {
@@ -52,19 +52,19 @@ describe('persistenza della meta', () => {
   beforeEach(() => { localStorage.clear(); resetSyncMeta() })
 
   it('parte vuota e non sporca', () => {
-    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null })
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null, inViaggio: null })
   })
 
   it('markDirty sporca senza perdere lastSyncedAt', () => {
     setSynced('2026-08-18T10:00:00Z')
     markDirty()
-    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-18T10:00:00Z', dirty: true, noti: null })
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-18T10:00:00Z', dirty: true, noti: null, inViaggio: null })
   })
 
   it('setSynced azzera il dirty', () => {
     markDirty()
     setSynced('2026-08-19T10:00:00Z')
-    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-19T10:00:00Z', dirty: false, noti: null })
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-19T10:00:00Z', dirty: false, noti: null, inViaggio: null })
   })
 
   it('setSynced ricorda gli id noti, e un sync senza id tiene quelli di prima', () => {
@@ -76,14 +76,14 @@ describe('persistenza della meta', () => {
 
   it('sopravvive a un contenuto illeggibile in localStorage', () => {
     localStorage.setItem('jarvis-sync-meta-v1', '{non json')
-    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null })
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null, inViaggio: null })
   })
 
   it('il logout non lascia le meta dell’account precedente', () => {
     setSynced('2026-08-19T10:00:00Z', { schede: ['s1'], esercizi: ['p1'] })
     markDirty()
     clearSyncMeta()
-    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null })
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: null, dirty: false, noti: null, inViaggio: null })
     expect(localStorage.getItem('jarvis-sync-meta-v1')).toBeNull()
   })
 })
@@ -128,7 +128,7 @@ describe('localStorage rotto o pieno', () => {
     rompiScrittura()
     markDirty()
     setSynced('2026-08-19T10:00:00Z')
-    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-19T10:00:00Z', dirty: false, noti: null })
+    expect(getSyncMeta()).toEqual({ lastSyncedAt: '2026-08-19T10:00:00Z', dirty: false, noti: null, inViaggio: null })
   })
 
   it('una scrittura fallita non fa risorgere il valore vecchio dal disco', () => {
@@ -140,5 +140,43 @@ describe('localStorage rotto o pieno', () => {
     expect(getSyncMeta().dirty).toBe(true)
     expect(JSON.parse(localStorage.getItem('jarvis-sync-meta-v1') ?? '{}').dirty,
       'il disco è rimasto indietro, ed è normale').toBe(false)
+  })
+})
+
+// Un salvataggio può arrivare al server senza che ne torni la risposta: poco
+// segnale, l'app sospesa un attimo dopo. Al giro dopo il remoto ha un orario
+// "nuovo" — che è il nostro. Riconoscerlo evita di trattare da conflitto con un
+// altro dispositivo la propria scrittura.
+describe('il salvataggio rimasto senza risposta', () => {
+  beforeEach(() => { localStorage.clear(); resetSyncMeta() })
+
+  it('due orari scritti in modo diverso sono lo stesso istante', () => {
+    expect(stessoIstante('2026-10-07T10:00:00.123Z', '2026-10-07T10:00:00.123+00:00')).toBe(true)
+    expect(stessoIstante('2026-10-07T10:00:00.123Z', '2026-10-07T10:00:00.124Z')).toBe(false)
+    expect(stessoIstante(null, '2026-10-07T10:00:00Z')).toBe(false)
+  })
+
+  it('l’orario in viaggio si ricorda, e un salvataggio riuscito lo cancella', () => {
+    markDirty()
+    segnaInViaggio('2026-10-07T10:00:00.000Z')
+    expect(getSyncMeta()).toMatchObject({ dirty: true, inViaggio: '2026-10-07T10:00:00.000Z' })
+    setSynced('2026-10-07T10:00:00+00:00')
+    expect(getSyncMeta().inViaggio).toBeNull()
+  })
+
+  it('riconosciuta la propria scrittura si aggiorna cosa si sa del remoto, senza dirsi puliti', () => {
+    setSynced('2026-10-07T09:00:00+00:00')
+    markDirty()
+    segnaInViaggio('2026-10-07T10:00:00.000Z')
+    confermaRemoto('2026-10-07T10:00:00+00:00')
+    // Da allora qui può essere cambiato altro: resta da mandare.
+    expect(getSyncMeta()).toMatchObject({ lastSyncedAt: '2026-10-07T10:00:00+00:00', dirty: true, inViaggio: null })
+  })
+
+  it('all’avvio: il remoto è la nostra scrittura di prima, non un altro dispositivo', () => {
+    const m = meta({ dirty: true, lastSyncedAt: '2026-10-07T09:00:00+00:00', inViaggio: '2026-10-07T10:00:00.000Z' })
+    expect(decideInitialSync('2026-10-07T10:00:00+00:00', m)).toBe('keepLocalAndPush')
+    // Se invece dopo di noi ha scritto qualcun altro, il conflitto c'è.
+    expect(decideInitialSync('2026-10-07T11:00:00+00:00', m)).toBe('applyRemoteConflict')
   })
 })

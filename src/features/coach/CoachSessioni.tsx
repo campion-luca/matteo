@@ -9,7 +9,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
-import { fmtKg, fmtNum, fmtVol, setRepsOf } from '@/features/gym/gymModel'
+import { fmtKg, fmtNum, fmtVol, fmtDurata, setRepsOf } from '@/features/gym/gymModel'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { fmtShortDate, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
@@ -219,6 +219,12 @@ function RigaGiornata({ g, aperta, onToggle, onCorreggi }: { g: Giornata; aperta
             <span style={{ fontSize: 13, color: 'var(--fg-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {g.soloHyrox ? t('Solo hyrox') : nomiSchede.length ? nomiSchede.join(' + ') : t('Senza scheda')}
             </span>
+            {/* Quanto ci ha messo, quando l'app dell'allievo l'ha misurato. */}
+            {g.durataSec !== undefined && (
+              <span style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: NUC.label, fontSize: 11, color: 'var(--fg-mute)', fontVariantNumeric: 'tabular-nums' }}>
+                {fmtDurata(g.durataSec)}
+              </span>
+            )}
           </span>
           <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.03em', color: problemi ? ROSSO : 'var(--fg-mute)' }}>
             {testo || (g.soloHyrox ? '—' : confrontabile ? t('scheda rispettata') : `${fmtVol(g.volume)} kg`)}

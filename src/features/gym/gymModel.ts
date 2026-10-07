@@ -152,6 +152,14 @@ export function pace(sec: number, units: number, unit: string): string {
   return `${Math.round((units / sec) * 60)} rep/min`
 }
 
+/** Quanto è durato un allenamento: "52 min", "1 h 05". Al minuto — i secondi di
+ *  una sessione di un'ora non dicono niente. */
+export function fmtDurata(sec: number): string {
+  const min = Math.max(1, Math.round(sec / 60))
+  if (min < 60) return `${min} min`
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`
+}
+
 // Volume in forma compatta: 12.4k invece di 12400. Sta qui e non nella dashboard
 // perché lo stesso numero compare anche nelle barre "Volume per muscolo".
 export const fmtVol = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : String(Math.round(v))
@@ -301,7 +309,11 @@ export function variazioneCarico(
   soloColpi = false,
 ): VariazioneCarico | null {
   if (!prima || prima.maxLift || questa.maxLift) return null
-  if (soloColpi) return { delta: colpiMigliori(questa) - colpiMigliori(prima), unita: 'colpi' }
+  // Senza chili da tutte e due le parti (trazioni e piegamenti senza zavorra)
+  // il carico non può cambiare: lì chi sale fa più colpi, ed è quello il segnale.
+  // Prima passare da 8 a 12 trazioni risultava "carico invariato".
+  const senzaChili = caricoAlto(questa) === 0 && caricoAlto(prima) === 0
+  if (soloColpi || senzaChili) return { delta: colpiMigliori(questa) - colpiMigliori(prima), unita: 'colpi' }
   return { delta: Math.round((caricoAlto(questa) - caricoAlto(prima)) * 100) / 100, unita: 'kg' }
 }
 

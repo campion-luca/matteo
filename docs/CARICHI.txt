@@ -1,6 +1,6 @@
 COME RAGIONA L'APP SUI CARICHI
 ==============================
-Aggiornato al 6 ottobre 2026.
+Aggiornato al 7 ottobre 2026.
 
 Questo foglio dice, a parole, cosa fa l'app quando ti propone un peso
 mentre esegui una scheda: quando parla, quando sta zitta, in che ordine
@@ -157,7 +157,8 @@ Oggi l'app conta quanti esercizi dello stesso gruppo ci sono prima di
 questo nella scheda, e confronta: meno di allora = più fresco, più di
 allora = più stanco, uguale = non cambia niente.
 
-  - Contano solo gli esercizi fatti davvero (almeno una serie spuntata):
+  - Contano solo gli esercizi fatti davvero (almeno una serie valida:
+    spuntata e, con un attrezzo, con i chili scritti):
     se l'ultima volta la panca era occupata e l'hai saltata, le spinte
     risultano fatte a muscolo fresco.
   - Conta solo il gruppo muscolare principale dell'esercizio.
@@ -246,8 +247,19 @@ Su casi particolari:
   - Lo stesso esercizio due volte nella stessa scheda (3 x 5 pesante e
     poi 3 x 12 leggero): sulla prima riga legge "la scheda è cambiata" e
     propone i chili della seconda.
-  - Una serie spuntata con i chili lasciati vuoti vale 0 kg: la volta
-    dopo l'app crede che tu abbia alleggerito e dice di scendere.
+  - Una serie spuntata con i chili lasciati vuoti NON viene più salvata
+    (dal 7 ottobre 2026): con un attrezzo vale come non fatta, e se
+    nessuna serie dell'esercizio ha i chili l'esercizio è saltato. Prima
+    finiva nello storico a 0 kg, e se la serie vuota veniva dopo una
+    coi chili la volta dopo l'app diceva di scendere. Un esercizio che
+    si fa senza chili e che l'app non sa essere a corpo libero si
+    sistema dalla sua card, durante l'allenamento ("È a corpo libero").
+    Attenzione al rovescio: tre serie spuntate con i chili
+    scritti solo sulla prima diventano UNA serie, e la volta dopo il
+    consiglio legge "serie mancanti". Il riepilogo prima di salvare lo
+    dice. A corpo libero non cambia niente: lì 0 kg è "senza zavorra".
+    Le alzate salvate prima di quella data possono ancora avere serie a
+    0 kg.
   - Guarda solo quella scheda. Non sa se ieri hai allenato lo stesso
     muscolo con un'altra scheda, o se hai fatto Hyrox.
 

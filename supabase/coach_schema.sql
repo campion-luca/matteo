@@ -95,10 +95,15 @@ BEGIN
     RAISE EXCEPTION 'NON_AUTENTICATO';
   END IF;
 
+  -- `FOR UPDATE`: chi arriva secondo sullo stesso codice aspetta il primo, e
+  -- quando tocca a lui il codice è già stato consumato. Senza, due allenatori
+  -- che lo inseriscono nello stesso istante passavano tutti e due il controllo
+  -- "ha già un coach?" qui sotto, e l'allievo se ne ritrovava due.
   SELECT * INTO inv
     FROM public.coach_invites
    WHERE code = upper(btrim(p_code))
-     AND expires_at > now();
+     AND expires_at > now()
+     FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'CODICE_NON_VALIDO';
@@ -106,6 +111,22 @@ BEGIN
 
   IF inv.athlete_id = auth.uid() THEN
     RAISE EXCEPTION 'CODICE_TUO';
+  END IF;
+
+  -- Un allenatore per volta. Chi ha già qualcuno che lo segue deve prima
+  -- scollegarsi da quello: due allenatori sullo stesso allievo erano due schede,
+  -- due voci sugli stessi esercizi, e ognuno riceveva l'avviso di ogni
+  -- allenamento fatto sulla scheda dell'altro. Il controllo sta qui e non
+  -- nell'app per la stessa ragione di tutto il resto: nell'app sarebbe una
+  -- cortesia. Riscattare di nuovo il codice di chi si segue già resta possibile
+  -- (rinfresca i nomi, vedi sotto).
+  -- Chi ha già due collegamenti da prima di questa regola li tiene finché non
+  -- ne scioglie uno: qui non si cancella niente.
+  IF EXISTS (
+    SELECT 1 FROM public.coach_links l
+     WHERE l.athlete_id = inv.athlete_id AND l.coach_id <> auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'GIA_SEGUITO';
   END IF;
 
   -- Aggiorna-o-inserisci scritto a mano invece di ON CONFLICT. Non è gusto
@@ -273,16 +294,46 @@ CREATE POLICY "schede_written_by_coach" ON public.coach_schede
 
 -- La modifica resta dell'allenatore: la scheda è il suo lavoro, e un atleta che
 -- la riscrive senza dirglielo gli toglierebbe il senso di averla assegnata.
+--
+-- Ma solo FINCHÉ il collegamento esiste, e solo verso chi è collegato. Prima il
+-- controllo era il solo `auth.uid() = coach_id`, e lasciava due porte aperte:
+--   • dopo lo "Scollega" l'ex allenatore poteva ancora riscrivere, con una
+--     chiamata REST scritta a mano, le schede rimaste nell'app dell'allievo;
+--   • chi aveva scritto una riga poteva cambiarne `athlete_id` e farla comparire
+--     in casa di un utente qualunque, mai collegato, sotto il nome che voleva.
+-- USING guarda la riga com'è (il collegamento con QUELL'allievo c'è ancora?),
+-- WITH CHECK la riga come diventerebbe (il destinatario è uno che mi ha collegato?).
 DROP POLICY IF EXISTS "schede_updated_by_coach" ON public.coach_schede;
 CREATE POLICY "schede_updated_by_coach" ON public.coach_schede
-  FOR UPDATE USING (auth.uid() = coach_id) WITH CHECK (auth.uid() = coach_id);
+  FOR UPDATE
+  USING (
+    auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_schede.athlete_id
+    )
+  )
+  WITH CHECK (
+    auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_schede.athlete_id
+    )
+  );
 
 -- Cancellabile da entrambi. Dall'allenatore perché l'ha scritta lui; dall'atleta
 -- perché è roba che gli compare in casa, e poterla togliere è il minimo — è lo
 -- stesso principio con cui il collegamento si scioglie da tutte e due le parti.
+-- L'allenatore però solo finché il collegamento c'è, come per la modifica: a
+-- rapporto chiuso quello che è rimasto nell'app dell'allievo è dell'allievo, e
+-- chi è stato scollegato non deve poterglielo far sparire.
 DROP POLICY IF EXISTS "schede_deletable_by_both" ON public.coach_schede;
 CREATE POLICY "schede_deletable_by_both" ON public.coach_schede
-  FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+  FOR DELETE USING (
+    auth.uid() = athlete_id
+    OR (auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_schede.athlete_id
+    ))
+  );
 
 
 -- ── Le note che l'allenatore scrive sugli esercizi dell'allievo ─
@@ -324,15 +375,36 @@ CREATE POLICY "note_written_by_coach" ON public.coach_note
     )
   );
 
+-- Come per le schede: si modifica solo finché il collegamento c'è, e la nota
+-- non si può spostare su qualcuno che non ha collegato chi la scrive.
 DROP POLICY IF EXISTS "note_updated_by_coach" ON public.coach_note;
 CREATE POLICY "note_updated_by_coach" ON public.coach_note
-  FOR UPDATE USING (auth.uid() = coach_id) WITH CHECK (auth.uid() = coach_id);
+  FOR UPDATE
+  USING (
+    auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_note.athlete_id
+    )
+  )
+  WITH CHECK (
+    auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_note.athlete_id
+    )
+  );
 
 -- Cancellabile da entrambi, come tutto il resto: quello che compare in casa di
 -- qualcuno, quel qualcuno deve poterlo togliere.
+-- L'allenatore solo finché il collegamento c'è (vedi le schede).
 DROP POLICY IF EXISTS "note_deletable_by_both" ON public.coach_note;
 CREATE POLICY "note_deletable_by_both" ON public.coach_note
-  FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+  FOR DELETE USING (
+    auth.uid() = athlete_id
+    OR (auth.uid() = coach_id AND EXISTS (
+      SELECT 1 FROM public.coach_links l
+       WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_note.athlete_id
+    ))
+  );
 
 
 -- ── I messaggi su una scheda condivisa ─────────────────────────
@@ -420,11 +492,61 @@ CREATE POLICY "messaggi_read_flag_by_both" ON public.coach_messaggi
 REVOKE UPDATE ON public.coach_messaggi FROM authenticated;
 GRANT UPDATE (letto_coach, letto_atleta) ON public.coach_messaggi TO authenticated;
 
--- Cancellabile da entrambi, come tutto il resto di questo schema: quello che
--- compare in casa di qualcuno, quel qualcuno deve poterlo togliere.
+-- I GRANT dicono QUALI colonne, non di chi: restava a ciascuna delle due parti
+-- la possibilità di toccare la spunta dell'ALTRA, e di togliere la propria. Un
+-- allenatore scollegato poteva riaccendere all'infinito il pallino rosso
+-- dell'allievo su messaggi di mesi prima. Qui ognuno può solo ACCENDERE la
+-- propria: la spunta dell'altro torna com'era, e una spunta data non si toglie.
+-- (Chi scrive senza essere un utente — la chiave di servizio — non è toccato.)
+CREATE OR REPLACE FUNCTION public.solo_la_propria_spunta()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF auth.uid() = OLD.coach_id THEN
+    NEW.letto_atleta := OLD.letto_atleta;
+    NEW.letto_coach  := OLD.letto_coach OR NEW.letto_coach;
+  ELSIF auth.uid() = OLD.athlete_id THEN
+    NEW.letto_coach  := OLD.letto_coach;
+    NEW.letto_atleta := OLD.letto_atleta OR NEW.letto_atleta;
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS coach_messaggi_spunta ON public.coach_messaggi;
+CREATE TRIGGER coach_messaggi_spunta
+  BEFORE UPDATE ON public.coach_messaggi
+  FOR EACH ROW EXECUTE FUNCTION public.solo_la_propria_spunta();
+
+-- L'ora di un messaggio la decide il server, non il telefono di chi scrive.
+-- L'app la manda (le serve per mostrare subito la riga), ma un telefono con
+-- l'orologio avanti di un quarto d'ora metteva i suoi messaggi nel posto
+-- sbagliato della conversazione — e da quando la funzione `notifica` guarda se
+-- un messaggio è appena stato scritto, non avrebbe più fatto partire nessuna
+-- notifica. Qui l'ora mandata viene sostituita con quella vera.
+CREATE OR REPLACE FUNCTION public.messaggio_ora_del_server()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.created_at := now();
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS coach_messaggi_ora ON public.coach_messaggi;
+CREATE TRIGGER coach_messaggi_ora
+  BEFORE INSERT ON public.coach_messaggi
+  FOR EACH ROW EXECUTE FUNCTION public.messaggio_ora_del_server();
+
+-- Ognuno cancella i PROPRI messaggi, non quelli dell'altro. Prima bastava
+-- essere una delle due parti: e così, anche a collegamento sciolto, ciascuno
+-- poteva far sparire quello che l'altro aveva scritto — cioè riscrivere la
+-- conversazione togliendone metà. L'app del resto lascia cancellare solo i
+-- propri: la regola adesso dice la stessa cosa.
 DROP POLICY IF EXISTS "messaggi_deletable_by_both" ON public.coach_messaggi;
-CREATE POLICY "messaggi_deletable_by_both" ON public.coach_messaggi
-  FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+DROP POLICY IF EXISTS "messaggi_deletable_by_author" ON public.coach_messaggi;
+CREATE POLICY "messaggi_deletable_by_author" ON public.coach_messaggi
+  FOR DELETE USING (auth.uid() = autore);
 
 -- ── Le correzioni dell'allenatore alle alzate ─────────────────
 -- Un allievo scrive un numero sbagliato e chi lo segue lo sistema. Ma NON
@@ -476,6 +598,38 @@ CREATE POLICY "correzioni_written_by_coach" ON public.coach_correzioni
 DROP POLICY IF EXISTS "correzioni_deletable_by_both" ON public.coach_correzioni;
 CREATE POLICY "correzioni_deletable_by_both" ON public.coach_correzioni
   FOR DELETE USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+
+-- Sciolto il collegamento, le correzioni rimaste in attesa se ne vanno con lui.
+-- Prima restavano in tabella, e l'app dell'allievo le applicava alla prima
+-- apertura: un allenatore a cui era appena stato tolto l'accesso continuava a
+-- riscrivere le alzate di chi glielo aveva tolto. (L'app adesso le ignora anche
+-- da sé, vedi CorrezioniBridge: questa è la stessa regola detta dove non si può
+-- scavalcare.)
+CREATE OR REPLACE FUNCTION public.togli_correzioni_di_un_legame_sciolto()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM public.coach_correzioni c
+   WHERE c.coach_id = OLD.coach_id AND c.athlete_id = OLD.athlete_id;
+  RETURN OLD;
+END $$;
+
+DROP TRIGGER IF EXISTS coach_links_scioglie_correzioni ON public.coach_links;
+CREATE TRIGGER coach_links_scioglie_correzioni
+  AFTER DELETE ON public.coach_links
+  FOR EACH ROW EXECUTE FUNCTION public.togli_correzioni_di_un_legame_sciolto();
+
+-- Il trigger vale per i collegamenti che si scioglieranno. Per quelli già
+-- sciolti prima di lui, le correzioni rimaste in tabella si tolgono adesso.
+-- Rieseguire questa riga non fa danni: la seconda volta non trova niente.
+DELETE FROM public.coach_correzioni c
+ WHERE NOT EXISTS (
+   SELECT 1 FROM public.coach_links l
+    WHERE l.coach_id = c.coach_id AND l.athlete_id = c.athlete_id
+ );
 
 
 -- ── I dispositivi iscritti alle notifiche push ────────────────

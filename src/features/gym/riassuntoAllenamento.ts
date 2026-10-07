@@ -6,12 +6,19 @@
 // dettagli stanno nelle sessioni; qui serve solo sapere se vale la pena aprirle.
 import type { GymScheda } from '@/store/useJarvisStore'
 import type { TFn } from '@/lib/i18n'
+import { parseNum, fmtDurata } from './gymModel'
 
 export interface EsitoSerie {
   /** L'id della riga di scheda. */
   id: string
   checks: boolean[]
   reps: string[]
+  /** I chili scritti, serie per serie. Senza, ogni serie spuntata conta. */
+  weights?: string[]
+  /** A corpo libero: i chili sono la zavorra, e vuoto è un valore legittimo. */
+  corpo?: boolean
+  /** L'appunto scritto durante la sessione. */
+  note?: string
 }
 
 export interface ContoAllenamento {
@@ -21,25 +28,52 @@ export interface ContoAllenamento {
   serieCorte: number
 }
 
+// ── Quali serie contano ────────────────────────────────────────
+// Una serie conta se è spuntata e — con un attrezzo — ha dei chili scritti.
+// Una serie spuntata a 0 kg su una panca non è una serie leggera: è una serie
+// di cui non si sa niente, e salvarla come "0 kg" voleva dire far credere al
+// consiglio sui carichi che si fosse alleggerito, e all'allenatore che la serie
+// fosse stata fatta. Vale come NON svolta: se nessuna serie dell'esercizio ha i
+// chili, l'esercizio è saltato.
+//
+// A corpo libero no: lì i chili sono la sola zavorra, e dieci trazioni senza
+// niente addosso sono dieci trazioni.
+//
+// Sta qui, in un posto solo, perché la stessa regola la devono applicare chi
+// salva le alzate, chi le riassume all'allenatore e chi le mostra prima di
+// chiudere: tre conti diversi darebbero tre allenamenti diversi.
+
+/** Gli indici delle serie che contano. */
+export function serieValide(checks: boolean[], weights: string[] | undefined, corpo: boolean): number[] {
+  return checks
+    .map((c, i) => (c && (corpo || !weights || parseNum(weights[i]) > 0) ? i : -1))
+    .filter(i => i >= 0)
+}
+
 /** I numeri dell'allenamento rispetto alla scheda. */
 export function contaAllenamento(scheda: GymScheda, esiti: EsitoSerie[]): ContoAllenamento {
   let fatti = 0, serieMancanti = 0, serieCorte = 0
   for (const se of scheda.exercises) {
     const r = esiti.find(x => x.id === se.id)
-    const spuntate = r ? r.checks.map((c, i) => (c ? i : -1)).filter(i => i >= 0) : []
+    const valide = r ? serieValide(r.checks, r.weights, !!r.corpo) : []
     // Un esercizio saltato è un problema suo: le sue serie non si contano anche
     // come "serie in meno", o lo stesso buco comparirebbe due volte.
-    if (!spuntate.length) continue
+    if (!valide.length) continue
     fatti++
-    serieMancanti += Math.max(0, Math.max(1, se.sets) - spuntate.length)
+    serieMancanti += Math.max(0, Math.max(1, se.sets) - valide.length)
     // Il minimo dell'intervallo: chiudere un "8-10" a 8 non è una serie corta.
     const minimo = parseInt(se.reps) || 0
-    if (minimo > 0) serieCorte += spuntate.filter(i => { const c = parseInt(r!.reps[i]) || minimo; return c < minimo }).length
+    if (minimo > 0) serieCorte += valide.filter(i => { const c = parseInt(r!.reps[i]) || minimo; return c < minimo }).length
   }
   return { fatti, totali: scheda.exercises.length, serieMancanti, serieCorte }
 }
 
-export function riassuntoAllenamento(scheda: GymScheda, esiti: EsitoSerie[], t: TFn): string {
+export function riassuntoAllenamento(
+  scheda: GymScheda, esiti: EsitoSerie[], t: TFn,
+  /** Quanto è durato, in secondi. Assente se non lo si sa (vedi `finish` in
+   *  GymSchede): allora la frase non ne parla. */
+  durataSec?: number,
+): string {
   const c = contaAllenamento(scheda, esiti)
   const saltati = c.totali - c.fatti
   const parti: string[] = []
@@ -47,5 +81,17 @@ export function riassuntoAllenamento(scheda: GymScheda, esiti: EsitoSerie[], t: 
   if (c.serieMancanti > 0) parti.push(c.serieMancanti === 1 ? t('1 serie in meno') : t('{n} serie in meno', { n: c.serieMancanti }))
   if (c.serieCorte > 0) parti.push(c.serieCorte === 1 ? t('1 serie corta') : t('{n} serie corte', { n: c.serieCorte }))
   const dettaglio = parti.length ? parti.join(' · ') : t('tutto come da scheda')
-  return t('Allenamento finito: «{scheda}». {dettaglio}', { scheda: scheda.title, dettaglio })
+  const frase = durataSec
+    ? t('Allenamento finito: «{scheda}» in {durata}. {dettaglio}', { scheda: scheda.title, durata: fmtDurata(durataSec), dettaglio })
+    : t('Allenamento finito: «{scheda}». {dettaglio}', { scheda: scheda.title, dettaglio })
+
+  // Gli appunti scritti sugli esercizi SALTATI. Un esercizio saltato non lascia
+  // un'alzata, e la nota non avrebbe dove stare: ma "macchina rotta" è proprio
+  // la cosa che chi segue vuole sapere, più del fatto che l'esercizio manca.
+  const appunti = scheda.exercises.flatMap(se => {
+    const r = esiti.find(x => x.id === se.id)
+    const nota = r?.note?.trim()
+    return r && nota && !serieValide(r.checks, r.weights, !!r.corpo).length ? [`${se.name}: ${nota}`] : []
+  })
+  return appunti.length ? `${frase} — ${t('Sui saltati: {note}', { note: appunti.join('; ') })}` : frase
 }

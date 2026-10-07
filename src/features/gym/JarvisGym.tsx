@@ -32,7 +32,7 @@ import { Riepilogo } from '@/features/dashboard/Riepilogo'
 import { SettimanaStrip } from '@/features/dashboard/SettimanaStrip'
 import { MuscleIcon } from './MuscleIcons'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
-import { esercizidaCatalogo, quotaCorpo, aColpi } from './catalogo'
+import { esercizidaCatalogo, quotaCorpo, aColpi, corpoLibero } from './catalogo'
 import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
 import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi, type VistaGruppi } from './vistaEsercizi'
 import { CaroselloGruppi } from './CaroselloGruppi'
@@ -673,6 +673,25 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
     },
   )
 
+  // L'avviso generico ("Stai per eliminare X") taceva la parte che fa male: con
+  // l'esercizio se ne vanno tutte le sue alzate, e quelle fatte da una scheda
+  // spariscono anche dallo storico di quella scheda. Qui si dice quante sono e
+  // da quali schede.
+  const eliminaEsercizio = () => {
+    // Le schede da cui vengono le alzate, lette dalle alzate stesse: così ci
+    // sono anche quelle di un allenatore (che nello store non stanno), e non
+    // quelle che l'esercizio lo nominano senza averlo mai fatto fare.
+    const schede = [...new Set(hist.map(h => h.scheda?.nome).filter((n): n is string => !!n))].map(n => `«${n}»`)
+    const corpo = hist.length === 0
+      ? t('Cancelli “{nome}”. L’azione è definitiva.', { nome: tData(ex.n) })
+      : schede.length
+        ? t('Cancelli “{nome}” con le sue {n} alzate: spariscono anche dallo storico di {schede}. L’azione è definitiva.', { nome: tData(ex.n), n: hist.length, schede: schede.join(', ') })
+        : t('Cancelli “{nome}” con le sue {n} alzate. L’azione è definitiva.', { nome: tData(ex.n), n: hist.length })
+    confirmDelete(onDelete, ex.n, {
+      eyebrow: t('Elimina'), title: t('Eliminare l’esercizio?'), body: corpo, cta: t('Elimina'),
+    })
+  }
+
   const { kgs, kgLabels } = useMemo(() => ({
     kgs: hist.map(h => effectiveLoad(h, bodyWeight)),
     kgLabels: hist.map(h => h.date ? fmtDayMonth(h.date) : h.d),
@@ -720,7 +739,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}><Icons.refresh size={14} stroke={1.8}/></button>
             )}
-            <button onClick={() => confirmDelete(onDelete, ex.n)} aria-label={t('Elimina esercizio')} style={{
+            <button onClick={eliminaEsercizio} aria-label={t('Elimina esercizio')} style={{
               width: 34, height: 34, borderRadius: 'var(--radius-sm)',
               background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)',
               color: 'var(--danger)', cursor: 'pointer',
@@ -1810,12 +1829,41 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
 
   // Le modifiche si applicano all'esercizio com'è ADESSO nello store, non alla
   // copia che aveva in mano chi ha chiamato.
+  //
+  // Un nome nuovo arriva anche alle righe delle schede collegate a questo
+  // esercizio. Prima restava quello vecchio: la scheda mostrava un nome che
+  // nell'elenco degli esercizi non c'era più, e chi lo riscriveva a mano nella
+  // scheda scollegava la riga (vedi `cambiaNome` in GymSchede).
   const updatePalestraExercise = (ex: PalestraExercise, changes: Partial<PalestraExercise>) => {
-    set(st => ({ palestraExercises: st.palestraExercises.map(e => e.id === ex.id ? { ...e, ...changes } : e) }))
+    const nome = typeof changes.n === 'string' && changes.n.trim() && changes.n !== ex.n ? changes.n : null
+    set(st => ({
+      palestraExercises: st.palestraExercises.map(e => e.id === ex.id ? { ...e, ...changes } : e),
+      ...(nome ? {
+        gymSchede: (st.gymSchede ?? []).map(sc => sc.exercises.some(r => r.linkedExerciseId === ex.id)
+          ? { ...sc, exercises: sc.exercises.map(r => r.linkedExerciseId === ex.id ? { ...r, name: nome } : r) }
+          : sc),
+      } : {}),
+    }))
   }
 
+  // Con l'esercizio si scioglie anche il collegamento nelle schede che lo
+  // usavano. Prima restava: la riga continuava a dirsi "collegata" a un id che
+  // non esisteva più, e al primo allenamento ne nasceva un gemello vuoto senza
+  // che il collegamento venisse mai riparato.
   const deletePalestraExercise = (ex: PalestraExercise) => {
-    set(st => ({ palestraExercises: st.palestraExercises.filter(e => e.id !== ex.id) }))
+    set(st => ({
+      palestraExercises: st.palestraExercises.filter(e => e.id !== ex.id),
+      gymSchede: (st.gymSchede ?? []).map(sc => sc.exercises.some(e => e.linkedExerciseId === ex.id)
+        ? { ...sc, exercises: sc.exercises.map(e => {
+            if (e.linkedExerciseId !== ex.id) return e
+            // La riga collegata non portava scritto se era a corpo libero: lo
+            // sapeva l'esercizio. Andandosene lui, glielo si lascia.
+            const riga = { ...e, ...(corpoLibero(ex) ? { bodyweight: true } : {}) }
+            delete riga.linkedExerciseId
+            return riga
+          }) }
+        : sc),
+    }))
     setSelectedExercise(null)
   }
 

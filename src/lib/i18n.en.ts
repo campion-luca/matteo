@@ -831,7 +831,76 @@ export const EN_UI: Record<string, string> = {
   'Nessun messaggio. Scrivi il primo.': 'No messages. Write the first one.',
   'Scrivi un messaggio…': 'Write a message…',
   'Invia': 'Send',
-  'tocca per scrivergli': 'tap to message them',
+  // ── Ottobre: un allenamento alla volta, durata, serie senza chili ──
+  'Hai già avviato un allenamento': 'You already have a workout in progress',
+  '«{scheda}» è a metà: {fatte} serie su {totali}. Chiuderlo per passare a questo? Le serie spuntate di là non vengono salvate.':
+    '“{scheda}” is half done: {fatte} sets out of {totali}. Close it to switch to this one? The sets ticked there won’t be saved.',
+  'Chiudi e inizia questo': 'Close it and start this one',
+  'Allenamento non chiuso · {giorno}': 'Workout left open · {giorno}',
+  'Durata dell’allenamento': 'Workout duration',
+  'senza chili: non conta': 'no weight: not counted',
+  'Le serie spuntate senza chili non vengono salvate: valgono come non fatte. Chiudi questa finestra per scriverli, o per dire che l’esercizio è a corpo libero.':
+    'Sets ticked with no weight are not saved: they count as not done. Close this window to fill them in, or to mark the exercise as bodyweight.',
+  'Le note sugli esercizi non svolti non restano nello storico: arrivano a chi ti segue, nel resoconto.':
+    'Notes on exercises you skipped don’t stay in your history: they reach whoever coaches you, in the report.',
+  'Le note sugli esercizi non svolti non vengono salvate.': 'Notes on exercises you skipped are not saved.',
+  'Senza chili una serie non conta.': 'A set with no weight doesn’t count.',
+  'È a corpo libero': 'It’s bodyweight',
+  'Le serie senza chili non vengono salvate.': 'Sets with no weight are not saved.',
+  'colpi invariati': 'same reps',
+  'Chiudi l’allenamento del {giorno}': 'Close the workout of {giorno}',
+  'Scartalo e inizia oggi': 'Discard it and start today',
+  'Scarta e inizia oggi': 'Discard and start today',
+  'È l’allenamento del {giorno}, rimasto aperto: quello che salvi da qui finisce in quel giorno. Per allenarti oggi chiudilo, poi ricomincia.':
+    'This is the workout of {giorno}, left open: what you save from here goes on that day. To train today, close it, then start again.',
+  'Salvataggio non riuscito: controlla la rete e riprova.': 'Couldn’t save: check your connection and try again.',
+  'Chiudi senza salvare': 'Close without saving',
+  'Allenamento finito: «{scheda}» in {durata}. {dettaglio}': 'Workout done: “{scheda}” in {durata}. {dettaglio}',
+  'Sui saltati: {note}': 'On the skipped ones: {note}',
+  // ── L'editor della scheda ──
+  'le modifiche': 'the changes',
+  'Uscire senza salvare?': 'Leave without saving?',
+  'Quello che hai scritto in questa scheda dall’ultimo salvataggio va perso.': 'What you wrote in this plan since the last save will be lost.',
+  'Esci senza salvare': 'Leave without saving',
+  'Nome cambiato: questa riga diventa un altro esercizio, con uno storico suo. Quello di «{nome}» resta dov’è. Per correggere solo il nome, fallo dalla pagina dell’esercizio.':
+    'Name changed: this row becomes a different exercise, with its own history. The history of “{nome}” stays where it is. To fix just the name, do it from the exercise page.',
+  'Questa scheda è già assegnata: se manca qualcosa non viene salvata, così a chi la usa resta quella di prima.':
+    'This plan is already assigned: if something is missing it isn’t saved, so whoever uses it keeps the previous one.',
+  'Ho tolto la scheda «{scheda}».': 'I removed the plan “{scheda}”.',
+  'Togliere la scheda?': 'Remove the plan?',
+  '«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app. Glielo facciamo sapere.':
+    '“{scheda}” was sent to you by {chi}, and there is only one copy: removing it here removes it from their app too. We’ll let them know.',
+  // ── Eliminare un esercizio ──
+  'Eliminare l’esercizio?': 'Delete the exercise?',
+  'Cancelli “{nome}”. L’azione è definitiva.': 'You are deleting “{nome}”. This cannot be undone.',
+  'Cancelli “{nome}” con le sue {n} alzate. L’azione è definitiva.': 'You are deleting “{nome}” with its {n} lifts. This cannot be undone.',
+  'Cancelli “{nome}” con le sue {n} alzate: spariscono anche dallo storico di {schede}. L’azione è definitiva.':
+    'You are deleting “{nome}” with its {n} lifts: they also disappear from the history of {schede}. This cannot be undone.',
+  // ── Coaching: un coach per volta ──
+  'Il tuo coach': 'Your coach',
+  'I tuoi coach': 'Your coaches',
+  'Ti segue dal {data}': 'Coaching you since {data}',
+  'Vede i tuoi allenamenti, il volume e l’andamento del peso, e può correggere un’alzata scritta male.':
+    'They can see your workouts, volume and weight trend, and can fix a lift you logged wrong.',
+  'Scrivigli': 'Message them',
+  'Si può avere un solo coach per volta: per cambiarlo, scollegati prima da quello che hai.':
+    'You can have one coach at a time: to change, unlink from the current one first.',
+  'Collegato a {chi}.': 'Linked to {chi}.',
+  'Da adesso ti seguo io: vedo i tuoi allenamenti e possiamo scriverci da qui.':
+    'I’m coaching you from now on: I can see your workouts and we can message each other here.',
+  'collegamento': 'link',
+  'Non è stato possibile generare un codice. Riprova.': 'Couldn’t generate a code. Try again.',
+  'Questa persona ha già un coach: deve prima scollegarsi da quello.': 'This person already has a coach: they need to unlink from them first.',
+  // ── Sincronizzazione e account ──
+  'App da aggiornare — per ora non salvo nel cloud': 'App needs updating — not saving to the cloud for now',
+  'Esporta i miei dati': 'Export my data',
+  'Uscire dall’account?': 'Sign out of the account?',
+  'Esci solo da questo dispositivo. Quello che non è ancora salvato nel cloud, e un allenamento lasciato a metà, restano qui: li ritrovi rientrando su questo telefono. Per rientrare serve la rete.':
+    'You only sign out of this device. Anything not yet saved to the cloud, and a workout left half done, stay here: you’ll find them when you sign back in on this phone. You need a connection to sign back in.',
+  'Esci': 'Sign out',
+  'La rete non risponde. Riprova fra poco.': 'The network isn’t responding. Try again shortly.',
+  'Scarica un file con allenamenti, schede e pesate: una copia tua, fuori dall’app.':
+    'Download a file with your workouts, plans and weigh-ins: your own copy, outside the app.',
   'Scrivi a {chi}': 'Message {chi}',
   'scheda': 'plan',
   'correzione': 'correction',
