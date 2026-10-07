@@ -25,7 +25,7 @@ import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso } from './sessioneInCorso'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
-import { FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from './gymShared'
+import { FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni, FotoGrande } from './gymShared'
 import { TimerRecupero, TimerIcona } from './TimerRecupero'
 import { caricoConsigliato, contaPerMuscolo, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { todayISO, giorniTra, localISO } from '@/lib/isoDate'
@@ -2187,10 +2187,11 @@ function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
   )
 }
 
-// Campo numerico di una serie, con l'unità stampata dentro a destra. In allarme
-// (colpi sotto obiettivo) vira al rosso: bordo, testo e unità insieme, perché il
-// solo bordo rosso su un numero nero si legge come "campo attivo", non come
-// "numero sbagliato".
+// La casella di una serie — i colpi, o i chili — con l'unità stampata dentro a
+// destra. Non ha un bordo suo: è un pezzo della riga (`.j-serie` in
+// globals.css), e fra una casella e l'altra c'è solo un filo. In allarme (colpi
+// sotto obiettivo, chili mancanti) vira al rosso: fondo, numero e unità insieme,
+// perché il solo numero rosso su una riga scura si perde.
 function CampoSerie({ value, onChange, unita, segnaposto, mode, etichetta, allarme }: {
   value: string
   onChange: (v: string) => void
@@ -2202,7 +2203,7 @@ function CampoSerie({ value, onChange, unita, segnaposto, mode, etichetta, allar
   allarme?: boolean
 }) {
   return (
-    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+    <div className="j-serie-cella" style={allarme ? { background: 'rgba(var(--danger-rgb),0.12)' } : undefined}>
       <input
         value={value}
         onChange={ev => onChange(ev.target.value)}
@@ -2210,21 +2211,50 @@ function CampoSerie({ value, onChange, unita, segnaposto, mode, etichetta, allar
         aria-label={etichetta}
         aria-invalid={allarme || undefined}
         placeholder={segnaposto ?? unita}
-        className="j-field"
-        style={{
-          textAlign: 'center', padding: '9px 30px 9px 8px',
-          ...(allarme ? {
-            borderColor: 'var(--danger)',
-            color: 'var(--danger)',
-            background: 'rgba(var(--danger-rgb),0.06)',
-          } : {}),
-        }}
+        className="j-serie-campo"
+        style={allarme ? { color: 'var(--danger)' } : undefined}
       />
       <span aria-hidden style={{
         position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
-        fontFamily: NUC.label, fontSize: 10,
+        fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.04em',
         color: allarme ? 'var(--danger)' : NUC.faint, pointerEvents: 'none',
       }}>{unita}</span>
+    </div>
+  )
+}
+
+// ── La nota di un esercizio, mentre la si scrive ───────────────
+// Un riquadro squadrato col testo piccolo, e sotto il tasto che la chiude.
+//
+// Il testo piccolo non si può chiedere con `font-size`: sotto i 16px iOS
+// ingrandisce la pagina appena si tocca il campo (ed è per questo che su touch
+// globals.css forza 16px su ogni campo, vincendo anche sugli stili scritti
+// qui). Allora il campo resta a 16 e lo si RIMPICCIOLISCE intero con una
+// scala: il browser vede un campo da 16px, l'occhio un testo da 13. La
+// larghezza va allargata dell'inverso, o il campo scalato non riempirebbe il
+// riquadro.
+const SCALA_NOTA = 13 / 16
+const ALTEZZA_NOTA = 104   // tre righe abbondanti, prima della scala
+
+function CampoNota({ value, onChange, etichetta }: { value: string; onChange: (v: string) => void; etichetta: string }) {
+  const t = useT()
+  return (
+    <div className="j-nota-box" style={{ height: Math.round(ALTEZZA_NOTA * SCALA_NOTA) }}>
+      <textarea
+        value={value}
+        onChange={ev => onChange(ev.target.value)}
+        // Aperta a mano, il campo è quello che si voleva: si scrive subito.
+        autoFocus
+        aria-label={etichetta}
+        placeholder={t('Nota su questa sessione…')}
+        style={{
+          display: 'block', boxSizing: 'border-box',
+          width: `${100 / SCALA_NOTA}%`, height: ALTEZZA_NOTA,
+          transform: `scale(${SCALA_NOTA})`, transformOrigin: '0 0',
+          border: 'none', outline: 'none', background: 'transparent', resize: 'none',
+          padding: '10px 12px', fontFamily: NUC.font, fontSize: 16, lineHeight: 1.4, color: NUC.ink,
+        }}
+      />
     </div>
   )
 }
@@ -2234,6 +2264,12 @@ const TASTINO: CSSProperties = {
   height: 26, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
   background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
   fontFamily: NUC.label, fontSize: 9, letterSpacing: '.04em', textTransform: 'uppercase',
+}
+
+// Chi parla, davanti a ogni nota della card ("SCHEDA", "ULTIMA VOLTA").
+const ETICHETTA_NOTA: CSSProperties = {
+  marginRight: 6, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', fontStyle: 'normal',
+  color: NUC.faint,
 }
 
 // ── Il carico consigliato, dentro la card di un esercizio ──────
@@ -2323,7 +2359,7 @@ interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; 
 // salvati e lo storico intero copiato e riordinato per leggerne l'ultima nota.
 // Adesso cambia identità solo l'avanzamento dell'esercizio toccato (`p`), i
 // comandi sono stabili, e si ridisegna solo la sua card.
-const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p, last, notaPrima, corpo, attrezzo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota, onCorpoLibero }: {
+const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p, last, notaPrima, corpo, attrezzo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota, onChiudiNota, onCorpoLibero }: {
   e: GymSchedaExercise
   legatoPrima: boolean
   color: string
@@ -2346,17 +2382,31 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
    *  peso senza toccarli. */
   onUguale: (exId: string, soloChili: boolean) => void
   onApriNota: (exId: string) => void
+  /** «Salva» sotto la nota: quello che è scritto è già al sicuro (si salva a
+   *  ogni tasto), questo richiude il campo. */
+  onChiudiNota: (exId: string) => void
   /** "Questo si fa senza chili": da qui in poi l'esercizio è a corpo libero. */
   onCorpoLibero: (exId: string) => void
 }) {
   const t = useT()
   const tData = useTData()
   const dark = useIsDark()
+  const [fotoGrande, setFotoGrande] = useState(false)
   const nSets = Math.max(1, e.sets)
   // Il bersaglio di OGNI serie: "8-10" è 8 per tutte, "10-8-6" scala.
   const bersagli = colpiPrevisti(e.reps, nSets)
   const aScalare = new Set(bersagli).size > 1
-  const notaVisibile = notaAperta || !!p.note
+  // Le serie che contano (spuntate e, con un attrezzo, coi chili scritti):
+  // sono quelle che colorano la riga e i segmenti in testa alla card.
+  const valide = new Set(serieValide(p.checks, p.weights, corpo, attrezzo))
+  // Le note che si leggono mentre ci si allena, tutte nello stesso posto: cosa
+  // dice la scheda, cosa c'è scritto sull'esercizio, cosa ci si era appuntati
+  // l'ultima volta, e quella di oggi una volta chiusa.
+  const note: Array<{ chi: string; testo: string; corsivo?: boolean }> = []
+  if (e.note?.trim()) note.push({ chi: t('Scheda'), testo: e.note.trim() })
+  if (last?.note?.trim()) note.push({ chi: t('Esercizio'), testo: last.note.trim() })
+  if (notaPrima?.trim()) note.push({ chi: t('Ultima volta'), testo: notaPrima.trim(), corsivo: true })
+  const notaDiOggi = p.note?.trim() ?? ''
   // Fatto = tutte le serie spuntate E valide. Con delle serie spuntate senza
   // chili la card si spegneva col suo segno di spunta, la barra in cima si
   // riempiva — e il riepilogo diceva poi che l'esercizio non contava.
@@ -2367,11 +2417,11 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
       {legatoPrima && <PonteSuperset/>}
       <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(legatoPrima, !!e.supersetWithNext), opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
         <div className="flex items-start justify-between gap-3" style={{ marginBottom: 10 }}>
-          <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48}/>
+          <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={54} onIngrandisci={() => setFotoGrande(true)}/>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="flex items-center gap-2">
               {exDone && <Icons.check size={15} stroke={2.6} color={color}/>}
-              <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
+              <div style={{ fontFamily: NUC.font, fontSize: 16.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: -0.1, color: NUC.ink }}>{tData(e.name)}</div>
             </div>
             <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
               {t('obiettivo')} {e.sets} × {e.reps}
@@ -2388,16 +2438,6 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
                 {t('scrivi solo i dischi: + {kg} kg di attrezzo', { kg: fmtNum(attrezzo) })}
               </div>
             )}
-            {notaPrima && (
-              <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, marginTop: 3, lineHeight: 1.45, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
-                {t('Nota dell’ultima volta:')} {notaPrima}
-              </div>
-            )}
-            {e.note && (
-              <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.faint, marginTop: 5, lineHeight: 1.5, letterSpacing: 0.1, whiteSpace: 'pre-wrap' }}>
-                {e.note}
-              </div>
-            )}
           </div>
           <div className="flex flex-col gap-1.5" style={{ flexShrink: 0, alignItems: 'flex-end' }}>
             {nSets > 1 && (
@@ -2405,16 +2445,30 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
                 <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
               </button>
             )}
-            {!notaVisibile && (
+            {!notaAperta && (
               <button
                 onClick={() => onApriNota(e.id)}
-                aria-label={`${tData(e.name)} · ${t('Aggiungi nota')}`}
+                aria-label={`${tData(e.name)} · ${notaDiOggi ? t('Modifica nota') : t('Aggiungi nota')}`}
                 className="flex items-center gap-1" style={TASTINO}
               >
                 <Icons.pencil size={10} stroke={1.8}/> {t('nota')}
               </button>
             )}
           </div>
+        </div>
+
+        {/* A che punto si è, serie per serie: un segmento ciascuna, che si
+            accende quando la serie conta. Si legge prima dei numeri — tre
+            tacche su quattro, e si sa quanta strada manca senza contare le
+            spunte. Gialla quella spuntata senza chili: c'è, ma non vale. */}
+        <div aria-hidden className="flex" style={{ gap: 3, marginBottom: 10 }}>
+          {Array.from({ length: nSets }).map((_, i) => (
+            <span key={i} style={{
+              flex: 1, height: 3, borderRadius: 'var(--radius-pill)',
+              background: valide.has(i) ? color : p.checks[i] ? 'var(--warn)' : 'var(--hairline)',
+              transition: 'background-color 160ms',
+            }}/>
+          ))}
         </div>
 
         {consiglio && (
@@ -2428,31 +2482,88 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
           />
         )}
 
-        {/* Una riga per serie: spunta + peso + colpi della singola serie.
-            I colpi stanno accanto al peso e non in cima all'esercizio
-            perché è la SINGOLA serie a calare: l'ultima chiude a 6 mentre
-            la prima ha fatto i suoi 10. */}
-        <div className="flex flex-col gap-2">
+        {/* Le note, sempre in vista e in piccolo, PRIMA delle serie: è prima di
+            caricare il bilanciere che serve sapere "sedile al 4" o "presa
+            larga", non dopo. Stavano sparse — quella della scheda e quella
+            dell'ultima volta sotto il nome, quella di oggi in un campo in fondo
+            alla card. */}
+        {(note.length > 0 || (notaDiOggi && !notaAperta)) && (
+          <div style={{ marginBottom: 10, paddingLeft: 9, borderLeft: `2px solid ${NUC.hairline}`, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {note.map(n => (
+              <div key={n.chi} style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: NUC.dim, whiteSpace: 'pre-wrap', fontStyle: n.corsivo ? 'italic' : undefined }}>
+                <span style={ETICHETTA_NOTA}>{n.chi}</span>{n.testo}
+              </div>
+            ))}
+            {notaDiOggi && !notaAperta && (
+              // Senza un'etichetta sua: si chiama come quello che c'è scritto
+              // dentro. Il tasto «nota» in testata fa la stessa cosa, e due
+              // tasti con lo stesso nome non si distinguerebbero.
+              <button
+                onClick={() => onApriNota(e.id)}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
+                  fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: NUC.ink, whiteSpace: 'pre-wrap',
+                }}
+              >
+                <span style={ETICHETTA_NOTA}>{t('Oggi')}</span>{notaDiOggi}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* La nota di oggi, mentre la si scrive: qui, dove poi resterà. */}
+        {notaAperta && (
+          <div style={{ marginBottom: 10 }}>
+            <CampoNota
+              value={p.note ?? ''}
+              onChange={v => onNota(e.id, v)}
+              etichetta={`${tData(e.name)} · ${t('nota')}`}
+            />
+            <div className="flex items-center justify-between gap-2" style={{ marginTop: 6 }}>
+              <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>
+                {t('Finisce nell’alzata di oggi.')}
+              </span>
+              <button
+                onClick={() => onChiudiNota(e.id)}
+                aria-label={`${tData(e.name)} · ${t('Salva la nota')}`}
+                className="j-hard-sm"
+                style={{ ...TASTINO, height: 30, padding: '0 14px', fontSize: 10, fontWeight: 600, color: 'var(--j-accent-ink)' }}
+              >
+                {t('Salva')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Una riga per serie, e una riga è UN pezzo solo: la spunta, i colpi,
+            i chili, con un filo fra l'uno e l'altro. I colpi stanno accanto al
+            peso e non in cima all'esercizio perché è la SINGOLA serie a calare:
+            l'ultima chiude a 6 mentre la prima ha fatto i suoi 10. */}
+        <div className="flex flex-col" style={{ gap: 6 }}>
           {Array.from({ length: nSets }).map((_, i) => {
             const on = p.checks[i]
             const colpi = parseInt(p.reps[i] ?? '') || 0
             const corta = colpi > 0 && colpi < (bersagli[i] ?? 0)
             return (
-              <div key={i} className="flex items-center gap-2">
+              <div
+                key={i} className="j-serie"
+                // Fatta: la riga prende il colore del gruppo muscolare, in
+                // trasparenza — si vede a colpo d'occhio dove si è arrivati.
+                style={on ? { borderColor: color, background: `color-mix(in srgb, ${color} 13%, var(--input-bg))` } : undefined}
+              >
                 <button
                   onClick={() => onToggle(e.id, i)}
                   aria-pressed={on}
                   className="flex items-center gap-1.5"
                   style={{
-                    height: 44, padding: '0 9px', borderRadius: 'var(--radius)', cursor: 'pointer', flexShrink: 0, minWidth: 82,
-                    background: on ? color : 'var(--surface-2)',
-                    border: `1px solid ${on ? color : NUC.hairline}`,
+                    padding: '0 10px', cursor: 'pointer', flexShrink: 0, minWidth: 80, border: 'none',
+                    background: on ? color : 'transparent',
                     color: on ? onMuscleColor(color) : NUC.dim,
                     fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.02em',
-                    transition: 'background 120ms',
+                    transition: 'background-color 120ms',
                   }}
                 >
-                  {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 'var(--radius-sm)', border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
+                  {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 4, border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
                   {t('Serie {n}', { n: i + 1 })}
                 </button>
                 {/* Prima i colpi, poi i chili: è l'ordine in cui la serie si
@@ -2498,20 +2609,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
             </button>
           </div>
         )}
-
-        {notaVisibile && (
-          <textarea
-            value={p.note ?? ''}
-            onChange={ev => onNota(e.id, ev.target.value)}
-            // Aperta a mano, il campo è quello che si voleva: si scrive subito.
-            autoFocus={!p.note}
-            rows={2}
-            aria-label={`${tData(e.name)} · ${t('nota')}`}
-            placeholder={t('Nota su questa sessione…')}
-            className="j-field"
-            style={{ height: 'auto', minHeight: 56, marginTop: 10, padding: '9px 12px', resize: 'vertical', lineHeight: 1.45 }}
-          />
-        )}
+        <FotoGrande nome={e.name} open={fotoGrande} onClose={() => setFotoGrande(false)}/>
       </NucCard>
     </div>
   )
@@ -2639,6 +2737,16 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     setProgress(p => ({ ...p, [exId]: { ...p[exId], note } })), [])
 
   const apriNota = useCallback((exId: string) => setNoteAperte(s => new Set(s).add(exId)), [])
+  // «Salva» sotto la nota la richiude. Il testo è già nell'avanzamento (si
+  // scrive lì a ogni tasto, così non si perde se l'app si chiude a metà
+  // frase): qui gli si tolgono solo gli spazi in testa e in coda.
+  const chiudiNota = useCallback((exId: string) => {
+    setNoteAperte(s => { const n = new Set(s); n.delete(exId); return n })
+    setProgress(p => {
+      const nota = p[exId]?.note
+      return nota !== undefined && nota !== nota.trim() ? { ...p, [exId]: { ...p[exId], note: nota.trim() } } : p
+    })
+  }, [])
 
   // Il carico consigliato, serie per serie, scritto su quelle non ancora
   // spuntate: quelle già fatte sono andate con il peso che avevano, e
@@ -2859,7 +2967,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             consiglio={consigli[e.id]}
             notaAperta={noteAperte.has(e.id)}
             onToggle={toggle} onPeso={setSetWeight} onColpi={setSetReps} onNota={setNote}
-            onUsa={usaConsiglio} onUguale={applyFirstToAll} onApriNota={apriNota}
+            onUsa={usaConsiglio} onUguale={applyFirstToAll} onApriNota={apriNota} onChiudiNota={chiudiNota}
             onCorpoLibero={diventaCorpoLibero}
           />
         ))}

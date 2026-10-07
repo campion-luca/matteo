@@ -375,6 +375,46 @@
   }
   .j-field-lg::placeholder { color: var(--fg-mute); }
 
+  /* ── Una serie, in allenamento ────────────────────────────────
+     Spunta, colpi e chili sono UNA riga: un contenitore solo, con un filo fra
+     una casella e l'altra. Prima erano tre tasti staccati, e a colpo d'occhio
+     i chili della seconda serie potevano sembrare della prima.
+     Il fuoco si vede sulla casella (`:focus-within`), perché il campo dentro
+     non ha un bordo suo. Su touch il corpo resta 16px (vedi sopra: sotto,
+     iOS ingrandisce la pagina al tocco). */
+  .j-serie {
+    display: flex; align-items: stretch; height: 40px; box-sizing: border-box;
+    border-radius: var(--radius-sm); overflow: hidden;
+    border: 1px solid var(--hairline); background: var(--input-bg);
+    transition: border-color 120ms, background-color 120ms;
+  }
+  .j-serie-cella {
+    position: relative; flex: 1; min-width: 0; display: flex; align-items: center;
+    transition: background-color 120ms;
+  }
+  .j-serie-cella::before {
+    content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px;
+    background: var(--hairline);
+  }
+  .j-serie-cella:focus-within { background: rgba(var(--j-rgb), .10); }
+  .j-serie-campo {
+    width: 100%; height: 100%; min-width: 0; box-sizing: border-box;
+    background: transparent; border: 0; outline: none; border-radius: 0;
+    text-align: center; padding: 0 30px 0 8px;
+    color: var(--fg); font-family: var(--font-body);
+    font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .j-serie-campo::placeholder { color: var(--fg-mute); font-weight: 400; }
+
+  /* Il riquadro in cui si scrive la nota di un esercizio: squadrato, e col
+     testo piccolo (vedi `CampoNota` in GymSchede per come ci arriva). */
+  .j-nota-box {
+    overflow: hidden; border-radius: 4px;
+    border: 1px solid var(--hairline); background: var(--input-bg);
+    transition: border-color 120ms;
+  }
+  .j-nota-box:focus-within { border-color: var(--j-accent); }
+
   /* Micro-label / eyebrow — Inter in maiuscoletto spaziato */
   .j-eyebrow {
     font-family: var(--font-label);

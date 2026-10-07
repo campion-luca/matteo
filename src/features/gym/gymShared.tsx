@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
-import { useT } from '@/lib/i18n'
+import { useT, useTData } from '@/lib/i18n'
+import { JModal } from '@/components/ui/Primitives'
 import { giornoEMese } from '@/lib/dateFormat'
 import { fotoEsercizio } from './eserciziFoto'
 import { MuscleIcon } from './MuscleIcons'
@@ -210,7 +211,16 @@ export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, l
 // porta `name`, e `linkedExerciseId` può mancare (scheda arrivata da un
 // allenatore, esercizio digitato e non ancora collegato). È lo stesso nome su
 // cui si aggancia la griglia, quindi le due schermate mostrano la stessa figura.
-export function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo?: string; lato: number }) {
+//
+// `onIngrandisci`: la foto diventa un tasto che la apre in grande (vedi
+// `FotoGrande`). Solo dove c'è una foto vera: il disegno del gruppo muscolare,
+// ingrandito, non direbbe niente di più.
+export function FacciaEsercizio({ nome, muscolo, lato, onIngrandisci }: {
+  nome: string; muscolo?: string; lato: number
+  onIngrandisci?: () => void
+}) {
+  const t = useT()
+  const tData = useTData()
   const foto = fotoEsercizio(nome)
   const cornice = {
     // `-sm` e non il raggio pieno: il riquadro è quadrato e sta fra i 40 e i 48px,
@@ -219,6 +229,17 @@ export function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo
     width: lato, height: lato, flexShrink: 0, borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--hairline)', background: 'var(--surface-2)',
   } as const
+  if (foto && onIngrandisci) {
+    return (
+      <button
+        type="button" onClick={onIngrandisci}
+        aria-label={t('Ingrandisci la foto di {nome}', { nome: tData(nome) })}
+        style={{ ...cornice, padding: 0, overflow: 'hidden', cursor: 'zoom-in', display: 'block' }}
+      >
+        <img src={foto} alt="" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+      </button>
+    )
+  }
   if (foto) {
     return <img src={foto} alt="" decoding="async"
       style={{ ...cornice, objectFit: 'cover', display: 'block' }}/>
@@ -227,6 +248,32 @@ export function FacciaEsercizio({ nome, muscolo, lato }: { nome: string; muscolo
     <div style={{ ...cornice, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-mute)' }}>
       <MuscleIcon muscle={muscolo || 'Altro'} size={Math.round(lato * 0.7)} stroke={1.5}/>
     </div>
+  )
+}
+
+/** La foto di un esercizio in grande: per guardare com'è fatto il movimento
+ *  senza uscire dall'allenamento. Si chiude toccandola, toccando fuori o con
+ *  la ×: è un'occhiata, non una pagina. */
+export function FotoGrande({ nome, open, onClose }: { nome: string; open: boolean; onClose: () => void }) {
+  const t = useT()
+  const tData = useTData()
+  const foto = fotoEsercizio(nome)
+  if (!foto) return null
+  return (
+    <JModal open={open} onClose={onClose} title={tData(nome)} width={380}>
+      <button
+        type="button" onClick={onClose} aria-label={t('Chiudi la foto')}
+        style={{ display: 'block', width: '100%', padding: 0, border: 'none', background: 'none', cursor: 'zoom-out' }}
+      >
+        <img
+          src={foto} alt={tData(nome)}
+          style={{
+            display: 'block', width: '100%', aspectRatio: '1 / 1', objectFit: 'contain',
+            borderRadius: 'var(--radius)', background: 'var(--surface-2)',
+          }}
+        />
+      </button>
+    </JModal>
   )
 }
 

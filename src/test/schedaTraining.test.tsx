@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GymSchede } from '@/features/gym/GymSchede'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
@@ -238,6 +238,97 @@ describe('una scheda con i colpi a scalare «10-8-6»', () => {
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
 
     expect(alzate('Squat')[0].setReps).toEqual([10, 8, 6])
+  })
+})
+
+// ── La card dell'esercizio: note in vista, nota di oggi, foto ──
+// La schermata dell'allenamento è quella in cui si passa più tempo. Le note
+// stanno tutte insieme prima delle serie, quella di oggi si scrive in un
+// riquadro che si può chiudere, e la foto dell'esercizio si apre in grande.
+describe('la card di un esercizio in allenamento', () => {
+  beforeEach(() => {
+    useJarvisStore.setState({
+      ...EMPTY_STATE,
+      userName: 'Luca',
+      palestraExercises: [{
+        id: 'px1', n: 'Croci alla peck deck', muscle: 'Petto', note: 'Sedile al 4.',
+        current: { kg: 45, reps: 10, sets_n: 3 },
+        history: [{ d: 'W', date: giorniFa(7), kg: 45, reps: 10, sets_n: 3, note: 'La spalla tirava.' }],
+      }],
+      gymSchede: [{
+        ...scheda,
+        exercises: [{ id: 'se1', name: 'Croci alla peck deck', sets: 3, reps: '10', muscle: 'Petto', linkedExerciseId: 'px1', note: 'Gomiti morbidi.' }],
+      }],
+    }, true)
+  })
+
+  it('le note si leggono tutte, prima delle serie: scheda, esercizio, ultima volta', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    const scheda_ = screen.getByText('Gomiti morbidi.')
+    expect(screen.getByText('Sedile al 4.')).toBeInTheDocument()
+    expect(screen.getByText('La spalla tirava.')).toBeInTheDocument()
+    // Prima delle serie: è prima di caricare che serve leggerle.
+    const serie1 = screen.getByRole('button', { name: 'Serie 1' })
+    expect(scheda_.compareDocumentPosition(serie1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('la nota di oggi: «Salva» la chiude, resta scritta, e si riapre per correggerla', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Aggiungi nota' }))
+    await user.type(screen.getByLabelText('Croci alla peck deck · nota'), '  oggi leggero  ')
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Salva la nota' }))
+
+    // Il campo si è chiuso, e la nota si legge fra le altre (senza gli spazi).
+    expect(screen.queryByLabelText('Croci alla peck deck · nota')).toBeNull()
+    expect(screen.getByText('oggi leggero')).toBeInTheDocument()
+
+    // Si riapre dal tasto in testata, col testo dentro.
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Modifica nota' }))
+    expect(screen.getByLabelText('Croci alla peck deck · nota')).toHaveValue('oggi leggero')
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Salva la nota' }))
+
+    // …e toccando la nota stessa.
+    await user.click(screen.getByText('oggi leggero'))
+    expect(screen.getByLabelText('Croci alla peck deck · nota')).toBeInTheDocument()
+  })
+
+  it('una nota scritta e non «salvata» finisce comunque nell’alzata', async () => {
+    // Il tasto chiude il campo; il testo è al sicuro a ogni tasto, o chi
+    // dimentica di premerlo perderebbe la nota chiudendo l'allenamento.
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Aggiungi nota' }))
+    await user.type(screen.getByLabelText('Croci alla peck deck · nota'), 'presa stretta')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    const h = alzate('Croci alla peck deck')
+    expect(h[h.length - 1].note).toBe('presa stretta')
+  })
+
+  it('la foto dell’esercizio si apre in grande, e si richiude toccandola', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    await user.click(screen.getByRole('button', { name: 'Ingrandisci la foto di Croci alla peck deck' }))
+    expect(await screen.findByRole('img', { name: 'Croci alla peck deck' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Chiudi la foto' }))
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Croci alla peck deck' })).toBeNull())
+  })
+
+  it('una serie è una riga sola: spunta, colpi e chili nello stesso contenitore', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    const riga = screen.getByRole('button', { name: 'Serie 1' }).parentElement!
+    expect(riga).toContainElement(screen.getByLabelText('Croci alla peck deck · serie 1 · colpi'))
+    expect(riga).toContainElement(screen.getByLabelText('Croci alla peck deck · serie 1 · kg'))
+    expect(riga).not.toContainElement(screen.getByLabelText('Croci alla peck deck · serie 2 · kg'))
   })
 })
 
