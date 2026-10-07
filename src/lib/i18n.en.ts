@@ -1091,6 +1091,8 @@ export const EN_UI: Record<string, string> = {
   'Salva la nota': 'Save the note',
   'Ingrandisci la foto di {nome}': 'Enlarge the picture of {nome}',
   'Chiudi la foto': 'Close the picture',
+  'Durata stimata, con un minuto e mezzo di recupero fra le serie': 'Estimated length, with a minute and a half of rest between sets',
+  'Durata stimata: circa {durata}': 'Estimated length: about {durata}',
   'Aggiungi nota': 'Add note',
   'nota': 'note',
   'Nota su questa sessione…': 'Note on this session…',

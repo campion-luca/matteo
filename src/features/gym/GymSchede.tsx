@@ -21,7 +21,7 @@ import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, rec
 import { fmtDayMonthFull, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
-import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
+import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso } from './sessioneInCorso'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
@@ -37,6 +37,8 @@ import { bozzaChat } from '@/lib/messaggi'
 import { avvisa } from '@/lib/messaggiLive'
 import { riassuntoAllenamento, serieValide, chiliScritti } from './riassuntoAllenamento'
 import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX } from './limitiAlzata'
+import { muscoliDellaScheda, durataPrevista, durataArrotondata, type MuscoloToccato } from './anteprimaScheda'
+import { OminoMuscoli } from './MuscleIcons'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
 import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
@@ -330,6 +332,18 @@ export function GymSchede({ onBack, apri }: {
   }
 
   // Da quanti giorni non si fa ciascuna scheda: nell'elenco, accanto al nome.
+  // Cosa si legge di ogni scheda nell'elenco, prima di aprirla: i muscoli che
+  // tocca e quanto dura. Qui e non nella card: dipende dagli esercizi salvati
+  // (il gruppo di una riga che non lo porta scritto si legge da lì), e si
+  // ricalcola solo quando cambiano le schede o gli esercizi.
+  const anteprime = useMemo(() => {
+    const out = new Map<string, AnteprimaScheda>()
+    for (const sc of schede) {
+      out.set(sc.id, { muscoli: muscoliDellaScheda(sc, palestraExercises), durataSec: durataArrotondata(durataPrevista(sc)) })
+    }
+    return out
+  }, [schede, palestraExercises])
+
   const ultimaVolta = useMemo(() => {
     const oggi = todayISO()
     const out = new Map<string, number>()
@@ -676,6 +690,8 @@ export function GymSchede({ onBack, apri }: {
   return (
     <SchedeListPage
       schede={schede}
+      anteprime={anteprime}
+      muscleColors={muscleColors}
       daCoach={daCoach}
       onBack={onBack}
       onNew={() => { setEditing(null); setView('form') }}
@@ -718,8 +734,31 @@ interface AlzataSalvata {
 }
 
 // ── Lista schede ───────────────────────────────────────────────
-function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onReport, onMove, mie, ultimaVolta, inCorso, onRiprendi, onScarta }: {
+/** Quello che l'elenco dice di una scheda oltre al nome. */
+interface AnteprimaScheda {
+  muscoli: MuscoloToccato[]
+  /** La durata stimata, già ai cinque minuti. 0 = scheda vuota. */
+  durataSec: number
+}
+
+// I chip sotto il nome di una scheda: la durata e i gruppi muscolari, TUTTI.
+// Per un momento oltre i sei si contavano ("+3"), ma lo spazio c'è, e un
+// numero al posto di un nome è proprio l'informazione che si era venuti a
+// leggere. Piccoli e sottili: sono un'etichetta, non un tasto.
+const CHIP: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 3, height: 18, padding: '0 7px',
+  borderRadius: 'var(--radius-pill)', whiteSpace: 'nowrap',
+  fontFamily: NUC.label, fontSize: 9.5, fontWeight: 500, letterSpacing: '.03em',
+}
+const CHIP_NEUTRO: CSSProperties = {
+  ...CHIP, background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
+}
+
+function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNew, onOpen, onDelete, onReport, onMove, mie, ultimaVolta, inCorso, onRiprendi, onScarta }: {
   schede: GymScheda[]
+  /** id scheda → muscoli toccati e durata stimata. */
+  anteprime: Map<string, AnteprimaScheda>
+  muscleColors: Record<string, string>
   /** id scheda → nome dell'allenatore che l'ha assegnata. */
   daCoach: Map<string, string>
   onBack: () => void
@@ -740,6 +779,10 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
   onScarta: () => void
 }) {
   const t = useT()
+  const tData = useTData()
+  const dark = useIsDark()
+  // Quale sagoma accendere per i gruppi che l'utente si è creato.
+  const icone = useMuscleIcons()
   const hasExercises = schede.some(s => s.exercises.length > 0)
   // Riordinare e cancellare sono gesti rari; aprire una scheda è il gesto di
   // ogni giorno. Tenendo le frecce e il cestino sempre accesi, ogni riga
@@ -841,12 +884,14 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
           <div className="j-empty">{t('Nessuna scheda — creane una con +')}</div>
         )}
         {schede.map(s => (
-          <div key={s.id} onClick={() => onOpen(s)} className="mb-2.5 cursor-pointer">
-            <NucCard pad={14}>
+          <div key={s.id} onClick={() => onOpen(s)} className="mb-2 cursor-pointer">
+            {/* Più bassa e più fine di una card qualunque: qui le card sono un
+                elenco da scorrere con l'occhio, e ognuna porta già tre righe. */}
+            <NucCard pad={11} style={{ paddingLeft: 13, paddingRight: 12 }}>
               <div className="flex items-center justify-between gap-3">
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: NUC.font, fontSize: 18, fontWeight: 500, lineHeight: 1.2, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+                    <div style={{ fontFamily: NUC.font, fontSize: 15.5, fontWeight: 500, lineHeight: 1.2, letterSpacing: -0.1, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
                     {s.draft && (
                       <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn)', background: 'rgba(var(--warn-rgb),0.12)', border: '1px solid rgba(var(--warn-rgb),0.35)', padding: '1px 5px' }}>{t('Bozza')}</span>
                     )}
@@ -854,7 +899,7 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
                       <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--j-accent-ink)', background: 'color-mix(in srgb, var(--j-accent) 12%, transparent)', border: '1px solid var(--j-accent)', padding: '1px 5px' }}>{t('Allenatore')}</span>
                     )}
                   </div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 0.4, color: NUC.faint, marginTop: 3 }}>
+                  <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: 0.3, color: NUC.faint, marginTop: 2 }}>
                     {s.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.exercises.length })}
                     {daCoach.has(s.id) && ` · ${t('da {chi}', { chi: daCoach.get(s.id) ?? '' })}`}
                     {/* Da quanto non la si fa. Oltre i dieci giorni cambia
@@ -884,9 +929,51 @@ function SchedeListPage({ schede, daCoach, onBack, onNew, onOpen, onDelete, onRe
                       <Icons.trash size={13} stroke={1.6}/>
                     </button>
                   </>}
-                  <div style={{ color: NUC.faint, display: 'flex' }}><Icons.chev size={15} stroke={1.6}/></div>
+                  {/* L'omino coi muscoli della scheda accesi: la si riconosce
+                      prima di leggerla. Via mentre si riordina l'elenco, dove
+                      quello spazio serve a frecce e cestino. */}
+                  {!modifica && (anteprime.get(s.id)?.muscoli.length ?? 0) > 0 && (
+                    <OminoMuscoli
+                      size={44} color={NUC.faint}
+                      muscoli={(anteprime.get(s.id)?.muscoli ?? []).map(m => ({ muscolo: m.muscolo, colore: muscleColor(m.muscolo, muscleColors), icona: icone[m.muscolo] }))}
+                    />
+                  )}
+                  <div style={{ color: NUC.faint, display: 'flex' }}><Icons.chev size={13} stroke={1.5}/></div>
                 </div>
               </div>
+                {/* Cosa c'è dentro, senza aprirla: quanto dura e che muscoli
+                  tocca, col colore di ciascun gruppo. "Giovedì · 11 esercizi"
+                  da solo non dice se è il giorno delle gambe, né se sta
+                  nell'ora che si ha. Sotto la riga del nome e a tutta
+                  larghezza: accanto alla freccia i chip andavano a capo uno
+                  prima del necessario. */}
+                {(() => {
+                  const a = anteprime.get(s.id)
+                  if (!a || a.muscoli.length === 0) return null
+                  return (
+                    <div className="flex flex-wrap" style={{ gap: 4, marginTop: 7 }}>
+                      {a.durataSec > 0 && (
+                        <span style={CHIP_NEUTRO} title={t('Durata stimata, con un minuto e mezzo di recupero fra le serie')}>
+                          <Icons.clock size={10} stroke={1.7}/>
+                          <span aria-label={t('Durata stimata: circa {durata}', { durata: fmtDurata(a.durataSec) })}>≈ {fmtDurata(a.durataSec)}</span>
+                        </span>
+                      )}
+                      {a.muscoli.map(m => {
+                        const c = muscleColor(m.muscolo, muscleColors)
+                        return (
+                          <span key={m.muscolo} style={{
+                            ...CHIP,
+                            background: `color-mix(in srgb, ${c} 14%, transparent)`,
+                            border: `1px solid color-mix(in srgb, ${c} 38%, transparent)`,
+                            color: muscleTextColor(c, dark),
+                          }}>
+                            {tData(m.muscolo)}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
             </NucCard>
           </div>
         ))}

@@ -122,3 +122,41 @@ export function MuscleIcon({ muscle, icon, size = 28, color = 'currentColor', ac
     </svg>
   )
 }
+
+// ── L'omino di una scheda ──────────────────────────────────────
+// Fronte e retro affiancati, con accesi TUTTI i gruppi che la scheda tocca,
+// ognuno col colore del suo gruppo. È la stessa figura di `MuscleIcon`, che ne
+// accende uno solo: qui serve a riconoscere una scheda a colpo d'occhio —
+// "spinta", "gambe" — prima di leggerne il nome.
+//
+// Sempre tutte e due le facce, anche quando una resta spenta: è così che si
+// vede che una scheda non tocca la schiena, e le card restano allineate.
+// Chi non ha una sagoma ("Altro", un gruppo scritto a mano senza figura) non
+// accende niente: l'omino non lo può dire, lo dicono i nomi accanto.
+export function OminoMuscoli({ muscoli, size = 46, color = 'currentColor', style }: {
+  muscoli: Array<{ muscolo: string; colore: string; icona?: string }>
+  size?: number
+  /** Il corpo spento. */
+  color?: string
+  style?: CSSProperties
+}) {
+  const accesi = { fronte: [] as Array<{ forme: Forma[]; colore: string }>, retro: [] as Array<{ forme: Forma[]; colore: string }> }
+  for (const m of muscoli) {
+    const g = GRUPPI[displayMuscle(m.muscolo)] ?? (m.icona ? GRUPPI[displayMuscle(m.icona)] : undefined)
+    if (!g) continue
+    ;(g.corpo === FRONTE ? accesi.fronte : accesi.retro).push({ forme: g.acceso, colore: m.colore })
+  }
+  const larghezza = Math.round(size * RAPPORTO)
+  const faccia = (corpo: Forma[], lista: Array<{ forme: Forma[]; colore: string }>, chiave: string) => (
+    <svg key={chiave} width={larghezza} height={size} viewBox={VIEWBOX} fill={color} aria-hidden>
+      <g fillOpacity={CORPO_OPACITY}>{paths(corpo, 'c')}</g>
+      {lista.map((a, i) => <g key={i} fill={a.colore}>{paths(a.forme, `a${i}-`)}</g>)}
+    </svg>
+  )
+  return (
+    <div aria-hidden style={{ display: 'flex', gap: 3, flexShrink: 0, ...style }}>
+      {faccia(FRONTE, accesi.fronte, 'fronte')}
+      {faccia(RETRO, accesi.retro, 'retro')}
+    </div>
+  )
+}

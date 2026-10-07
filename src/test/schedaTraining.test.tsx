@@ -241,6 +241,54 @@ describe('una scheda con i colpi a scalare «10-8-6»', () => {
   })
 })
 
+// ── L'elenco delle schede ──────────────────────────────────────
+// Prima di aprirla, una scheda dice che muscoli tocca e quanto dura.
+describe('l’elenco delle schede', () => {
+  it('ogni scheda mostra la durata stimata e i suoi gruppi muscolari, dal più presente', () => {
+    useJarvisStore.setState({
+      ...EMPTY_STATE,
+      userName: 'Luca',
+      gymSchede: [{
+        ...scheda,
+        exercises: [
+          { id: 'a', name: 'Curl', sets: 3, reps: '10', muscle: 'Bicipiti' },
+          { id: 'b', name: 'Panca piana', sets: 3, reps: '10', muscle: 'Petto' },
+          { id: 'c', name: 'Croci', sets: 3, reps: '10', muscle: 'Petto' },
+        ],
+      }],
+    }, true)
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+
+    // 9 serie × (40 s + 1'30" di recupero) = 19,5 minuti → ai cinque minuti.
+    expect(screen.getByLabelText('Durata stimata: circa 20 min')).toBeInTheDocument()
+    const petto = screen.getByText('Petto'), bicipiti = screen.getByText('Bicipiti')
+    expect(petto.compareDocumentPosition(bicipiti) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('accanto al nome c’è l’omino, fronte e retro, e sparisce mentre si riordina l’elenco', async () => {
+    const user = userEvent.setup()
+    useJarvisStore.setState({
+      ...EMPTY_STATE,
+      userName: 'Luca',
+      gymSchede: [{ ...scheda, exercises: [{ id: 'a', name: 'Lat machine', sets: 3, reps: '10', muscle: 'Dorso' }] }],
+    }, true)
+    const { container } = render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    // Le due facce della figura (il riquadro è quello di MuscleIcon).
+    const omini = () => container.querySelectorAll('svg[viewBox="19 2 72 191"]').length
+    expect(omini()).toBe(2)
+    // In modifica quello spazio serve a frecce e cestino.
+    await user.click(screen.getByRole('button', { name: 'Modifica elenco' }))
+    expect(omini()).toBe(0)
+  })
+
+  it('una scheda vuota non mostra né chip né durata', () => {
+    useJarvisStore.setState({ ...EMPTY_STATE, userName: 'Luca', gymSchede: [{ ...scheda, exercises: [] }] }, true)
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.getByText('Spinta A')).toBeInTheDocument()
+    expect(screen.queryByText(/≈/)).toBeNull()
+  })
+})
+
 // ── La card dell'esercizio: note in vista, nota di oggi, foto ──
 // La schermata dell'allenamento è quella in cui si passa più tempo. Le note
 // stanno tutte insieme prima delle serie, quella di oggi si scrive in un
