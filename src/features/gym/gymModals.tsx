@@ -18,9 +18,10 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import {
   MUSCLE_COLORS, COLOR_PALETTE,
-  displayMuscle, fmtKg, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
+  displayMuscle, fmtKg, fmtNum, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
   effectiveLoad, sortedHistory, fmtTime, colpiMigliori, RACE_STATIONS,
   } from './gymModel'
+import { chiliScritti } from './riassuntoAllenamento'
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
@@ -343,6 +344,47 @@ function CampoEtichettato({ etichetta, children }: { etichetta: string; children
   )
 }
 
+// Il peso dell'attrezzo a vuoto: bilanciere, multipower. È facoltativo, e alla
+// maggior parte degli esercizi non serve: chiuso è una riga di testo, come la
+// data dell'alzata — un campo sempre aperto si leggerebbe come una cosa da
+// compilare. Chi lo scrive, nei chili mette i soli dischi.
+function CampoAttrezzo({ valore, onChange }: { valore: string; onChange: (v: string) => void }) {
+  const t = useT()
+  const [aperto, setAperto] = useState(!!valore)
+  // Un valore che arriva da fuori (l'attrezzo dell'esercizio, a modale già
+  // montato) apre il campo; e una volta aperto non si richiude svuotandolo,
+  // o sparirebbe da sotto le dita di chi lo sta correggendo.
+  useEffect(() => { if (valore) setAperto(true) }, [valore])
+  if (!aperto) {
+    return (
+      <button type="button" onClick={() => setAperto(true)} style={{
+        alignSelf: 'flex-start', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer',
+        fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.04em', color: NUC.faint,
+        textDecoration: 'underline', textUnderlineOffset: 3,
+      }}>
+        {t('+ Peso dell’attrezzo a vuoto')}
+      </button>
+    )
+  }
+  const n = parseNum(valore)
+  return (
+    <>
+      <CampoEtichettato etichetta={t('attrezzo a vuoto · facoltativo')}>
+        <input
+          value={valore} onChange={e => onChange(normalizzaDecimale(e.target.value))}
+          placeholder={t('kg di bilanciere o multipower')} aria-label={t('Peso dell’attrezzo a vuoto')}
+          inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"
+        />
+      </CampoEtichettato>
+      {n > 0 && (
+        <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint }}>
+          {t('Nei chili scrivi solo i dischi: i {kg} kg dell’attrezzo si sommano da sé.', { kg: fmtNum(n) })}
+        </div>
+      )}
+    </>
+  )
+}
+
 // La data dell'alzata sotto il nome dell'esercizio: da leggere, e modificabile
 // solo se lo si chiede. Chiusa è testo con una matita accanto; aperta è il campo
 // data con una spunta che conferma e richiude.
@@ -469,6 +511,9 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   const [setRepsStr, setSetRepsStr] = useState<string[]>([])
   const [isMax, setIsMax] = useState(false)            // massimale: una singola al massimo
   const [modificaData, setModificaData] = useState(false)
+  // Il peso dell'attrezzo a vuoto: parte da quello dell'esercizio, e quello che
+  // si salva qui diventa il suo (vedi `savePalestraEntry`).
+  const [attrezzo, setAttrezzo] = useState('')
 
   // Il modale resta montato: pre-compila kg/reps/sets dall'ultimo valore ad ogni
   // apertura (l'init di useState gira una volta sola, con ex ancora null).
@@ -481,6 +526,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     // Parte da come è fatto l'esercizio: le trazioni si aprono già a corpo libero.
     setIsBodyweight(corpoLibero(ex)); setZavorra(''); setModificaData(false)
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
+    setAttrezzo(ex.attrezzoKg ? fmtNum(ex.attrezzoKg) : '')
   }, [open, ex])
 
   const kgN = parseNum(kg)
@@ -490,6 +536,8 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   const setsN = isMax ? 1 : parseInt(sets)
   const zavorraN = parseNum(zavorra)
   const nSets = Math.max(1, setsN || 1)
+  // A corpo libero l'attrezzo non c'è: quello che si scrive è la zavorra.
+  const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
 
   const updateSetWeight = (i: number, v: string) =>
     setSetWeightsStr(arr => { const next = [...arr]; next[i] = normalizzaDecimale(v); return next })
@@ -511,18 +559,22 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   const perSetNums = perSet ? Array.from({ length: nSets }, (_, i) => parseNum(setWeightsStr[i])) : []
   const perSetReps = perSet ? Array.from({ length: nSets }, (_, i) => parseInt(setRepsStr[i]) || repsN || 0) : []
   const perSetAvg = perSetNums.length ? perSetNums.reduce((a, b) => a + b, 0) / perSetNums.length : 0
+  // Quali righe hanno i chili scritti. Con un attrezzo dichiarato vale anche lo
+  // zero scritto — una serie col bilanciere scarico (vedi `chiliScritti`).
+  const scritta = (i: number) => chiliScritti(setWeightsStr[i], attrezzoN > 0)
+  const righe = perSet ? Array.from({ length: nSets }, (_, i) => scritta(i)) : []
 
   const effectiveKg = perSet ? perSetAvg : (isBodyweight ? (zavorraN || 0) : kgN)
   const hasValues = isBodyweight
     ? (repsN > 0 && setsN > 0)
-    : (repsN > 0 && setsN > 0 && (perSet ? perSetNums.some(w => w > 0) : kgN > 0))
+    : (repsN > 0 && setsN > 0 && (perSet ? righe.some(Boolean) : chiliScritti(kg, attrezzoN > 0)))
 
   // Anteprima: il carico più pesante dell'alzata e il massimale che ne deriva.
   // Prima qui stava il "coefficiente di difficoltà" dell'EVL, cioè una stima di
   // fatica; ora l'unico numero mostrato è quello con cui l'alzata verrà giudicata.
   // Due moltiplicazioni: niente useMemo, che su `perSetNums` (array nuovo a ogni
   // render) non avrebbe comunque mai fatto centro.
-  const topLoad = perSet ? Math.max(0, ...perSetNums) : effectiveKg
+  const topLoad = (perSet ? Math.max(0, ...perSetNums) : effectiveKg) + attrezzoN
   const preview = (ex && hasValues && topLoad > 0)
     // Su un massimale non c'è niente da stimare: il carico È il massimale.
     ? { top: topLoad, oneRM: Math.round(isMax ? topLoad : estimate1RM(topLoad, repsN)) }
@@ -538,7 +590,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     // (vedi `serieValide` in riassuntoAllenamento): non si salva a 0 kg, si
     // toglie, e le serie contate sono quelle rimaste.
     const tenute = perSet
-      ? perSetNums.slice(0, nSets).map((w, i) => (isBodyweight || w > 0 ? i : -1)).filter(i => i >= 0)
+      ? perSetNums.slice(0, nSets).map((_, i) => (isBodyweight || scritta(i) ? i : -1)).filter(i => i >= 0)
       : []
     const weights = tenute.map(i => perSetNums[i])
     const varies = perSet && weights.length > 1 && new Set(weights).size > 1
@@ -558,6 +610,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
       ...(variesReps ? { setReps: repsPerSet } : {}),
       ...(isBodyweight ? { bodyweight: true as const } : {}),
       ...(isMax ? { maxLift: true as const } : {}),
+      ...(attrezzoN > 0 ? { attrezzo: attrezzoN } : {}),
     })
     setIsBodyweight(false); setZavorra('')
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
@@ -643,7 +696,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
             </div>
             {/* Con un attrezzo le righe senza chili non si salvano (vedi `save`):
                 lo si dice qui, mentre le si può ancora riempire. */}
-            {!isBodyweight && perSetNums.some(w => w > 0) && perSetNums.some(w => !(w > 0)) && (
+            {!isBodyweight && righe.some(Boolean) && righe.some(r => !r) && (
               <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--warn)' }}>
                 {t('Le serie senza chili non vengono salvate.')}
               </div>
@@ -660,6 +713,19 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
               <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
             </CampoEtichettato>
           </>
+        )}
+
+        {/* 2b. L'attrezzo a vuoto. Dopo i chili, perché è a quelli che si somma;
+            la chiave lo richiude a ogni apertura su un esercizio che non ce l'ha. */}
+        {!isBodyweight && <CampoAttrezzo key={`${ex.id}-${open}`} valore={attrezzo} onChange={setAttrezzo}/>}
+        {/* La prima volta su un esercizio che ha già uno storico: quelle alzate
+            l'attrezzo non ce l'hanno, e questa sembrerà un salto in avanti (e un
+            record). Non si può sapere da qui se nei chili di prima c'era già:
+            lo si dice, e si dice dove rimediare. */}
+        {attrezzoN > 0 && !ex.attrezzoKg && ex.history.some(h => !h.bodyweight) && (
+          <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--warn)' }}>
+            {t('Le alzate già registrate restano com’erano. Se anche lì scrivevi solo i dischi, sommalo da «Modifica esercizio».')}
+          </div>
         )}
 
         {/* 3. I tre interruttori, in colonna dentro tre colonne. Su un massimale
@@ -1008,10 +1074,17 @@ export function HyroxStatsModal({ ex, hist, onClose }: {
 }
 
 // ── Modifica esercizio (nome, gruppi muscolari, colore) ────────
+/** Quello che una modifica all'esercizio chiede oltre ai campi cambiati. */
+export interface OpzioniModificaEsercizio {
+  /** Il peso dell'attrezzo appena scritto va messo anche sulle alzate che
+   *  l'esercizio ha già (quelle non a corpo libero). */
+  attrezzoAncheAlleVecchie?: boolean
+}
+
 export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   open: boolean; onClose: () => void
   ex: PalestraExercise
-  onSave: (changes: Partial<PalestraExercise>) => void
+  onSave: (changes: Partial<PalestraExercise>, opzioni?: OpzioniModificaEsercizio) => void
   onSaveMuscleColor: (muscle: string, color: string | undefined) => void
 }) {
   const t = useT()
@@ -1027,13 +1100,22 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   const [color, setColor] = useState(muscleColors[displayMuscle(ex.muscle)] ?? '')
   const [note, setNote] = useState(ex.note ?? '')
   const [corpo, setCorpo] = useState(corpoLibero(ex))
+  const [attrezzo, setAttrezzo] = useState(ex.attrezzoKg ? fmtNum(ex.attrezzoKg) : '')
+  // Mettere l'attrezzo anche sulle alzate già registrate: lo decide chi sa
+  // come le aveva scritte (vedi sotto, accanto alla casella).
+  const [ancheVecchie, setAncheVecchie] = useState(false)
 
   useEffect(() => {
     setName(ex.n); setMuscle(displayMuscle(ex.muscle)); setMuscle2(displayMuscle(ex.muscle2 ?? ''))
     setColor(muscleColors[displayMuscle(ex.muscle)] ?? ''); setNote(ex.note ?? ''); setCorpo(corpoLibero(ex))
-    // Reset del form solo al cambio di esercizio (ex.id): gli altri campi sono letti una tantum.
+    setAttrezzo(ex.attrezzoKg ? fmtNum(ex.attrezzoKg) : ''); setAncheVecchie(false)
+    // Il form riparte dall'esercizio com'è ADESSO a ogni apertura, non solo al
+    // cambio di esercizio. Il modale resta montato dietro la pagina: prima
+    // teneva i valori di quando la pagina era stata aperta, e salvando
+    // rimetteva la nota di prima sopra quella appena scritta dalla pagina —
+    // e l'attrezzo appena dichiarato da una nuova alzata qui non compariva.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ex.id])
+  }, [ex.id, open])
 
   // when muscle group changes in the form, show that group's current color
   useEffect(() => {
@@ -1044,13 +1126,21 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
 
   const activeColor = color || MUSCLE_COLORS[muscle] || '#8a7440'
 
+  // A corpo libero l'attrezzo non c'è.
+  const attrezzoN = corpo ? 0 : parseNum(attrezzo)
+  const attrezzoCambiato = attrezzoN !== (ex.attrezzoKg ?? 0)
+  const alzateConAttrezzo = ex.history.filter(h => !h.bodyweight).length
+
   const save = () => {
     if (!name.trim()) return
     onSaveMuscleColor(muscle, color || undefined)
     // Il tipo di carico si scrive sempre, anche se non è stato toccato: chi lo
     // prendeva dal catalogo per nome ("Trazioni") lo perderebbe rinominando
     // l'esercizio, con il selettore ancora acceso su "Corpo libero".
-    onSave({ n: name.trim(), muscle, muscle2: muscle2 || undefined, note: note.trim() || undefined, bodyweight: corpo })
+    onSave(
+      { n: name.trim(), muscle, muscle2: muscle2 || undefined, note: note.trim() || undefined, bodyweight: corpo, attrezzoKg: attrezzoN > 0 ? attrezzoN : undefined },
+      { attrezzoAncheAlleVecchie: attrezzoCambiato && ancheVecchie },
+    )
     onClose()
   }
 
@@ -1077,6 +1167,17 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
         </select>
 
         <SceltaCarico corpo={corpo} onChange={setCorpo}/>
+
+        {!corpo && <CampoAttrezzo key={ex.id} valore={attrezzo} onChange={setAttrezzo}/>}
+        {/* Cambiando l'attrezzo, le alzate già scritte restano com'erano: l'app
+            non può sapere se in quei chili l'attrezzo c'era già. Lo sa chi le ha
+            scritte, e lo dice qui. */}
+        {!corpo && attrezzoCambiato && alzateConAttrezzo > 0 && (
+          <label className="flex items-start gap-2" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.dim, cursor: 'pointer' }}>
+            <input type="checkbox" checked={ancheVecchie} onChange={e => setAncheVecchie(e.target.checked)} style={{ marginTop: 2 }}/>
+            <span>{t('Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.', { n: alzateConAttrezzo })}</span>
+          </label>
+        )}
 
         <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
           {t('Colore gruppo muscolare — si applica a tutti gli esercizi')}
@@ -1130,6 +1231,9 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
 }) {
   const t = useT()
   const [isBodyweight, setIsBodyweight] = useState(entry.bodyweight === true)
+  // L'attrezzo di QUESTA alzata: si corregge qui, una per una, senza toccare
+  // le altre né l'esercizio.
+  const [attrezzo, setAttrezzo] = useState(entry.attrezzo ? fmtNum(entry.attrezzo) : '')
   const [kg, setKg] = useState(String(entry.bodyweight ? '' : entry.kg))
   const [zavorra, setZavorra] = useState(String(entry.bodyweight && entry.kg > 0 ? entry.kg : ''))
   const [reps, setReps] = useState(String(entry.reps))
@@ -1168,6 +1272,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
     const repsN = isMax ? 1 : parseInt(reps)
     const setsN = isMax ? 1 : parseInt(sets)
     if (!repsN || !setsN) return
+    const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
     let setWeights: number[] | undefined
     let setReps: number[] | undefined
     let kgN: number
@@ -1177,7 +1282,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
       // che esiste già, e aprirla per aggiungere una nota non deve cambiarle
       // il numero di serie in silenzio. Chi vuole toglierne una abbassa "Serie".
       const nums = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseNum(setWeightsStr[i]))
-      if (!isBodyweight && !nums.some(w => w > 0)) return
+      if (!isBodyweight && !nums.some((_, i) => chiliScritti(setWeightsStr[i], attrezzoN > 0))) return
       const rps = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseInt(setRepsStr[i]) || repsN)
       kgN = nums.length ? Math.max(...nums) : 0
       setWeights = new Set(nums).size > 1 ? nums : undefined
@@ -1187,7 +1292,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
       if (setReps) repsOut = rps[nums.indexOf(Math.max(...nums))] || repsN
     } else {
       kgN = isBodyweight ? parseNum(zavorra) : parseNum(kg)
-      if (!isBodyweight && !kgN) return
+      if (!isBodyweight && !chiliScritti(kg, attrezzoN > 0)) return
       setWeights = undefined
       setReps = undefined
     }
@@ -1200,6 +1305,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
       bodyweight: isBodyweight ? true : undefined,
       maxLift: isMax ? true : undefined,
       machineModel: undefined,
+      attrezzo: attrezzoN > 0 ? attrezzoN : undefined,
       note: nota.trim() || undefined,
     })
     onClose()
@@ -1294,6 +1400,8 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
             <input inputMode="decimal" value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} className="j-field" placeholder="0"/>
           </div>
         )}
+
+        {!isBodyweight && <CampoAttrezzo valore={attrezzo} onChange={setAttrezzo}/>}
 
         <div>
           <div className="j-eyebrow mb-1">{t('Nota')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>

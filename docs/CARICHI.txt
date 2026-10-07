@@ -64,6 +64,21 @@ possono essere diversi, e si vedrà dalla seconda settimana.
 Il consiglio non si scrive da solo: per applicarlo tocchi "Usa", che lo
 mette sulle serie non ancora spuntate. Quelle già fatte restano com'erano.
 
+Il peso dell'attrezzo a vuoto (facoltativo, dal 7 ottobre 2026)
+  Di un esercizio puoi dire quanto pesa l'attrezzo scarico: il bilanciere,
+  il carrello del multipower. Lo scrivi una volta — dalla "nuova alzata" o
+  da "modifica esercizio" — e da lì in poi:
+  - nei chili metti SOLO i dischi;
+  - storico, massimali, record, grafici e quello che vede chi ti segue
+    mostrano il totale, dischi più attrezzo;
+  - il consiglio qui sotto resta in dischi, perché è quello che scrivi;
+  - "0" scritto nei chili è una serie fatta col solo attrezzo. Il campo
+    lasciato vuoto resta una serie che non conta;
+  - ogni alzata si porta dietro l'attrezzo di quel giorno: cambiarlo dopo
+    non tocca le alzate già fatte, a meno che non lo chieda tu (la casella
+    in "modifica esercizio", o la singola alzata dalla sua matita).
+  Se lo lasci vuoto non cambia niente: i chili che scrivi sono il totale.
+
 
 4. COSA VUOL DIRE "L'ULTIMA VOLTA È ANDATA BENE"
 ------------------------------------------------

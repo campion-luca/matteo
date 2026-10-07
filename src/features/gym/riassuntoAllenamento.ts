@@ -17,6 +17,9 @@ export interface EsitoSerie {
   weights?: string[]
   /** A corpo libero: i chili sono la zavorra, e vuoto è un valore legittimo. */
   corpo?: boolean
+  /** Il peso dell'attrezzo a vuoto, se l'esercizio ne ha uno dichiarato:
+   *  allora "0" scritto nei chili è una serie fatta col solo attrezzo. */
+  attrezzo?: number
   /** L'appunto scritto durante la sessione. */
   note?: string
 }
@@ -39,14 +42,27 @@ export interface ContoAllenamento {
 // A corpo libero no: lì i chili sono la sola zavorra, e dieci trazioni senza
 // niente addosso sono dieci trazioni.
 //
+// Con un attrezzo dichiarato (vedi `attrezzoKg` nello stato) i chili scritti
+// sono i soli dischi, e una serie col bilanciere scarico esiste: pesa quanto
+// l'attrezzo. Ma solo se lo zero è stato SCRITTO. Un campo vuoto resta una
+// serie di cui non si sa niente — è la dimenticanza che questa regola esiste
+// per fermare, e salvarla come "solo attrezzo" la farebbe passare di nuovo.
+//
 // Sta qui, in un posto solo, perché la stessa regola la devono applicare chi
 // salva le alzate, chi le riassume all'allenatore e chi le mostra prima di
 // chiudere: tre conti diversi darebbero tre allenamenti diversi.
 
+/** I chili di una serie sono stati scritti? `zeroVale` = l'esercizio ha un
+ *  attrezzo dichiarato, e "0" vuol dire "solo quello". */
+export function chiliScritti(valore: string | undefined, zeroVale = false): boolean {
+  if (parseNum(valore) > 0) return true
+  return zeroVale && /^\s*0+([.,]0*)?\s*$/.test(valore ?? '')
+}
+
 /** Gli indici delle serie che contano. */
-export function serieValide(checks: boolean[], weights: string[] | undefined, corpo: boolean): number[] {
+export function serieValide(checks: boolean[], weights: string[] | undefined, corpo: boolean, attrezzo = 0): number[] {
   return checks
-    .map((c, i) => (c && (corpo || !weights || parseNum(weights[i]) > 0) ? i : -1))
+    .map((c, i) => (c && (corpo || !weights || chiliScritti(weights[i], attrezzo > 0)) ? i : -1))
     .filter(i => i >= 0)
 }
 
@@ -55,7 +71,7 @@ export function contaAllenamento(scheda: GymScheda, esiti: EsitoSerie[]): ContoA
   let fatti = 0, serieMancanti = 0, serieCorte = 0
   for (const se of scheda.exercises) {
     const r = esiti.find(x => x.id === se.id)
-    const valide = r ? serieValide(r.checks, r.weights, !!r.corpo) : []
+    const valide = r ? serieValide(r.checks, r.weights, !!r.corpo, r.attrezzo) : []
     // Un esercizio saltato è un problema suo: le sue serie non si contano anche
     // come "serie in meno", o lo stesso buco comparirebbe due volte.
     if (!valide.length) continue
@@ -93,7 +109,7 @@ export function riassuntoAllenamento(
   const appunti = scheda.exercises.flatMap(se => {
     const r = esiti.find(x => x.id === se.id)
     const nota = r?.note?.trim()
-    return r && nota && !serieValide(r.checks, r.weights, !!r.corpo).length ? [`${se.name}: ${nota}`] : []
+    return r && nota && !serieValide(r.checks, r.weights, !!r.corpo, r.attrezzo).length ? [`${se.name}: ${nota}`] : []
   })
   return appunti.length ? `${frase} — ${t('Sui saltati: {note}', { note: appunti.join('; ') })}` : frase
 }

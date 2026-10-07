@@ -35,7 +35,7 @@ import { idUtenteSuDisco } from '@/lib/supabase'
 import { schedeRicevute, schedeRicevuteInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, myCoaches, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
 import { bozzaChat } from '@/lib/messaggi'
 import { avvisa } from '@/lib/messaggiLive'
-import { riassuntoAllenamento, serieValide } from './riassuntoAllenamento'
+import { riassuntoAllenamento, serieValide, chiliScritti } from './riassuntoAllenamento'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
 import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
@@ -416,6 +416,8 @@ export function GymSchede({ onBack, apri }: {
     // Per ogni riga, se l'esercizio è a corpo libero: serve a chi conta le serie
     // valide qui sotto e a chi le riassume all'allenatore, e dev'essere lo stesso.
     const corpoPerRiga: Record<string, boolean> = {}
+    // E il peso dell'attrezzo a vuoto, per chi scrive solo i dischi (0 = non c'è).
+    const attrezzoPerRiga: Record<string, number> = {}
 
     scheda.exercises.forEach(se => {
       const r = results.find(x => x.id === se.id)
@@ -426,12 +428,14 @@ export function GymSchede({ onBack, apri }: {
       // chi si allena ha detto a corpo libero lì per lì (vedi `diventaCorpoLibero`).
       const corpo = r.corpo ?? aCorpoLibero(target, se)
       corpoPerRiga[se.id] = corpo
+      const attrezzo = corpo ? 0 : (target?.attrezzoKg ?? 0)
+      attrezzoPerRiga[se.id] = attrezzo
       // Solo le serie che contano: spuntate e, con un attrezzo, con i chili
       // scritti (vedi `serieValide`). Ognuna col suo peso e i suoi colpi.
       // Gli indici si tengono una volta sola: filtrare due array separatamente
       // basterebbe finché i due filtri restano identici, e sarebbe il tipo di
       // accoppiamento che si rompe in silenzio disallineando peso e colpi.
-      const doneIdx = serieValide(r.checks, r.weights, corpo)
+      const doneIdx = serieValide(r.checks, r.weights, corpo, attrezzo)
       if (doneIdx.length === 0) return
       const doneWeights = doneIdx.map(idx => parseNum(r.weights[idx]))
       // I colpi previsti dalla scheda restano il ripiego per le serie lasciate in
@@ -461,6 +465,8 @@ export function GymSchede({ onBack, apri }: {
         // A corpo libero i chili scritti sono la zavorra: senza il segno, dieci
         // trazioni senza zavorra finirebbero nello storico come "0 kg".
         ...(corpo ? { bodyweight: true as const } : {}),
+        // I chili scritti sono i soli dischi: l'attrezzo di oggi viaggia con l'alzata.
+        ...(attrezzo > 0 ? { attrezzo } : {}),
         ...(r.note?.trim() ? { note: r.note.trim() } : {}),
         ...(fine.durataSec ? { durataSec: fine.durataSec } : {}),
       }
@@ -521,7 +527,7 @@ export function GymSchede({ onBack, apri }: {
     // davvero, e a salvataggio avvenuto — se l'avviso non arriva, l'allenamento
     // c'è lo stesso.
     if (ioId && salvate.length > 0) {
-      const testo = riassuntoAllenamento(scheda, results.map(r => ({ ...r, corpo: !!corpoPerRiga[r.id] })), t, fine.durataSec)
+      const testo = riassuntoAllenamento(scheda, results.map(r => ({ ...r, corpo: !!corpoPerRiga[r.id], attrezzo: attrezzoPerRiga[r.id] ?? 0 })), t, fine.durataSec)
       for (const l of allenatori) {
         avvisa(bozzaChat({ coachId: l.coach_id, athleteId: ioId, autore: ioId, autoreNome: userName ?? '', tipo: 'allenamento', testo }))
       }
@@ -2314,7 +2320,7 @@ interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; 
 // salvati e lo storico intero copiato e riordinato per leggerne l'ultima nota.
 // Adesso cambia identità solo l'avanzamento dell'esercizio toccato (`p`), i
 // comandi sono stabili, e si ridisegna solo la sua card.
-const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p, last, notaPrima, corpo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota, onCorpoLibero }: {
+const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p, last, notaPrima, corpo, attrezzo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota, onCorpoLibero }: {
   e: GymSchedaExercise
   legatoPrima: boolean
   color: string
@@ -2323,6 +2329,9 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
   notaPrima?: string
   /** A corpo libero: i chili sono la sola zavorra. */
   corpo: boolean
+  /** Il peso dell'attrezzo a vuoto dell'esercizio (0 = non dichiarato): i
+   *  chili scritti sono allora i soli dischi, e "0" è una serie fatta. */
+  attrezzo: number
   consiglio: Consiglio | null
   notaAperta: boolean
   onToggle: (exId: string, setIdx: number) => void
@@ -2348,7 +2357,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
   // Fatto = tutte le serie spuntate E valide. Con delle serie spuntate senza
   // chili la card si spegneva col suo segno di spunta, la barra in cima si
   // riempiva — e il riepilogo diceva poi che l'esercizio non contava.
-  const senzaChili = !corpo && p.checks.some((c, i) => c && parseNum(p.weights[i]) <= 0)
+  const senzaChili = !corpo && p.checks.some((c, i) => c && !chiliScritti(p.weights[i], attrezzo > 0))
   const exDone = p.checks.length > 0 && p.checks.every(Boolean) && !senzaChili
   return (
     <div style={{ marginBottom: e.supersetWithNext ? 0 : 10 }}>
@@ -2367,6 +2376,13 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
             {last && last.history.length > 0 && (
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.accentSoft, marginTop: 3 }}>
                 {t('ultima volta')} {last.current.reps} × {fmtKg({ kg: last.current.kg, ...(corpo ? { bodyweight: true as const } : {}) })}
+              </div>
+            )}
+            {/* Chi ha dichiarato l'attrezzo scrive i soli dischi: lo si ricorda
+                qui, accanto ai campi, perché lo storico mostra invece il totale. */}
+            {attrezzo > 0 && (
+              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, marginTop: 3 }}>
+                {t('scrivi solo i dischi: + {kg} kg di attrezzo', { kg: fmtNum(attrezzo) })}
               </div>
             )}
             {notaPrima && (
@@ -2455,7 +2471,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
                   // Spuntata senza chili, con un attrezzo: quella serie non verrà
                   // salvata (vedi `serieValide`). Si dice subito, sul campo che
                   // manca, non a fine allenamento.
-                  allarme={!corpo && on && parseNum(p.weights[i]) <= 0}
+                  allarme={!corpo && on && !chiliScritti(p.weights[i], attrezzo > 0)}
                 />
               </div>
             )
@@ -2472,7 +2488,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
             background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
           }}>
             <span style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: 'var(--warn)' }}>
-              {t('Senza chili una serie non conta.')}
+              {attrezzo > 0 ? t('Scrivi i dischi: 0 se usi solo l’attrezzo.') : t('Senza chili una serie non conta.')}
             </span>
             <button onClick={() => onCorpoLibero(e.id)} style={{ ...TASTINO, flexShrink: 0 }}>
               {t('È a corpo libero')}
@@ -2586,6 +2602,10 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
         // storico comparirebbe col punto in un campo che accetta la virgola.
         weights: Array.from({ length: n }, (_, i) => {
           const kg = perSerie?.[i] ?? lastKg
+          // Con l'attrezzo dichiarato lo zero è un valore: chi l'ultima volta
+          // ha lavorato col solo bilanciere ritrova "0", non un campo vuoto
+          // che al momento di spuntare direbbe "senza chili non conta".
+          if (kg === 0 && linked?.attrezzoKg && linked.history.length > 0) return '0'
           return kg ? fmtNum(kg) : ''
         }),
         reps: bersagli.map(c => (c ? String(c) : '')),
@@ -2660,11 +2680,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   const diventaCorpoLibero = useCallback((exId: string) => setDettiCorpoLibero(s => new Set(s).add(exId)), [])
 
   const collegati = useMemo(() => {
-    const out: Record<string, { last?: PalestraExercise; notaPrima?: string; corpo: boolean }> = {}
+    const out: Record<string, { last?: PalestraExercise; notaPrima?: string; corpo: boolean; attrezzo: number }> = {}
     for (const e of scheda.exercises) {
       const last = resolveLinked(e)
       const notaPrima = last ? ultimaVoce(last.history)?.note : undefined
-      out[e.id] = { last, notaPrima, corpo: dettiCorpoLibero.has(e.id) || aCorpoLibero(last, e) }
+      const corpo = dettiCorpoLibero.has(e.id) || aCorpoLibero(last, e)
+      out[e.id] = { last, notaPrima, corpo, attrezzo: corpo ? 0 : (last?.attrezzoKg ?? 0) }
     }
     return out
     // `resolveLinked` legge solo `palestraExercises`, che è già fra le dipendenze.
@@ -2694,7 +2715,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     const p = progress[e.id]
     // Tutte spuntate e tutte valide: vedi `exDone` in CardAllenamento.
     return p && p.checks.length > 0 && p.checks.every(Boolean)
-      && serieValide(p.checks, p.weights, collegati[e.id].corpo).length === p.checks.length
+      && serieValide(p.checks, p.weights, collegati[e.id].corpo, collegati[e.id].attrezzo).length === p.checks.length
   }).length, [scheda, progress, collegati])
   const anyDone = useMemo(() => Object.values(progress).some(p => p.checks.some(Boolean)), [progress])
 
@@ -2759,7 +2780,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     const spuntate = p.checks.filter(Boolean).length
     // Le serie che finiranno davvero nello storico: spuntate e, con un
     // attrezzo, con i chili scritti. Le altre si contano a parte, per dirlo.
-    const idx = serieValide(p.checks, p.weights, collegati[e.id].corpo)
+    const idx = serieValide(p.checks, p.weights, collegati[e.id].corpo, collegati[e.id].attrezzo)
     const bersagli = colpiPrevisti(e.reps, e.sets)
     const colpi = idx.map(i => parseInt(p.reps[i]) || 0)
     return {
@@ -2818,6 +2839,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             last={collegati[e.id].last}
             notaPrima={collegati[e.id].notaPrima}
             corpo={collegati[e.id].corpo}
+            attrezzo={collegati[e.id].attrezzo}
             consiglio={consigli[e.id]}
             notaAperta={noteAperte.has(e.id)}
             onToggle={toggle} onPeso={setSetWeight} onColpi={setSetReps} onNota={setNote}

@@ -93,7 +93,12 @@ export function fmtNum(n: number): string {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
-export function fmtKg(h: { kg: number; bodyweight?: true; setWeights?: number[] }): string {
+//
+// Con un attrezzo dichiarato (`attrezzo`, vedi lo stato) si legge il TOTALE:
+// dischi più attrezzo. I soli dischi si vedono dove si scrivono, nei campi.
+export function fmtKg(h: { kg: number; bodyweight?: true; setWeights?: number[]; attrezzo?: number }): string {
+  const a = attrezzoDi(h)
+  if (a) return fmtKg({ kg: h.kg + a, ...(h.setWeights ? { setWeights: h.setWeights.map(w => w + a) } : {}) })
   const sw = h.setWeights
   if (sw && sw.length) {
     const min = Math.min(...sw), max = Math.max(...sw)
@@ -112,7 +117,9 @@ export function fmtKg(h: { kg: number; bodyweight?: true; setWeights?: number[] 
  *  "30 → 32,5 kg" se dalla prima all'ultima si è solo saliti (o solo scesi).
  *  L'intervallo "30–35 kg" resta per chi è andato su e giù, dove una freccia
  *  racconterebbe un percorso che non c'è stato. */
-export function fmtKgVerso(h: { kg: number; bodyweight?: true; setWeights?: number[] }): string {
+export function fmtKgVerso(h: { kg: number; bodyweight?: true; setWeights?: number[]; attrezzo?: number }): string {
+  const a = attrezzoDi(h)
+  if (a) return fmtKgVerso({ kg: h.kg + a, ...(h.setWeights ? { setWeights: h.setWeights.map(w => w + a) } : {}) })
   const sw = h.setWeights
   if (!sw || sw.length < 2) return fmtKg(h)
   const primo = sw[0], ultimo = sw[sw.length - 1]
@@ -201,16 +208,31 @@ export function ultimaVoce<T extends { date?: string }>(hist: T[]): T | undefine
 // `kg` è la sola ZAVORRA: senza sommare il peso corporeo, una serie di trazioni
 // senza zavorra valeva 0 kg → volume 0, massimale 0, esercizio escluso da tutti i
 // grafici. `bodyWeightKg` è il peso dell'utente (0 se non l'ha inserito).
-export function effectiveLoad(h: Pick<PalestraHistoryEntry, 'kg' | 'bodyweight'>, bodyWeightKg = 0): number {
-  return h.bodyweight ? bodyWeightKg + h.kg : h.kg
+//
+// Con un attrezzo dichiarato `kg` sono i soli dischi, e l'attrezzo si somma.
+export function effectiveLoad(h: Pick<PalestraHistoryEntry, 'kg' | 'bodyweight' | 'attrezzo'>, bodyWeightKg = 0): number {
+  return h.bodyweight ? bodyWeightKg + h.kg : h.kg + attrezzoDi(h)
+}
+
+/** I chili dell'attrezzo a vuoto che questa alzata si porta dietro. A corpo
+ *  libero non c'è: lì quello che si scrive è la zavorra. */
+export function attrezzoDi(h: { bodyweight?: true; attrezzo?: number }): number {
+  return !h.bodyweight && h.attrezzo && h.attrezzo > 0 ? h.attrezzo : 0
+}
+
+/** I chili SCRITTI, serie per serie: i dischi, senza l'attrezzo e senza il
+ *  corpo. È quello che si ritrova nei campi la volta dopo, ed è il numero su
+ *  cui ragiona il consiglio sui carichi — che propone cosa scrivere. */
+export function pesiScritti(h: Pick<PalestraHistoryEntry, 'kg' | 'sets_n' | 'setWeights'>): number[] {
+  return h.setWeights && h.setWeights.length ? h.setWeights : Array(Math.max(1, h.sets_n)).fill(h.kg)
 }
 
 // Carichi effettivi serie per serie. Con `setWeights` usa i pesi reali di ogni
 // serie, altrimenti replica `kg` su tutte le serie. Il peso corporeo viene
 // sommato a corpo libero.
-export function setLoads(h: Pick<PalestraHistoryEntry, 'kg' | 'bodyweight' | 'sets_n' | 'setWeights'>, bodyWeightKg = 0): number[] {
-  const raw = h.setWeights && h.setWeights.length ? h.setWeights : Array(Math.max(1, h.sets_n)).fill(h.kg)
-  return raw.map(w => h.bodyweight ? bodyWeightKg + w : w)
+export function setLoads(h: Pick<PalestraHistoryEntry, 'kg' | 'bodyweight' | 'sets_n' | 'setWeights' | 'attrezzo'>, bodyWeightKg = 0): number[] {
+  const a = attrezzoDi(h)
+  return pesiScritti(h).map(w => h.bodyweight ? bodyWeightKg + w : w + a)
 }
 
 // Colpi effettivi serie per serie — gemello di `setLoads`. Senza `setReps`

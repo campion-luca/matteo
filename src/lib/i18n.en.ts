@@ -847,6 +847,18 @@ export const EN_UI: Record<string, string> = {
   'Senza chili una serie non conta.': 'A set with no weight doesn’t count.',
   'È a corpo libero': 'It’s bodyweight',
   'Le serie senza chili non vengono salvate.': 'Sets with no weight are not saved.',
+  '+ Peso dell’attrezzo a vuoto': '+ Weight of the empty bar or machine',
+  'attrezzo a vuoto · facoltativo': 'empty bar or machine · optional',
+  'kg di bilanciere o multipower': 'kg of the bar or Smith machine',
+  'Peso dell’attrezzo a vuoto': 'Weight of the empty bar or machine',
+  'Nei chili scrivi solo i dischi: i {kg} kg dell’attrezzo si sommano da sé.':
+    'Enter only the plates: the {kg} kg of the bar are added for you.',
+  'Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.':
+    'Apply it to the {n} lifts already logged too. Tick this only if you have been entering the plates alone.',
+  'scrivi solo i dischi: + {kg} kg di attrezzo': 'enter only the plates: + {kg} kg of bar',
+  'Scrivi i dischi: 0 se usi solo l’attrezzo.': 'Enter the plates: 0 if you use the bar alone.',
+  'Le alzate già registrate restano com’erano. Se anche lì scrivevi solo i dischi, sommalo da «Modifica esercizio».':
+    'Lifts already logged stay as they were. If you entered only the plates there too, add it from “Edit exercise”.',
   'colpi invariati': 'same reps',
   'Chiudi l’allenamento del {giorno}': 'Close the workout of {giorno}',
   'Scartalo e inizia oggi': 'Discard it and start today',

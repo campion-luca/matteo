@@ -190,7 +190,7 @@ export function achievements(exercises: PalestraExercise[], bodyWeightKg: number
     const corpo = bodyWeightKg * quotaCorpo(ex)
     for (const h of ex.history) {
       const top = h.setWeights?.length
-        ? Math.max(...h.setWeights.map(w => effectiveLoad({ kg: w, bodyweight: h.bodyweight }, corpo)))
+        ? Math.max(...h.setWeights.map(w => effectiveLoad({ kg: w, bodyweight: h.bodyweight, attrezzo: h.attrezzo }, corpo)))
         : effectiveLoad(h, corpo)
       if (top < HUNDRED_KG) continue
       const date = h.date ?? ''

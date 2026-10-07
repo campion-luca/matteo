@@ -53,6 +53,13 @@ export interface PalestraHistoryEntry {
   setReps?: number[]
   machineModel?: 'panatta'
   bodyweight?: true
+  // Il peso dell'attrezzo a vuoto (bilanciere, multipower) di QUEL giorno, in
+  // chili: `kg` e `setWeights` sono allora i soli dischi, e questo si somma a
+  // ogni serie per volume, massimale, record e grafici (vedi `setLoads`). Sta
+  // sull'alzata, e non solo sull'esercizio, perché l'attrezzo può cambiare —
+  // un'altra palestra, un bilanciere diverso — e le alzate già fatte devono
+  // restare quelle che erano. Assente = i chili scritti sono già il totale.
+  attrezzo?: number
   // L'alzata è un MASSIMALE dichiarato: una singola ripetizione al carico massimo,
   // provata davvero. Non è un'etichetta estetica — cambia il numero: su un massimale
   // il 1RM è il carico, non la stima di Epley (vedi `entry1RM`).
@@ -103,6 +110,10 @@ export interface PalestraExercise {
   // ancora scelto, e decide il catalogo (vedi `corpoLibero`); `false` è una
   // scelta, e il catalogo non la ribalta.
   bodyweight?: boolean
+  // Quanto pesa l'attrezzo a vuoto, se chi si allena vuole scrivere solo i
+  // dischi (facoltativo). È il valore che le PROSSIME alzate si portano dietro
+  // in `attrezzo`; cambiarlo non tocca quelle già registrate.
+  attrezzoKg?: number
   current: { kg: number; reps: number; sets_n: number }
   history: PalestraHistoryEntry[]
 }

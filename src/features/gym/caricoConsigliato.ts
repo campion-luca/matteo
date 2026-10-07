@@ -48,7 +48,7 @@
 
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { giorniTra, isoWeekSortKey, todayISO } from '@/lib/isoDate'
-import { displayMuscle, sortedHistory, setLoads, setRepsOf, colpiPrevisti } from './gymModel'
+import { displayMuscle, sortedHistory, pesiScritti, setRepsOf, colpiPrevisti } from './gymModel'
 
 export type Verso = 'su' | 'giu' | 'uguale'
 
@@ -151,7 +151,7 @@ function serieCorta(colpi: number[], minimi: number[]): number {
 function piena(h: PalestraHistoryEntry, serie: number, minimi: number[]): boolean {
   if (h.sets_n < serie) return false
   if (serieCorta(setRepsOf(h), minimi) >= 0) return false
-  const pesi = setLoads(h)
+  const pesi = pesiScritti(h)
   return pesi.every(k => k === pesi[0])
 }
 
@@ -184,7 +184,7 @@ export function caricoConsigliato(
   const prima = perSettimana[perSettimana.length - 2]
   const serie = Math.max(1, riga.sets)
   const minimi = colpiPrevisti(riga.reps, serie)
-  const pesi = setLoads(ultima)
+  const pesi = pesiScritti(ultima)
   const reps = setRepsOf(ultima)
   const da = Math.max(...pesi)
   const p = passo(da)
@@ -247,7 +247,7 @@ export function caricoConsigliato(
     // Tredici giorni sono il massimo fra due settimane attaccate (lunedì → la
     // domenica dopo).
     const diFila = !!prima?.date && !!ultima.date && giorniTra(prima.date, ultima.date) <= 13
-    const devi = !!prima && diFila && !pianoDiverso(prima, riga) && piena(prima, serie, minimi) && Math.max(...setLoads(prima)) === da
+    const devi = !!prima && diFila && !pianoDiverso(prima, riga) && piena(prima, serie, minimi) && Math.max(...pesiScritti(prima)) === da
     // Appena uscito dalle prime settimane, un esercizio nuovo ha proprio due
     // settimane piene alle spalle: lì è un permesso, e piccolo, non un ordine.
     const motivo: Motivo = settimaneFatte === SETTIMANE_DA_NUOVO ? 'primoAumento' : devi ? 'devi' : 'valuta'

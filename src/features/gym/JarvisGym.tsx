@@ -45,7 +45,7 @@ import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
-import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal } from './gymModals'
+import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal, type OpzioniModificaEsercizio } from './gymModals'
 import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary, StazioniInGara } from './GymHyrox'
 import { HYROX_ATTIVO } from './hyroxAttivo'
@@ -621,7 +621,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
 // ── Pagina dettaglio esercizio (storico, PR, azioni) ───────────
 function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, muscleColors, onSaveMuscleColor, noteCoach = [] }: {
   ex: PalestraExercise; onBack: () => void; onLog: () => void
-  onUpdate: (changes: Partial<PalestraExercise>) => void
+  onUpdate: (changes: Partial<PalestraExercise>, opzioni?: OpzioniModificaEsercizio) => void
   onDelete: () => void
   onOpenCharts: () => void
   /** Le note che gli allenatori hanno scritto su QUESTO esercizio. */
@@ -1822,8 +1822,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       const last = sorted[sorted.length - 1]
       return { history: sorted, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
     }
+    // L'attrezzo scritto nell'alzata diventa quello dell'esercizio: lo si dice
+    // una volta, e le alzate dopo — anche quelle fatte da una scheda — se lo
+    // ritrovano. Svuotarlo lo toglie. Un'alzata a corpo libero non dice niente.
+    const attrezzo = entry.bodyweight ? {} : { attrezzoKg: entry.attrezzo || undefined }
     set(st => ({ palestraExercises: st.palestraExercises.map(e =>
-      e.id === ex.id ? { ...e, ...merge(e.history) } : e
+      e.id === ex.id ? { ...e, ...merge(e.history), ...attrezzo } : e
     )}))
   }
 
@@ -1834,10 +1838,19 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // esercizio. Prima restava quello vecchio: la scheda mostrava un nome che
   // nell'elenco degli esercizi non c'era più, e chi lo riscriveva a mano nella
   // scheda scollegava la riga (vedi `cambiaNome` in GymSchede).
-  const updatePalestraExercise = (ex: PalestraExercise, changes: Partial<PalestraExercise>) => {
+  const updatePalestraExercise = (ex: PalestraExercise, changes: Partial<PalestraExercise>, opzioni?: OpzioniModificaEsercizio) => {
     const nome = typeof changes.n === 'string' && changes.n.trim() && changes.n !== ex.n ? changes.n : null
+    const applica = (e: PalestraExercise): PalestraExercise => {
+      const nuovo = { ...e, ...changes }
+      // L'attrezzo anche sulle alzate di prima, se è stato chiesto: sullo
+      // storico com'è ADESSO, e non su quelle a corpo libero.
+      if (opzioni?.attrezzoAncheAlleVecchie) {
+        nuovo.history = nuovo.history.map(h => (h.bodyweight ? h : { ...h, attrezzo: nuovo.attrezzoKg || undefined }))
+      }
+      return nuovo
+    }
     set(st => ({
-      palestraExercises: st.palestraExercises.map(e => e.id === ex.id ? { ...e, ...changes } : e),
+      palestraExercises: st.palestraExercises.map(e => e.id === ex.id ? applica(e) : e),
       ...(nome ? {
         gymSchede: (st.gymSchede ?? []).map(sc => sc.exercises.some(r => r.linkedExerciseId === ex.id)
           ? { ...sc, exercises: sc.exercises.map(r => r.linkedExerciseId === ex.id ? { ...r, name: nome } : r) }
@@ -2004,7 +2017,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         ex={esercizioAperto}
         onBack={() => { setSelectedExercise(null); setShowExerciseCharts(false) }}
         onLog={() => setLogPalestra(esercizioAperto)}
-        onUpdate={changes => updatePalestraExercise(esercizioAperto, changes)}
+        onUpdate={(changes, opzioni) => updatePalestraExercise(esercizioAperto, changes, opzioni)}
         onDelete={() => deletePalestraExercise(esercizioAperto)}
         onOpenCharts={() => setShowExerciseCharts(true)}
         noteCoach={noteCoach.filter(n => n.exercise_id === esercizioAperto.id)}
