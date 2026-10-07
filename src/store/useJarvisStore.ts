@@ -66,7 +66,12 @@ export interface PalestraHistoryEntry {
   // più, i colpi da 8 a 10 — e senza questo l'alzata di ieri verrebbe giudicata
   // col programma di oggi: tre serie su tre diventano "tre su quattro, meglio
   // scendere" (vedi caricoConsigliato).
-  piano?: { sets: number; reps: string }
+  // `riga` è l'id della riga di scheda da cui viene l'alzata: il nome non basta
+  // a ritrovarla, perché una riga si può cambiare con un altro esercizio — e
+  // chi allena, guardando quel giorno, deve vedere l'esercizio di allora al suo
+  // posto e non quello nuovo come "saltato" (vedi analisiSessioni). Manca sulle
+  // alzate salvate prima che esistesse.
+  piano?: { sets: number; reps: string; riga?: string }
   // Quanto è durato TUTTO l'allenamento di cui questa alzata fa parte, in
   // secondi: dalla prima serie spuntata a "Termina". Sta su ogni alzata della
   // sessione, uguale per tutte, perché un archivio delle sessioni non c'è — un

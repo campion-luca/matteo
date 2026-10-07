@@ -17,7 +17,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti } from './gymModel'
 import { fmtDayMonthFull, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
@@ -437,8 +437,9 @@ export function GymSchede({ onBack, apri }: {
       // I colpi previsti dalla scheda restano il ripiego per le serie lasciate in
       // bianco: un allenamento non può valere zero colpi solo perché il campo
       // non è stato toccato.
-      const attesi = parseInt(se.reps) || 0
-      const doneReps = doneIdx.map(idx => parseInt(r.reps[idx]) || attesi)
+      // Serie per serie: in un "10-8-6" la terza lasciata in bianco vale 6, non 10.
+      const attesi = colpiPrevisti(se.reps, se.sets)
+      const doneReps = doneIdx.map(idx => parseInt(r.reps[idx]) || attesi[idx] || 0)
       // Il valore rappresentativo è la serie più PESANTE, colpi compresi: così
       // `kg × reps` resta una serie che è successa davvero, e non l'incrocio fra
       // il carico di una e le ripetizioni di un'altra.
@@ -452,7 +453,7 @@ export function GymSchede({ onBack, apri }: {
         scheda: { id: scheda.id, nome: scheda.title },
         // Cosa chiedeva la scheda oggi: serve a non giudicare questa alzata
         // con il programma di domani, se la scheda cambia.
-        piano: { sets: Math.max(1, se.sets), reps: se.reps },
+        piano: { sets: Math.max(1, se.sets), reps: se.reps, riga: se.id },
         // E con che muscolo ci si è arrivati: fresco, o già al lavoro da prima.
         giaFatti: giaFatti(target?.muscle ?? se.muscle),
         ...(variesKg ? { setWeights: doneWeights } : {}),
@@ -1246,7 +1247,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                         cedimento non hanno un bersaglio da centrare, si va finché
                         si va. Il campo è testo libero e la parola si potrebbe
                         scrivere a mano, ma andava scritta uguale ogni volta —
-                        `obiettivoColpi` legge un numero e su "max" cade su 0, cioè
+                        `colpiPrevisti` legge dei numeri e su "max" cade su 0, cioè
                         "nessun obiettivo", che è esattamente il comportamento
                         giusto: in allenamento non compare nessun avviso di serie
                         sotto il bersaglio. Con un tasto la parola è sempre quella.
@@ -2307,14 +2308,6 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
 // state 10, 8, 6, con il volume gonfiato di conseguenza.
 interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; note?: string }
 
-// L'obiettivo di colpi di un esercizio della scheda. `reps` è una stringa perché
-// ammette gli intervalli ("8-10"): l'obiettivo è il MINIMO dell'intervallo, cioè
-// il numero sotto il quale la serie è andata storta. Chiudere un 8-10 a 8 non è
-// un errore, e segnarlo in rosso renderebbe il rosso un colore di sfondo.
-function obiettivoColpi(reps: string): number {
-  return parseInt(reps) || 0
-}
-
 // Una card dell'allenamento in corso. A parte e memorizzata: prima stava dentro
 // la `map` della pagina, e ogni cifra battuta in un campo ridisegnava TUTTE le
 // card — con, per ciascuna, la ricerca dell'esercizio collegato fra quelli
@@ -2337,7 +2330,9 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
   onColpi: (exId: string, setIdx: number, v: string) => void
   onNota: (exId: string, v: string) => void
   onUsa: (exId: string, pesi: number[]) => void
-  onUguale: (exId: string) => void
+  /** `soloChili`: la scheda chiede colpi diversi a ogni serie, e si copia il
+   *  peso senza toccarli. */
+  onUguale: (exId: string, soloChili: boolean) => void
   onApriNota: (exId: string) => void
   /** "Questo si fa senza chili": da qui in poi l'esercizio è a corpo libero. */
   onCorpoLibero: (exId: string) => void
@@ -2346,7 +2341,9 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
   const tData = useTData()
   const dark = useIsDark()
   const nSets = Math.max(1, e.sets)
-  const target = obiettivoColpi(e.reps)
+  // Il bersaglio di OGNI serie: "8-10" è 8 per tutte, "10-8-6" scala.
+  const bersagli = colpiPrevisti(e.reps, nSets)
+  const aScalare = new Set(bersagli).size > 1
   const notaVisibile = notaAperta || !!p.note
   // Fatto = tutte le serie spuntate E valide. Con delle serie spuntate senza
   // chili la card si spegneva col suo segno di spunta, la barra in cima si
@@ -2385,7 +2382,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
           </div>
           <div className="flex flex-col gap-1.5" style={{ flexShrink: 0, alignItems: 'flex-end' }}>
             {nSets > 1 && (
-              <button onClick={() => onUguale(e.id)} className="flex items-center gap-1" style={TASTINO}>
+              <button onClick={() => onUguale(e.id, aScalare)} className="flex items-center gap-1" style={TASTINO}>
                 <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
               </button>
             )}
@@ -2420,7 +2417,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
           {Array.from({ length: nSets }).map((_, i) => {
             const on = p.checks[i]
             const colpi = parseInt(p.reps[i] ?? '') || 0
-            const corta = target > 0 && colpi > 0 && colpi < target
+            const corta = colpi > 0 && colpi < (bersagli[i] ?? 0)
             return (
               <div key={i} className="flex items-center gap-2">
                 <button
@@ -2582,7 +2579,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       // I colpi si precompilano sull'obiettivo, non sull'ultima volta: la scheda
       // dice cosa fare oggi, e partire dal numero previsto significa che chi
       // rispetta il programma non tocca nulla — tocca solo chi è rimasto sotto.
-      const target = obiettivoColpi(e.reps)
+      const bersagli = colpiPrevisti(e.reps, n)
       init[e.id] = {
         checks: Array(n).fill(false),
         // Anche il precompilato passa dal formattatore: un 62.5 riletto dallo
@@ -2591,7 +2588,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
           const kg = perSerie?.[i] ?? lastKg
           return kg ? fmtNum(kg) : ''
         }),
-        reps: Array(n).fill(target ? String(target) : ''),
+        reps: bersagli.map(c => (c ? String(c) : '')),
       }
     }
     return init
@@ -2639,12 +2636,15 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
   // Applica peso E colpi della prima serie a tutte. Da quando le righe hanno due
   // campi, ricopiare solo il peso lasciava metà del lavoro a mano proprio nel
   // caso che il tasto esiste per risolvere: le serie tutte uguali.
-  const applyFirstToAll = useCallback((exId: string) =>
+  // Tranne quando è la scheda a volerle diverse ("10-8-6"): lì il tasto serve
+  // a non riscrivere tre volte i chili, e copiando anche i colpi della prima
+  // l'allenamento fatto alla lettera si salvava come 10-10-10.
+  const applyFirstToAll = useCallback((exId: string, soloChili: boolean) =>
     setProgress(p => {
       const cur = p[exId]
       const kg = cur.weights[0] ?? ''
       const rp = cur.reps[0] ?? ''
-      return { ...p, [exId]: { ...cur, weights: cur.weights.map(() => kg), reps: cur.reps.map(() => rp) } }
+      return { ...p, [exId]: { ...cur, weights: cur.weights.map(() => kg), reps: soloChili ? cur.reps : cur.reps.map(() => rp) } }
     }), [])
 
   // L'esercizio collegato, la nota dell'ultima volta e se è a corpo libero, una
@@ -2760,7 +2760,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     // Le serie che finiranno davvero nello storico: spuntate e, con un
     // attrezzo, con i chili scritti. Le altre si contano a parte, per dirlo.
     const idx = serieValide(p.checks, p.weights, collegati[e.id].corpo)
-    const target = obiettivoColpi(e.reps)
+    const bersagli = colpiPrevisti(e.reps, e.sets)
     const colpi = idx.map(i => parseInt(p.reps[i]) || 0)
     return {
       id: e.id,
@@ -2771,10 +2771,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       fatte: idx.length,
       previste: Math.max(1, e.sets),
       colpi,
-      target,
+      // Com'è scritto in scheda: "8", "8-10", "10-8-6".
+      obiettivo: e.reps.trim(),
       // Sotto obiettivo se anche una sola serie è rimasta corta: è quella a dire
       // che qualcosa non ha funzionato, non la media, che la nasconderebbe.
-      colpiCorti: target > 0 && colpi.some(c => c > 0 && c < target),
+      // Ogni serie col SUO bersaglio (`idx` sono le serie fatte, `colpi` i loro).
+      colpiCorti: idx.some((i, k) => colpi[k] > 0 && colpi[k] < (bersagli[i] ?? 0)),
       kg: idx.map(i => parseNum(p.weights[i])),
     }
   }), [scheda, progress, riepilogo, collegati])
@@ -2871,7 +2873,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
                     <span style={{ color: r.colpiCorti ? 'var(--danger)' : NUC.ink, fontWeight: r.colpiCorti ? 600 : 400 }}>
                       {r.colpi.join(', ')}
                     </span>
-                    {r.colpiCorti && <span style={{ color: 'var(--danger)' }}> ({t('obiettivo')} {r.target})</span>}
+                    {r.colpiCorti && <span style={{ color: 'var(--danger)' }}> ({t('obiettivo')} {r.obiettivo})</span>}
                   </div>
                 )}
               </div>

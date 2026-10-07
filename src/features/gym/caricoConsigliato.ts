@@ -48,7 +48,7 @@
 
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { giorniTra, isoWeekSortKey, todayISO } from '@/lib/isoDate'
-import { displayMuscle, sortedHistory, setLoads, setRepsOf } from './gymModel'
+import { displayMuscle, sortedHistory, setLoads, setRepsOf, colpiPrevisti } from './gymModel'
 
 export type Verso = 'su' | 'giu' | 'uguale'
 
@@ -108,16 +108,6 @@ export function contaPerMuscolo(): (muscolo: string | undefined) => number {
   }
 }
 
-/** L'intervallo di colpi di una riga di scheda: "8-10" → 8…10, "10" → 10…10.
- *  `null` per "max" e per tutto ciò che un numero non è. */
-export function intervalloColpi(reps: string): { min: number; max: number } | null {
-  const m = /^\s*(\d+)\s*(?:[-–/]\s*(\d+))?\s*$/.exec(reps ?? '')
-  if (!m) return null
-  const a = parseInt(m[1]), b = m[2] ? parseInt(m[2]) : a
-  if (!a) return null
-  return { min: Math.min(a, b), max: Math.max(a, b) }
-}
-
 /** Di quanto salire o scendere: mai più di 2,5 kg. Sui pesi leggeri anche 2,5
  *  sono un salto enorme (da 8 a 10,5 è un quarto in più), sui bilancieri sono
  *  il passo normale. */
@@ -148,11 +138,19 @@ function pianoDiverso(h: PalestraHistoryEntry, riga: { sets: number; reps: strin
   return !!h.piano && (h.piano.sets !== riga.sets || h.piano.reps.trim() !== riga.reps.trim())
 }
 
+/** La prima serie rimasta sotto il suo minimo di colpi, o -1. Ogni serie ha il
+ *  suo (vedi `colpiPrevisti`): in un "10-8-6" la terza a 6 è a posto. Qui le
+ *  serie ci sono tutte — a una serie mancante ci si ferma prima — quindi la
+ *  prima fatta è la prima prevista. */
+function serieCorta(colpi: number[], minimi: number[]): number {
+  return colpi.findIndex((c, i) => c < (minimi[Math.min(i, minimi.length - 1)] ?? 0))
+}
+
 /** Un'alzata "piena": tutte le serie, nessuna sotto il minimo di colpi, mai
  *  alleggerito, e lo stesso peso dalla prima all'ultima serie. */
-function piena(h: PalestraHistoryEntry, serie: number, colpi: { min: number } | null): boolean {
+function piena(h: PalestraHistoryEntry, serie: number, minimi: number[]): boolean {
   if (h.sets_n < serie) return false
-  if (colpi && setRepsOf(h).some(r => r < colpi.min)) return false
+  if (serieCorta(setRepsOf(h), minimi) >= 0) return false
   const pesi = setLoads(h)
   return pesi.every(k => k === pesi[0])
 }
@@ -185,7 +183,7 @@ export function caricoConsigliato(
   const ultima = perSettimana[perSettimana.length - 1]
   const prima = perSettimana[perSettimana.length - 2]
   const serie = Math.max(1, riga.sets)
-  const colpi = intervalloColpi(riga.reps)
+  const minimi = colpiPrevisti(riga.reps, serie)
   const pesi = setLoads(ultima)
   const reps = setRepsOf(ultima)
   const da = Math.max(...pesi)
@@ -228,7 +226,8 @@ export function caricoConsigliato(
       ? consiglio('uguale', 'fresco', comePrima.map((_, i) => Math.max(...comePrima.slice(0, i + 1))))
       : consiglio('giu', motivo, tutte(!calato && sotto.length ? Math.max(...sotto) : Math.max(p, da - p)), extra)
   if (ultima.sets_n < serie) return giu('serieMancanti', { fatte: ultima.sets_n })
-  if (colpi && reps.some(r => r < colpi.min)) return giu('colpiCorti', { cima: colpi.min })
+  const corta = serieCorta(reps, minimi)
+  if (corta >= 0) return giu('colpiCorti', { cima: minimi[Math.min(corta, minimi.length - 1)] })
   if (calato) return giu('pesoCalato')
 
   // Da qui in giù l'ultima volta è andata bene, e si tratta di capire se salire.
@@ -248,7 +247,7 @@ export function caricoConsigliato(
     // Tredici giorni sono il massimo fra due settimane attaccate (lunedì → la
     // domenica dopo).
     const diFila = !!prima?.date && !!ultima.date && giorniTra(prima.date, ultima.date) <= 13
-    const devi = !!prima && diFila && !pianoDiverso(prima, riga) && piena(prima, serie, colpi) && Math.max(...setLoads(prima)) === da
+    const devi = !!prima && diFila && !pianoDiverso(prima, riga) && piena(prima, serie, minimi) && Math.max(...setLoads(prima)) === da
     // Appena uscito dalle prime settimane, un esercizio nuovo ha proprio due
     // settimane piene alle spalle: lì è un permesso, e piccolo, non un ordine.
     const motivo: Motivo = settimaneFatte === SETTIMANE_DA_NUOVO ? 'primoAumento' : devi ? 'devi' : 'valuta'

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { caricoConsigliato, contaPerMuscolo, intervalloColpi, passo } from '@/features/gym/caricoConsigliato'
+import { caricoConsigliato, contaPerMuscolo, passo } from '@/features/gym/caricoConsigliato'
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 // Il consiglio si legge prima di ogni esercizio: se sbaglia verso — scendere a
@@ -25,13 +25,31 @@ const nuovo = (storico: PalestraHistoryEntry[], r: Riga = riga) => caricoConsigl
 // La stessa riga, con N esercizi dello stesso muscolo davanti.
 const dopo = (n: number): Riga => ({ ...riga, giaFatti: n })
 
-describe('intervallo di colpi', () => {
-  it('legge numeri singoli e intervalli, e ignora il resto', () => {
-    expect(intervalloColpi('10')).toEqual({ min: 10, max: 10 })
-    expect(intervalloColpi('8-10')).toEqual({ min: 8, max: 10 })
-    expect(intervalloColpi('8–12')).toEqual({ min: 8, max: 12 })
-    expect(intervalloColpi('max')).toBeNull()
-    expect(intervalloColpi('')).toBeNull()
+// I colpi previsti si leggono in un posto solo (`colpiPrevisti` in gymModel,
+// provata là): qui conta che il consiglio li legga come la pagina
+// dell'allenamento e come il resoconto a chi allena. Prima aveva una lettura
+// sua, e su "10-8-6" non guardava i colpi affatto.
+describe('i colpi a scalare', () => {
+  const piramide = { sets: 3, reps: '10-8-6' }
+
+  it('10-8-6 fatto 10, 8, 6 è andato bene: si può salire', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 60, 3, 10, { setReps: [10, 8, 6] })], piramide)
+    expect(c).toMatchObject({ verso: 'su' })
+  })
+
+  it('…e una serie sotto il SUO numero no: 7 dove ne chiedeva 8', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 60, 3, 10, { setReps: [10, 7, 6] })], piramide)
+    expect(c).toMatchObject({ verso: 'giu', motivo: 'colpiCorti', cima: 8 })
+  })
+
+  it('"12-10" su due serie: la prima a 10 è corta, come la vede chi si allena', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 60, 2, 10, { setReps: [10, 10] })], { sets: 2, reps: '12-10' })
+    expect(c).toMatchObject({ verso: 'giu', motivo: 'colpiCorti', cima: 12 })
+  })
+
+  it('"max" non ha un numero sotto cui stare', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 60, 3, 4)], { sets: 3, reps: 'max' })
+    expect(c).toMatchObject({ verso: 'su' })
   })
 })
 

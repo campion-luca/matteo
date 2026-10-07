@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard } from '@/components/ui/NucComponents'
 import { useT } from '@/lib/i18n'
-import { bozzaChat, idChat } from '@/lib/messaggi'
+import { bozzaChat, idChat, perData } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, RITMO_APERTO } from '@/lib/messaggiLive'
 import { Bolla, Composer } from './messaggiUI'
 
@@ -26,7 +26,7 @@ export function ChatDiretta({ coachId, athleteId, io, mioNome }: {
   const { messaggi, primoGiroFatto, errore } = useMessaggi(RITMO_APERTO)
   const filo = useMemo(() => {
     const id = idChat(coachId, athleteId)
-    return messaggi.filter(m => m.scheda_id === id).sort((a, b) => a.created_at.localeCompare(b.created_at))
+    return messaggi.filter(m => m.scheda_id === id).sort(perData)
   }, [messaggi, coachId, athleteId])
 
   // Una chat aperta è una chat letta, anche per ciò che arriva mentre la si guarda.

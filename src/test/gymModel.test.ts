@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, ultimaVoce, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa, fmtKgVerso, variazioneCarico, andamentoStorico } from '@/features/gym/gymModel'
+import { effectiveLoad, entry1RM, entryVolume, estimate1RM, fmtKg, fmtNum, fmtReps, normalizzaDecimale, parseNum, setRepsOf, sortedHistory, ultimaVoce, weekSortKey, weekLabel, ultimoAllenamento, ultimaVoltaPerScheda, quantoFa, fmtKgVerso, variazioneCarico, andamentoStorico, colpiPrevisti } from '@/features/gym/gymModel'
 import { isoWeek, giorniTra } from '@/lib/isoDate'
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 
@@ -98,6 +98,66 @@ describe('colpi per serie', () => {
     expect(fmtReps(entry({ reps: 10, sets_n: 3 }))).toBe('10')
     expect(fmtReps(entry({ reps: 10, sets_n: 3, setReps: [10, 10, 10] }))).toBe('10')
     expect(fmtReps(entry({ reps: 10, sets_n: 3, setReps: [10, 8, 6] }))).toBe('6–10')
+  })
+})
+
+// Cosa chiede la scheda a ogni serie. Per un pezzo si è letto solo il primo
+// numero: "10-8-6" erano tre serie da 10, e le due chiuse bene a 8 e a 6
+// finivano in rosso davanti a chi allena.
+describe('colpiPrevisti — il bersaglio di ogni serie', () => {
+  it('un numero vale per tutte le serie', () => {
+    expect(colpiPrevisti('10', 3)).toEqual([10, 10, 10])
+  })
+
+  it('un intervallo vale il suo minimo: chiudere un 8-10 a 8 è rispettare la scheda', () => {
+    expect(colpiPrevisti('8-10', 3)).toEqual([8, 8, 8])
+    expect(colpiPrevisti('8 – 10', 2)).toEqual([8, 8])
+    expect(colpiPrevisti('8/10', 4)).toEqual([8, 8, 8, 8])
+  })
+
+  it('tre numeri sono serie a scalare, ognuna col suo', () => {
+    expect(colpiPrevisti('10-8-6', 3)).toEqual([10, 8, 6])
+    expect(colpiPrevisti('12, 10, 8, 6', 4)).toEqual([12, 10, 8, 6])
+  })
+
+  it('con più serie che numeri l’ultimo si ripete, con meno ci si ferma prima', () => {
+    expect(colpiPrevisti('10-8-6', 4)).toEqual([10, 8, 6, 6])
+    expect(colpiPrevisti('10-8-6', 2)).toEqual([10, 8])
+  })
+
+  it('due numeri a scendere su due serie sono a scalare; su un altro numero di serie vale il più basso', () => {
+    expect(colpiPrevisti('12-10', 2)).toEqual([12, 10])
+    // Su quattro serie non si sa a quale tocchi cosa: 10 per tutte non inventa
+    // una serie corta che non c'è stata.
+    expect(colpiPrevisti('12-10', 4)).toEqual([10, 10, 10, 10])
+  })
+
+  it('"max", vuoto e le parole non hanno un bersaglio; un numero seguito da altro conta lui', () => {
+    expect(colpiPrevisti('max', 2)).toEqual([0, 0])
+    expect(colpiPrevisti('', 3)).toEqual([0, 0, 0])
+    expect(colpiPrevisti('10 per lato', 2)).toEqual([10, 10])
+    // Non è un elenco di serie: il tempo di esecuzione non sono colpi.
+    expect(colpiPrevisti('8 lente 3-1-1', 3)).toEqual([8, 8, 8])
+  })
+
+  it('zero serie o un numero storto: almeno una, e mai un elenco infinito', () => {
+    expect(colpiPrevisti('10', 0)).toEqual([10])
+    expect(colpiPrevisti('10', NaN)).toEqual([10])
+    // Il numero di serie è un campo libero: un dito rimasto sul 9 non deve
+    // chiedere un miliardo di serie.
+    expect(colpiPrevisti('10', 999999999)).toHaveLength(50)
+    expect(colpiPrevisti('10', Infinity)).toHaveLength(50)
+  })
+
+  it('spazi e lineette lunghe separano come il trattino', () => {
+    expect(colpiPrevisti('10 8 6', 3)).toEqual([10, 8, 6])
+    expect(colpiPrevisti('10 — 8 — 6', 3)).toEqual([10, 8, 6])
+    expect(colpiPrevisti('10 - 8 - 6', 3)).toEqual([10, 8, 6])
+  })
+
+  it('un valore che non è nemmeno un testo non fa cadere niente', () => {
+    expect(colpiPrevisti(10 as unknown as string, 2)).toEqual([10, 10])
+    expect(colpiPrevisti(undefined as unknown as string, 2)).toEqual([0, 0])
   })
 })
 

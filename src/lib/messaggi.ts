@@ -106,20 +106,60 @@ export type BozzaMessaggio = Omit<Messaggio, 'id' | 'created_at' | 'letto_coach'
 // `string` — da lì in poi `data` non è più tipizzabile come Messaggio[].
 const CAMPI = 'id, scheda_id, scheda_titolo, coach_id, athlete_id, autore, autore_nome, esercizio_id, esercizio_nome, tipo, testo, letto_coach, letto_atleta, created_at'
 
-/** Tutti i messaggi in cui sono una delle due parti, dal più vecchio al più
- *  recente (una conversazione si legge nell'ordine in cui è successa).
+export interface PaginaMessaggi {
+  /** Dal più RECENTE al più vecchio: è l'ordine in cui il server li taglia. */
+  righe: Messaggio[]
+  /** Quanti ne vedo in tutto sul server, non quanti ce ne sono in `righe`.
+   *  `null` se il server non l'ha detto. */
+  totale: number | null
+}
+
+/** Una fetta dei messaggi in cui sono una delle due parti, presa DAL FONDO: i
+ *  più recenti per primi, `quanti` righe saltandone `da`.
+ *
+ *  Prima si chiedevano tutti, dal più vecchio. Ma il server non dà più di un
+ *  certo numero di righe per richiesta (mille, di solito), e tagliava in coda:
+ *  superata quella soglia, a sparire erano i messaggi NUOVI — quelli appena
+ *  scritti. Chiedendo dal fondo, se qualcosa resta fuori è il più vecchio.
+ *
+ *  Il secondo ordinamento, per id, serve alle pagine: due messaggi con la
+ *  stessa ora devono stare sempre nello stesso ordine, o fra una pagina e
+ *  l'altra uno dei due si perde.
  *
  *  Non c'è un filtro su di me nella query: la RLS lascia passare solo le righe
  *  in cui sono allenatore o allievo, e qui — a differenza di `schedeRicevute` —
  *  le VOGLIO tutte e due, perché chi allena qualcuno ed è a sua volta seguito ha
  *  conversazioni aperte da entrambi i lati e le vede nello stesso posto. */
-export async function messaggiDiUtente(): Promise<Messaggio[]> {
-  const { data, error } = await supabase
+export async function messaggiRecenti(quanti: number, da = 0): Promise<PaginaMessaggi> {
+  const { data, error, count } = await supabase
     .from('coach_messaggi')
-    .select(CAMPI)
-    .order('created_at', { ascending: true })
-  if (error) throw new Error(translateCoachError(error.message))
-  return (data ?? []) as Messaggio[]
+    .select(CAMPI, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(da, da + quanti - 1)
+  if (error) {
+    // PGRST103: si è chiesto di partire oltre l'ultima riga (qualcuno ha
+    // cancellato un messaggio fra una pagina e l'altra). Non è un guasto: è
+    // una pagina vuota.
+    if ((error as { code?: string }).code === 'PGRST103') return { righe: [], totale: null }
+    throw new Error(translateCoachError(error.message))
+  }
+  return { righe: (data ?? []) as Messaggio[], totale: count ?? null }
+}
+
+/** L'ordine di una conversazione: dal più vecchio al più recente.
+ *
+ *  Si confronta l'istante e non il testo della data: quella di un messaggio
+ *  appena scritto la mette il telefono ("…123Z"), le altre il server
+ *  ("…123456+00:00"), e due scritture diverse dello stesso momento, messe in
+ *  ordine alfabetico, si scavalcano. Il testo decide solo a parità di
+ *  millisecondo (lì sono tutte del server, e l'ordine alfabetico è quello
+ *  giusto); l'id perché due righe non restino mai alla pari. */
+export function perData(a: Messaggio, b: Messaggio): number {
+  const d = Date.parse(a.created_at) - Date.parse(b.created_at)
+  if (d) return d
+  if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 /** Costruisce il messaggio completo. Pura: serve anche all'eco immediata in
@@ -221,7 +261,7 @@ export function conversazioni(messaggi: Messaggio[], userId: string): Conversazi
   }
   const out: Conversazione[] = []
   for (const [schedaId, righe] of per) {
-    const ordinati = [...righe].sort((a, b) => a.created_at.localeCompare(b.created_at))
+    const ordinati = [...righe].sort(perData)
     const ultimo = ordinati[ordinati.length - 1]
     const sonoCoach = ruoloIn(ultimo, userId) === 'coach'
     // Il nome della controparte si pesca dal messaggio che LEI ha scritto: il
@@ -241,5 +281,5 @@ export function conversazioni(messaggi: Messaggio[], userId: string): Conversazi
       ultimo,
     })
   }
-  return out.sort((a, b) => b.ultimo.created_at.localeCompare(a.ultimo.created_at))
+  return out.sort((a, b) => perData(b.ultimo, a.ultimo))
 }

@@ -222,6 +222,44 @@ export function setRepsOf(h: Pick<PalestraHistoryEntry, 'reps' | 'sets_n' | 'set
   return Array(Math.max(1, h.sets_n)).fill(h.reps)
 }
 
+/** Oltre questo numero di serie non si ragiona serie per serie. */
+const SERIE_MAX = 50
+
+/** I colpi che una riga di scheda chiede, SERIE PER SERIE: per ciascuna, il
+ *  numero sotto il quale quella serie è rimasta corta. 0 = nessun bersaglio.
+ *
+ *    "10"                 → 10 a ogni serie
+ *    "8-10"               → un intervallo: 8 a ogni serie (chiudere un 8-10 a 8
+ *                           è rispettare la scheda)
+ *    "10-8-6"             → a scalare: 10 la prima, 8 la seconda, 6 la terza
+ *    "12-10" su due serie → a scalare anche questo: 12 e poi 10
+ *    "max", vuoto         → nessun bersaglio
+ *
+ *  Per un pezzo si è letto solo il primo numero, uguale per tutte le serie. Con
+ *  "10-8-6" voleva dire tre serie da 10: le due fatte bene a 8 e a 6 finivano
+ *  in rosso davanti a chi allena, e lasciando i campi come stavano l'allenamento
+ *  si salvava come 10-10-10.
+ *
+ *  Due numeri a scendere su un numero di serie diverso da due ("12-10" su
+ *  quattro) non dicono a quale serie tocca cosa: vale il più basso per tutte,
+ *  che al massimo tace su una serie corta ma non ne inventa una. */
+export function colpiPrevisti(reps: string, serie: number): number[] {
+  // Il numero di serie è un campo libero: senza un tetto, un "999999999"
+  // battuto per sbaglio chiederebbe un elenco lungo altrettanto.
+  const n = Math.min(SERIE_MAX, Math.max(1, Math.floor(serie) || 1))
+  const testo = String(reps ?? '').trim()
+  const tutte = (c: number) => Array(n).fill(c > 0 ? c : 0) as number[]
+  // Solo numeri separati da trattini, barre, virgole o spazi. Tutto il resto —
+  // "10 per lato", "8 lente 3-1-1" — non è un elenco di serie: conta il numero
+  // in testa.
+  if (!/^\d+(\s*[-–—/,]\s*\d+|\s+\d+)*$/.test(testo)) return tutte(parseInt(testo) || 0)
+  const numeri = testo.split(/\s*[-–—/,]\s*|\s+/).map(x => parseInt(x) || 0)
+  if (numeri.length === 1) return tutte(numeri[0])
+  const aScalare = numeri.length > 2 || (numeri[0] > numeri[1] && n === 2)
+  if (!aScalare) return tutte(Math.min(...numeri))
+  return Array.from({ length: n }, (_, i) => numeri[Math.min(i, numeri.length - 1)])
+}
+
 /** I colpi della serie più lunga dell'alzata. È il "meglio" di un esercizio
  *  che non va a chili (addominali, polpacci a corpo libero): lì non c'è un
  *  massimale da stimare, c'è quante se ne fanno. */

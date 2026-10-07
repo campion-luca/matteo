@@ -6,7 +6,7 @@
 // dettagli stanno nelle sessioni; qui serve solo sapere se vale la pena aprirle.
 import type { GymScheda } from '@/store/useJarvisStore'
 import type { TFn } from '@/lib/i18n'
-import { parseNum, fmtDurata } from './gymModel'
+import { parseNum, fmtDurata, colpiPrevisti } from './gymModel'
 
 export interface EsitoSerie {
   /** L'id della riga di scheda. */
@@ -61,9 +61,11 @@ export function contaAllenamento(scheda: GymScheda, esiti: EsitoSerie[]): ContoA
     if (!valide.length) continue
     fatti++
     serieMancanti += Math.max(0, Math.max(1, se.sets) - valide.length)
-    // Il minimo dell'intervallo: chiudere un "8-10" a 8 non è una serie corta.
-    const minimo = parseInt(se.reps) || 0
-    if (minimo > 0) serieCorte += valide.filter(i => { const c = parseInt(r!.reps[i]) || minimo; return c < minimo }).length
+    // Serie per serie: chiudere un "8-10" a 8 non è una serie corta, e in un
+    // "10-8-6" la terza a 6 nemmeno (vedi `colpiPrevisti`). Un campo lasciato
+    // vuoto vale i colpi previsti, come nell'alzata che si salva.
+    const minimi = colpiPrevisti(se.reps, se.sets)
+    serieCorte += valide.filter(i => { const c = parseInt(r!.reps[i]) || 0; return c > 0 && c < (minimi[i] ?? 0) }).length
   }
   return { fatti, totali: scheda.exercises.length, serieMancanti, serieCorte }
 }

@@ -53,6 +53,13 @@ possono essere diversi, e si vedrà dalla seconda settimana.
     avevano pesi diversi, li ritrovi serie per serie;
   - i colpi sono l'obiettivo della scheda. Con un intervallo ("8-10")
     è il numero più basso, 8. Con "max" il campo resta vuoto.
+    Con i colpi a scalare ("10-8-6") ogni serie ha il suo: 10 la prima,
+    8 la seconda, 6 la terza; se le serie sono più dei numeri, l'ultimo
+    si ripete. Due numeri a scendere ("12-10") scalano solo se le serie
+    sono due; altrimenti vale il più basso per tutte (dal 7 ottobre
+    2026: prima si leggeva solo il primo numero, uguale per tutte).
+  - il tasto "uguale" copia sulle altre serie chili e colpi della prima.
+    Se la scheda chiede colpi a scalare copia solo i chili.
 
 Il consiglio non si scrive da solo: per applicarlo tocchi "Usa", che lo
 mette sulle serie non ancora spuntate. Quelle già fatte restano com'erano.
@@ -65,7 +72,10 @@ bene se valgono tutte e tre:
 
   - hai fatto tutte le serie previste;
   - nessuna serie è rimasta sotto il minimo di colpi (con "8-10", sotto
-    gli 8; con "max" i colpi non si guardano);
+    gli 8; con "10-8-6" ogni serie ha il suo: 10, 8 e 6; con "max" i
+    colpi non si guardano). I colpi si leggono qui come nei campi
+    dell'allenamento, vedi il punto 3 (dal 7 ottobre 2026: prima con
+    "10-8-6" i colpi non si guardavano affatto);
   - non hai mai abbassato il peso da una serie a una successiva.
 
 Basta una sola di queste cose mancata perché non si salga.
@@ -240,6 +250,9 @@ Sul quando salire:
     fanno già dire "puoi salire". Non aspetta che arrivi a 10 su tutte.
   - Piramidi con tre pesi diversi: dice sempre "ripeti", non propone mai
     di salire.
+  - Colpi a scalare ("10-8-6"): ogni serie ha il suo minimo, ma i chili
+    consigliati sono gli stessi per tutte. Non propone di caricare di
+    più la serie da 6 che quella da 10.
   - Non conosce gli scatti dell'attrezzo: propone 62,5 anche su una
     macchina che sale di 5 in 5.
 

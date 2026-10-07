@@ -163,6 +163,84 @@ describe('una scheda con obiettivo «max»', () => {
   })
 })
 
+// ── I colpi a scalare ──────────────────────────────────────────
+// "10-8-6" sono tre serie con tre bersagli. Per un pezzo si è letto solo il
+// primo numero: i tre campi partivano da 10, chi faceva la scheda alla lettera
+// doveva correggerne due — o, non toccandoli, salvava 10-10-10 — e le serie
+// chiuse a 8 e a 6 comparivano in rosso.
+describe('una scheda con i colpi a scalare «10-8-6»', () => {
+  beforeEach(() => {
+    useJarvisStore.setState({
+      ...EMPTY_STATE,
+      userName: 'Luca',
+      gymSchede: [{
+        ...scheda,
+        exercises: [{ id: 'se1', name: 'Squat', sets: 3, reps: '10-8-6', muscle: 'Gambe' }],
+      }],
+    }, true)
+  })
+
+  it('ogni serie parte dal suo numero, e chi rispetta il programma salva 10, 8, 6', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    expect(screen.getByLabelText('Squat · serie 1 · colpi')).toHaveValue('10')
+    expect(screen.getByLabelText('Squat · serie 2 · colpi')).toHaveValue('8')
+    expect(screen.getByLabelText('Squat · serie 3 · colpi')).toHaveValue('6')
+
+    await user.type(screen.getByLabelText('Squat · serie 1 · kg'), '100')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    // Fatto alla lettera: nel riepilogo non c'è nessun obiettivo mancato (quello
+    // fra parentesi, in rosso — "obiettivo 3 × 10-8-6" in testa alla card resta).
+    expect(screen.queryByText(/\(obiettivo/i)).toBeNull()
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    const h = alzate('Squat')
+    expect(h[0].sets_n).toBe(3)
+    expect(h[0].setReps).toEqual([10, 8, 6])
+  })
+
+  it('la terza serie a 6 non è rossa; a 5 sì', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    expect(screen.getByLabelText('Squat · serie 2 · colpi')).not.toHaveAttribute('aria-invalid')
+    const colpi3 = screen.getByLabelText('Squat · serie 3 · colpi')
+    expect(colpi3).not.toHaveAttribute('aria-invalid')
+
+    await user.clear(colpi3)
+    await user.type(colpi3, '5')
+    expect(screen.getByLabelText('Squat · serie 3 · colpi')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('«uguale» copia i chili e lascia a ogni serie i suoi colpi', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    await user.type(screen.getByLabelText('Squat · serie 1 · kg'), '100')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
+    expect(screen.getByLabelText('Squat · serie 3 · kg')).toHaveValue('100')
+    expect(screen.getByLabelText('Squat · serie 2 · colpi')).toHaveValue('8')
+    expect(screen.getByLabelText('Squat · serie 3 · colpi')).toHaveValue('6')
+  })
+
+  it('una serie lasciata in bianco vale il SUO bersaglio, non quello della prima', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    await user.type(screen.getByLabelText('Squat · serie 1 · kg'), '100')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
+    await user.clear(screen.getByLabelText('Squat · serie 3 · colpi'))
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+
+    expect(alzate('Squat')[0].setReps).toEqual([10, 8, 6])
+  })
+})
+
 // ── Nota, ordine dei campi, carico consigliato, storico ────────
 describe('allenamento: le aggiunte di settembre', () => {
   it('i colpi vengono prima dei chili in ogni serie', async () => {
@@ -274,7 +352,9 @@ describe('allenamento: le aggiunte di settembre', () => {
     await user.click(screen.getByRole('button', { name: 'Serie 1' }))
     await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
     await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
-    expect(alzate()[0].piano).toEqual({ sets: 3, reps: '10' })
+    // …e da quale riga viene: è così che chi allena la ritrova al suo posto
+    // anche se poi la riga diventa un altro esercizio.
+    expect(alzate()[0].piano).toEqual({ sets: 3, reps: '10', riga: 'se1' })
   })
 
   it('a corpo libero niente consiglio sui chili, e l’alzata si salva come tale', async () => {

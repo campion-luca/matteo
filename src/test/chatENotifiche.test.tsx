@@ -97,6 +97,18 @@ describe('il riassunto di un allenamento finito', () => {
     expect(contaAllenamento(scheda, esiti)).toMatchObject({ fatti: 1, serieMancanti: 0 })
   })
 
+  it('con i colpi a scalare ogni serie ha il suo bersaglio: 10-8-6 fatto 10, 8, 6 è come da scheda', () => {
+    // Il guasto che questo previene: si leggeva solo il primo numero, e a chi
+    // allena arrivava "2 serie corte" per un allenamento fatto alla lettera.
+    const piramide: GymScheda = { ...scheda, exercises: [{ id: 'p', name: 'Squat', sets: 3, reps: '10-8-6' }] }
+    expect(contaAllenamento(piramide, [serie('p', [true, true, true], ['10', '8', '6'])])).toMatchObject({ serieCorte: 0 })
+    expect(riassuntoAllenamento(piramide, [serie('p', [true, true, true], ['10', '8', '6'])], t)).toContain('tutto come da scheda')
+    // …e una serie corta resta corta: 7 dove ne chiedeva 8.
+    expect(contaAllenamento(piramide, [serie('p', [true, true, true], ['10', '7', '6'])])).toMatchObject({ serieCorte: 1 })
+    // La terza saltata e la seconda fatta: il bersaglio della seconda è 8, non 6.
+    expect(contaAllenamento(piramide, [serie('p', [true, true, false], ['10', '7', ''])])).toMatchObject({ serieMancanti: 1, serieCorte: 1 })
+  })
+
   it('il campo dei colpi lasciato vuoto vale il previsto, non zero', () => {
     const esiti = [serie('b', [true, true, true], ['', '', ''])]
     expect(contaAllenamento(scheda, esiti).serieCorte).toBe(0)

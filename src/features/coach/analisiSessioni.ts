@@ -8,14 +8,38 @@
 //   - un esercizio della scheda senza nessuna alzata quel giorno è SALTATO;
 //   - meno serie di quelle previste sono serie MANCANTI;
 //   - una serie sotto i colpi previsti è una serie CORTA (con "8-10" conta il
-//     minimo: fare 8 è rispettare la scheda);
+//     minimo: fare 8 è rispettare la scheda; con "10-8-6" ogni serie ha il suo);
 //   - il carico si confronta con l'ultima volta che ha fatto quell'esercizio,
 //     scheda o no: sale, scende o resta.
+//
+// ── La scheda di QUEL giorno, non quella di oggi ───────────────
+// Una scheda si modifica: una serie in più, un esercizio aggiunto, uno cambiato
+// con un altro. Giudicando ogni giornata con la scheda com'è adesso, il giorno
+// dopo una modifica tutte le settimane passate cambiavano colore: l'esercizio
+// aggiunto ieri risultava "saltato" in ogni allenamento del mese prima, e quello
+// sostituito "fuori scheda". Qui si usa quello che si sa di allora:
+//   - ogni alzata fatta da una scheda porta con sé cosa la scheda chiedeva quel
+//     giorno e da quale riga viene (`piano`): serie e colpi previsti si leggono
+//     da lì, e l'alzata si rimette sulla SUA riga anche se oggi quella riga è
+//     un altro esercizio;
+//   - una riga scritta DOPO quel giorno (la data sta nel suo id) quel giorno non
+//     c'era, e non si può averla saltata;
+//   - un'alzata con il suo `piano` che oggi non ha più una riga era in scheda
+//     quel giorno: non è "fuori scheda".
+// Quello che resta fuori, perché non ha lasciato traccia:
+//   - un esercizio saltato quel giorno e POI tolto dalla scheda non compare;
+//   - una riga aggiunta lo stesso giorno, dopo l'allenamento, per quel giorno
+//     risulta saltata (dell'alzata si sa il giorno, non l'ora);
+//   - le alzate salvate prima che esistesse `piano.riga` si abbinano per nome
+//     come sempre: una riga cambiata con un altro esercizio, in quei giorni,
+//     risulta ancora saltata e l'esercizio di allora fuori scheda.
+// Niente di tutto questo si indovina: un tentativo di dedurlo dai numeri
+// nascondeva i saltati veri, che sono la cosa che chi allena cerca.
 //
 // Logica pura, senza JSX: la schermata la disegna CoachSessioni, e i conti si
 // testano qui.
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
-import { effectiveLoad, entryVolume, setRepsOf, displayMuscle } from '@/features/gym/gymModel'
+import { effectiveLoad, entryVolume, setRepsOf, displayMuscle, colpiPrevisti } from '@/features/gym/gymModel'
 import { quotaCorpo } from '@/features/gym/catalogo'
 import { giorniTra, localISO, todayISO } from '@/lib/isoDate'
 
@@ -25,8 +49,8 @@ export interface EsitoEsercizio {
   exId?: string
   nome: string
   muscle?: string
-  /** Cosa chiedeva la scheda. Assente per le alzate fuori scheda. */
-  previsto?: { serie: number; colpi: string; colpiMin: number | null }
+  /** Cosa chiedeva la scheda quel giorno. Assente per le alzate fuori scheda. */
+  previsto?: { serie: number; colpi: string }
   /** L'alzata registrata. Assente se l'esercizio è stato saltato. */
   fatto?: PalestraHistoryEntry
   saltato: boolean
@@ -67,10 +91,53 @@ export interface Giornata {
 
 const norm = (s: string) => s.trim().toLowerCase()
 
-/** Il primo numero dei colpi previsti: "10" → 10, "8-10" → 8, "max" → null. */
-export function colpiMinimi(colpi: string): number | null {
-  const m = colpi.match(/\d+/)
-  return m ? parseInt(m[0], 10) : null
+/** Il giorno in cui una riga di scheda è stata scritta ("YYYY-MM-DD"), letto
+ *  dal suo id: le righe nascono con `uid('r')`, cioè "r" + l'istante in base 36
+ *  + qualche carattere a caso (vedi lib/uid.ts). `null` se l'id non è fatto
+ *  così — allora della riga non si sa niente, e si assume che ci sia sempre
+ *  stata, com'era prima. */
+export function rigaNataIl(id: string): string | null {
+  const m = /^r([0-9a-z]{8})[0-9a-z]{0,6}$/.exec(id)
+  if (!m) return null
+  const ms = parseInt(m[1], 36)
+  // Un istante plausibile: né prima che l'app esistesse, né nel futuro.
+  if (!(ms > Date.UTC(2024, 0, 1) && ms < Date.now() + 2 * 86_400_000)) return null
+  return localISO(new Date(ms))
+}
+
+/** Quali delle serie FATTE (indici da 0) sono rimaste sotto il loro bersaglio.
+ *
+ *  L'alzata salva solo le serie fatte, in ordine, senza dire quali erano. Se ci
+ *  sono tutte, la prima fatta è la prima prevista. Se ne manca qualcuna e i
+ *  bersagli sono diversi ("10-8-6" con due serie fatte, a 8 e a 6) non si sa a
+ *  quali corrispondano: si prende l'abbinamento che ne lascia corte di meno.
+ *  Quelle due serie possono essere la seconda e la terza, fatte alla lettera —
+ *  e una serie in meno è già detta altrove, non va detta anche come due corte. */
+export function serieSottoIlBersaglio(colpi: number[], minimi: number[]): number[] {
+  const k = colpi.length, n = minimi.length
+  const corta = (j: number, i: number) => colpi[j] < (minimi[Math.min(i, n - 1)] ?? 0)
+  if (n === 0) return []
+  if (k >= n || new Set(minimi).size === 1) {
+    return colpi.map((_, j) => (corta(j, j) ? j : -1)).filter(j => j >= 0)
+  }
+  // costo[j][i]: il minimo di serie corte mettendo le fatte da j in poi sui
+  // bersagli da i in poi (ogni serie fatta su un bersaglio successivo a quello
+  // della precedente).
+  const costo = Array.from({ length: k + 1 }, () => Array<number>(n + 1).fill(Infinity))
+  for (let i = 0; i <= n; i++) costo[k][i] = 0
+  for (let j = k - 1; j >= 0; j--) {
+    for (let i = n - (k - j); i >= 0; i--) {
+      costo[j][i] = Math.min(costo[j][i + 1], (corta(j, i) ? 1 : 0) + costo[j + 1][i + 1])
+    }
+  }
+  const out: number[] = []
+  for (let j = 0, i = 0; j < k; i++) {
+    const qui = (corta(j, i) ? 1 : 0) + costo[j + 1][i + 1]
+    // A parità si resta sul bersaglio più vicino all'inizio: è la lettura di
+    // prima, e cambia solo quando un'altra è davvero migliore.
+    if (qui <= costo[j][i + 1]) { if (corta(j, i)) out.push(j); j++ }
+  }
+  return out
 }
 
 /** Arrotonda al mezzo chilo: una differenza di 0,03 kg nata da una media non è
@@ -119,9 +186,9 @@ export function analizzaGiornate(
 
   const schedaPerId = new Map(schede.map(s => [s.id, s]))
 
-  const esito = (ex: PalestraExercise, h: PalestraHistoryEntry, date: string, previsto?: GymSchedaExercise): EsitoEsercizio => {
+  const esito = (ex: PalestraExercise, h: PalestraHistoryEntry, date: string, previsto?: { sets: number; reps: string }): EsitoEsercizio => {
     const colpi = setRepsOf(h)
-    const min = previsto ? colpiMinimi(previsto.reps) : null
+    const minimi = previsto ? colpiPrevisti(previsto.reps, previsto.sets) : []
     const ora = caricoMesso(h)
     const prima = caricoPrima(ex, date)
     // A corpo libero e senza zavorra, né ora né prima: non c'è un carico da
@@ -132,11 +199,11 @@ export function analizzaGiornate(
       exId: ex.id,
       nome: ex.n,
       muscle: displayMuscle(ex.muscle),
-      previsto: previsto ? { serie: previsto.sets, colpi: previsto.reps, colpiMin: min } : undefined,
+      previsto: previsto ? { serie: previsto.sets, colpi: previsto.reps } : undefined,
       fatto: h,
       saltato: false,
       serieMancanti: previsto ? Math.max(0, previsto.sets - h.sets_n) : 0,
-      serieCorte: min === null ? [] : colpi.map((c, i) => (c < min ? i : -1)).filter(i => i >= 0),
+      serieCorte: serieSottoIlBersaglio(colpi, minimi),
       carico: { ora, prima, delta: prima === null || senzaCarico ? null : mezzoChilo(ora - prima) },
       fuoriScheda: false,
     }
@@ -168,23 +235,37 @@ export function analizzaGiornate(
       // In ordine di scheda, con i saltati al loro posto: si legge come la
       // scheda stessa, e un buco si vede dove sta.
       const usate = new Set<PalestraHistoryEntry>()
+      const righeDiOggi = new Set(def.exercises.map(se => se.id))
       for (const se of def.exercises) {
         if (!se.name.trim()) continue
         const ex = esercizioDi(se, palestra)
-        const trovata = ex ? qui.find(a => a.ex.id === ex.id && !usate.has(a.h)) : undefined
+        // Prima l'alzata che dice di venire da QUESTA riga, anche se allora la
+        // riga era un altro esercizio. Poi, per nome, una che non appartenga
+        // già a un'altra riga di oggi.
+        const trovata = qui.find(a => !usate.has(a.h) && a.h.piano?.riga === se.id)
+          ?? (ex ? qui.find(a => a.ex.id === ex.id && !usate.has(a.h) && !(a.h.piano?.riga && righeDiOggi.has(a.h.piano.riga))) : undefined)
         if (trovata) {
           usate.add(trovata.h)
-          g.esercizi.push(esito(trovata.ex, trovata.h, date, se))
-        } else {
-          g.esercizi.push({
-            nome: ex?.n ?? se.name, muscle: ex ? displayMuscle(ex.muscle) : se.muscle,
-            previsto: { serie: se.sets, colpi: se.reps, colpiMin: colpiMinimi(se.reps) },
-            saltato: true, serieMancanti: se.sets, serieCorte: [], carico: null, fuoriScheda: false,
-          })
+          // Serie e colpi come li chiedeva la scheda QUEL giorno, se l'alzata
+          // se li è portati dietro; altrimenti quelli di oggi.
+          g.esercizi.push(esito(trovata.ex, trovata.h, date, trovata.h.piano ?? se))
+          continue
         }
+        // Scritta dopo quel giorno: non c'era, non si può averla saltata.
+        const nata = rigaNataIl(se.id)
+        if (nata && nata > date) continue
+        g.esercizi.push({
+          nome: ex?.n ?? se.name, muscle: ex ? displayMuscle(ex.muscle) : se.muscle,
+          previsto: { serie: se.sets, colpi: se.reps },
+          saltato: true, serieMancanti: se.sets, serieCorte: [], carico: null, fuoriScheda: false,
+        })
       }
+      // Le alzate senza una riga, oggi. Con il loro `piano` erano righe della
+      // scheda quel giorno, tolte dopo: si vedono con quello che chiedevano
+      // allora. Senza, sono di prima che il piano si salvasse, e non c'è modo
+      // di dire se erano in scheda: restano "fuori scheda", come sempre.
       for (const a of qui) {
-        if (!usate.has(a.h)) g.esercizi.push({ ...esito(a.ex, a.h, date), fuoriScheda: true })
+        if (!usate.has(a.h)) g.esercizi.push({ ...esito(a.ex, a.h, date, a.h.piano), fuoriScheda: !a.h.piano })
       }
     }
 
