@@ -4,7 +4,7 @@ import { temaFisso, type AccentColor, type LayoutFisso } from '@/lib/jarvis-toke
 // Solo il tipo: `import type` sparisce alla compilazione, quindi il fatto che
 // `i18n` importi a sua volta lo store non crea un ciclo a runtime.
 import type { Lang } from '@/lib/i18n'
-import { conSegnoCorpoLibero } from '@/features/gym/catalogo'
+import { conSegnoCorpoLibero, conGruppo } from '@/features/gym/catalogo'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -346,14 +346,15 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
     out.palestraExercises = out.palestraExercises.map(ex => {
       const copia = { ...ex } as PalestraExercise & { img?: string }
       delete copia.img
-      return conSegnoCorpoLibero({
+      // E chi è rimasto senza gruppo muscolare va in "Altro" (vedi `conGruppo`).
+      return conGruppo(conSegnoCorpoLibero({
         ...copia,
         history: (ex.history ?? []).map(h => {
           const copy = { ...h } as PalestraHistoryEntry & { rir?: number }
           delete copy.rir
           return copy as PalestraHistoryEntry
         }),
-      } as PalestraExercise)
+      } as PalestraExercise))
     })
   }
 

@@ -176,6 +176,17 @@ export function conSegnoCorpoLibero<T extends { n: string; bodyweight?: boolean;
   return cambiato ? { ...ex, history } : ex
 }
 
+/** Un esercizio senza gruppo muscolare sta in "Altro".
+ *
+ *  Fino a ott 2026 il gruppo, creando un esercizio, si poteva lasciare vuoto:
+ *  l'esercizio finiva in una card senza nome che non si apriva. Adesso è
+ *  obbligatorio; questo sistema quelli nati prima. Serve negli stessi due posti
+ *  di `conSegnoCorpoLibero`: al caricamento dei propri dati, e quando un
+ *  allenatore legge quelli di un allievo che non ha ancora riaperto l'app. */
+export function conGruppo<T extends { muscle: string }>(ex: T): T {
+  return (ex.muscle ?? '').trim() ? ex : { ...ex, muscle: 'Altro' }
+}
+
 const A_CORPO_LIBERO = new Set(CATALOGO.filter(v => v.bodyweight).map(v => v.n.trim().toLowerCase()))
 
 /** L'esercizio si fa a corpo libero? Se l'ha detto chi l'ha creato, vale quello;

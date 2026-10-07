@@ -44,6 +44,7 @@ import { CoachSessioni } from './CoachSessioni'
 import { CoachGrafici, CoachEsercizio } from './CoachEsercizi'
 import { SchedaFormPage } from '@/features/gym/GymSchede'
 import { EditHistoryModal } from '@/features/gym/gymModals'
+import { caricoDiRiferimento } from '@/features/gym/limitiAlzata'
 import { correzioniPer, salvaCorrezione, applicaCorrezioni } from '@/lib/correzioni'
 import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
@@ -599,7 +600,11 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
       {pagina}
       {correggo && (
         <div data-jmodal-root style={{ position: 'absolute', inset: 0, zIndex: 99 }}>
-          <EditHistoryModal entry={correggo.vecchia} onClose={() => setCorreggo(null)} onSave={correggi}/>
+          <EditHistoryModal
+            entry={correggo.vecchia}
+            riferimentoKg={caricoDiRiferimento(dati?.palestraExercises?.find(e => e.id === correggo.exId)?.history ?? [], correggo.vecchia)}
+            onClose={() => setCorreggo(null)} onSave={correggi}
+          />
         </div>
       )}
     </>

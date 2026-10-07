@@ -42,6 +42,7 @@ import { useNonLetti } from '@/lib/messaggiLive'
 import { BadgeNonLetti } from '@/features/coach/messaggiUI'
 import { LineChart, FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from './gymShared'
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
+import { caricoDiRiferimento } from './limitiAlzata'
 import { useIsDark } from '@/hooks/useIsDark'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
@@ -901,6 +902,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
     {editHistEntry && (
       <EditHistoryModal
         entry={editHistEntry.entry}
+        riferimentoKg={caricoDiRiferimento(hist.filter((_, i) => i !== editHistEntry.idx))}
         onClose={() => setEditHistEntry(null)}
         onSave={updated => {
           const newHist = sortedHistory(hist.map((h, i) => i === editHistEntry.idx ? updated : h))

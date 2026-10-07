@@ -8,7 +8,7 @@
 import { supabase } from './supabase'
 import { t } from '@/lib/i18n'
 import { readStorage, writeStorage, removeStorage } from './safeStorage'
-import { conSegnoCorpoLibero } from '@/features/gym/catalogo'
+import { conSegnoCorpoLibero, conGruppo } from '@/features/gym/catalogo'
 
 export interface CoachLink {
   coach_id: string
@@ -147,7 +147,7 @@ export async function athleteData(athleteId: string): Promise<AthleteData | null
   // 0 kg degli esercizi a corpo libero prendono il loro segno. Il blob che
   // arriva da qui può essere di prima che lui riaprisse l'app, e senza questo
   // l'allenatore leggerebbe "0 kg" dove l'allievo legge "BW".
-  return { ...dati, palestraExercises: dati.palestraExercises.map(conSegnoCorpoLibero) }
+  return { ...dati, palestraExercises: dati.palestraExercises.map(e => conGruppo(conSegnoCorpoLibero(e))) }
 }
 
 // ── Schede assegnate dall'allenatore ──────────────────────

@@ -36,6 +36,7 @@ import { schedeRicevute, schedeRicevuteInCache, ricordaSchedeRicevute, eliminaSc
 import { bozzaChat } from '@/lib/messaggi'
 import { avvisa } from '@/lib/messaggiLive'
 import { riassuntoAllenamento, serieValide, chiliScritti } from './riassuntoAllenamento'
+import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX } from './limitiAlzata'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
 import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
@@ -698,6 +699,7 @@ export function GymSchede({ onBack, apri }: {
       {correggo && (
         <EditHistoryModal
           entry={correggo.entry}
+          riferimentoKg={caricoDiRiferimento(palestraExercises.find(e => e.id === correggo.exerciseId)?.history ?? [], correggo.entry)}
           onClose={() => setCorreggo(null)}
           onSave={nuova => { correggiAlzata(correggo, nuova); setCorreggo(null) }}
         />
@@ -1062,6 +1064,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
       if (r.name.trim() === '') return
       const n = i + 1
       if ((parseInt(r.sets) || 0) <= 0) errs.push(t('Esercizio {n}: numero di serie non valido', { n }))
+      if ((parseInt(r.sets) || 0) > SERIE_MAX) errs.push(t('Esercizio {n}: al massimo {max} serie', { n, max: SERIE_MAX }))
       if (r.reps.trim() === '') errs.push(t('Esercizio {n}: mancano i colpi (ripetizioni)', { n }))
       if (!r.linkedExerciseId && r.muscle === '') errs.push(t('Esercizio {n}: scegli il gruppo muscolare', { n }))
     })
@@ -2783,10 +2786,19 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     const idx = serieValide(p.checks, p.weights, collegati[e.id].corpo, collegati[e.id].attrezzo)
     const bersagli = colpiPrevisti(e.reps, e.sets)
     const colpi = idx.map(i => parseInt(p.reps[i]) || 0)
+    // I numeri che non si salvano, e quelli da guardare due volte perché
+    // lontani dall'ultima alzata dell'esercizio (vedi limitiAlzata).
+    const { corpo, attrezzo, last } = collegati[e.id]
+    const scritti = idx.map(i => parseNum(p.weights[i]))
+    const impossibile = numeroImpossibile({ kg: scritti, colpi })
+    const nuovoKg = scritti.length ? Math.max(...scritti) + attrezzo : 0
+    const ultimoKg = corpo ? null : caricoDiRiferimento(last?.history ?? [])
     return {
       id: e.id,
       name: e.name,
       muscle: e.muscle,
+      impossibile: impossibile ? testoImpossibile(t, impossibile) : null,
+      salto: !corpo && saltoDaConfermare(nuovoKg, ultimoKg) ? { nuovo: nuovoKg, ultimo: ultimoKg ?? 0 } : null,
       nota: p.note?.trim() ?? '',
       senzaChili: spuntate - idx.length,
       fatte: idx.length,
@@ -2800,8 +2812,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
       colpiCorti: idx.some((i, k) => colpi[k] > 0 && colpi[k] < (bersagli[i] ?? 0)),
       kg: idx.map(i => parseNum(p.weights[i])),
     }
+    // `t` cambia solo con la lingua, che a riepilogo aperto non si tocca.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [scheda, progress, riepilogo, collegati])
   const daSalvare = righe.some(r => r.fatte > 0)
+  const impossibili = righe.filter(r => r.impossibile)
+  const salti = righe.filter(r => r.salto)
 
   return (
     <SchedaPage
@@ -2941,8 +2957,39 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
           </div>
         )}
 
-        <button onClick={() => { setRiepilogo(false); finish() }} className="j-btn-accent" style={{ marginTop: 14 }}>
-          {daSalvare ? t('Salva e chiudi') : t('Chiudi senza salvare')}
+        {/* Un numero impossibile non si salva: lo si dice qui, col nome
+            dell'esercizio, e il tasto resta fermo finché non è corretto. */}
+        {impossibili.length > 0 && (
+          <div role="alert" style={{
+            marginTop: 12, padding: '9px 11px', borderRadius: 'var(--radius-sm)',
+            background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.25)',
+            fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.55, letterSpacing: '.02em', color: 'var(--danger)',
+          }}>
+            {t('Da correggere prima di salvare: chiudi questa finestra e sistema i numeri.')}
+            {' '}
+            {impossibili.map(r => `${tData(r.name)} — ${r.impossibile}`).join(' · ')}
+          </div>
+        )}
+        {/* Un numero improbabile sì, ma guardandolo: lo si mette davanti agli
+            occhi prima del tasto, che lo dice anche lui. */}
+        {salti.length > 0 && (
+          <div role="alert" style={{
+            marginTop: 12, padding: '9px 11px', borderRadius: 'var(--radius-sm)',
+            background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
+            fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.55, letterSpacing: '.02em', color: 'var(--warn)',
+          }}>
+            {t('Molto lontani dall’ultima volta: controlla prima di salvare.')}
+            {' '}
+            {salti.map(r => t('{nome}: {nuovo} kg (l’ultima volta {ultimo})', { nome: tData(r.name), nuovo: fmtNum(r.salto!.nuovo), ultimo: fmtNum(r.salto!.ultimo) })).join(' · ')}
+          </div>
+        )}
+
+        <button
+          onClick={() => { setRiepilogo(false); finish() }}
+          disabled={impossibili.length > 0}
+          className="j-btn-accent" style={{ marginTop: 14, opacity: impossibili.length > 0 ? 0.5 : 1 }}
+        >
+          {!daSalvare ? t('Chiudi senza salvare') : salti.length > 0 ? t('Sono giusti: salva e chiudi') : t('Salva e chiudi')}
         </button>
       </JModal>
     </SchedaPage>

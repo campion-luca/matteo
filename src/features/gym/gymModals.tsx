@@ -22,6 +22,7 @@ import {
   effectiveLoad, sortedHistory, fmtTime, colpiMigliori, RACE_STATIONS,
   } from './gymModel'
 import { chiliScritti } from './riassuntoAllenamento'
+import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX, type CampoAlzata } from './limitiAlzata'
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
@@ -344,11 +345,47 @@ function CampoEtichettato({ etichetta, children }: { etichetta: string; children
   )
 }
 
+// ── Quello che «Salva» dice quando non salva ───────────────────
+// Per un pezzo il tasto, con un campo vuoto, non faceva niente e non diceva
+// perché: si restava a premerlo. Adesso il campo che manca diventa rosso e
+// sotto c'è scritto cosa serve. Vale anche per i numeri che non si accettano
+// (vedi limitiAlzata).
+interface Problema { campo: CampoAlzata; testo: string }
+
+const ROSSO = { borderColor: 'var(--danger)' } as const
+
+/** La riga rossa sopra il tasto, e l'avviso del salto di carico: un numero
+ *  improbabile non si rifiuta, si fa guardare una seconda volta. */
+function AvvisiSalvataggio({ problema, salto }: {
+  problema: Problema | null
+  salto: { nuovo: number; ultimo: number } | null
+}) {
+  const t = useT()
+  return (
+    <>
+      {problema && (
+        <div role="alert" style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--danger)' }}>
+          {problema.testo}
+        </div>
+      )}
+      {salto && (
+        <div role="alert" style={{
+          padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+          background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
+          fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--warn)',
+        }}>
+          {t('Hai scritto {nuovo} kg: l’ultima volta erano {ultimo}. Se è giusto, conferma.', { nuovo: fmtNum(salto.nuovo), ultimo: fmtNum(salto.ultimo) })}
+        </div>
+      )}
+    </>
+  )
+}
+
 // Il peso dell'attrezzo a vuoto: bilanciere, multipower. È facoltativo, e alla
 // maggior parte degli esercizi non serve: chiuso è una riga di testo, come la
 // data dell'alzata — un campo sempre aperto si leggerebbe come una cosa da
 // compilare. Chi lo scrive, nei chili mette i soli dischi.
-function CampoAttrezzo({ valore, onChange }: { valore: string; onChange: (v: string) => void }) {
+function CampoAttrezzo({ valore, onChange, errore }: { valore: string; onChange: (v: string) => void; errore?: boolean }) {
   const t = useT()
   const [aperto, setAperto] = useState(!!valore)
   // Un valore che arriva da fuori (l'attrezzo dell'esercizio, a modale già
@@ -374,6 +411,7 @@ function CampoAttrezzo({ valore, onChange }: { valore: string; onChange: (v: str
           value={valore} onChange={e => onChange(normalizzaDecimale(e.target.value))}
           placeholder={t('kg di bilanciere o multipower')} aria-label={t('Peso dell’attrezzo a vuoto')}
           inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"
+          aria-invalid={errore || undefined} style={errore ? ROSSO : undefined}
         />
       </CampoEtichettato>
       {n > 0 && (
@@ -514,6 +552,13 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   // Il peso dell'attrezzo a vuoto: parte da quello dell'esercizio, e quello che
   // si salva qui diventa il suo (vedi `savePalestraEntry`).
   const [attrezzo, setAttrezzo] = useState('')
+  // Cosa manca o non va, detto quando si preme «Salva»; e il salto di carico
+  // già mostrato, che un secondo tocco conferma.
+  const [problema, setProblema] = useState<Problema | null>(null)
+  const [saltoVisto, setSaltoVisto] = useState(false)
+  // Appena si tocca un numero, quello che era stato detto non vale più.
+  useEffect(() => { setProblema(null); setSaltoVisto(false) },
+    [open, kg, reps, sets, zavorra, attrezzo, perSet, setWeightsStr, setRepsStr, isBodyweight, isMax])
 
   // Il modale resta montato: pre-compila kg/reps/sets dall'ultimo valore ad ogni
   // apertura (l'init di useState gira una volta sola, con ex ancora null).
@@ -535,7 +580,9 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   const repsN = isMax ? 1 : parseInt(reps)
   const setsN = isMax ? 1 : parseInt(sets)
   const zavorraN = parseNum(zavorra)
-  const nSets = Math.max(1, setsN || 1)
+  // Mai più righe del massimo di serie: un "2000" battuto per sbaglio, con i
+  // pesi per serie aperti, disegnava duemila righe.
+  const nSets = Math.min(SERIE_MAX, Math.max(1, setsN || 1))
   // A corpo libero l'attrezzo non c'è: quello che si scrive è la zavorra.
   const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
 
@@ -582,8 +629,32 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
 
   if (!ex) return null
 
+  // Quello che impedisce di salvare, nell'ordine in cui lo si incontra.
+  const controlla = (): Problema | null => {
+    const impossibile = numeroImpossibile({
+      serie: setsN,
+      colpi: perSet ? [repsN, ...perSetReps] : [repsN],
+      kg: isBodyweight ? [zavorraN, ...perSetNums] : (perSet ? perSetNums : [kgN]),
+      attrezzo: attrezzoN,
+    })
+    if (impossibile) return { campo: impossibile.campo, testo: testoImpossibile(t, impossibile) }
+    if (!(setsN > 0)) return { campo: 'serie', testo: t('Scrivi quante serie hai fatto.') }
+    if (!(repsN > 0)) return { campo: 'colpi', testo: t('Scrivi quanti colpi hai fatto.') }
+    if (!hasValues) {
+      return { campo: 'kg', testo: attrezzoN > 0 ? t('Scrivi i dischi: 0 se usi solo l’attrezzo.') : t('Scrivi i chili.') }
+    }
+    return null
+  }
+  // Più del doppio, o meno della metà, dell'ultima alzata: si chiede conferma.
+  // A corpo libero no — il carico è il corpo, e la zavorra raddoppia da sé.
+  const ultimoKg = caricoDiRiferimento(ex.history)
+  const salto = !isBodyweight && saltoDaConfermare(topLoad, ultimoKg) ? { nuovo: topLoad, ultimo: ultimoKg ?? 0 } : null
+  const segna = (campo: CampoAlzata) => problema?.campo === campo
+
   const save = () => {
-    if (!hasValues) return
+    const prob = controlla()
+    if (prob) { setProblema(prob); return }
+    if (salto && !saltoVisto) { setSaltoVisto(true); return }
     // Con peso variabile: `kg` = serie più pesante (rappresentativa), e i pesi
     // per serie salvati solo se effettivamente diversi tra loro.
     // Con un attrezzo, una riga lasciata senza chili non è una serie fatta
@@ -652,10 +723,10 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
             quale. */}
             <div className="flex gap-2">
               <CampoEtichettato etichetta={t('serie')}>
-                <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
+                <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('serie') || undefined} style={segna('serie') ? ROSSO : undefined}/>
               </CampoEtichettato>
               <CampoEtichettato etichetta={t('ripetizioni')}>
-                <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field"/>
+                <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('colpi') || undefined} style={segna('colpi') ? ROSSO : undefined}/>
               </CampoEtichettato>
             </div>
           </>
@@ -679,7 +750,8 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
                     inputMode="decimal"
                     onFocus={selezionaAlFocus}
                     className="j-field"
-                    style={{ flex: 1, minWidth: 0 }}
+                    aria-invalid={segna('kg') || undefined}
+                    style={{ flex: 1, minWidth: 0, ...(segna('kg') ? ROSSO : {}) }}
                   />
                   <input
                     value={setRepsStr[i] ?? ''}
@@ -705,19 +777,19 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
         ) : isBodyweight ? (
           <>
             <div className="j-eyebrow mt-1">{t('Zavorra extra')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
-            <input value={zavorra} onChange={e => setZavorra(normalizzaDecimale(e.target.value))} placeholder={t('kg aggiunti')} aria-label={t('Zavorra')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
+            <input value={zavorra} onChange={e => setZavorra(normalizzaDecimale(e.target.value))} placeholder={t('kg aggiunti')} aria-label={t('Zavorra')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('kg') || undefined} style={segna('kg') ? ROSSO : undefined}/>
           </>
         ) : (
           <>
             <CampoEtichettato etichetta={t('chili')}>
-              <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field"/>
+              <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('kg') || undefined} style={segna('kg') ? ROSSO : undefined}/>
             </CampoEtichettato>
           </>
         )}
 
         {/* 2b. L'attrezzo a vuoto. Dopo i chili, perché è a quelli che si somma;
             la chiave lo richiude a ogni apertura su un esercizio che non ce l'ha. */}
-        {!isBodyweight && <CampoAttrezzo key={`${ex.id}-${open}`} valore={attrezzo} onChange={setAttrezzo}/>}
+        {!isBodyweight && <CampoAttrezzo key={`${ex.id}-${open}`} valore={attrezzo} onChange={setAttrezzo} errore={segna('attrezzo')}/>}
         {/* La prima volta su un esercizio che ha già uno storico: quelle alzate
             l'attrezzo non ce l'hanno, e questa sembrerà un salto in avanti (e un
             record). Non si può sapere da qui se nei chili di prima c'era già:
@@ -763,7 +835,8 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
           </div>
         )}
 
-        <button onClick={save} className="j-btn-accent">{t('Salva')}</button>
+        <AvvisiSalvataggio problema={problema} salto={saltoVisto ? salto : null}/>
+        <button onClick={save} className="j-btn-accent">{saltoVisto && salto ? t('Conferma e salva') : t('Salva')}</button>
       </div>
     </JModal>
   )
@@ -789,6 +862,9 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
   const [muscle2, setMuscle2] = useState('')
   const [note, setNote] = useState('')
   const [corpo, setCorpo] = useState(false)
+  // Cosa manca, detto quando si preme «Aggiungi».
+  const [manca, setManca] = useState<'nome' | 'gruppo' | null>(null)
+  useEffect(() => { setManca(null) }, [open, name, muscle])
 
   // Quando il modale viene aperto da una card di gruppo muscolare, parte già
   // sul muscolo giusto.
@@ -797,11 +873,15 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
   }, [open, presetMuscle])
 
   const save = () => {
-    if (!name.trim()) return
+    if (!name.trim()) { setManca('nome'); return }
+    // Il gruppo è obbligatorio. Senza, l'esercizio finiva in una card senza
+    // nome che non si apriva: c'era, ma non lo si raggiungeva più se non dalla
+    // ricerca.
+    if (mode !== 'hyrox' && !muscle.trim()) { setManca('gruppo'); return }
     if (mode === 'hyrox') {
       onAdd({ id: uid('hx'), n: name, unit, target: parseFloat(target) || 1, history: [] })
     } else {
-      onAdd({ id: uid('px'), n: name, muscle, ...(muscle2 ? { muscle2 } : {}), ...(note.trim() ? { note: note.trim() } : {}), bodyweight: corpo, current: { kg: 0, reps: 8, sets_n: 3 }, history: [] })
+      onAdd({ id: uid('px'), n: name, muscle: muscle.trim(), ...(muscle2 ? { muscle2 } : {}), ...(note.trim() ? { note: note.trim() } : {}), bodyweight: corpo, current: { kg: 0, reps: 8, sets_n: 3 }, history: [] })
     }
     setName(''); setUnit('m'); setTarget(''); setMuscle(''); setMuscle2(''); setNote(''); setCorpo(false)
     onClose()
@@ -815,7 +895,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
         <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
           {t('Nome')}
         </div>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field"/>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field" aria-label={t('Nome esercizio')} aria-invalid={manca === 'nome' || undefined} style={manca === 'nome' ? ROSSO : undefined}/>
         {mode === 'hyrox' ? (
           <>
             <select value={unit} onChange={e => setUnit(e.target.value as 'km' | 'm' | 'rep')} className="j-field">
@@ -830,7 +910,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
             <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
               {t('Gruppo muscolare')}
             </div>
-            <select value={muscle} onChange={e => { setMuscle(e.target.value); setMuscle2('') }} className="j-field">
+            <select value={muscle} onChange={e => { setMuscle(e.target.value); setMuscle2('') }} className="j-field" aria-label={t('Gruppo muscolare')} aria-invalid={manca === 'gruppo' || undefined} style={manca === 'gruppo' ? ROSSO : undefined}>
               <option value="">{t('Seleziona gruppo muscolare')}</option>
               {/* `value` resta il nome italiano: è ciò che finisce nei dati. Si
                   traduce solo l'etichetta che si legge. */}
@@ -875,6 +955,11 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
               style={{ resize: 'none', lineHeight: 1.5 }}
             />
           </>
+        )}
+        {manca && (
+          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--danger)' }}>
+            {manca === 'nome' ? t('Scrivi il nome dell’esercizio.') : t('Scegli il gruppo muscolare.')}
+          </div>
         )}
         <button onClick={save} className="j-btn-accent">{t('Aggiungi')}</button>
       </div>
@@ -1104,6 +1189,9 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   // Mettere l'attrezzo anche sulle alzate già registrate: lo decide chi sa
   // come le aveva scritte (vedi sotto, accanto alla casella).
   const [ancheVecchie, setAncheVecchie] = useState(false)
+  // Cosa manca, detto quando si preme «Salva».
+  const [manca, setManca] = useState<'nome' | 'gruppo' | null>(null)
+  useEffect(() => { setManca(null) }, [open, name, muscle])
 
   useEffect(() => {
     setName(ex.n); setMuscle(displayMuscle(ex.muscle)); setMuscle2(displayMuscle(ex.muscle2 ?? ''))
@@ -1132,7 +1220,8 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   const alzateConAttrezzo = ex.history.filter(h => !h.bodyweight).length
 
   const save = () => {
-    if (!name.trim()) return
+    if (!name.trim()) { setManca('nome'); return }
+    if (!muscle.trim()) { setManca('gruppo'); return }
     onSaveMuscleColor(muscle, color || undefined)
     // Il tipo di carico si scrive sempre, anche se non è stato toccato: chi lo
     // prendeva dal catalogo per nome ("Trazioni") lo perderebbe rinominando
@@ -1217,6 +1306,11 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
           style={{ resize: 'none', lineHeight: 1.5 }}
         />
 
+        {manca && (
+          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--danger)' }}>
+            {manca === 'nome' ? t('Scrivi il nome dell’esercizio.') : t('Scegli il gruppo muscolare.')}
+          </div>
+        )}
         <button onClick={save} className="j-btn-accent" style={{ marginTop: 4 }}>{t('Salva')}</button>
       </div>
     </JModal>
@@ -1224,12 +1318,18 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
 }
 
 // ── Edit History Entry Modal ───────────────────────────────────
-export function EditHistoryModal({ entry, onClose, onSave }: {
+export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
   entry: PalestraHistoryEntry
   onClose: () => void
   onSave: (updated: PalestraHistoryEntry) => void
+  /** Il carico dell'ultima ALTRA alzata dell'esercizio (vedi
+   *  `caricoDiRiferimento`): serve a chiedere conferma di un numero lontano
+   *  da lì. Senza, non si chiede niente. */
+  riferimentoKg?: number | null
 }) {
   const t = useT()
+  const [problema, setProblema] = useState<Problema | null>(null)
+  const [saltoVisto, setSaltoVisto] = useState<{ nuovo: number; ultimo: number } | null>(null)
   const [isBodyweight, setIsBodyweight] = useState(entry.bodyweight === true)
   // L'attrezzo di QUESTA alzata: si corregge qui, una per una, senza toccare
   // le altre né l'esercizio.
@@ -1255,8 +1355,11 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
   const [isMax, setIsMax] = useState(entry.maxLift === true)
   const [date, setDate] = useState(entry.date ?? '')
   const [nota, setNota] = useState(entry.note ?? '')
+  // Appena si tocca un numero, quello che era stato detto non vale più.
+  useEffect(() => { setProblema(null); setSaltoVisto(null) },
+    [kg, reps, sets, zavorra, attrezzo, perSet, setWeightsStr, setRepsStr, isBodyweight, isMax])
 
-  const nSets = Math.max(1, parseInt(sets) || 1)
+  const nSets = Math.min(SERIE_MAX, Math.max(1, parseInt(sets) || 1))
   const updateSetWeight = (i: number, v: string) =>
     setSetWeightsStr(arr => { const next = [...arr]; next[i] = normalizzaDecimale(v); return next })
   const updateSetReps = (i: number, v: string) =>
@@ -1271,8 +1374,20 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
   const save = () => {
     const repsN = isMax ? 1 : parseInt(reps)
     const setsN = isMax ? 1 : parseInt(sets)
-    if (!repsN || !setsN) return
     const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
+    const stop = (campo: CampoAlzata, testo: string) => setProblema({ campo, testo })
+    // I numeri che non si accettano, prima di tutto il resto.
+    const scritti = perSet ? Array.from({ length: Math.min(SERIE_MAX, Math.max(1, setsN || 1)) }, (_, i) => i) : []
+    const impossibile = numeroImpossibile({
+      serie: setsN,
+      colpi: [repsN, ...scritti.map(i => parseInt(setRepsStr[i]))],
+      kg: perSet ? scritti.map(i => parseNum(setWeightsStr[i])) : [isBodyweight ? parseNum(zavorra) : parseNum(kg)],
+      attrezzo: attrezzoN,
+    })
+    if (impossibile) return stop(impossibile.campo, testoImpossibile(t, impossibile))
+    if (!(setsN > 0)) return stop('serie', t('Scrivi quante serie hai fatto.'))
+    if (!(repsN > 0)) return stop('colpi', t('Scrivi quanti colpi hai fatto.'))
+    const senzaChili = () => stop('kg', attrezzoN > 0 ? t('Scrivi i dischi: 0 se usi solo l’attrezzo.') : t('Scrivi i chili.'))
     let setWeights: number[] | undefined
     let setReps: number[] | undefined
     let kgN: number
@@ -1282,7 +1397,7 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
       // che esiste già, e aprirla per aggiungere una nota non deve cambiarle
       // il numero di serie in silenzio. Chi vuole toglierne una abbassa "Serie".
       const nums = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseNum(setWeightsStr[i]))
-      if (!isBodyweight && !nums.some((_, i) => chiliScritti(setWeightsStr[i], attrezzoN > 0))) return
+      if (!isBodyweight && !nums.some((_, i) => chiliScritti(setWeightsStr[i], attrezzoN > 0))) return senzaChili()
       const rps = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseInt(setRepsStr[i]) || repsN)
       kgN = nums.length ? Math.max(...nums) : 0
       setWeights = new Set(nums).size > 1 ? nums : undefined
@@ -1292,9 +1407,16 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
       if (setReps) repsOut = rps[nums.indexOf(Math.max(...nums))] || repsN
     } else {
       kgN = isBodyweight ? parseNum(zavorra) : parseNum(kg)
-      if (!isBodyweight && !chiliScritti(kg, attrezzoN > 0)) return
+      if (!isBodyweight && !chiliScritti(kg, attrezzoN > 0)) return senzaChili()
       setWeights = undefined
       setReps = undefined
+    }
+    // Lontano dall'ultima altra alzata dell'esercizio: lo si mostra, e il
+    // secondo tocco conferma. A corpo libero no (vedi limitiAlzata).
+    const nuovoKg = Math.max(kgN, ...(setWeights ?? [])) + attrezzoN
+    if (!isBodyweight && saltoDaConfermare(nuovoKg, riferimentoKg) && !saltoVisto) {
+      setSaltoVisto({ nuovo: nuovoKg, ultimo: riferimentoKg ?? 0 })
+      return
     }
     onSave({
       ...entry,
@@ -1397,11 +1519,11 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
         ) : (
           <div>
             <div className="j-eyebrow mb-1">{t('Kg')}</div>
-            <input inputMode="decimal" value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} className="j-field" placeholder="0"/>
+            <input inputMode="decimal" value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} className="j-field" placeholder="0" aria-label={t('Kg')} aria-invalid={problema?.campo === 'kg' || undefined} style={problema?.campo === 'kg' ? ROSSO : undefined}/>
           </div>
         )}
 
-        {!isBodyweight && <CampoAttrezzo valore={attrezzo} onChange={setAttrezzo}/>}
+        {!isBodyweight && <CampoAttrezzo valore={attrezzo} onChange={setAttrezzo} errore={problema?.campo === 'attrezzo'}/>}
 
         <div>
           <div className="j-eyebrow mb-1">{t('Nota')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
@@ -1415,7 +1537,8 @@ export function EditHistoryModal({ entry, onClose, onSave }: {
           />
         </div>
 
-        <button onClick={save} className="j-btn-accent" style={{ marginTop: 4 }}>{t('Salva')}</button>
+        <AvvisiSalvataggio problema={problema} salto={saltoVisto}/>
+        <button onClick={save} className="j-btn-accent" style={{ marginTop: 4 }}>{saltoVisto ? t('Conferma e salva') : t('Salva')}</button>
       </div>
     </JModal>
   )
