@@ -6,7 +6,7 @@
 //
 // I colori non stanno qui: li scrive la card in quattro variabili (`--d1`,
 // `--d2`, `--d3` dal più tenue al più deciso, `--df` il fondo della card), così
-// il disegno segue il tema, la tinta e lo stato acceso senza saperne niente.
+// il disegno segue il tema e la tinta senza saperne niente.
 // `--df` serve a "ritagliare": un contorno del colore del fondo stacca una forma
 // da quella che le sta dietro senza disegnare una riga in più.
 //

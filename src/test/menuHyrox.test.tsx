@@ -46,13 +46,13 @@ describe('menù dell’allenamento', () => {
     expect(screen.getByRole('button', { name: 'Esercizi' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Gara' })).toBeInTheDocument()
 
-    // Statistiche apre i tempi Hyrox, e si richiude da Esercizi.
-    const stats = screen.getByRole('button', { name: 'Statistiche' })
-    await user.click(stats)
-    expect(stats).toHaveAttribute('aria-pressed', 'true')
+    // Statistiche apre la sua pagina con i tempi Hyrox; la freccia riporta a
+    // Hyrox, dove Esercizi è ancora lì.
+    await user.click(screen.getByRole('button', { name: 'Statistiche' }))
     expect(screen.getByText('Tempi per esercizio')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Esercizi' }))
+    await user.click(screen.getByRole('button', { name: 'Indietro' }))
     expect(screen.queryByText('Tempi per esercizio')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Esercizi' }))
     expect(screen.getByText('Stazioni gara')).toBeInTheDocument()
   })
 
@@ -60,8 +60,9 @@ describe('menù dell’allenamento', () => {
     const user = userEvent.setup()
     monta()
     await user.click(screen.getByRole('button', { name: 'Statistiche' }))
+    expect(screen.getByText('Riepilogo complessivo')).toBeInTheDocument()
     expect(screen.queryByText('Tempi per esercizio')).not.toBeInTheDocument()
-    // Un solo "Hyrox": lo switch in testata, non un secondo dentro le statistiche.
-    expect(screen.getAllByRole('button', { name: 'Hyrox' })).toHaveLength(1)
+    // Nessun "Hyrox" dentro le statistiche: lo switch sta in home, che è coperta.
+    expect(screen.queryByRole('button', { name: 'Hyrox' })).not.toBeInTheDocument()
   })
 })

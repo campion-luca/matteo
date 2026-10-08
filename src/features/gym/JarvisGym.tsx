@@ -85,8 +85,6 @@ function MetricSwitch({ value, onChange }: { value: MuscleView; onChange: (v: Mu
   )
 }
 
-type GymMode = 'palestra' | 'hyrox' | 'stats'
-
 // I due modi di allenarsi. Non sono tre: "Stats" non è un allenamento ma ciò che
 // se ne ricava, e stava qui dentro solo perché era un'altra schermata da
 // raggiungere. Adesso è una delle tre card sotto, insieme a Schede e Cerca, che
@@ -144,8 +142,7 @@ function GymModeTabs({ value, onChange }: { value: 'palestra' | 'hyrox'; onChang
 // L'icona è una nuvoletta e non più un manubrio: il manubrio è già la tab Pesi
 // qui sopra, identico, e diceva comunque la cosa sbagliata — il Personal Coach è
 // il posto dove si parla con una persona.
-function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
-  attiva: 'stats' | null
+function AzioniGym({ onCoach, onSchede, onStats }: {
   onCoach: () => void
   onSchede: () => void
   onStats: () => void
@@ -156,30 +153,25 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
   // se per accorgersi di un messaggio bisognasse entrare, il badge non servirebbe.
   const daLeggere = useNonLetti()
   const card = (id: 'coach' | 'schede' | 'stats', label: string, onClick: () => void) => {
-    const on = id === attiva
     const badge = id === 'coach' ? daLeggere : 0
     // Ogni card ha la sua tinta (`--azione-…` in globals.css, una terna per
     // tema), mescolata alla superficie: fondo, bordo e disegno sono dosi dello
-    // stesso colore. Accesa (le statistiche aperte) torna piena d'accent, come
-    // prima.
+    // stesso colore. Nessuna resta "accesa": tutte e tre aprono una pagina, e
+    // da quando lo fa anche Statistiche non c'è più uno stato da mostrare qui.
     const tinta = `var(--azione-${id})`
-    const fondo = on ? 'var(--j-accent)' : `color-mix(in srgb, ${tinta} 26%, var(--surface))`
+    const fondo = `color-mix(in srgb, ${tinta} 26%, var(--surface))`
     // I quattro colori del disegno (vedi DisegniAzioni): due toni per le masse,
     // uno per i dettagli — la tinta spinta verso il colore del testo, chiara sui
     // temi scuri e scura sulla carta — e il fondo, per i ritagli.
-    const colori = (on ? {
-      '--d1': 'color-mix(in srgb, var(--j-accent-fg) 20%, transparent)',
-      '--d2': 'color-mix(in srgb, var(--j-accent-fg) 42%, transparent)',
-      '--d3': 'var(--j-accent-fg)',
-    } : {
+    const colori = {
       '--d1': `color-mix(in srgb, ${tinta} 40%, transparent)`,
       '--d2': `color-mix(in srgb, ${tinta} 78%, transparent)`,
       '--d3': `color-mix(in srgb, ${tinta} 38%, var(--fg))`,
-    }) as React.CSSProperties
+      '--df': fondo,
+    } as React.CSSProperties
     return (
       <button
         onClick={onClick}
-        aria-pressed={id === 'schede' || id === 'coach' ? undefined : on}
         aria-label={badge > 0 ? `${label} — ${t('{n} da leggere', { n: badge })}` : undefined}
         className="j-hard"
         style={{
@@ -195,14 +187,13 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
           height: ALTEZZA_AZIONE,
           minWidth: 0, borderRadius: 'var(--radius-lg)', cursor: 'pointer',
           backgroundColor: fondo,
-          border: `1px solid ${on ? 'var(--j-accent)' : `color-mix(in srgb, ${tinta} 42%, transparent)`}`,
-          color: on ? 'var(--j-accent-fg)' : 'var(--fg)',
+          border: `1px solid color-mix(in srgb, ${tinta} 42%, transparent)`,
+          color: 'var(--fg)',
           display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-end',
           padding: 'clamp(11px, 3.2vw, 15px)',
           textAlign: 'left',
-          transition: 'background-color 200ms, border-color 200ms, color 200ms',
-          ...colori, '--df': fondo,
-        } as React.CSSProperties}
+          ...colori,
+        }}
       >
         <DisegnoAzione id={id} style={DISEGNO_AZIONE}/>
         {/* Non più in maiuscoletto spaziato: sono nomi di posti dove si va, e
@@ -235,23 +226,21 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
 // Il menù di Hyrox: una voce sola, Statistiche, sotto Esercizi e Gara.
 // Coach e Schede sono cose dei pesi — le schede sono elenchi di esercizi con
 // serie e chili, l'allenatore commenta quelle — e dentro Hyrox erano due porte
-// verso l'altro mondo. Stessa forma delle card dei pesi, stesa su una riga: è
-// un interruttore come lì, si ripreme per tornare all'elenco.
-function TastoStatistiche({ attivo, onClick }: { attivo: boolean; onClick: () => void }) {
+// verso l'altro mondo. Stessa forma delle card dei pesi, stesa su una riga, e
+// come quella dei pesi apre la pagina delle statistiche.
+function TastoStatistiche({ onClick }: { onClick: () => void }) {
   const t = useT()
   return (
     <button
       onClick={onClick}
-      aria-pressed={attivo}
       className="j-hard j-focus"
       style={{
         width: '100%', height: 44, marginBottom: 16, borderRadius: 'var(--radius)', cursor: 'pointer',
-        backgroundColor: attivo ? 'var(--j-accent)' : 'var(--surface)',
-        border: `1px solid ${attivo ? 'var(--j-accent)' : 'var(--hairline)'}`,
-        color: attivo ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--hairline)',
+        color: 'var(--fg-soft)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         fontFamily: NUC.label, fontSize: 12.5, fontWeight: 500, letterSpacing: '.01em',
-        transition: 'background-color 200ms, border-color 200ms, color 200ms',
       }}
     >
       <Icons.chart size={18} stroke={1.7}/>
@@ -1694,15 +1683,13 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const bodyWeight = useBodyWeight()
   // Le foto degli esercizi, chieste in anticipo: vedi `precaricaFoto`.
   useEffect(() => { precaricaFoto() }, [])
-  // `tab` è il mondo in cui si sta (pesi o hyrox), `stats` e `ricerca` sono due
-  // viste che ci si aprono sopra. Prima era un'enum sola, e per questo "Stats"
-  // doveva per forza essere un terzo tab: entrarci significava USCIRE da pesi.
+  // `tab` è il mondo in cui si sta (pesi o hyrox); `stats` è la pagina delle
+  // statistiche aperta sopra la home, come le schede (vedi `paginaStatistiche`).
   // Le statistiche sono sempre quelle del mondo in cui si è: dai pesi i pesi, da
   // Hyrox i tempi. Non c'è più un interruttore Pesi/Hyrox dentro: era lo stesso
   // dello switch in testata, ripetuto un piano più giù.
   const [tab, setTab] = useState<'palestra' | 'hyrox'>('palestra')
   const [stats, setStats] = useState(false)
-  const mode: GymMode = stats ? 'stats' : tab
   // Hyrox si apre sulla gara: il tempo stimato è la domanda con cui ci si entra.
   const [hyroxSubTab, setHyroxSubTab] = useState<'gara' | 'esercizi'>('gara')
   // Dentro Esercizi: le sessioni di allenamento, o i tempi delle gare registrate.
@@ -2110,7 +2097,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         {/* L'allenamento lasciato aperto: resta qui finché non lo si termina,
             così chi è uscito a guardare altro lo ritrova senza cercarlo. Con
             le schede aperte sopra non si rilegge: è coperta. */}
-        {!showSchede && (
+        {!showSchede && !stats && (
           <InCorsoInHome
             onRiprendi={id => { setSchedaDaAprire(id); setRiprendi(true); setShowSchede(true) }}
             style={{ marginTop: 14, marginBottom: 8 }}
@@ -2120,57 +2107,39 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
             l'app è solo palestra e un interruttore con una voce sola non
             commuta niente. */}
         {HYROX_ATTIVO && (
-          <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
+          <GymModeTabs value={tab} onChange={v => { setTab(v); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
         )}
       </div>
 
       <div className="j-scroll-area">
         {/* Il menù è dei pesi: in Hyrox Coach e Schede non hanno niente da fare, e
             Statistiche scende sotto Esercizi e Gara (vedi TastoStatistiche).
-            Stats è un interruttore: si ripreme la card per tornare alla lista.
+            Tutte e tre aprono una pagina sopra questa.
             Stanno QUI, in cima a ciò che scorre, e non più nella testata fissa:
             da quando sono alte il doppio, ferme lassù lasciavano ai gruppi
             muscolari meno di mezza schermata in cui scorrere. Così a riposo la
             pagina è la stessa, e scorrendo se ne vanno insieme al resto. */}
         {tab === 'palestra' && (
           <AzioniGym
-            attiva={stats ? 'stats' : null}
             onCoach={onOpenCoach}
             onSchede={() => setShowSchede(true)}
-            onStats={() => setStats(v => !v)}
+            onStats={() => setStats(true)}
           />
         )}
-        {/* Il menù di Hyrox: Esercizi e Gara, e sotto Statistiche. Con le
-            statistiche aperte nessuna delle due è accesa — toccarne una torna lì. */}
+        {/* Il menù di Hyrox: Esercizi e Gara, e sotto Statistiche. */}
         {tab === 'hyrox' && (
           <>
             <NucSubTabs
               options={[{ id: 'gara', label: t('Gara') }, { id: 'esercizi', label: t('Esercizi') }]}
-              value={stats ? '' : hyroxSubTab}
-              onChange={id => { setStats(false); setHyroxSubTab(id as 'gara' | 'esercizi') }}
+              value={hyroxSubTab}
+              onChange={id => setHyroxSubTab(id as 'gara' | 'esercizi')}
               style={{ marginBottom: 8 }}
             />
-            <TastoStatistiche attivo={stats} onClick={() => setStats(v => !v)}/>
+            <TastoStatistiche onClick={() => setStats(true)}/>
           </>
         )}
 
-        {mode === 'stats' && (
-          <>
-            {/* Il riepilogo complessivo è qui, aperto. Era la schermata d'ingresso
-                dell'app e per un giro è stato dietro un bottone: ma è la cosa che si
-                guarda per prima entrando in Stats — quanto ti sei allenato, quanto
-                sei forte — e un tocco per vederla era un tocco di troppo.
-                Parla solo di pesi (settimana, mappa della forza, massimali): sotto
-                Hyrox sarebbe un pannello di numeri non suoi. */}
-            {tab === 'palestra' && <Riepilogo onOpenProfile={onOpenUser}/>}
-            <GymStats
-              exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}
-              statsTab={tab === 'hyrox' ? 'hyrox' : 'pesi'} formatoHyrox={formatoHyrox} onFormatoHyrox={setFormatoHyrox}
-            />
-          </>
-        )}
-
-        {mode === 'hyrox' && (
+        {tab === 'hyrox' && (
           <>
 
             {hyroxSubTab === 'gara' && (
@@ -2223,7 +2192,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         {/* La riga larga "Schede d'allenamento" non è più qui: era in mezzo
             alla lista degli esercizi, cioè dentro il contenuto invece che
             fra i comandi. Adesso è la prima delle tre card sopra. */}
-        {mode === 'palestra' && (
+        {tab === 'palestra' && (
           <SezioneGruppi
             gruppi={groupedPalestra}
             totaleEsercizi={s.palestraExercises.length}
@@ -2239,6 +2208,34 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       </div>
     </div>
   )
+
+  // Le statistiche: una pagina a sé, con la sua freccia per tornare. Erano un
+  // interruttore — si toccava la card e il contenuto della home diventava i
+  // grafici, sotto il saluto, la settimana e le tre card: restava mezza
+  // schermata per leggerli, e per richiuderle bisognava risalire in cima a
+  // ritoccare la card. Qui hanno tutta la pagina.
+  // Si monta solo aperta: i grafici non si calcolano finché non li si guarda.
+  const paginaStatistiche = stats ? (
+    <div className="flex flex-col h-full overflow-hidden" style={{ width: '100%', maxWidth: 860, margin: '0 auto' }}>
+      <div className="j-page-header">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setStats(false)} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
+          <div className="j-page-title" style={{ flex: 1, minWidth: 0 }}>{t('Statistiche')}</div>
+        </div>
+      </div>
+      <div className="j-scroll-area">
+        {/* Il riepilogo complessivo per primo: è la cosa che si guarda entrando
+            — quanto ti sei allenato, quanto sei forte. Parla solo di pesi
+            (settimana, mappa della forza, massimali): sotto Hyrox sarebbe un
+            pannello di numeri non suoi. */}
+        {tab === 'palestra' && <Riepilogo onOpenProfile={onOpenUser}/>}
+        <GymStats
+          exercises={s.palestraExercises} hyroxExercises={s.hyroxExercises}
+          statsTab={tab === 'hyrox' ? 'hyrox' : 'pesi'} formatoHyrox={formatoHyrox} onFormatoHyrox={setFormatoHyrox}
+        />
+      </div>
+    </div>
+  ) : null
 
   // Un risultato della ricerca porta DOVE sta la cosa cercata: la scheda
   // dell'esercizio dentro il suo gruppo, la stazione hyrox, la scheda
@@ -2289,26 +2286,23 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // Su telefono SplitPane mostra solo lo strato più alto, che è il comportamento
   // di sempre.
   //
-  // Le statistiche non aprono niente: sono grafici, e non c'è un "dettaglio" che
-  // possa comparire di fianco. Spartire lo schermo con una colonna che resterebbe
-  // vuota per sempre vorrebbe dire stringere i grafici a metà larghezza per
-  // niente, quindi lì la vista resta intera (`intero`).
-  //
   // Le schede sono un mondo a sé, con la propria navigazione interna (elenco →
   // scheda → allenamento in corso): non si infilano in una delle due colonne, si
   // prendono la pagina. Si posano SOPRA la home invece di sostituirla, così
   // uscendone la home è ancora lì com'era (vedi Strato). Il tetto di larghezza
   // è lo stesso della radice — una scheda è un elenco di righe, e una riga lunga
   // un monitor non si legge.
-  const statsAperte = mode === 'stats'
+  //
+  // Le statistiche fanno lo stesso: sono grafici, non aprono niente di fianco,
+  // e spartire lo schermo con una colonna vuota li stringerebbe a metà per
+  // niente.
   return (
     <>
-      <Strato coperto={showSchede}>
+      <Strato coperto={showSchede || stats}>
         <SplitPane
-          intero={statsAperte}
           radice={paginaRadice}
-          master={statsAperte ? null : paginaMuscolo}
-          detail={statsAperte ? null : (paginaEsercizio ?? paginaHyrox)}
+          master={paginaMuscolo}
+          detail={paginaEsercizio ?? paginaHyrox}
           vuoto={
             <SplitVuoto>
               {/* Dalla radice un esercizio non è ancora scegliibile: prima si apre un
@@ -2320,6 +2314,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           }
         />
       </Strato>
+      {paginaStatistiche && <Strato coperto={false}>{paginaStatistiche}</Strato>}
       {showSchede && (
         <Strato coperto={false}>
           <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>

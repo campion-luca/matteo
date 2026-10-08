@@ -25,18 +25,11 @@ import { useIsDesktop } from '@/hooks/useIsDesktop'
 // distruggeva quella sotto: tornare indietro voleva dire ricostruire da capo la
 // home — testata, settimana, carosello — con lo scorrimento di nuovo in cima.
 // Adesso l'indietro toglie lo strato di sopra, e sotto c'è la pagina com'era.
-//
-// `intero` è per le pagine che non aprono niente accanto (le statistiche): la
-// prima colonna prende tutta la larghezza. Sta qui dentro e non in un `return`
-// diverso di chi chiama perché cambiare il contenitore fa smontare e rimontare
-// tutto quello che c'è sotto — testata, settimana, carosello — a ogni tocco su
-// Statistiche, con lo scorrimento che torna in cima.
-export function SplitPane({ radice, master = null, detail, vuoto, intero = false }: {
+export function SplitPane({ radice, master = null, detail, vuoto }: {
   radice: ReactNode
   master?: ReactNode | null
   detail: ReactNode | null
   vuoto?: ReactNode
-  intero?: boolean
 }) {
   const isDesktop = useIsDesktop()
 
@@ -59,17 +52,17 @@ export function SplitPane({ radice, master = null, detail, vuoto, intero = false
         // come due metà ma come una barra laterale. A metà precisa il rapporto
         // resta lo stesso a ogni larghezza, e l'elenco cresce insieme alla scheda
         // che apre.
-        width: intero ? '100%' : '50%',
+        width: '50%',
         flexShrink: 0,
         height: '100%',
         overflow: 'hidden',
-        borderRight: intero ? 'none' : '1px solid var(--hairline)',
+        borderRight: '1px solid var(--hairline)',
         display: 'flex', flexDirection: 'column',
         position: 'relative',
       }}>
         {master ?? radice}
       </div>
-      <div style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', position: 'relative', display: intero ? 'none' : undefined }}>
+      <div style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
         {detail ?? vuoto}
       </div>
     </div>

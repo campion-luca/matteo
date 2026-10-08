@@ -151,6 +151,7 @@ export const EN_UI: Record<string, string> = {
   // Le tre destinazioni sotto i tab dell'allenamento.
   'Coaching': 'Coaching',
   'Statistiche': 'Statistics',
+  'Indietro': 'Back',
   'Mappa della forza': 'Strength map',
   'Personal Coach': 'Personal Coach',
 
