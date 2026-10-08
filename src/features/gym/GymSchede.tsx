@@ -21,8 +21,9 @@ import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, rec
 import { fmtDayMonthFull, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
-import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
-import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso } from './sessioneInCorso'
+import { useBodyWeight, useGruppiMuscolari, useMuscleIcons, useScartaAllenamento } from './gymHooks'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso, type AllenamentoInCorso } from './sessioneInCorso'
+import { BarraInCorso } from './InCorso'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni, FotoGrande } from './gymShared'
@@ -32,12 +33,12 @@ import { todayISO, giorniTra, localISO } from '@/lib/isoDate'
 import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
 import { idUtenteSuDisco } from '@/lib/supabase'
-import { schedeRicevute, schedeRicevuteInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, myCoaches, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
+import { schedeRicevute, schedeRicevuteInCache, schedaRicevutaInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, myCoaches, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
 import { bozzaChat } from '@/lib/messaggi'
 import { avvisa } from '@/lib/messaggiLive'
 import { riassuntoAllenamento, serieValide, chiliScritti } from './riassuntoAllenamento'
 import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX } from './limitiAlzata'
-import { muscoliDellaScheda, durataPrevista, durataArrotondata, type MuscoloToccato } from './anteprimaScheda'
+import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, type MuscoloToccato } from './anteprimaScheda'
 import { OminoMuscoli } from './MuscleIcons'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
@@ -133,10 +134,14 @@ const iconBtn = (danger = false, size = 44): CSSProperties => ({
 
 
 // ── Container: gestisce la navigazione interna della sezione Schede ──
-export function GymSchede({ onBack, apri }: {
+export function GymSchede({ onBack, apri, riprendi = false }: {
   onBack: () => void
-  /** L'id di una propria scheda da aprire subito sul dettaglio (dalla ricerca). */
+  /** L'id di una scheda da aprire subito sul dettaglio (dalla ricerca). */
   apri?: string
+  /** Con `apri`: si entra direttamente nell'allenamento di quella scheda, e
+   *  uscendone si torna da dove si è venuti. È la barra «Allenamento in corso»
+   *  della home. */
+  riprendi?: boolean
 }) {
   const t = useT()
   const { gymSchede, palestraExercises, userName } = useJarvisStore(useShallow(st => ({
@@ -148,6 +153,7 @@ export function GymSchede({ onBack, apri }: {
   const set = useJarvisStore.setState
   const bodyWeight = useBodyWeight()
   const { confirmDelete } = useConfirmDelete()
+  const scarta = useScartaAllenamento()
 
   // Le schede che un allenatore ha assegnato. Non stanno nello store perché non
   // sono roba di questo utente: vivono in `coach_schede`, le scrive l'allenatore,
@@ -214,16 +220,23 @@ export function GymSchede({ onBack, apri }: {
   const [appenaSalvate, setAppenaSalvate] = useState<AlzataSalvata[]>([])
   const [correggo, setCorreggo] = useState<AlzataSalvata | null>(null)
   // Con `apri` si parte già dentro la scheda: letta una volta sola, all'ingresso.
-  const [active, setActive] = useState<GymScheda | null>(() => (apri ? gymSchede?.find(x => x.id === apri) : undefined) ?? null) // scheda aperta in dettaglio/allenamento
-  const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>(active ? 'detail' : 'list')
+  // Può essere anche una scheda dell'allenatore (un allenamento da riprendere):
+  // a quest'ora la rete non ha ancora risposto, e si prende dall'ultima lettura.
+  const [active, setActive] = useState<GymScheda | null>(() => { // scheda aperta in dettaglio/allenamento
+    if (!apri) return null
+    const io = idUtenteSuDisco()
+    return gymSchede?.find(x => x.id === apri) ?? (io ? schedaRicevutaInCache(io, apri) : undefined) ?? null
+  })
+  const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>(active ? (riprendi ? 'training' : 'detail') : 'list')
   const [editing, setEditing] = useState<GymScheda | null>(null) // scheda in modifica nel form (null = nuova)
+  // Si è entrati dritti nell'allenamento da fuori: «indietro» riporta fuori, non
+  // al dettaglio di una scheda da cui non si è passati. Vale per quell'ingresso
+  // soltanto — finito o lasciato l'allenamento, la navigazione torna la solita.
+  const daFuori = useRef(riprendi && !!active)
 
-  // L'allenamento lasciato a metà (vedi sessioneInCorso). Si rilegge a ogni
-  // giro: sono poche centinaia di byte, e cambia solo entrando e uscendo
-  // dall'allenamento, che è proprio quando la pagina si ridisegna. `ridisegna`
-  // serve allo "Scarta", che lo toglie senza cambiare vista.
+  // `ridisegna` serve allo "Scarta", che toglie l'allenamento aperto senza
+  // cambiare vista.
   const [, ridisegna] = useState(0)
-  const aperta = view === 'training' ? null : sessioneAperta()
 
   const mie = useMemo(() => gymSchede ?? [], [gymSchede])
   // Chi ha assegnato cosa. Una mappa a parte e non un campo dentro GymScheda:
@@ -235,23 +248,10 @@ export function GymSchede({ onBack, apri }: {
   )
   // In cima: sono quelle che qualcun altro si aspetta che tu faccia.
   const schede = useMemo(() => [...assegnate.map(r => r.scheda), ...mie], [assegnate, mie])
-  // "In corso" finché la sua scheda esiste. Una scheda modificata dopo aver
-  // cominciato non blocca più la ripresa: le spunte sugli esercizi rimasti ci
-  // sono ancora (vedi `leggiSessione`). Una cancellata sì — non c'è più dove
-  // riprendere.
-  const schedaAperta = aperta ? schede.find(x => x.id === aperta.schedaId) : undefined
-  // E finché di quello che era stato spuntato resta qualcosa: se gli esercizi
-  // sono stati tutti sostituiti non c'è niente da riprendere, e "tocca per
-  // riprendere" porterebbe a una scheda a zero. I conti sono quelli di adesso.
-  const rimaste = aperta && schedaAperta ? Object.values(leggiSessione(schedaAperta) ?? {}) : []
-  const inCorso = aperta && schedaAperta && rimaste.some(p => p.checks.some(Boolean) || !!p.note?.trim())
-    ? {
-      scheda: schedaAperta,
-      fatte: rimaste.reduce((n, p) => n + p.checks.filter(Boolean).length, 0),
-      totali: schedaAperta.exercises.reduce((n, e) => n + Math.max(1, e.sets), 0),
-      vecchia: aperta.vecchia, iniziataA: aperta.iniziataA,
-    }
-    : undefined
+  // L'allenamento aperto (vedi sessioneInCorso). Si rilegge a ogni giro: sono
+  // poche centinaia di byte, e cambia solo entrando e uscendo dall'allenamento,
+  // che è proprio quando la pagina si ridisegna.
+  const inCorso = view === 'training' ? undefined : allenamentoInCorso(id => schede.find(x => x.id === id))
 
   // Cominciare un allenamento quando ce n'è già uno aperto su un'ALTRA scheda.
   // La sessione in corso è una sola: prima, alla prima serie spuntata qui,
@@ -263,7 +263,10 @@ export function GymSchede({ onBack, apri }: {
     const altra = sessioneAperta()
     if (!altra || altra.schedaId === sc.id) { parti(); return }
     const diLa = schede.find(x => x.id === altra.schedaId)
-    if (!diLa) { scartaSessione(); parti(); return }
+    // Né se di là non è stato fatto niente: è stato solo avviato e lasciato
+    // aperto, e avvisare che "le serie spuntate non vengono salvate" di zero
+    // serie sarebbe una domanda a vuoto.
+    if (!diLa || altra.vuota) { scartaSessione(); parti(); return }
     confirmDelete(
       () => { scartaSessione(); parti() },
       diLa.title,
@@ -351,16 +354,14 @@ export function GymSchede({ onBack, apri }: {
     return out
   }, [palestraExercises])
 
-  const scartaAperta = () => confirmDelete(
-    () => { scartaSessione(); ridisegna(n => n + 1) },
-    t('Allenamento in corso'),
-    {
-      eyebrow: t('Allenamento in corso'),
-      title: t('Scartare l’allenamento?'),
-      body: t('Le serie spuntate finora non vengono salvate. La prossima volta la scheda riparte da zero.'),
-      cta: t('Scarta'),
-    },
-  )
+  const scartaAperta = () => scarta(() => ridisegna(n => n + 1), inCorso?.vuota)
+
+  // Fuori dall'allenamento, che resta aperto: al dettaglio della scheda, o —
+  // se ci si era entrati dalla home — di nuovo lì.
+  const lasciaAperto = () => {
+    if (daFuori.current) { onBack(); return }
+    setView('detail')
+  }
 
   // `dopo` parte solo a eliminazione confermata: chi chiama ci mette il cambio
   // di pagina. Farlo subito, mentre il dialogo chiede ancora "sei sicuro?",
@@ -627,8 +628,11 @@ export function GymSchede({ onBack, apri }: {
         scheda={active}
         palestraExercises={palestraExercises}
         muscleColors={muscleColors}
-        onExit={() => setView('detail')}
-        onFinish={(results, fine) => finishTraining(active, results, fine)}
+        onExit={lasciaAperto}
+        // Chiuso senza salvare: non c'è più niente da riprendere, e si torna
+        // alla scheda come dopo un allenamento finito.
+        onScarta={() => scarta(() => { daFuori.current = false; setView('detail') })}
+        onFinish={(results, fine) => { daFuori.current = false; finishTraining(active, results, fine) }}
         seguito={allenatori.length > 0}
       />
     )
@@ -772,9 +776,9 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
   mie: string[]
   /** id scheda → da quanti giorni non la si fa. Assente = mai fatta. */
   ultimaVolta: Map<string, number>
-  /** L'allenamento lasciato a metà, se c'è. `vecchia` = fermo da più di dodici
-   *  ore: non è "in corso", è rimasto aperto. */
-  inCorso?: { scheda: GymScheda; fatte: number; totali: number; vecchia: boolean; iniziataA: number }
+  /** L'allenamento aperto, se c'è. `vecchia` = fermo da più di dodici ore: non
+   *  è "in corso", è rimasto aperto. */
+  inCorso?: AllenamentoInCorso
   onRiprendi: (s: GymScheda) => void
   onScarta: () => void
 }) {
@@ -848,37 +852,7 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
         {/* In cima a tutto: chi esce a metà allenamento e torna qui sta
             cercando questo, non l'elenco. Un tocco e si è dove si era. */}
         {inCorso && (
-          <div className="mb-2.5 flex items-center gap-2" style={{
-            padding: '10px 10px 10px 14px', borderRadius: 'var(--radius)',
-            background: 'color-mix(in srgb, var(--j-accent) 10%, var(--surface))', border: '1px solid var(--j-accent)',
-          }}>
-            <button onClick={() => onRiprendi(inCorso.scheda)} className="flex items-center gap-3" style={{
-              flex: 1, minWidth: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
-            }}>
-              <span style={{ display: 'flex', flexShrink: 0, color: 'var(--j-accent-ink)' }}><Icons.play size={18}/></span>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
-                  {/* Di ieri o di prima: lo si dice, col giorno. Riprendendolo e
-                      chiudendolo finisce in QUEL giorno, non in quello di oggi. */}
-                  {inCorso.vecchia
-                    ? t('Allenamento non chiuso · {giorno}', { giorno: fmtDayMon(localISO(new Date(inCorso.iniziataA))) })
-                    : t('Allenamento in corso')}
-                </span>
-                <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                  {inCorso.scheda.title}
-                </span>
-                <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>
-                  {t('{fatte}/{totali} serie fatte · tocca per riprendere', { fatte: inCorso.fatte, totali: inCorso.totali })}
-                </span>
-              </span>
-            </button>
-            <button onClick={onScarta} aria-label={t('Scarta allenamento in corso')} title={t('Scarta allenamento in corso')} className="flex items-center justify-center" style={{
-              width: 32, height: 32, flexShrink: 0, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-              background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
-            }}>
-              <Icons.trash size={13} stroke={1.6}/>
-            </button>
-          </div>
+          <BarraInCorso inCorso={inCorso} onRiprendi={() => onRiprendi(inCorso.scheda)} onScarta={onScarta} style={{ marginBottom: 10 }}/>
         )}
         {schede.length === 0 && (
           <div className="j-empty">{t('Nessuna scheda — creane una con +')}</div>
@@ -2705,7 +2679,7 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
 /** Oltre questo l'orologio non misura più un allenamento: vedi `finish`. */
 const DURATA_MAX_SEC = 3 * 60 * 60
 
-// Da quanto ci si sta allenando, accanto al conto degli esercizi. Si ridisegna
+// Da quanto ci si sta allenando, sotto la barra degli esercizi. Si ridisegna
 // da solo ogni mezzo minuto — segna i minuti, non i secondi: è un'informazione
 // da un'occhiata, e un contatore che corre in testata ruberebbe lo sguardo al
 // timer del recupero, che è quello che si guarda fra una serie e l'altra.
@@ -2720,14 +2694,18 @@ function TempoAllenamento({ da }: { da: number }) {
   // Un allenamento ritrovato aperto dal giorno prima: il tempo trascorso non è
   // la sua durata, e non si mostra.
   if (sec > DURATA_MAX_SEC) return null
-  return <span aria-label={t('Durata dell’allenamento')}>{' · '}{fmtDurata(sec)}</span>
+  return <span aria-label={t('Durata dell’allenamento')}>{t('in corso da {tempo}', { tempo: fmtDurata(sec) })}</span>
 }
 
-function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, onFinish, seguito = false }: {
+function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, onScarta, onFinish, seguito = false }: {
   scheda: GymScheda
   palestraExercises: PalestraExercise[]
   muscleColors: Record<string, string>
+  /** Si esce e l'allenamento resta aperto: la freccia e «Lascia aperto». */
   onExit: () => void
+  /** «Chiudi senza salvare» con delle serie fatte: chi riceve chiede conferma,
+   *  butta la sessione e porta via da qui. */
+  onScarta: () => void
   onFinish: (
     results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string; corpo?: boolean }[],
     fine: { giorno: string; durataSec?: number },
@@ -2915,7 +2893,12 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     return p && p.checks.length > 0 && p.checks.every(Boolean)
       && serieValide(p.checks, p.weights, collegati[e.id].corpo, collegati[e.id].attrezzo).length === p.checks.length
   }).length, [scheda, progress, collegati])
-  const anyDone = useMemo(() => Object.values(progress).some(p => p.checks.some(Boolean)), [progress])
+  // Quanto manca alla fine: la stima della scheda (la stessa dell'elenco),
+  // contata sulle sole serie ancora da spuntare. Scende a ogni spunta.
+  const mancaSec = useMemo(
+    () => durataRimanente(scheda, Object.fromEntries(Object.entries(progress).map(([id, p]) => [id, p.checks]))),
+    [scheda, progress],
+  )
 
   // Ogni spunta, ogni chilo scritto finisce su disco. È un oggetto da poche
   // centinaia di byte e la scrittura è sincrona ma trascurabile: il costo è
@@ -3018,16 +3001,28 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
     <SchedaPage
       onBack={onExit} tronca
       title={scheda.title}
-      sub={<>
-        {t('{fatti}/{tot} esercizi completati', { fatti: doneEx, tot: totalEx })}
-        {partenza !== null && !giornoAperto && <TempoAllenamento da={partenza}/>}
-      </>}
+      sub={t('{fatti}/{tot} esercizi completati', { fatti: doneEx, tot: totalEx })}
       azioni={timerAperto ? undefined : <TimerIcona schedaId={scheda.id} onApri={() => apriTimer(true)}/>}
-      extra={
+      extra={<>
         <div style={{ height: 4, borderRadius: 'var(--radius-pill)', background: 'var(--surface-2)', marginTop: 12, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${totalEx ? (doneEx / totalEx) * 100 : 0}%`, background: 'var(--j-accent)', transition: 'width 200ms' }}/>
         </div>
-      }
+        {/* I due tempi ai capi della barra, come in un lettore: a sinistra da
+            quanto si è qui, a destra quanto manca. Non per l'allenamento di un
+            altro giorno rimasto aperto: lì nessuno dei due vuol dire niente. */}
+        {!giornoAperto && (partenza !== null || mancaSec > 0) && (
+          <div className="flex items-baseline justify-between gap-3" style={{
+            marginTop: 7, fontFamily: NUC.label, fontSize: 11, letterSpacing: '.06em', color: NUC.faint,
+          }}>
+            <span>{partenza !== null && <TempoAllenamento da={partenza}/>}</span>
+            {mancaSec > 0 && (
+              <span aria-label={t('Tempo mancante stimato')} style={{ color: NUC.ink, fontWeight: 600 }}>
+                {t('mancano circa {tempo}', { tempo: fmtDurata(mancaSec) })}
+              </span>
+            )}
+          </div>
+        )}
+      </>}
     >
 
       <div className="j-scroll-area">
@@ -3065,13 +3060,28 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             Sta qui sotto, fuori dalla parte che scorre, perché serve qualunque
             esercizio si stia guardando. */}
         {timerAperto && <TimerRecupero schedaId={scheda.id} onChiudi={() => apriTimer(false)}/>}
-        {/* "Allenamento" e non "alzate": quello che finisce qui è la sessione, e
-            le alzate sono solo ciò che se ne salva. */}
-        <button onClick={() => setRiepilogo(true)} disabled={!anyDone} className="j-btn-accent" style={{ opacity: anyDone ? 1 : 0.5 }}>
-          {t('Termina Allenamento')}
-        </button>
+        {/* Due uscite, dette per nome. «Lascia aperto» fa quello che fa la
+            freccia in alto: si va a guardare altro e l'allenamento resta lì,
+            annunciato in cima alla home e alle schede. «Termina» lo chiude —
+            salvandolo o no, lo si sceglie nel riepilogo — ed è sempre acceso:
+            anche chi è entrato solo per leggere deve poterne uscire del tutto.
+            "Allenamento" e non "alzate": quello che finisce qui è la sessione,
+            e le alzate sono solo ciò che se ne salva. */}
+        <div className="flex gap-2.5">
+          <button onClick={onExit} className="j-hard j-focus" style={{
+            flex: '0 0 auto', height: 48, padding: '0 16px', borderRadius: 'var(--radius)', cursor: 'pointer',
+            background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, color: NUC.ink,
+            // Le stesse lettere di «Termina» accanto (vedi .j-btn-accent).
+            fontFamily: 'var(--font-body)', fontSize: 'clamp(13px, 1.8vw, 14px)', fontWeight: 500, letterSpacing: '.01em', lineHeight: 1.2,
+          }}>
+            {t('Lascia aperto')}
+          </button>
+          <button onClick={() => setRiepilogo(true)} className="j-btn-accent" style={{ flex: 1, width: 'auto', marginTop: 0 }}>
+            {t('Termina Allenamento')}
+          </button>
+        </div>
         <div style={{ fontFamily: NUC.label, fontSize: 9.5, color: NUC.faint, letterSpacing: '.04em', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
-          {t('Le serie completate verranno salvate come nuova alzata nei rispettivi esercizi.')}
+          {t('Aperto, lo riprendi dalla home. Terminando scegli se salvarlo.')}
         </div>
       </div>
 
@@ -3186,6 +3196,14 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
         >
           {!daSalvare ? t('Chiudi senza salvare') : salti.length > 0 ? t('Sono giusti: salva e chiudi') : t('Salva e chiudi')}
         </button>
+        {/* Con qualcosa da salvare, anche la via per NON salvarlo: una prova,
+            una scheda aperta per sbaglio. Si chiede conferma — sono serie fatte,
+            e buttate non tornano. */}
+        {daSalvare && (
+          <button onClick={() => { setRiepilogo(false); onScarta() }} className="j-btn-log" style={{ marginTop: 8 }}>
+            {t('Chiudi senza salvare')}
+          </button>
+        )}
       </JModal>
     </SchedaPage>
   )

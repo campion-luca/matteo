@@ -223,6 +223,13 @@ export function schedeRicevuteInCache(userId: string): CoachScheda[] {
   }
 }
 
+/** Una scheda ricevuta, cercata per id nell'ultima lettura riuscita. Le bozze
+ *  dell'allenatore no: sono lavoro suo lasciato a metà, non cose su cui
+ *  allenarsi. */
+export function schedaRicevutaInCache(userId: string, schedaId: string): import('@/store/useJarvisStore').GymScheda | undefined {
+  return schedeRicevuteInCache(userId).find(r => r.scheda.id === schedaId && !r.scheda.draft)?.scheda
+}
+
 /** Al logout: sono dell'account, non del dispositivo. */
 export function dimenticaSchedeRicevute(): void {
   removeStorage('local', CHIAVE_RICEVUTE)

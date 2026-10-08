@@ -109,6 +109,24 @@
   --tertiary:      #C58B64;
   --tertiary-ink:  #7D5840;
 
+  /* Le tre card dei comandi in home (Coaching · Schede · Statistiche): una
+     tinta a testa, presa da colori che l'app ha già — la terracotta degli aloni
+     del fondo, l'ottone, il verde delle serie fatte. Non sono il colore della
+     card: la card le MESCOLA alla propria superficie (vedi AzioniGym), così
+     restano tre carte dello stesso mazzo e non tre riquadri colorati. Ogni tema
+     ridichiara le sue. */
+  --azione-coach:  #b5583a;
+  --azione-schede: #b08a47;
+  --azione-stats:  #35674c;
+
+  /* Un giorno in cui ci si è allenati, nella settimana in testata e nel
+     calendario: pieno nel verde del "fatto" (`--ok`, quello di ogni tema), ma
+     velato — è una cella con dentro un numero da leggere, non un tasto. L'oro
+     resta a dire OGGI. Mescolato al trasparente e non a una superficie, perché
+     le celle stanno su fondi diversi (la pagina, il modale). */
+  --fatto-bg:    color-mix(in srgb, var(--ok) 26%, transparent);
+  --fatto-bordo: color-mix(in srgb, var(--ok) 58%, transparent);
+
   /* ── Raggi ─────────────────────────────────────────────────────
      L'app è nata squadrata: angoli vivi ovunque, e questo token valeva 0. Adesso
      gli angoli sono smussati come li si aspetta su un telefono.
@@ -790,6 +808,32 @@
     .j-switch::before { transition: none; }
   }
 
+  /* ── Il saluto in testata, su telefono ────────────────────────
+     Due righe — la formula, il nome — ognuna su una riga sola (vedi
+     SalutoHeader). Il corpo è quello di sempre finché ci stanno; se una delle
+     due è più larga della colonna si stringe quanto basta: la larghezza della
+     colonna (`100cqw`) divisa per quanti `em` occupa la riga più lunga
+     (`--saluto-em`, lo scrive il componente). Non scende sotto i 17px: più in
+     là di così, quello che avanza finisce coi puntini.
+     Dove le unità di contenitore non ci sono resta tutto com'era: corpo fisso,
+     e il testo che va a capo da sé. */
+  .j-saluto {
+    font-family: var(--font-saluto);
+    font-size: clamp(23px, 3.2dvh, 31px);
+    font-weight: 500; letter-spacing: -0.01em;
+    line-height: 1.05; color: var(--fg);
+  }
+  @supports (width: 1cqw) {
+    .j-saluto-colonna { container-type: inline-size; }
+    .j-saluto {
+      font-size: clamp(17px, calc(100cqw / var(--saluto-em, 9)), clamp(23px, 3.2dvh, 31px));
+      /* Più aria fra le righe: chi taglia in orizzontale taglia anche sotto, e
+         a 1.05 le gambe di «g» e «p» ci finivano dentro. */
+      line-height: 1.16;
+    }
+    .j-saluto-riga { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+
   /* Card del carosello dei gruppi: la pressione è una stretta appena accennata.
      Niente ombra a spessore: è una superficie grande e piena di colore, e un
      rilievo sotto la farebbe sembrare un tasto gigante. */
@@ -982,6 +1026,11 @@
     radial-gradient(60% 34% at 50% 52%, rgba(236,112,44,.14), rgba(236,112,44,.04) 50%, transparent 76%);
   --paper-grain: var(--grain-freddo), var(--grain-caldo);
   --tertiary-ink: #C58B64;
+  /* Le tinte dei tre comandi, più luminose che sulla carta: qui si mescolano a
+     una superficie quasi nera, e quelle del tema chiaro ci annegherebbero. */
+  --azione-coach:  #cf6a45;
+  --azione-schede: #c9a25e;
+  --azione-stats:  #6fa58a;
 
   /* Grigi caldissimi, non neutri: il fondo porta aloni arancioni e un grigio
      freddo sopra ci stona. Tre gradini, come prima — fondo, superficie, superficie
@@ -1130,6 +1179,11 @@
   --shadow-hard-col: transparent;
   --key-edge:    transparent;
   --nav-lift:    transparent;
+  /* I tre comandi: qui il colore è uno solo, la terracotta. La prende il
+     primo; gli altri due sono un grigio caldo e uno neutro. */
+  --azione-coach:  #a64b32;
+  --azione-schede: #8c7468;
+  --azione-stats:  #7d7d7d;
 }
 .premium *, .premium *::before, .premium *::after {
   box-shadow: none !important;
@@ -1317,6 +1371,11 @@
   --tertiary:     #c8c8d0;
   --tertiary-ink: #c8c8d0;
   --kraft:        #8a8a96;
+  /* I tre comandi in home: un solo accento anche qui — il lime al primo, due
+     grigi agli altri. */
+  --azione-coach:  #c8ff00;
+  --azione-schede: #c8c8d0;
+  --azione-stats:  #7c7c8c;
   --chart-2:      #8e8ea0;
 
   /* Il progresso è lime come l'azione. Il rosso resta: non è un accento, è un
@@ -1385,6 +1444,10 @@
   --tertiary:     #c5cad3;
   --tertiary-ink: #c5cad3;
   --kraft:        #8a929e;
+  /* I tre comandi in home: i due colori del tema, e un grigio. */
+  --azione-coach:  var(--logbook-blu);
+  --azione-schede: #30d158;
+  --azione-stats:  #9aa1ad;
   --chart-2:      var(--logbook-blu);
 
   --ok:              #30d158;

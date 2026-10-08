@@ -110,8 +110,9 @@ function leggiSalvata(ora: number): Salvata | null {
   }
 }
 
-/** C'è dentro del lavoro: almeno una serie spuntata o una nota scritta. Una
- *  sessione appena aperta e mai toccata non è "un allenamento in corso". */
+/** C'è dentro del lavoro: almeno una serie spuntata o una nota scritta. È quello
+ *  che si perde scartandola — una sessione avviata e mai toccata è aperta lo
+ *  stesso (vedi `sessioneAperta`), ma non ha niente da perdere. */
 function haLavoro(progress: Record<string, SerieInCorso>): boolean {
   return Object.values(progress).some(p => p?.checks?.some(Boolean) || !!p?.note?.trim())
 }
@@ -126,14 +127,26 @@ export interface SessioneAperta {
   /** Ferma da più di dodici ore: è un allenamento rimasto aperto, non uno in
    *  corso. */
   vecchia: boolean
+  /** Avviata e lasciata aperta senza ancora una serie spuntata né una nota: è
+   *  in corso, ma scartandola non si perde niente — e allora non si chiede. */
+  vuota: boolean
 }
 
-/** L'allenamento lasciato a metà, qualunque sia la scheda: serve a dirlo fuori
- *  dalla pagina dell'allenamento ("Riprendi"), e a chiedere prima di cominciarne
- *  un altro. `null` se non c'è, se è scaduto o se non è mai stato toccato. */
+/** L'allenamento aperto, qualunque sia la scheda: serve a dirlo fuori dalla
+ *  pagina dell'allenamento ("Riprendi"), e a chiedere prima di cominciarne un
+ *  altro. `null` se non c'è o se è scaduto.
+ *
+ *  Aperto vuol dire AVVIATO e non ancora terminato, anche senza una serie
+ *  spuntata: chi esce dalla pagina per guardare altro lo ritrova, e a chiuderlo
+ *  è solo «Termina». Prima un allenamento mai toccato non contava — ma uscendo
+ *  non si capiva se fosse rimasto acceso o no. */
 export function sessioneAperta(ora = Date.now()): SessioneAperta | null {
   const s = leggiSalvata(ora)
-  if (!s || !haLavoro(s.progress)) return null
+  if (!s) return null
+  const vuota = !haLavoro(s.progress)
+  // Vuoto e fermo da dodici ore: è stato avviato e dimenticato. Non c'è niente
+  // da salvare né da perdere, e sparisce da sé invece di farsi chiudere a mano.
+  if (vuota && ora - s.salvataA > VECCHIA_DOPO_MS) return null
   const tutte = Object.values(s.progress).flatMap(p => p?.checks ?? [])
   return {
     schedaId: s.schedaId,
@@ -143,7 +156,42 @@ export function sessioneAperta(ora = Date.now()): SessioneAperta | null {
     // Sull'INIZIO e non sull'ultima volta che è stata toccata: basta riaprire la
     // pagina perché venga risalvata, e un allenamento di venerdì riaperto il
     // mercoledì tornava a dirsi "in corso".
-    vecchia: ora - (s.iniziataA ?? s.salvataA) > VECCHIA_DOPO_MS,
+    vecchia: !vuota && ora - (s.iniziataA ?? s.salvataA) > VECCHIA_DOPO_MS,
+    vuota,
+  }
+}
+
+export interface AllenamentoInCorso {
+  scheda: GymScheda
+  fatte: number
+  totali: number
+  vecchia: boolean
+  iniziataA: number
+  /** Solo avviato: vedi `SessioneAperta.vuota`. */
+  vuota: boolean
+}
+
+/** L'allenamento aperto insieme alla sua scheda com'è ADESSO: quello che serve
+ *  a chi lo annuncia (l'elenco delle schede, la home). `trova` cerca la scheda
+ *  per id fra quelle che chi chiama conosce.
+ *
+ *  "In corso" finché la sua scheda esiste. Una scheda modificata dopo aver
+ *  cominciato non blocca la ripresa: le spunte sugli esercizi rimasti ci sono
+ *  ancora (vedi `leggiSessione`). Una cancellata sì — non c'è più dove
+ *  riprendere. E finché di quello che era stato spuntato resta qualcosa: se gli
+ *  esercizi sono stati tutti sostituiti non c'è niente da riprendere, e "tocca
+ *  per riprendere" porterebbe a una scheda a zero. I conti sono quelli di adesso. */
+export function allenamentoInCorso(trova: (schedaId: string) => GymScheda | undefined, ora = Date.now()): AllenamentoInCorso | undefined {
+  const aperta = sessioneAperta(ora)
+  const scheda = aperta ? trova(aperta.schedaId) : undefined
+  if (!aperta || !scheda) return undefined
+  const rimaste = Object.values(leggiSessione(scheda, ora) ?? {})
+  if (!aperta.vuota && !rimaste.some(p => p.checks.some(Boolean) || !!p.note?.trim())) return undefined
+  return {
+    scheda,
+    fatte: rimaste.reduce((n, p) => n + p.checks.filter(Boolean).length, 0),
+    totali: scheda.exercises.reduce((n, e) => n + Math.max(1, e.sets), 0),
+    vecchia: aperta.vecchia, iniziataA: aperta.iniziataA, vuota: aperta.vuota,
   }
 }
 

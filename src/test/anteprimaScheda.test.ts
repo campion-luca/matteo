@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { muscoliDellaScheda, durataPrevista, durataArrotondata, RECUPERO_SEC } from '@/features/gym/anteprimaScheda'
+import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, RECUPERO_SEC } from '@/features/gym/anteprimaScheda'
 import type { GymScheda, GymSchedaExercise, PalestraExercise } from '@/store/useJarvisStore'
 
 // Cosa dice una scheda prima di aprirla: i muscoli che tocca e quanto dura.
@@ -88,5 +88,40 @@ describe('quanto dura una scheda', () => {
     const nove = scheda(Array.from({ length: 9 }, (_, i) => riga({ name: `E${i}`, sets: 3, reps: '8-10' })))
     // 27 serie × (32 + 90) secondi = 54,9 minuti.
     expect(durataArrotondata(durataPrevista(nove))).toBe(55 * 60)
+  })
+})
+
+// Lo stesso conto, mentre ci si allena: solo sulle serie ancora da spuntare.
+describe('quanto manca alla fine dell’allenamento', () => {
+  const s = scheda([riga({ name: 'Panca' }), riga({ name: 'Squat', reps: '10-8-6' })])
+
+  it('senza niente di spuntato è la durata della scheda', () => {
+    expect(durataRimanente(s, {})).toBe(durataPrevista(s))
+    expect(durataRimanente(s, { 'r-Panca': [false, false, false] })).toBe(durataPrevista(s))
+  })
+
+  it('ogni serie spuntata toglie il suo lavoro e il suo recupero', () => {
+    expect(durataPrevista(s) - durataRimanente(s, { 'r-Panca': [true, false, false] })).toBe(40 + 90)
+    // In un 10-8-6 la serie da sei pesa meno di quella da dieci.
+    expect(durataPrevista(s) - durataRimanente(s, { 'r-Squat': [false, false, true] })).toBe(24 + 90)
+  })
+
+  it('non conta l’ordine: una serie saltata in mezzo manca ancora', () => {
+    expect(durataRimanente(s, { 'r-Panca': [true, false, true], 'r-Squat': [true, true, true] })).toBe(40 + 90)
+  })
+
+  it('tutto spuntato, non manca niente', () => {
+    expect(durataRimanente(s, { 'r-Panca': [true, true, true], 'r-Squat': [true, true, true] })).toBe(0)
+  })
+
+  it('in un superset il primo esercizio toglie solo il lavoro: il recupero è dopo il secondo', () => {
+    const insieme = scheda([riga({ name: 'Curl', supersetWithNext: true }), riga({ name: 'French press' })])
+    expect(durataPrevista(insieme) - durataRimanente(insieme, { 'r-Curl': [true, false, false] })).toBe(40)
+  })
+
+  it('spunte più corte o più lunghe delle serie non rompono il conto', () => {
+    // La scheda è cresciuta di una serie dopo l'ingresso: quella nuova manca.
+    expect(durataRimanente(scheda([riga({ name: 'Panca', sets: 4 })]), { 'r-Panca': [true, true, true] })).toBe(40 + 90)
+    expect(durataRimanente(scheda([riga({ name: 'Panca', sets: 2 })]), { 'r-Panca': [true, true, true, true] })).toBe(0)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, inizioSessione, orologioSessione, segnaAvvio, copreAltra, type SerieInCorso } from '@/features/gym/sessioneInCorso'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, type SerieInCorso } from '@/features/gym/sessioneInCorso'
 import type { GymScheda } from '@/store/useJarvisStore'
 
 // La sessione a metà è l'unico dato dell'app che non sta né nello store né in
@@ -132,12 +132,51 @@ describe('sessione di allenamento in corso', () => {
   // ── Riprendere da fuori ───────────────────────────────────────
   it('dice quale scheda ha un allenamento aperto, e a che punto è', () => {
     salvaSessione(PUSH.id, mezzaSessione)
-    expect(sessioneAperta()).toMatchObject({ schedaId: 'sc1', fatte: 2, totali: 7, vecchia: false })
+    expect(sessioneAperta()).toMatchObject({ schedaId: 'sc1', fatte: 2, totali: 7, vecchia: false, vuota: false })
   })
 
-  it('una sessione mai toccata non è un allenamento in corso', () => {
+  // ── Avviato vuol dire aperto ──────────────────────────────────
+  // Prima un allenamento senza una spunta non contava: uscendo dalla pagina
+  // non si capiva se fosse rimasto acceso. Adesso resta aperto finché non lo si
+  // termina — ma si ricorda che dentro non c'è niente da perdere.
+  it('avviato e mai toccato è aperto lo stesso, e si sa che è vuoto', () => {
     salvaSessione(PUSH.id, { e1: serie(4), e2: serie(3) })
+    expect(sessioneAperta()).toMatchObject({ schedaId: 'sc1', fatte: 0, totali: 7, vecchia: false, vuota: true })
+  })
+
+  it('una nota scritta è già lavoro: non è vuoto', () => {
+    salvaSessione(PUSH.id, { e1: { ...serie(4), note: 'spalla' }, e2: serie(3) })
+    expect(sessioneAperta()).toMatchObject({ fatte: 0, vuota: false })
+  })
+
+  it('vuoto e fermo da più di dodici ore sparisce da sé, senza diventare "non chiuso"', () => {
+    salvaSessione(PUSH.id, { e1: serie(4), e2: serie(3) }, Date.now() - 11 * 60 * 60 * 1000)
+    expect(sessioneAperta()).toMatchObject({ vuota: true, vecchia: false })
+    salvaSessione(PUSH.id, { e1: serie(4), e2: serie(3) }, Date.now() - 13 * 60 * 60 * 1000)
     expect(sessioneAperta()).toBeNull()
+  })
+
+  // ── Con la scheda accanto: quello che si annuncia in home e nell'elenco ──
+  it('l’allenamento in corso porta la sua scheda e i conti di adesso', () => {
+    salvaSessione(PUSH.id, mezzaSessione)
+    // La scheda nel frattempo ha una serie in più sul primo esercizio.
+    const cresciuta = scheda([{ id: 'e1', sets: 5 }, { id: 'e2', sets: 3 }])
+    expect(allenamentoInCorso(id => (id === 'sc1' ? cresciuta : undefined))).toMatchObject({ scheda: cresciuta, fatte: 2, totali: 8, vecchia: false })
+  })
+
+  it('solo avviato: è in corso, a zero serie', () => {
+    salvaSessione(PUSH.id, { e1: serie(4), e2: serie(3) })
+    expect(allenamentoInCorso(() => PUSH)).toMatchObject({ scheda: PUSH, fatte: 0, totali: 7 })
+  })
+
+  it('se la scheda non esiste più non c’è niente da riprendere', () => {
+    salvaSessione(PUSH.id, mezzaSessione)
+    expect(allenamentoInCorso(() => undefined)).toBeUndefined()
+  })
+
+  it('né se gli esercizi spuntati sono stati tutti sostituiti', () => {
+    salvaSessione(PUSH.id, mezzaSessione)
+    expect(allenamentoInCorso(() => scheda([{ id: 'e8', sets: 4 }, { id: 'e9', sets: 3 }]))).toBeUndefined()
   })
 
   it('aprire un’altra scheda solo per guardarla non cancella quella cominciata', () => {

@@ -44,10 +44,9 @@ describe('Hyrox spento', () => {
   it('una sessione Hyrox di oggi non conta come giorno allenato', () => {
     expect(hyroxVisibili(useJarvisStore.getState().hyroxExercises)).toEqual([])
     monta()
-    // La settimana in cima: nessun giorno ha il puntino dei giorni allenati.
+    // La settimana in cima: nessun giorno è segnato come allenato.
     const striscia = screen.getByRole('button', { name: 'Apri il calendario degli allenamenti' })
-    const accesi = [...striscia.querySelectorAll<HTMLElement>('span[aria-hidden]')].filter(e => e.style.background.includes('--j-accent'))
-    expect(accesi).toHaveLength(0)
+    expect(striscia.querySelectorAll('[data-allenato]')).toHaveLength(0)
   })
 
   it('la ricerca non trova le stazioni', async () => {

@@ -11,7 +11,7 @@
 // devono seguire l'accent scelto in quel momento.
 import { useState, useEffect, type ReactNode } from 'react'
 import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, ACCENT_FISSI, temaFisso } from '@/lib/jarvis-tokens'
-import { useStore, useJarvisStore, type JarvisState, type LayoutMode } from '@/store/useJarvisStore'
+import { useStore, useJarvisStore, NOME_MAX, type JarvisState, type LayoutMode } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
@@ -556,10 +556,10 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               id="prof-nome"
               className="j-field-lg"
               value={name}
-              onChange={e => setName(e.target.value.slice(0, 10))}
+              onChange={e => setName(e.target.value.slice(0, NOME_MAX))}
               onBlur={saveName}
               onKeyDown={e => { if (e.key === 'Enter') { saveName(); (e.target as HTMLInputElement).blur() } }}
-              maxLength={10}
+              maxLength={NOME_MAX}
               placeholder={t('Il tuo nome')}
             />
           </div>

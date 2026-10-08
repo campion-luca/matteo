@@ -62,15 +62,33 @@ export function muscoliDellaScheda(scheda: GymScheda, palestra: PalestraExercise
  *  In un superset fra i due esercizi non ci si ferma: il recupero è uno solo,
  *  dopo il secondo. */
 export function durataPrevista(scheda: GymScheda): number {
+  return durataRimanente(scheda, {})
+}
+
+/** Quanto pesa ogni serie di una riga, recupero compreso, in secondi. Vuoto
+ *  per una riga senza nome. */
+function secondiPerSerie(riga: GymSchedaExercise): number[] {
+  if (!riga.name.trim()) return []
+  const serie = Math.min(SERIE_MAX, Math.max(1, Math.floor(riga.sets) || 1))
+  const recupero = riga.supersetWithNext ? 0 : RECUPERO_SEC
+  return colpiPrevisti(riga.reps, serie).map(colpi => {
+    const lavoro = (colpi || COLPI_SE_NON_SI_SA) * SECONDI_A_COLPO
+    return Math.min(SERIE_MAX_SEC, Math.max(SERIE_MIN_SEC, lavoro)) + recupero
+  })
+}
+
+/** Quanto MANCA alla fine, in secondi, durante l'allenamento: lo stesso conto
+ *  di `durataPrevista`, sulle sole serie non ancora spuntate. `spuntate` va per
+ *  id della riga; una riga che non c'è è tutta da fare.
+ *
+ *  Non guarda l'orologio: scende a ogni spunta, non col passare dei minuti. Chi
+ *  si ferma a parlare non vede il numero calare da solo — quello che manca è
+ *  ancora tutto lì. */
+export function durataRimanente(scheda: GymScheda, spuntate: Record<string, boolean[] | undefined>): number {
   let sec = 0
   for (const riga of scheda.exercises) {
-    if (!riga.name.trim()) continue
-    const serie = Math.min(SERIE_MAX, Math.max(1, Math.floor(riga.sets) || 1))
-    const recupero = riga.supersetWithNext ? 0 : RECUPERO_SEC
-    for (const colpi of colpiPrevisti(riga.reps, serie)) {
-      const lavoro = (colpi || COLPI_SE_NON_SI_SA) * SECONDI_A_COLPO
-      sec += Math.min(SERIE_MAX_SEC, Math.max(SERIE_MIN_SEC, lavoro)) + recupero
-    }
+    const fatte = spuntate[riga.id]
+    secondiPerSerie(riga).forEach((s, i) => { if (!fatte?.[i]) sec += s })
   }
   return sec
 }

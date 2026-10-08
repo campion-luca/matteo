@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GymSchede } from '@/features/gym/GymSchede'
+import { InCorsoInHome } from '@/features/gym/InCorso'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
@@ -620,8 +621,10 @@ describe('allenamento: le aggiunte di settembre', () => {
     expect(screen.getByRole('button', { name: 'Apri il timer' })).toBeInTheDocument()
 
     // Uscendo e rientrando resta chiuso: è una scelta, non uno stato della pagina.
+    // (L'allenamento è rimasto aperto: ci si rientra dalla barra in cima.)
     cleanup()
-    await apriAllenamento(user)
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByText(/tocca per riprendere/i))
     expect(screen.queryByRole('button', { name: 'Timer' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Apri il timer' }))
@@ -901,6 +904,160 @@ describe('allenamento: le aggiunte di settembre', () => {
     const sec = alzate()[0].durataSec!
     expect(sec).toBeGreaterThanOrEqual(45 * 60)
     expect(sec).toBeLessThan(46 * 60)
+  })
+
+  // ── Quanto manca, e le due uscite ─────────────────────────────
+  const sessione = () => localStorage.getItem('jarvis-sessione-in-corso-v1')
+
+  it('in testata c’è quanto manca, e scende a ogni serie spuntata', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    // 3 serie da 10: tre volte (40 s di lavoro + 90 di recupero) = 6 min e mezzo.
+    expect(screen.getByLabelText('Tempo mancante stimato')).toHaveTextContent('mancano circa 7 min')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    expect(screen.getByLabelText('Tempo mancante stimato')).toHaveTextContent('mancano circa 4 min')
+    // Togliere la spunta lo fa risalire: quella serie manca di nuovo.
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    expect(screen.getByLabelText('Tempo mancante stimato')).toHaveTextContent('mancano circa 7 min')
+    // Finite tutte, non manca niente e non lo si scrive.
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    expect(screen.queryByLabelText('Tempo mancante stimato')).not.toBeInTheDocument()
+  })
+
+  it('«Lascia aperto» esce e l’allenamento resta: da fuori lo si riprende', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: 'Lascia aperto' }))
+
+    // Fuori dall'allenamento, sul dettaglio della scheda: niente è stato salvato
+    // e niente è andato perso.
+    expect(screen.queryByRole('button', { name: /termina allenamento/i })).not.toBeInTheDocument()
+    expect(alzate()).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: /riprendi allenamento/i }))
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Panca piana · serie 1 · kg')).toHaveValue('60')
+  })
+
+  it('resta aperto anche senza una serie spuntata: avviato vuol dire in corso', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.click(screen.getByRole('button', { name: 'Lascia aperto' }))
+    expect(screen.getByRole('button', { name: /riprendi allenamento/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /inizia allenamento/i })).not.toBeInTheDocument()
+  })
+
+  it('«Termina» è acceso anche senza niente di fatto, e chiude senza lasciare niente aperto', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    // Niente da salvare: una sola uscita, e nessuna conferma da dare.
+    expect(screen.queryByRole('button', { name: /salva e chiudi/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }))
+    expect(screen.getByRole('button', { name: /inizia allenamento/i })).toBeInTheDocument()
+    expect(sessione()).toBeNull()
+    expect(alzate()).toHaveLength(0)
+  })
+
+  it('con delle serie fatte si può chiudere senza salvare: si chiede, e poi non resta niente', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    // Le due uscite, una accanto all'altra.
+    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }))
+
+    // «No» lascia tutto com'era: si è ancora nell'allenamento, con la serie spuntata.
+    expect(screen.getByText('Scartare l’allenamento?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'No' }))
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(sessione()).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }))
+    await user.click(screen.getByRole('button', { name: 'Scarta' }))
+    expect(screen.getByRole('button', { name: /inizia allenamento/i })).toBeInTheDocument()
+    expect(sessione()).toBeNull()
+    expect(alzate()).toHaveLength(0)
+  })
+
+  it('un allenamento solo avviato su un’altra scheda non fa domande: non c’è niente da perdere', async () => {
+    const altra = { ...scheda, id: 'sc2', title: 'Tirata B', exercises: [{ id: 'sx1', name: 'Lat machine', sets: 3, reps: '10', muscle: 'Dorso' }] }
+    useJarvisStore.setState({ gymSchede: [scheda, altra] })
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.click(screen.getByRole('button', { name: 'Lascia aperto' }))
+    cleanup()
+
+    render(<ConfirmDeleteProvider><GymSchede onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.getByText(/0\/3 serie fatte/)).toBeInTheDocument()
+    await user.click(screen.getByText('Tirata B'))
+    await user.click(screen.getByRole('button', { name: /inizia allenamento/i }))
+    expect(screen.queryByText('Hai già avviato un allenamento')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Lat machine · serie 1 · kg')).toBeInTheDocument()
+    expect(JSON.parse(sessione()!).schedaId).toBe('sc2')
+  })
+
+  // ── Dalla home ────────────────────────────────────────────────
+  it('la barra in home c’è solo con un allenamento aperto, lo riapre e lo scarta', async () => {
+    const onRiprendi = vi.fn()
+    const home = () => render(<ConfirmDeleteProvider><InCorsoInHome onRiprendi={onRiprendi}/><ConfirmModal/></ConfirmDeleteProvider>)
+    const { unmount } = home()
+    expect(screen.queryByText('Allenamento in corso')).not.toBeInTheDocument()
+    unmount()
+
+    aperto(Date.now() - 10 * 60 * 1000)
+    home()
+    expect(screen.getByText('Allenamento in corso')).toBeInTheDocument()
+    expect(screen.getByText('Spinta A')).toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(screen.getByText(/2\/3 serie fatte · tocca per riprendere/))
+    expect(onRiprendi).toHaveBeenCalledWith('sc1')
+
+    await user.click(screen.getByRole('button', { name: 'Scarta allenamento in corso' }))
+    await user.click(screen.getByRole('button', { name: 'Scarta' }))
+    expect(screen.queryByText('Allenamento in corso')).not.toBeInTheDocument()
+    expect(sessione()).toBeNull()
+  })
+
+  it('un allenamento solo avviato si scarta dalla barra senza domande', async () => {
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'sc1', salvataA: Date.now(), avviataA: Date.now(),
+      progress: { se1: { checks: [false, false, false], weights: ['', '', ''], reps: ['10', '10', '10'] } },
+    }))
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><InCorsoInHome onRiprendi={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.getByText(/0\/3 serie fatte/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Scarta allenamento in corso' }))
+    expect(screen.queryByText('Scartare l’allenamento?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Allenamento in corso')).not.toBeInTheDocument()
+    expect(sessione()).toBeNull()
+  })
+
+  it('riaperto dalla home si è subito nell’allenamento, e uscendo si torna alla home', async () => {
+    aperto(Date.now() - 10 * 60 * 1000)
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede apri="sc1" riprendi onBack={onBack}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Lascia aperto' }))
+    expect(onBack).toHaveBeenCalledTimes(1)
+    expect(sessione()).not.toBeNull()
+  })
+
+  it('riaperto dalla home e terminato, si resta sulla scheda a vedere com’è andata', async () => {
+    aperto(Date.now() - 10 * 60 * 1000)
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede apri="sc1" riprendi onBack={onBack}/><ConfirmModal/></ConfirmDeleteProvider>)
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: 'Salva e chiudi' }))
+    expect(onBack).not.toHaveBeenCalled()
+    expect(alzate()).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /inizia allenamento/i })).toBeInTheDocument()
   })
 })
 

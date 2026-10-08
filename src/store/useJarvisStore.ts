@@ -180,6 +180,13 @@ export interface WeightLogEntry {
 // (`ACCENT_FISSI`), accanto ai loro colori.
 export type LayoutMode = 'standard' | LayoutFisso
 
+/** Quanto può essere lungo il nome, ovunque lo si scriva (questionario del
+ *  primo accesso, profilo). Quattordici lettere: ci stanno Massimiliano e
+ *  Maria Vittoria, e nel saluto in testata il nome resta su una riga sola. Il
+ *  profilo ne ammetteva dieci, il questionario non aveva limite. Chi ne ha già
+ *  uno più lungo lo tiene: il saluto lo tronca coi puntini (vedi SalutoHeader). */
+export const NOME_MAX = 14
+
 export interface JarvisState {
   userName: string
   // La lingua dell'interfaccia. Sta nello stato sincronizzato, non nel

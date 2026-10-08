@@ -1,7 +1,8 @@
+import type { CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useGreeting } from './Primitives'
 import { Icons } from './Icons'
-import { useJarvisStore } from '@/store/useJarvisStore'
+import { useJarvisStore, NOME_MAX } from '@/store/useJarvisStore'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { fmtGiornoLungo } from '@/lib/dateFormat'
 import { useT, useLang } from '@/lib/i18n'
@@ -16,6 +17,25 @@ import { useT, useLang } from '@/lib/i18n'
 //
 // Il saluto è l'unica cosa in Fraunces di tutta l'app (`--font-saluto`): è la voce
 // dell'app, non un titolo fra i tanti.
+//
+// Su telefono sta su DUE righe, sempre: la formula sopra («Buon pomeriggio,»),
+// il nome sotto. Lasciato andare a capo da sé ne prendeva due la mattina e tre
+// il pomeriggio — «Buon / pomeriggio, / Luca.» — e ogni riga in più sposta in giù
+// tutta la home. Perché ognuna resti su una riga sola il corpo si stringe quanto
+// serve alla più lunga delle due (vedi `.j-saluto` in globals.css, che fa il
+// conto sulla larghezza vera della colonna): con «Buongiorno, Luca» non cambia
+// niente, con «Buon pomeriggio» o un nome lungo scende di qualche punto.
+
+/** Quanto è largo in media un carattere del saluto, in `em`. Misurato sul
+ *  Fraunces alle misure a cui lo si usa: la formula più larga («Buon Anno
+ *  Nuovo,») sta a 0,545, i nomi lunghi in corsivo poco sotto. Un filo di margine,
+ *  perché se il conto sbaglia per difetto la riga finisce coi puntini. */
+const EM_A_CARATTERE = 0.57
+/** Oltre queste lettere la formula va a capo da sé («Buona Festa della
+ *  Repubblica,» ne ha ventinove): stringerla fino a farla stare su una riga la
+ *  renderebbe illeggibile, e succede un giorno all'anno. */
+const FORMULA_MAX = 20
+
 export function SalutoHeader({ onSearch, onUser, onSettings }: {
   onSearch: () => void
   onUser: () => void
@@ -32,6 +52,20 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
   const nameStart = userName ? greeting.indexOf(userName) : -1
   const greetBefore = nameStart >= 0 ? greeting.slice(0, nameStart) : greeting
   const greetAfter  = nameStart >= 0 ? greeting.slice(nameStart + userName.length) : ''
+
+  // Le due righe del telefono. Il corpo lo decide la più lunga — ma un nome
+  // oltre il limite (salvato prima che ci fosse) non conta per intero: non deve
+  // rimpicciolire tutto il saluto, finisce coi puntini.
+  const formula = greetBefore.trimEnd()
+  const suDueRighe = !isDesktop && nameStart >= 0
+  const caratteri = Math.max(
+    Math.min(formula.length, FORMULA_MAX),
+    Math.min(userName.length, NOME_MAX) + greetAfter.length,
+  )
+  // Il nome, uguale nei due casi. Corsivo e non sottolineato: la sottolineatura
+  // è il segno di un link, e un nome che sembra cliccabile ma non fa niente è
+  // una promessa rotta.
+  const nome = <em style={{ fontStyle: 'italic', fontWeight: 600 }}>{userName}</em>
 
   // I tre comandi: stessa forma, quadrati, sulla riga del saluto. La misura è
   // elastica ma non scende sotto i 34px — sotto non si centra più il pollice.
@@ -54,27 +88,33 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
       gap: 'clamp(8px, 3vw, 16px)',
       marginBottom: isDesktop ? 20 : 'clamp(10px, 1.8dvh, 18px)',
     }}>
-      <div style={{ minWidth: 0 }}>
+      {/* `flex: 1` sul telefono: la colonna prende tutto lo spazio che i tre
+          tasti lasciano, ed è su quella larghezza che il saluto si misura. */}
+      <div className={suDueRighe ? 'j-saluto-colonna' : undefined} style={{ minWidth: 0, flex: suDueRighe ? 1 : undefined }}>
         <div style={{
           fontFamily: NUC.label, fontSize: 'clamp(10.5px, 3vw, 12px)', fontWeight: 600, letterSpacing: '.04em',
           color: 'var(--tertiary-ink)', marginBottom: 4,
         }}>{fmtGiornoLungo(new Date(), lang)}</div>
-        <div style={{
-          fontFamily: 'var(--font-saluto)',
-          // Il minore fra larghezza e altezza: su un telefono basso il saluto su
-          // due righe è la cosa che spinge giù tutto il resto.
-          fontSize: isDesktop ? 'clamp(26px, 3.4vw, 36px)' : 'clamp(23px, 3.2dvh, 31px)',
-          fontWeight: 500, letterSpacing: '-0.01em',
-          lineHeight: 1.05, color: 'var(--fg)',
-        }}>
-          {greetBefore}
-          {nameStart >= 0 && (
-            // Corsivo e non sottolineato: la sottolineatura è il segno di un link,
-            // e un nome che sembra cliccabile ma non fa niente è una promessa rotta.
-            <em style={{ fontStyle: 'italic', fontWeight: 600 }}>{userName}</em>
-          )}
-          {greetAfter}
-        </div>
+        {suDueRighe ? (
+          <div className="j-saluto" style={{ '--saluto-em': (EM_A_CARATTERE * caratteri).toFixed(2) } as CSSProperties}>
+            <div className={formula.length <= FORMULA_MAX ? 'j-saluto-riga' : undefined}>{formula}</div>
+            <div className="j-saluto-riga">{nome}{greetAfter}</div>
+          </div>
+        ) : (
+          // Su desktop, e senza nome: una frase sola, che va a capo se serve.
+          <div style={{
+            fontFamily: 'var(--font-saluto)',
+            // Il minore fra larghezza e altezza: su un telefono basso il saluto su
+            // due righe è la cosa che spinge giù tutto il resto.
+            fontSize: isDesktop ? 'clamp(26px, 3.4vw, 36px)' : 'clamp(23px, 3.2dvh, 31px)',
+            fontWeight: 500, letterSpacing: '-0.01em',
+            lineHeight: 1.05, color: 'var(--fg)',
+          }}>
+            {greetBefore}
+            {nameStart >= 0 && nome}
+            {greetAfter}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 'clamp(5px, 1.6vw, 8px)', flexShrink: 0, paddingTop: 2 }}>
         {tasto(t('Ricerca globale'), onSearch, <Icons.search size={16} stroke={1.8} style={{ width: '42%', height: 'auto' }}/>)}

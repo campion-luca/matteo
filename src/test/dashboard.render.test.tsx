@@ -49,6 +49,22 @@ describe('Riepilogo', () => {
     expect(screen.queryByLabelText('Apri Personal Coach')).not.toBeInTheDocument()
   })
 
+  it('della settimana dice i giorni fatti e le settimane di fila, senza ridisegnare i sette giorni', () => {
+    // I sette giorni stanno già nella striscia in testata, subito sopra: qui
+    // resta una riga con i due numeri che la striscia non dice.
+    const oggi = new Date()
+    const iso = `${oggi.getFullYear()}-${String(oggi.getMonth() + 1).padStart(2, '0')}-${String(oggi.getDate()).padStart(2, '0')}`
+    useJarvisStore.setState({
+      palestraExercises: [{ id: 'p1', n: 'Panca piana', muscle: 'Petto', current: { kg: 60, reps: 10, sets_n: 3 }, history: [{ d: 'W', date: iso, kg: 60, reps: 10, sets_n: 3 }] }],
+    })
+    render(<Riepilogo {...props()}/>)
+    const riga = screen.getByLabelText('Apri il calendario degli allenamenti')
+    expect(riga).toHaveTextContent('La tua settimana')
+    expect(riga).toHaveTextContent('1/7')
+    // Nessuna iniziale di giorno: la riga non è più una striscia.
+    expect(riga).not.toHaveTextContent(/lun|mar|mer|gio|ven|sab|dom/i)
+  })
+
   it('toccando la settimana si apre il calendario con la serie di settimane', async () => {
     const user = userEvent.setup()
     render(<Riepilogo {...props()}/>)

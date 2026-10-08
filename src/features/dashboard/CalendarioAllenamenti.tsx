@@ -153,13 +153,16 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
               style={{
                 aspectRatio: '1 / 1', minWidth: 0, padding: 0, borderRadius: 'var(--radius)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: fatto ? 'var(--j-accent)' : 'transparent',
+                // Lo stesso verde dei giorni allenati nella striscia in testata
+                // (`--fatto-bg`): da lì ci si arriva, e un giorno fatto deve
+                // avere lo stesso colore di qua e di là. L'accent resta a oggi.
+                background: fatto ? 'var(--fatto-bg)' : 'transparent',
                 border: sel
                   ? '2px solid var(--tertiary-ink)'
-                  : fatto ? '1px solid var(--j-accent)' : `1px ${futuro ? 'dashed' : 'solid'} var(--hairline-soft)`,
+                  : fatto ? '1px solid var(--fatto-bordo)' : `1px ${futuro ? 'dashed' : 'solid'} var(--hairline-soft)`,
                 outline: eOggi ? '1px solid var(--j-accent)' : undefined,
                 outlineOffset: eOggi ? 2 : undefined,
-                color: fatto ? 'var(--j-accent-fg)' : futuro ? 'var(--fg-mute)' : 'var(--fg-soft)',
+                color: fatto ? 'var(--fg)' : futuro ? 'var(--fg-mute)' : 'var(--fg-soft)',
                 fontFamily: NUC.label, fontSize: 12, fontWeight: fatto ? 600 : 400,
                 cursor: futuro ? 'default' : 'pointer',
                 opacity: futuro ? 0.5 : 1,

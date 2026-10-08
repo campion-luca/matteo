@@ -17,7 +17,7 @@
 import { useState } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
-import { useJarvisStore } from '@/store/useJarvisStore'
+import { useJarvisStore, NOME_MAX } from '@/store/useJarvisStore'
 import { esercizidaCatalogo } from '@/features/gym/catalogo'
 import { useT } from '@/lib/i18n'
 
@@ -153,8 +153,9 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
 
         {step === 'nome' && (
           <input
-            autoFocus value={name} onChange={e => setName(e.target.value)}
+            autoFocus value={name} onChange={e => setName(e.target.value.slice(0, NOME_MAX))}
             onKeyDown={e => { if (e.key === 'Enter') avanti() }}
+            maxLength={NOME_MAX}
             placeholder={t('Il tuo nome')} style={inputStyle}
           />
         )}

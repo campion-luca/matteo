@@ -1,11 +1,14 @@
 // ── La settimana, sotto il saluto ──────────────────────────────
-// Sette giorni da lunedì a domenica: l'iniziale sopra, il numero sotto. Oggi è
-// il cerchio pieno d'accent; i giorni in cui ci si è allenati hanno il cerchio
-// pieno di superficie e un puntino arancione sotto. Quelli che devono ancora
-// venire restano spenti.
+// Sette giorni da lunedì a domenica: l'iniziale sopra, il numero sotto. I
+// giorni in cui ci si è allenati sono un cerchio pieno, verde (`--fatto-bg`):
+// è la cosa che la striscia esiste per dire, e si deve leggere senza cercarla.
+// Prima era un cerchio appena più chiaro del fondo con un puntino sotto, e a
+// colpo d'occhio la settimana sembrava vuota. Oggi è il cerchio pieno d'accent
+// finché non ci si allena; poi diventa verde anche lui, con un anello d'accent
+// attorno a dire che è oggi. Quelli che devono ancora venire restano spenti.
 //
-// La settimana del calendario e non "gli ultimi 7 giorni", come la striscia del
-// Riepilogo: "come sta andando la mia settimana" si legge da lunedì.
+// La settimana del calendario e non "gli ultimi 7 giorni": "come sta andando la
+// mia settimana" si legge da lunedì.
 // Tutta la striscia è un tasto e apre il calendario degli allenamenti.
 import { memo, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -47,7 +50,7 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
   }, [s.palestra, s.hyrox, lang])
 
   // Da quanto non ci si allena. Fino a ieri non si dice niente: lo dicono già
-  // i puntini della settimana. Da due giorni in su sì, e oltre i dieci cambia
+  // i giorni pieni della settimana. Da due giorni in su sì, e oltre i dieci cambia
   // colore — è la soglia da cui le schede avvisano che i carichi peseranno.
   const fermoDa = useMemo(() => {
     const ultimo = ultimoAllenamento(s.palestra, s.hyrox)
@@ -62,7 +65,7 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
         className="j-focus"
         style={{
           display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', width: '100%',
-          padding: 0, margin: fermoDa !== null && fermoDa >= 2 ? '0 0 4px' : '0 0 clamp(10px, 1.8dvh, 16px)',
+          padding: 0, margin: fermoDa !== null && fermoDa >= 2 ? '0 0 9px' : '0 0 clamp(10px, 1.8dvh, 16px)',
           background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit',
         }}
       >
@@ -73,21 +76,22 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
                   distinguere i due M, e con due lettere la riga si affolla. */}
               {g.dow.charAt(0).toUpperCase()}
             </span>
-            <span style={{
+            <span data-allenato={g.fatto || undefined} style={{
               width: 'clamp(32px, 9vw, 38px)', aspectRatio: '1 / 1', borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontFamily: NUC.font, fontSize: 'clamp(13px, 3.8vw, 15px)', fontWeight: g.oggi || g.fatto ? 700 : 500,
-              background: g.oggi ? 'var(--j-accent)' : g.fatto ? 'var(--surface-2)' : 'transparent',
-              color: g.oggi ? 'var(--j-accent-fg)' : g.futuro ? 'var(--fg-mute)' : 'var(--fg)',
+              background: g.fatto ? 'var(--fatto-bg)' : g.oggi ? 'var(--j-accent)' : 'transparent',
+              // Il bordo c'è sempre, trasparente dove non serve: così un giorno
+              // che diventa "fatto" non cambia misura di un pixel.
+              border: `1px solid ${g.fatto ? 'var(--fatto-bordo)' : 'transparent'}`,
+              color: g.fatto ? 'var(--fg)' : g.oggi ? 'var(--j-accent-fg)' : g.futuro ? 'var(--fg-mute)' : 'var(--fg)',
+              // Outline e non box-shadow: Premium spegne ogni ombra, e l'anello
+              // sparirebbe con loro (come nel calendario).
+              outline: g.oggi && g.fatto ? '2px solid var(--j-accent)' : undefined,
+              outlineOffset: g.oggi && g.fatto ? 2 : undefined,
             }}>
               {g.num}
             </span>
-            {/* Il puntino c'è sempre, trasparente se il giorno è vuoto: così i
-                numeri restano tutti alla stessa altezza. */}
-            <span aria-hidden style={{
-              width: 4, height: 4, borderRadius: '50%',
-              background: g.fatto ? 'var(--j-accent)' : 'transparent',
-            }}/>
           </div>
         ))}
       </button>

@@ -534,8 +534,12 @@ export const EN_UI: Record<string, string> = {
   'serie': 'sets',
   'colpi': 'reps',
   'Termina Allenamento': 'Finish workout',
-  'Le serie completate verranno salvate come nuova alzata nei rispettivi esercizi.':
-    'Completed sets will be saved as a new lift in their exercises.',
+  'Lascia aperto': 'Keep open',
+  'Aperto, lo riprendi dalla home. Terminando scegli se salvarlo.':
+    'Kept open, you resume it from home. On finishing you choose whether to save it.',
+  'in corso da {tempo}': 'going for {tempo}',
+  'mancano circa {tempo}': 'about {tempo} left',
+  'Tempo mancante stimato': 'Estimated time left',
   'Com’è andata': 'How it went',
   'non svolto': 'not done',
   'In rosso quello che è rimasto sotto il programma. Si salva com’è andata davvero: è quello che rende confrontabili gli allenamenti.':

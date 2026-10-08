@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NUC } from '@/lib/jarvis-tokens'
+import { NUC, cursore } from '@/lib/jarvis-tokens'
 import { LEVEL_LABELS, type DistrictStrength, type StrengthLevel } from './gymStrength'
 import { useT, useTData } from '@/lib/i18n'
 import {
@@ -142,16 +142,24 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
 
   return (
     <>
-      {/* Interruttore fronte/retro */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 'clamp(8px, 1.3dvh, 12px)', border: '1px solid var(--hairline)', width: 'fit-content' }}>
+      {/* Interruttore fronte/retro: lo stesso `.j-switch` di tutti gli altri
+          (vedi globals.css), col cursore pieno d'accent com'era il suo. Prima
+          era un pezzo a sé, con un contorno a spigoli vivi attorno a una
+          pillola arrotondata — l'ultimo rimasto squadrato da quando l'app ha
+          gli angoli smussati. */}
+      <div className="j-switch j-switch-accent" style={{
+        ...cursore(side === 'front' ? 0 : 1, 2),
+        width: 'fit-content', marginBottom: 'clamp(8px, 1.3dvh, 12px)',
+      }}>
         {(['front', 'back'] as const).map(v => (
-          <button key={v} onClick={() => { setSide(v); setPicked(null) }} style={{
-            padding: '5px 12px', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
-            background: side === v ? 'var(--j-accent)' : 'transparent',
-            color: side === v ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
-            fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase',
-            transition: 'background 180ms',
-          }}>
+          <button key={v} type="button" onClick={() => { setSide(v); setPicked(null) }} aria-pressed={side === v}
+            className="j-switch-cell" style={{
+              // `minWidth` e non `width`: le celle sono `flex: 1`, e il cursore
+              // ne vale esattamente una.
+              minWidth: 70, padding: '6px 12px',
+              fontFamily: NUC.label, fontSize: 9.5, fontWeight: side === v ? 600 : 500,
+              letterSpacing: '.14em', textTransform: 'uppercase',
+            }}>
             {v === 'front' ? t('Fronte') : t('Retro')}
           </button>
         ))}

@@ -1,6 +1,9 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useJarvisStore } from '@/store/useJarvisStore'
+import { useConfirmDelete } from '@/hooks/useConfirmDelete'
+import { useT } from '@/lib/i18n'
 import { gruppiMuscolari } from './gymModel'
+import { scartaSessione } from './sessioneInCorso'
 
 // Lettura dallo store che serve a più pezzi della scheda Allenamento. Sta in un
 // file senza JSX perché mescolare hook e componenti nello stesso modulo rompe il
@@ -30,4 +33,27 @@ export function useMuscleIcons(): Record<string, string> {
     () => Object.fromEntries((custom ?? []).filter(c => c.icon).map(c => [c.name, c.icon])),
     [custom],
   )
+}
+
+// Buttare via l'allenamento aperto: si chiede sempre, con le stesse parole, da
+// ovunque lo si faccia — l'elenco delle schede, la home, «Chiudi senza salvare»
+// a fine allenamento. `dopo` parte a scarto avvenuto: chi chiama ci mette il
+// cambio di pagina o il ridisegno. `vuoto` = solo avviato, senza una serie né
+// una nota: non c'è niente da perdere, e allora non si chiede.
+export function useScartaAllenamento(): (dopo: () => void, vuoto?: boolean) => void {
+  const t = useT()
+  const { confirmDelete } = useConfirmDelete()
+  return useCallback((dopo: () => void, vuoto = false) => {
+    if (vuoto) { scartaSessione(); dopo(); return }
+    confirmDelete(
+      () => { scartaSessione(); dopo() },
+      t('Allenamento in corso'),
+      {
+        eyebrow: t('Allenamento in corso'),
+        title: t('Scartare l’allenamento?'),
+        body: t('Le serie spuntate finora non vengono salvate. La prossima volta la scheda riparte da zero.'),
+        cta: t('Scarta'),
+      },
+    )
+  }, [t, confirmDelete])
 }

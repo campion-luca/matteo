@@ -25,10 +25,9 @@ import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { maxLifts, maxTotal, SOURCE_LABELS } from '@/features/gym/gymMaxLifts'
 import { BodyMapPanel } from '@/features/gym/BodyMap'
-import { daysShort } from '@/lib/dateFormat'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
 import { settimaneDiFila } from './allenamenti'
-import { useT, useTData, useLang } from '@/lib/i18n'
+import { useT, useTData } from '@/lib/i18n'
 
 interface RiepilogoProps {
   /** Il profilo, dove si inserisce il peso corporeo: senza, mappa della forza e
@@ -42,7 +41,6 @@ const SEZ = 'clamp(8px, 1.4dvh, 12px)'
 
 export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   const t = useT()
-  const lang = useLang()
   // I nomi dei massimali arrivano dal catalogo, cioè dai dati: passano da `tData`,
   // che traduce quelli noti e lascia intatto tutto il resto.
   const tData = useTData()
@@ -59,14 +57,12 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   const [maxAperti, setMaxAperti] = useState(false)
 
   // ── La settimana corrente, lunedì→domenica ───────────────────
-  // NON gli ultimi 7 giorni: "la mia settimana" è quella del calendario, con i
-  // giorni che devono ancora arrivare vuoti.
+  // NON gli ultimi 7 giorni: "la mia settimana" è quella del calendario.
+  // Qui servono solo due numeri — le settimane di fila e in quanti giorni di
+  // questa ci si è allenati: i sette giorni uno per uno li disegna la striscia
+  // in testata (vedi SettimanaStrip).
   const settimana = useMemo(() => {
     const oggi = new Date()
-    const oggiISO = localISO(oggi)
-    // Le iniziali dei giorni seguono la lingua scelta: `lang` è in coda alle
-    // dipendenze, quindi al cambio lingua la striscia si ricalcola.
-    const DOW = daysShort(lang)
     // getDay(): 0 = domenica. Riportato a lunedì = 0, come le settimane ISO.
     const lunedì = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - ((oggi.getDay() + 6) % 7))
 
@@ -74,20 +70,12 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
     s.palestra.forEach(ex => ex.history.forEach(h => { if (h.date) allenati.add(h.date) }))
     s.hyrox.forEach(ex => ex.history.forEach(h => { if (h.date) allenati.add(h.date) }))
 
+    const giorni = Array.from({ length: 7 }, (_, i) => localISO(new Date(lunedì.getFullYear(), lunedì.getMonth(), lunedì.getDate() + i)))
     return {
-      serie: settimaneDiFila(allenati, oggiISO),
-      giorni: Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(lunedì.getFullYear(), lunedì.getMonth(), lunedì.getDate() + i)
-        const iso = localISO(d)
-        return {
-          iso, dow: DOW[i], num: d.getDate(),
-          trained: allenati.has(iso),
-          oggi: iso === oggiISO,
-          futuro: iso > oggiISO,
-        }
-      }),
+      serie: settimaneDiFila(allenati, localISO(oggi)),
+      fatti: giorni.filter(iso => allenati.has(iso)).length,
     }
-  }, [s.palestra, s.hyrox, lang])
+  }, [s.palestra, s.hyrox])
 
   // ── Mappa della forza per distretto ──────────────────────────
   const distretti = useMemo(
@@ -109,66 +97,35 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   // nello stesso riquadro, divisi da un filo.
   const renderModule = (id: string) => {
     switch (id) {
-      case 'weekDots': {
-        const fatti = settimana.giorni.filter(d => d.trained).length
-        return (
-          // Tutta la sezione è il tasto che apre il calendario: il bersaglio è la
-          // striscia intera, non una scritta "vedi tutto" da cercare.
-          <button
-            onClick={() => setShowCalendario(true)}
-            aria-label={t('Apri il calendario degli allenamenti')}
-            className="j-focus j-riga-gruppo"
-            style={{
-              display: 'block', width: 'calc(100% + 16px)', margin: '0 -8px', padding: `${SEZ} 8px`,
-              background: 'transparent', border: 'none',
-              borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left', color: 'inherit',
-            }}
-          >
-            <NucEyebrow right={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: settimana.serie > 0 ? 'var(--j-accent-ink)' : 'var(--fg-mute)' }}>
-                  <Icons.flame size={13} stroke={1.8}/>
-                  <span style={{ fontWeight: 600 }}>{settimana.serie}</span>
-                </span>
-                <span>{fatti}/7</span>
-                <Icons.chev size={13} stroke={1.8}/>
+      case 'weekDots': return (
+        // Una riga sola: le settimane di fila e i giorni fatti su sette. I sette
+        // giorni disegnati uno per uno non ci sono più — stanno già nella
+        // striscia in testata, a due dita da qui, e ripeterli era dire la stessa
+        // cosa due volte nella stessa schermata.
+        // Tutta la riga è il tasto che apre il calendario: il bersaglio è la
+        // sezione intera, non una scritta "vedi tutto" da cercare.
+        <button
+          onClick={() => setShowCalendario(true)}
+          aria-label={t('Apri il calendario degli allenamenti')}
+          className="j-focus j-riga-gruppo"
+          style={{
+            display: 'block', width: 'calc(100% + 16px)', margin: '0 -8px', padding: `${SEZ} 8px`,
+            background: 'transparent', border: 'none',
+            borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left', color: 'inherit',
+          }}
+        >
+          <NucEyebrow style={{ marginBottom: 0 }} right={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: settimana.serie > 0 ? 'var(--j-accent-ink)' : 'var(--fg-mute)' }}>
+                <Icons.flame size={13} stroke={1.8}/>
+                <span style={{ fontWeight: 600 }}>{settimana.serie}</span>
               </span>
-            }>{t('La tua settimana')}</NucEyebrow>
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
-              {settimana.giorni.map(d => (
-                <div key={d.iso} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <div style={{
-                    fontFamily: NUC.label, fontSize: 9, letterSpacing: '.06em', textTransform: 'uppercase',
-                    color: d.oggi ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
-                    fontWeight: d.oggi ? 600 : 500,
-                  }}>{d.dow}</div>
-                  {/* Pieno = allenato. I giorni ancora da venire restano
-                      tratteggiati: un quadrato vuoto pieno di bordo li avrebbe fatti
-                      leggere come "saltato", che non è ancora vero. */}
-                  <div style={{
-                    width: 30, height: 30, borderRadius: 'var(--radius-sm)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: d.trained ? 'var(--j-accent)' : 'transparent',
-                    border: d.trained
-                      ? '1px solid var(--j-accent)'
-                      : `1px ${d.futuro ? 'dashed' : 'solid'} var(--hairline)`,
-                    color: d.trained ? 'var(--j-accent-fg)' : 'var(--fg-mute)',
-                    fontFamily: NUC.label, fontSize: 11.5,
-                    fontWeight: d.trained ? 600 : 400,
-                    // Il giorno di oggi si riconosce dall'anello attorno, non da un
-                    // colore in più: i colori qui dicono già "allenato o no".
-                    // Outline e non box-shadow: Premium spegne ogni ombra, e l'anello
-                    // sparirebbe con loro.
-                    outline: d.oggi ? '1px solid var(--j-accent)' : undefined,
-                    outlineOffset: d.oggi ? 2 : undefined,
-                    transition: 'background 300ms var(--ease)',
-                  }}>{d.num}</div>
-                </div>
-              ))}
-            </div>
-          </button>
-        )
-      }
+              <span>{settimana.fatti}/7</span>
+              <Icons.chev size={13} stroke={1.8}/>
+            </span>
+          }>{t('La tua settimana')}</NucEyebrow>
+        </button>
+      )
 
       case 'bodyMap': return (
         <div style={{ padding: `${SEZ} 0` }}>

@@ -28,6 +28,8 @@ import {
 import { useMuscleColors } from './useMuscleColors'
 import { achievements } from './gymStrength'
 import { GymSchede } from './GymSchede'
+import { InCorsoInHome } from './InCorso'
+import { DisegnoAzione } from './DisegniAzioni'
 import { Riepilogo } from '@/features/dashboard/Riepilogo'
 import { SettimanaStrip } from '@/features/dashboard/SettimanaStrip'
 import { MuscleIcon } from './MuscleIcons'
@@ -153,9 +155,27 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
   // punto del badge è farsi vedere da chi il Personal Coach NON lo sta aprendo:
   // se per accorgersi di un messaggio bisognasse entrare, il badge non servirebbe.
   const daLeggere = useNonLetti()
-  const card = (id: 'coach' | 'schede' | 'stats', label: string, icon: JSX.Element, onClick: () => void) => {
+  const card = (id: 'coach' | 'schede' | 'stats', label: string, onClick: () => void) => {
     const on = id === attiva
     const badge = id === 'coach' ? daLeggere : 0
+    // Ogni card ha la sua tinta (`--azione-…` in globals.css, una terna per
+    // tema), mescolata alla superficie: fondo, bordo e disegno sono dosi dello
+    // stesso colore. Accesa (le statistiche aperte) torna piena d'accent, come
+    // prima.
+    const tinta = `var(--azione-${id})`
+    const fondo = on ? 'var(--j-accent)' : `color-mix(in srgb, ${tinta} 26%, var(--surface))`
+    // I quattro colori del disegno (vedi DisegniAzioni): due toni per le masse,
+    // uno per i dettagli — la tinta spinta verso il colore del testo, chiara sui
+    // temi scuri e scura sulla carta — e il fondo, per i ritagli.
+    const colori = (on ? {
+      '--d1': 'color-mix(in srgb, var(--j-accent-fg) 20%, transparent)',
+      '--d2': 'color-mix(in srgb, var(--j-accent-fg) 42%, transparent)',
+      '--d3': 'var(--j-accent-fg)',
+    } : {
+      '--d1': `color-mix(in srgb, ${tinta} 40%, transparent)`,
+      '--d2': `color-mix(in srgb, ${tinta} 78%, transparent)`,
+      '--d3': `color-mix(in srgb, ${tinta} 38%, var(--fg))`,
+    }) as React.CSSProperties
     return (
       <button
         onClick={onClick}
@@ -168,26 +188,31 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
           // la riga e lasciavano un buco a destra. In `dvh` con un tetto, perché
           // su un telefono basso l'altezza è la risorsa scarsa e queste card
           // vengono prima dei gruppi muscolari.
-          // Più alte di com'erano (56–78px): sopra non c'è più «Pesi | Hyrox», e
-          // lo spazio che ha lasciato è andato a loro. Icona, testo e distanze
-          // crescono nello stesso rapporto, o la card più grande sembrerebbe vuota.
-          height: 'clamp(78px, 12.5dvh, 112px)',
+          // Una volta e mezza quelle di partenza (78–112px): alte il doppio
+          // erano troppo, e per metà vuote. Non sono un tasto con l'icona sopra
+          // la scritta ma una tessera: il disegno in alto, il nome in basso a
+          // sinistra, come nelle card dei gruppi muscolari qui sotto.
+          height: ALTEZZA_AZIONE,
           minWidth: 0, borderRadius: 'var(--radius-lg)', cursor: 'pointer',
-          backgroundColor: on ? 'var(--j-accent)' : 'var(--surface)',
-          border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
-          color: on ? 'var(--j-accent-fg)' : 'var(--fg-soft)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 'clamp(6px, 1.2dvh, 10px)',
-          padding: '0 6px',
+          backgroundColor: fondo,
+          border: `1px solid ${on ? 'var(--j-accent)' : `color-mix(in srgb, ${tinta} 42%, transparent)`}`,
+          color: on ? 'var(--j-accent-fg)' : 'var(--fg)',
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-end',
+          padding: 'clamp(11px, 3.2vw, 15px)',
+          textAlign: 'left',
           transition: 'background-color 200ms, border-color 200ms, color 200ms',
-        }}
+          ...colori, '--df': fondo,
+        } as React.CSSProperties}
       >
-        {icon}
+        <DisegnoAzione id={id} style={DISEGNO_AZIONE}/>
         {/* Non più in maiuscoletto spaziato: sono nomi di posti dove si va, e
             in maiuscolo a 9px "STATISTICHE" si decifra invece di leggersi. */}
         <span style={{
-          fontFamily: NUC.label, fontSize: 'clamp(12px, 3.5vw, 14.5px)', fontWeight: 500,
-          letterSpacing: '.01em', textAlign: 'center', lineHeight: 1.2,
+          position: 'relative',
+          // Peso 500 e non 600: in grassetto, accanto ai disegni, le tre
+          // scritte pesavano più dei disegni stessi.
+          fontFamily: NUC.label, fontSize: 'clamp(13px, 3.7vw, 16px)', fontWeight: 500,
+          letterSpacing: '.005em', lineHeight: 1.2,
         }}>{label}</span>
         {/* A cavallo dell'angolo, non dentro: la card è alta poco più di
             cinquanta pixel su un telefono basso, e un badge messo dentro il
@@ -197,10 +222,12 @@ function AzioniGym({ attiva, onCoach, onSchede, onStats }: {
     )
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 14, maxWidth: 640 }}>
-      {card('coach',  t('Coaching'),    <Icons.chat    size={30} stroke={1.6} style={ICONA_AZIONE}/>, onCoach)}
-      {card('schede', t('Schede'),      <Icons.bookOpen size={30} stroke={1.6} style={ICONA_AZIONE}/>, onSchede)}
-      {card('stats',  t('Statistiche'), <Icons.chart    size={30} stroke={1.6} style={ICONA_AZIONE}/>, onStats)}
+    // Il margine sopra non è solo respiro: il badge dei messaggi sporge di 7px
+    // dall'angolo della prima card, e l'area che scorre lo taglierebbe.
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 8, marginBottom: 'clamp(12px, 2.2dvh, 18px)', maxWidth: 640 }}>
+      {card('coach',  t('Coaching'),    onCoach)}
+      {card('schede', t('Schede'),      onSchede)}
+      {card('stats',  t('Statistiche'), onStats)}
     </div>
   )
 }
@@ -1176,9 +1203,16 @@ const TESTO_CARD: React.CSSProperties = {
   minWidth: 0, width: '100%',
 }
 
-// Le icone dei tre comandi: seguono l'altezza come la card che le contiene, e
-// ne tengono il rapporto (un terzo scarso) ora che la card è più alta.
-const ICONA_AZIONE: React.CSSProperties = { width: 'clamp(24px, 4dvh, 34px)', height: 'auto' }
+// Le tre card dei comandi in home: l'altezza, e dove sta il disegno. Il disegno
+// è in alto a destra e largo quanto la card lascia — ma mai tanto da scendere
+// sul nome, che sta in basso: su un telefono largo e basso a comandare è
+// l'altezza (58px è il posto del nome col suo respiro).
+const ALTEZZA_AZIONE = 'clamp(118px, 18.5dvh, 168px)'
+const DISEGNO_AZIONE: React.CSSProperties = {
+  position: 'absolute', top: 'clamp(8px, 2.6vw, 12px)', right: 'clamp(7px, 2.2vw, 11px)',
+  width: `min(clamp(70px, 23vw, 96px), calc(${ALTEZZA_AZIONE} - 58px))`, height: 'auto',
+  pointerEvents: 'none',
+}
 
 // ── La card e la riga "+" ──────────────────────────────────────
 // Aggiungere un gruppo o un esercizio era un tasto nell'intestazione, lontano
@@ -1704,8 +1738,11 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     : null
   const [selectedHyrox, setSelectedHyrox] = useState<HyroxExercise | null>(null)
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null)
-  // La scheda da aprire entrando nelle schede: la sceglie la ricerca.
+  // La scheda da aprire entrando nelle schede: la sceglie la ricerca, o la
+  // barra dell'allenamento in corso — che ci entra dritta nell'allenamento
+  // (`riprendi`).
   const [schedaDaAprire, setSchedaDaAprire] = useState<string | null>(null)
+  const [riprendi, setRiprendi] = useState(false)
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null)
   const [showSchede, setShowSchede] = useState(false)
   const [showNuovoGruppo, setShowNuovoGruppo] = useState(false)
@@ -2054,7 +2091,10 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     // del volume diventavano righe lunghe un monitor. Dentro la colonna dello
     // split non ha effetto: lì la larghezza è già molto sotto.
     <div className="flex flex-col h-full overflow-hidden" style={{ width: '100%', maxWidth: 860, margin: '0 auto' }}>
-      <div className="j-page-header">
+      {/* Niente respiro sotto: quello che segue (le tre card dei comandi) porta
+          già il suo margine sopra, e i due sommati staccavano la settimana dalle
+          card più di quanto le card stiano staccate dal resto. */}
+      <div className="j-page-header" style={{ paddingBottom: 0 }}>
         {/* Qui c'era "Allenamento · 38 esercizi in palestra", col tasto indietro
             verso una home che non esiste più: questa È la home. Al suo posto la
             testata dell'app — data, saluto e i tre comandi che valgono ovunque.
@@ -2067,15 +2107,31 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           onSettings={onOpenProfile}
         />
         <SettimanaStrip/>
+        {/* L'allenamento lasciato aperto: resta qui finché non lo si termina,
+            così chi è uscito a guardare altro lo ritrova senza cercarlo. Con
+            le schede aperte sopra non si rilegge: è coperta. */}
+        {!showSchede && (
+          <InCorsoInHome
+            onRiprendi={id => { setSchedaDaAprire(id); setRiprendi(true); setShowSchede(true) }}
+            style={{ marginTop: 14, marginBottom: 8 }}
+          />
+        )}
         {/* «Pesi | Hyrox» c'è solo con Hyrox acceso (vedi hyroxAttivo): spento,
             l'app è solo palestra e un interruttore con una voce sola non
             commuta niente. */}
         {HYROX_ATTIVO && (
           <GymModeTabs value={tab} onChange={v => { setTab(v); setStats(false); setSelectedExercise(null); setShowExerciseCharts(false); setSelectedMuscle(null); setSelectedHyrox(null); setMuscleFilter(null) }}/>
         )}
+      </div>
+
+      <div className="j-scroll-area">
         {/* Il menù è dei pesi: in Hyrox Coach e Schede non hanno niente da fare, e
             Statistiche scende sotto Esercizi e Gara (vedi TastoStatistiche).
-            Stats è un interruttore: si ripreme la card per tornare alla lista. */}
+            Stats è un interruttore: si ripreme la card per tornare alla lista.
+            Stanno QUI, in cima a ciò che scorre, e non più nella testata fissa:
+            da quando sono alte il doppio, ferme lassù lasciavano ai gruppi
+            muscolari meno di mezza schermata in cui scorrere. Così a riposo la
+            pagina è la stessa, e scorrendo se ne vanno insieme al resto. */}
         {tab === 'palestra' && (
           <AzioniGym
             attiva={stats ? 'stats' : null}
@@ -2084,9 +2140,6 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
             onStats={() => setStats(v => !v)}
           />
         )}
-      </div>
-
-      <div className="j-scroll-area">
         {/* Il menù di Hyrox: Esercizi e Gara, e sotto Statistiche. Con le
             statistiche aperte nessuna delle due è accesa — toccarne una torna lì. */}
         {tab === 'hyrox' && (
@@ -2270,7 +2323,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       {showSchede && (
         <Strato coperto={false}>
           <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>
-            <GymSchede apri={schedaDaAprire ?? undefined} onBack={() => { setShowSchede(false); setSchedaDaAprire(null) }}/>
+            <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false) }}/>
           </div>
         </Strato>
       )}
