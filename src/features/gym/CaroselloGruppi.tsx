@@ -82,10 +82,12 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
     if (el && card) el.scrollTo({ left: card.offsetLeft - 20, behavior: 'smooth' })
   }
 
+  // Un filo più piccole di com'erano nate (76% × 38dvh): la card dopo spunta
+  // di più dal bordo, e sotto resta spazio per i puntini senza scorrere.
   const card: CSSProperties = {
     flex: '0 0 auto',
-    width: 'min(76%, 320px)',
-    height: 'clamp(230px, 38dvh, 340px)',
+    width: 'min(72%, 300px)',
+    height: 'clamp(212px, 35dvh, 312px)',
     scrollSnapAlign: 'start',
     borderRadius: 'var(--radius-lg)',
     position: 'relative', overflow: 'hidden',
@@ -135,16 +137,16 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
                   style={{ height: '100%', width: 'auto', maxWidth: '100%', opacity: 0.9 }}
                 />
               </div>
-              <div style={{ position: 'absolute', left: 18, right: 18, bottom: 16 }}>
-                <div style={{ fontFamily: NUC.label, fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>
+              <div style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
+                <div style={{ fontFamily: NUC.label, fontSize: 10.5, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>
                   {items.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: items.length })}
                 </div>
                 <div style={{
-                  fontFamily: NUC.font, fontSize: 'clamp(28px, 9vw, 40px)', fontWeight: 700,
+                  fontFamily: NUC.font, fontSize: 'clamp(26px, 8.2vw, 36px)', fontWeight: 700,
                   lineHeight: 1.05, letterSpacing: '-.01em', marginTop: 4,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{tData(muscle)}</div>
-                <div style={{ fontFamily: NUC.label, fontSize: 12, marginTop: 5, opacity: 0.85 }}>
+                <div style={{ fontFamily: NUC.label, fontSize: 11.5, marginTop: 4, opacity: 0.85 }}>
                   {data ? t('Ultima volta: {data}', { data }) : t('Mai allenato')}
                 </div>
               </div>

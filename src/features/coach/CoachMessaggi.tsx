@@ -95,7 +95,7 @@ export function CoachMessaggi({ userId, userName, nomi }: {
           </>
         ) : (
           <div className="j-empty">
-            {t('Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Segui” o in “Ti seguono”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.')}
+            {t('Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Seguiti” o in “Coach”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.')}
           </div>
         )}
       </>

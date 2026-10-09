@@ -46,7 +46,7 @@ export function UpdateToast() {
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '10px 12px 10px 16px', borderRadius: 'var(--radius)',
       background: 'var(--surface-pop)', border: '1px solid var(--hairline)',
-      boxShadow: '0 6px 20px -8px rgba(42,36,24,.35)',
+      boxShadow: 'var(--shadow-pop)',
       fontFamily: NUC.font, color: NUC.ink,
     }}>
       <span style={{ fontSize: 12.5, letterSpacing: '.01em' }}>

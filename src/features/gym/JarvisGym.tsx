@@ -21,7 +21,7 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  displayMuscle, exColor, MUSCLE_COLORS, fmtKg, fmtKgVerso, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
+  displayMuscle, exColor, MUSCLE_COLORS, MUSCLE_OPTIONS, fmtKg, fmtKgVerso, fmtNum, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
   effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
@@ -42,6 +42,7 @@ import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { useNonLetti } from '@/lib/messaggiLive'
 import { BadgeNonLetti } from '@/features/coach/messaggiUI'
+import { TendinaGruppo } from '@/features/coach/TendinaGruppo'
 import { LineChart, FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from './gymShared'
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { caricoDiRiferimento } from './limitiAlzata'
@@ -272,7 +273,9 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
   const totalHyrox    = hyroxExercises.reduce((sum, ex) => sum + ex.history.length, 0)
 
   const { prs, muscleEntries } = useMemo(() => {
-    const prs = exercises.map(ex => {
+    // Solo gli esercizi fatti almeno una volta: di uno mai eseguito non c'è un
+    // record, e in elenco era una riga «0 kg · 0 sess.» fra quelle vere.
+    const prs = exercises.filter(ex => ex.history.length > 0).map(ex => {
       const corpo = bodyWeight * quotaCorpo(ex)
       const bestKg  = ex.history.length ? Math.max(...ex.history.map(h => effectiveLoad(h, corpo))) : ex.current.kg
       // I record si ordinano per massimale stimato: il solo carico massimo metteva
@@ -304,6 +307,33 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
 
     return { prs, muscleEntries }
   }, [exercises, bodyWeight])
+
+  // I record divisi per distretto, nell'ordine di sempre (Petto, Dorso, Gambe…),
+  // coi gruppi creati dall'utente prima di "Altro". Dentro al gruppo resta
+  // l'ordine di `prs`: dal massimale più alto.
+  const prPerMuscolo = useMemo(() => {
+    const mappa = new Map<string, typeof prs>()
+    for (const pr of prs) {
+      const m = pr.muscle || 'Altro'
+      mappa.set(m, [...(mappa.get(m) ?? []), pr])
+    }
+    const posto = (m: string) => {
+      const i = MUSCLE_OPTIONS.indexOf(m)
+      return m === 'Altro' ? 999 : i < 0 ? 500 : i
+    }
+    return [...mappa.entries()]
+      .sort(([a], [b]) => posto(a) - posto(b) || a.localeCompare(b))
+      .map(([muscle, lista]) => ({ muscle, lista }))
+  }, [prs])
+  const [prAperti, setPrAperti] = useState<Set<string>>(() => new Set())
+  const apriPr = (m: string) => setPrAperti(prev => {
+    const next = new Set(prev)
+    if (next.has(m)) next.delete(m); else next.add(m)
+    return next
+  })
+  // Il record com'è scritto: i colpi per chi non va a chili, i chili per gli
+  // altri — arrotondati, o un peso corporeo con la virgola dava «46.800000000000004 kg».
+  const valorePr = (pr: (typeof prs)[number]) => (pr.bestColpi > 0 ? `${pr.bestColpi} ${t('colpi')}` : `${fmtNum(pr.bestKg)} kg`)
 
   const hyroxStats = useMemo(() => {
     const allStations = [
@@ -401,24 +431,43 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
                   </div>
                 </div>
               </button>
+              {/* Per distretto, come ovunque si elencano esercizi: tutti in fila
+                  erano trenta card ordinate per massimale, col curl in mezzo
+                  agli squat. Ogni gruppo è una tendina, chiusa all'ingresso, che
+                  dice già quanti record ha e qual è il più alto; dentro, una
+                  riga per esercizio. */}
               {prOpen && (
-                <div className="flex flex-col gap-1.5">
-                  {prs.map(pr => (
-                    <NucCard key={pr.ex.id} pad={12} onPress={() => setSelectedEx(pr.ex)} style={{ cursor: 'pointer' }}>
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>{pr.name}</div>
-                          <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 1, marginTop: 2, textTransform: 'uppercase' }}>{tData(pr.muscle)} · {t('{n} sess.', { n: pr.sessions })}</div>
-                        </div>
-                        <div className="flex items-center gap-2.5">
-                          <div className="text-right">
-                            <div style={{ fontFamily: NUC.label, fontSize: 15, color: NUC.accentSoft, letterSpacing: -0.5 }}>{pr.bestColpi > 0 ? `${pr.bestColpi} ${t('colpi')}` : `${pr.bestKg} kg`}</div>
-                            {pr.best1RM > 0 && <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{t('stima {n} kg', { n: Math.round(pr.best1RM) })}</div>}
-                          </div>
-                          <div style={{ color: NUC.faint }}><Icons.chev size={16} stroke={1.6}/></div>
-                        </div>
-                      </div>
-                    </NucCard>
+                <div style={{ marginBottom: 8 }}>
+                  {prPerMuscolo.map(g => (
+                    <TendinaGruppo
+                      key={g.muscle} muscle={g.muscle} conta={g.lista.length}
+                      extra={valorePr(g.lista[0])}
+                      aperta={prAperti.has(g.muscle)} onToggle={() => apriPr(g.muscle)}
+                    >
+                      <NucCard pad={0} style={{ overflow: 'hidden' }}>
+                        {g.lista.map((pr, i) => (
+                          <button
+                            key={pr.ex.id} type="button" onClick={() => setSelectedEx(pr.ex)}
+                            className="j-riga-gruppo w-full flex items-center justify-between"
+                            style={{
+                              gap: 10, padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
+                              background: 'transparent', border: 'none',
+                              borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
+                            }}
+                          >
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ display: 'block', fontSize: 13.5, color: NUC.ink, letterSpacing: -0.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(pr.name)}</span>
+                              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em', marginTop: 2 }}>{t('{n} sess.', { n: pr.sessions })}</span>
+                            </span>
+                            <span style={{ flexShrink: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 14.5, fontWeight: 600, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{valorePr(pr)}</span>
+                              {pr.best1RM > 0 && <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 1 }}>{t('stima {n} kg', { n: Math.round(pr.best1RM) })}</span>}
+                            </span>
+                            <span style={{ color: NUC.faint, display: 'flex', flexShrink: 0 }}><Icons.chev size={15} stroke={1.6}/></span>
+                          </button>
+                        ))}
+                      </NucCard>
+                    </TendinaGruppo>
                   ))}
                 </div>
               )}
@@ -1053,7 +1102,7 @@ function NoteEsercizio({ nota, onSalva, daCoach = [] }: {
             {/* Non è un campo: è la voce di qualcun altro. Il fondo acceso e il
                 bordo accent lo dicono senza doverlo scrivere. */}
             <div style={{
-              minHeight: 38, padding: '8px 12px', boxSizing: 'border-box',
+              minHeight: 38, padding: '8px 12px', boxSizing: 'border-box', borderRadius: 'var(--radius)',
               background: 'color-mix(in srgb, var(--j-accent) 7%, var(--surface))',
               border: '1px solid var(--j-accent)',
               fontFamily: NUC.font, fontSize: 14, lineHeight: 1.5,

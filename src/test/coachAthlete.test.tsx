@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from '@/features/coach/CoachAthlete'
+import { CoachAthlete, NoteEsercizi } from '@/features/coach/CoachAthlete'
+import { CoachConfronto } from '@/features/coach/CoachConfronto'
 import { CoachSessioni } from '@/features/coach/CoachSessioni'
 import { CoachGrafici, CoachEsercizio } from '@/features/coach/CoachEsercizi'
 import type { AthleteData, NotaCoach } from '@/lib/coach'
@@ -9,8 +10,8 @@ import type { GymScheda, PalestraExercise, PalestraHistoryEntry } from '@/store/
 
 // La scheda di un allievo serve a rispondere a "sta calando?". Il volume
 // settimanale non lo diceva — un numero in chili senza un metro con cui
-// confrontarlo — e al suo posto c'è il confronto fra l'ultima volta e il solito
-// di QUELLA persona su QUELL'esercizio, che ora vive in una pagina sua.
+// confrontarlo — e al suo posto c'è il confronto fra due allenamenti scelti da
+// chi allena, esercizio per esercizio, in una pagina sua.
 
 const h = (o: Partial<PalestraHistoryEntry>): PalestraHistoryEntry =>
   ({ d: 'W1', kg: 60, reps: 10, sets_n: 3, ...o })
@@ -129,65 +130,76 @@ describe('CoachSessioni — le giornate confrontate con la scheda', () => {
   })
 })
 
-describe('UltimoAllenamento — il confronto col solito', () => {
-  it('segnala il calo e scrive il metro con cui lo giudica', () => {
-    render(<UltimoAllenamento palestra={[
-      // Tre volte 3 × 10 a 60 kg, poi due serie da 8 a 50: cala su tutto.
-      ex('Panca piana', [
-        h({ date: '2026-08-06' }), h({ date: '2026-08-13' }), h({ date: '2026-08-20' }),
-        h({ date: '2026-08-27', kg: 50, reps: 8, sets_n: 2 }),
-      ]),
-    ]}/>)
-    expect(screen.getByText('di solito 3 × 10 — 60 kg')).toBeInTheDocument()
+// Il tasto «Confronto» apre questa pagina: si scelgono due allenamenti e si
+// leggono chili e colpi di allora e di adesso, in verde quello che è salito e
+// in rosso quello che è sceso. (Prima metteva l'ultimo allenamento contro "il
+// solito", e a chi allena non diceva niente.)
+describe('CoachConfronto — due allenamenti scelti, uno accanto all’altro', () => {
+  const allievo = dati([
+    ex('Panca piana', [h({ date: '2026-08-20' }), h({ date: '2026-08-27', kg: 62.5, reps: 8 })]),
+    ex('Squat', [h({ date: '2026-08-20', kg: 90, reps: 8 }), h({ date: '2026-08-27', kg: 85, reps: 10 })]),
+    ex('Curl', [h({ date: '2026-08-13', kg: 12 })]),
+  ])
+  const rosso = 'var(--segnale-giu)', verde = 'var(--segnale-su)'
+
+  it('chiede di sceglierne due, e solo alla seconda mostra la tabella', async () => {
+    const user = userEvent.setup()
+    render(<CoachConfronto data={allievo} schedeAssegnate={[]}/>)
+    expect(screen.getByText('Scegli due allenamenti')).toBeInTheDocument()
+    expect(screen.getByText('0 / 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /27\/08\/26/ }))
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    expect(screen.getByText('Scelto il primo: ora tocca il secondo.')).toBeInTheDocument()
+    expect(screen.queryByText('Prima')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /20\/08\/26/ }))
+    // Scelta la più recente per prima: a sinistra resta comunque la più vecchia.
+    expect(screen.getByText('Prima').parentElement).toHaveTextContent('20 Agosto')
+    expect(screen.getByText('Dopo').parentElement).toHaveTextContent('27 Agosto')
   })
 
-  it('un allenamento in linea col solito non si segnala', () => {
-    render(<UltimoAllenamento palestra={[
-      ex('Panca piana', [h({ date: '2026-08-20' }), h({ date: '2026-08-27' })]),
-    ]}/>)
-    expect(screen.queryByText(/di solito/)).not.toBeInTheDocument()
+  it('in verde quello che è salito, in rosso quello che è sceso', async () => {
+    const user = userEvent.setup()
+    render(<CoachConfronto data={allievo} schedeAssegnate={[]}/>)
+    await user.click(screen.getByRole('button', { name: /20\/08\/26/ }))
+    await user.click(screen.getByRole('button', { name: /27\/08\/26/ }))
+
+    // Panca: 60 → 62,5 kg (su), 30 → 24 colpi (giù).
+    expect(screen.getByText('▲ +2,5 kg')).toHaveStyle({ color: verde })
+    expect(screen.getByText('▼ −6 colpi')).toHaveStyle({ color: rosso })
+    expect(screen.getByText('62,5 kg')).toHaveStyle({ color: verde })
+    // Squat: 90 → 85 kg (giù), 24 → 30 colpi (su).
+    expect(screen.getByText('▼ −5 kg')).toHaveStyle({ color: rosso })
+    expect(screen.getByText('▲ +6 colpi')).toHaveStyle({ color: verde })
+    expect(screen.getByText('85 kg')).toHaveStyle({ color: rosso })
+    // Il conto in cima: uno su e uno giù, sia per i chili sia per i colpi.
+    expect(screen.getAllByText('▲ 1 in salita')).toHaveLength(2)
+    expect(screen.getAllByText('▼ 1 in calo')).toHaveLength(2)
   })
 
-  it('migliorare non è calare', () => {
-    render(<UltimoAllenamento palestra={[
-      ex('Panca piana', [
-        h({ date: '2026-08-20' }),
-        h({ date: '2026-08-27', kg: 70, reps: 12, sets_n: 4 }),
-      ]),
-    ]}/>)
-    expect(screen.queryByText(/di solito/)).not.toBeInTheDocument()
+  it('«Cambia» riporta alla scelta, da capo', async () => {
+    const user = userEvent.setup()
+    render(<CoachConfronto data={allievo} schedeAssegnate={[]}/>)
+    await user.click(screen.getByRole('button', { name: /20\/08\/26/ }))
+    await user.click(screen.getByRole('button', { name: /27\/08\/26/ }))
+    await user.click(screen.getByRole('button', { name: 'Cambia' }))
+    expect(screen.getByText('0 / 2')).toBeInTheDocument()
   })
 
-  it('i colpi si giudicano sulla serie più corta, non su quella rappresentativa', () => {
-    render(<UltimoAllenamento palestra={[
-      // Solite 3 × 10 piene. L'ultima parte da 10 ma chiude a 6: il valore
-      // rappresentativo resta 10 e da solo direbbe "tutto a posto".
-      ex('Panca piana', [
-        h({ date: '2026-08-13' }), h({ date: '2026-08-20' }),
-        h({ date: '2026-08-27', reps: 10, sets_n: 3, setReps: [10, 8, 6] }),
-      ]),
-    ]}/>)
-    expect(screen.getByText('di solito 3 × 10 — 60 kg')).toBeInTheDocument()
-    // E i colpi si leggono come intervallo, non come il solo valore rappresentativo.
-    expect(screen.getByText('6–10')).toBeInTheDocument()
+  it('un esercizio fatto in una sola delle due giornate lo dice, senza colori', async () => {
+    const user = userEvent.setup()
+    render(<CoachConfronto data={allievo} schedeAssegnate={[]}/>)
+    await user.click(screen.getByRole('button', { name: /13\/08\/26/ }))
+    await user.click(screen.getByRole('button', { name: /20\/08\/26/ }))
+    expect(screen.getByText('Nessun esercizio in comune fra i due allenamenti.')).toBeInTheDocument()
+    expect(screen.getByText('solo il 13/08')).toBeInTheDocument()
+    expect(screen.getAllByText('solo il 20/08')).toHaveLength(2)
   })
 
-  it('un massimale isolato non alza il metro per gli allenamenti dopo', () => {
-    render(<UltimoAllenamento palestra={[
-      // Quattro volte a 60, una prova a 100, poi il solito 60: non è un calo.
-      ex('Panca piana', [
-        h({ date: '2026-08-01' }), h({ date: '2026-08-06' }), h({ date: '2026-08-13' }), h({ date: '2026-08-20' }),
-        h({ date: '2026-08-24', kg: 100, reps: 1, sets_n: 1, maxLift: true }),
-        h({ date: '2026-08-27' }),
-      ]),
-    ]}/>)
-    // Con la MEDIA il solito sarebbe ~68 kg e il rientro a 60 sembrerebbe un crollo.
-    expect(screen.queryByText(/di solito/)).not.toBeInTheDocument()
-  })
-
-  it('senza due allenamenti sullo stesso esercizio non c’è confronto', () => {
-    render(<UltimoAllenamento palestra={[ex('Panca piana', [h({ date: '2026-08-27' })])]}/>)
-    expect(screen.getByText(/Servono almeno due allenamenti/)).toBeInTheDocument()
+  it('con un allenamento solo non c’è niente da confrontare', () => {
+    render(<CoachConfronto data={dati([ex('Panca piana', [h({ date: '2026-08-27' })])])} schedeAssegnate={[]}/>)
+    expect(screen.getByText('Servono almeno due allenamenti per fare un confronto.')).toBeInTheDocument()
   })
 })
 
@@ -322,6 +334,30 @@ describe('Migliori alzate — senza il corpo libero', () => {
     expect(screen.queryByText('Trazioni')).not.toBeInTheDocument()
     expect(screen.queryByText('Sollevamenti gambe alla sbarra')).not.toBeInTheDocument()
   })
+
+  it('si vedono i chili e serie × colpi alzati, non un massimale stimato', () => {
+    render(<CoachAthlete data={dati([ex('Panca piana', [h({ date: '2026-08-20', kg: 60, reps: 10, sets_n: 3 })])])}/>)
+    expect(screen.getByText('60 kg')).toBeInTheDocument()
+    expect(screen.getByText('3 × 10')).toBeInTheDocument()
+    // Epley su 60 × 10 darebbe 80: non deve comparire da nessuna parte.
+    expect(screen.queryByText('80')).not.toBeInTheDocument()
+    expect(screen.queryByText('massimale stimato')).not.toBeInTheDocument()
+  })
+
+  it('la classifica guarda chili, colpi e serie insieme, e di ogni esercizio prende l’alzata migliore', () => {
+    render(<CoachAthlete data={dati([
+      // Una singola pesante: 100 kg spostati in tutto.
+      ex('Stacco', [h({ date: '2026-08-20', kg: 100, reps: 1, sets_n: 1 })]),
+      // 3 × 10 a 60: 1800 kg. E una giornata più leggera, che non è la migliore.
+      ex('Panca piana', [h({ date: '2026-08-20', kg: 60, reps: 10, sets_n: 3 }), h({ date: '2026-08-27', kg: 40, reps: 10, sets_n: 3 })]),
+      // 4 × 12 a 30: 1440 kg.
+      ex('Lat machine', [h({ date: '2026-08-20', kg: 30, reps: 12, sets_n: 4 })]),
+    ])}/>)
+    const nomi = screen.getAllByText(/^(Stacco|Panca piana|Lat machine)$/).map(e => e.textContent)
+    expect(nomi).toEqual(['Panca piana', 'Lat machine', 'Stacco'])
+    expect(screen.getByText('60 kg')).toBeInTheDocument()
+    expect(screen.queryByText('40 kg')).not.toBeInTheDocument()
+  })
 })
 
 describe('CoachSessioni — anteprima e correzione', () => {
@@ -360,6 +396,41 @@ describe('CoachSessioni — anteprima e correzione', () => {
     await user.click(screen.getByText('Settimana 1'))
     await user.click(screen.getByText(/1 carico salito/))
     expect(screen.queryByRole('button', { name: /Correggi/ })).not.toBeInTheDocument()
+  })
+})
+
+// La riga di una settimana, senza aprirla: un quadratino per giorno.
+describe('CoachSessioni — i quadratini della settimana', () => {
+  const quadratini = (settimana: string) =>
+    [...screen.getByText(settimana).closest('button')!.querySelectorAll('[data-esito]')].map(e => e.getAttribute('data-esito'))
+
+  it('sette per settimana: del colore dell’app se si è allenato, grigio se no, verde e rosso sui carichi', () => {
+    render(<CoachSessioni
+      inizio="2026-08-03"
+      data={dati([
+        ex('Panca piana', [
+          h({ date: '2026-08-03' }),                 // primo giorno: allenato, niente da confrontare
+          h({ date: '2026-08-05', kg: 62.5 }),       // salito
+          h({ date: '2026-08-07', kg: 57.5 }),       // sceso
+          h({ date: '2026-08-08', kg: 60 }),         // salito…
+        ]),
+        ex('Squat', [
+          h({ date: '2026-08-07', kg: 90 }),
+          h({ date: '2026-08-08', kg: 80 }),         // …e sceso: metà e metà
+        ]),
+      ])}
+      schedeAssegnate={[]}
+    />)
+    expect(quadratini('Settimana 1')).toEqual(['pari', 'vuoto', 'su', 'vuoto', 'giu', 'misto', 'vuoto'])
+  })
+
+  it('una settimana senza allenamenti è tutta grigia', () => {
+    render(<CoachSessioni
+      inizio="2026-08-03"
+      data={dati([ex('Panca piana', [h({ date: '2026-08-03' }), h({ date: '2026-08-18' })])])}
+      schedeAssegnate={[]}
+    />)
+    expect(quadratini('Settimana 2')).toEqual(Array(7).fill('vuoto'))
   })
 })
 

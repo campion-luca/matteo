@@ -37,8 +37,9 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
       onClick={onCancel}
       style={{
         position: 'absolute', inset: 0, zIndex: 300,
-        // Niente sfocatura: vedi il velo del JModal.
-        background: 'rgba(0,0,0,0.55)',
+        // Niente sfocatura, e lo stesso velo del JModal: quello del tema, non un
+        // nero scritto a mano (sulla carta chiara era più scuro di tutti gli altri).
+        background: 'var(--scrim)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '0 28px',
       }}
@@ -50,13 +51,17 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
         aria-labelledby={titleId}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
+        // La stessa cornice del JModal: sono due finestre della stessa app, e una
+        // aveva l'ombra morbida e il bordo tenue, l'altra l'ombra piena e il bordo
+        // deciso.
+        className="j-hard-static"
         style={{
           width: '100%', maxWidth: 320,
           background: 'var(--surface-pop)',
+          backgroundImage: 'var(--paper-grain)',
           borderRadius: 'var(--radius-lg)',
           padding: '24px 20px 20px',
-          boxShadow: '0 24px 64px rgba(42,36,24,0.45)',
-          border: '1px solid var(--hairline)',
+          border: '1px solid var(--fg)',
           outline: 'none',
         }}
       >

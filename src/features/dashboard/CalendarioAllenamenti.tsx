@@ -109,7 +109,7 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
       {/* La serie: la fiamma è accesa solo se c'è qualcosa da tenere acceso. */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', marginBottom: 14,
-        border: '1px solid var(--hairline)', background: 'var(--surface-2)',
+        border: '1px solid var(--hairline)', borderRadius: 'var(--radius)', background: 'var(--surface-2)',
       }}>
         <span style={{ display: 'flex', color: serie > 0 ? 'var(--j-accent)' : 'var(--fg-mute)' }}>
           <Icons.flame size={30} stroke={1.6}/>

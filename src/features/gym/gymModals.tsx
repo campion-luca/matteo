@@ -134,7 +134,7 @@ export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }:
         )}
 
         {totalSec > 0 && (
-          <div className="flex justify-between items-center rounded-none px-3.5 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
+          <div className="flex justify-between items-center px-3.5 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)' }}>
             <span className="j-eyebrow">{t('Pace')}</span>
             <span style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentSoft }}>{paceStr}</span>
           </div>
@@ -824,7 +824,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
         </div>
 
         {preview && (
-          <div className="rounded-none p-3.5 mt-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)' }}>
+          <div className="p-3.5 mt-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)' }}>
             <div className="flex justify-between items-baseline">
               <span style={{ fontFamily: NUC.label, fontSize: 11, letterSpacing: 1, color: NUC.faint, textTransform: 'uppercase' }}>{isMax ? t('Massimale') : t('Massimale stimato')}</span>
               <span style={{ fontFamily: NUC.label, fontSize: 18, color: 'var(--j-accent-ink)', letterSpacing: -0.5 }}>{preview.oneRM} kg</span>

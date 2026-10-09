@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { perSettimana, haProblemi, analizzaGiornate, rigaNataIl, serieSottoIlBersaglio } from '@/features/coach/analisiSessioni'
+import { perSettimana, haProblemi, analizzaGiornate, rigaNataIl, serieSottoIlBersaglio, esitoCarichi, giorniDellaSettimana, confrontaGiornate, colpiTotali } from '@/features/coach/analisiSessioni'
 import type { GymScheda, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 const SCHEDA_A: GymScheda = {
@@ -336,5 +336,96 @@ describe('le giornate per settimana', () => {
   it('una giornata ha problemi se manca qualcosa rispetto alla scheda', () => {
     expect(haProblemi(giornate[0])).toBe(false)
     expect(haProblemi({ ...giornate[0], serieCorte: 1 })).toBe(true)
+  })
+})
+
+// ── Il quadratino di una giornata nella riga della settimana ───
+describe('com’è andata una giornata sui carichi', () => {
+  const base = analizzaGiornate([es('p', 'Panca piana', [alzata('2026-09-10', 80, 8, 4)])], [], 80)[0]
+
+  it('salito, sceso, tutte e due le cose, o come prima', () => {
+    expect(esitoCarichi({ ...base, caricoSalito: 0, caloCarico: 0 })).toBe('pari')
+    expect(esitoCarichi({ ...base, caricoSalito: 2, caloCarico: 0 })).toBe('su')
+    expect(esitoCarichi({ ...base, caricoSalito: 0, caloCarico: 1 })).toBe('giu')
+    expect(esitoCarichi({ ...base, caricoSalito: 1, caloCarico: 1 })).toBe('misto')
+  })
+
+  it('un esercizio saltato non è un carico sceso: il colore guarda solo i chili', () => {
+    expect(esitoCarichi({ ...base, saltati: 2, serieCorte: 3 })).toBe('pari')
+  })
+})
+
+describe('i sette giorni di una settimana', () => {
+  const giorno = (date: string) => analizzaGiornate([es('p', 'Panca piana', [alzata(date, 80, 8, 4)])], [], 80)[0]
+
+  it('uno per giorno, dal primo all’ultimo, con la giornata dove ci si è allenati', () => {
+    const [sett] = perSettimana([giorno('2026-09-18'), giorno('2026-09-16')], '2026-09-16', '2026-09-19')
+    const giorni = giorniDellaSettimana(sett, '2026-09-19')
+    expect(giorni.map(d => d.date)).toEqual(['2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22'])
+    expect(giorni.map(d => !!d.giornata)).toEqual([true, false, true, false, false, false, false])
+    // Oggi è il 19: dal 20 in poi non sono giorni saltati, devono ancora venire.
+    expect(giorni.map(d => d.futuro)).toEqual([false, false, false, false, true, true, true])
+  })
+
+  it('«prima delle schede» non è una settimana: solo le giornate fatte, dalla più vecchia', () => {
+    const w = perSettimana([giorno('2026-09-20'), giorno('2026-09-03'), giorno('2026-08-28')], '2026-09-16', '2026-09-21')
+    const prima = w[w.length - 1]
+    expect(prima.n).toBeNull()
+    expect(giorniDellaSettimana(prima).map(d => d.date)).toEqual(['2026-08-28', '2026-09-03'])
+  })
+})
+
+// ── Due allenamenti a confronto ────────────────────────────────
+describe('due allenamenti a confronto', () => {
+  const palestra = [
+    es('p', 'Panca piana', [alzata('2026-09-10', 80, 8, 4), alzata('2026-09-17', 82.5, 8, 3, { setReps: [8, 8, 6] })]),
+    es('r', 'Rematore', [alzata('2026-09-10', 60, 10, 3), alzata('2026-09-17', 55, 12, 3)], 'Dorso'),
+    es('c', 'Curl', [alzata('2026-09-10', 14, 12, 3)], 'Bicipiti'),
+    es('s', 'Squat', [alzata('2026-09-17', 100, 5, 5)], 'Gambe'),
+    es('t', 'Trazioni', [alzata('2026-09-10', 0, 8, 3, { bodyweight: true }), alzata('2026-09-17', 0, 10, 3, { bodyweight: true })], 'Dorso'),
+  ]
+  const [recente, vecchia] = analizzaGiornate(palestra, [], 80)
+  const riga = (c: ReturnType<typeof confrontaGiornate>, nome: string) => c.righe.find(r => r.nome === nome)!
+
+  it('il verso è sempre dal più vecchio al più recente, in qualunque ordine si scelgano', () => {
+    expect(confrontaGiornate(recente, vecchia)).toMatchObject({ prima: { date: '2026-09-10' }, dopo: { date: '2026-09-17' } })
+    expect(confrontaGiornate(vecchia, recente)).toMatchObject({ prima: { date: '2026-09-10' }, dopo: { date: '2026-09-17' } })
+  })
+
+  it('i chili sono il carico più pesante, i colpi quelli fatti in tutto', () => {
+    const c = confrontaGiornate(vecchia, recente)
+    // Panca: +2,5 kg, ma 22 colpi invece di 32.
+    expect(riga(c, 'Panca piana')).toMatchObject({ kg: 2.5, colpi: -10 })
+    // Rematore: 5 kg in meno, 6 colpi in più.
+    expect(riga(c, 'Rematore')).toMatchObject({ kg: -5, colpi: 6 })
+    expect(colpiTotali(alzata('2026-09-17', 82.5, 8, 3, { setReps: [8, 8, 6] }))).toBe(22)
+  })
+
+  it('a corpo libero senza zavorra non c’è un carico da confrontare: parlano i colpi', () => {
+    expect(riga(confrontaGiornate(vecchia, recente), 'Trazioni')).toMatchObject({ kg: null, colpi: 6 })
+  })
+
+  it('quello che è stato fatto in una sola delle due resta, senza differenze', () => {
+    const c = confrontaGiornate(vecchia, recente)
+    expect(riga(c, 'Squat')).toMatchObject({ kg: null, colpi: null })
+    expect(riga(c, 'Squat').prima).toBeUndefined()
+    expect(riga(c, 'Squat').dopo).toBeDefined()
+    expect(riga(c, 'Curl')).toMatchObject({ kg: null, colpi: null })
+    expect(riga(c, 'Curl').dopo).toBeUndefined()
+    // In fondo, dopo gli esercizi della giornata più recente.
+    expect(c.righe[c.righe.length - 1].nome).toBe('Curl')
+  })
+
+  it('un esercizio saltato non entra nel confronto: non ha numeri', () => {
+    const scheda: GymScheda = { ...SCHEDA_A, exercises: [{ id: 'e1', name: 'Panca piana', sets: 4, reps: '8' }, { id: 'e3', name: 'Curl', sets: 3, reps: '12' }] }
+    const conScheda = [
+      es('p', 'Panca piana', [alzata('2026-09-10', 80, 8, 4, { scheda: daScheda }), alzata('2026-09-17', 80, 8, 4, { scheda: daScheda })]),
+      es('c', 'Curl', [alzata('2026-09-10', 14, 12, 3, { scheda: daScheda })], 'Bicipiti'),
+    ]
+    const [dopo, prima] = analizzaGiornate(conScheda, [scheda], 80)
+    expect(dopo.saltati).toBe(1)
+    const c = confrontaGiornate(prima, dopo)
+    expect(riga(c, 'Curl').dopo).toBeUndefined()
+    expect(riga(c, 'Panca piana')).toMatchObject({ kg: 0, colpi: 0 })
   })
 })

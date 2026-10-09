@@ -8,6 +8,7 @@ import { UpdateToast } from '@/components/UpdateToast'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { InstallBanner } from '@/components/InstallBanner'
+import { InvitoNotifiche } from '@/components/InvitoNotifiche'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore, applyRemoteState, VERSIONE_DATI } from '@/store/useJarvisStore'
 import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
@@ -392,14 +393,19 @@ function CorrezioniBridge({ userId }: { userId: string }) {
 // Pill minimale in stile paper, in cima allo schermo. Stessa forma per tutti e tre
 // i messaggi di sync: cambia solo il testo e se è toccabile.
 const PILL_STYLE: React.CSSProperties = {
-  position: 'fixed', top: 'calc(env(safe-area-inset-top) + 10px)', left: '50%',
-  transform: 'translateX(-50%)', zIndex: 200,
+  // Centrata coi margini, non con `left: 50%` + `translateX(-50%)`: così la
+  // pillola poteva essere larga al più MEZZO schermo, e su un telefono «Dati
+  // cloud non caricati — tocca per riprovare» andava su tre righe, sopra il
+  // titolo della pagina. Ora ha tutta la larghezza meno un margine.
+  position: 'fixed', top: 'calc(env(safe-area-inset-top) + 10px)', left: 12, right: 12,
+  width: 'fit-content', maxWidth: 'calc(100% - 24px)', marginInline: 'auto', zIndex: 200,
+  textAlign: 'center', lineHeight: 1.35,
   display: 'flex', alignItems: 'center', gap: 8,
   padding: '7px 14px', borderRadius: 'var(--radius)',
   background: 'var(--surface-pop)', border: '1px solid var(--hairline)',
   color: NUC.ink, fontFamily: NUC.font, fontSize: 10.5,
   letterSpacing: '.12em', textTransform: 'uppercase',
-  boxShadow: '0 2px 12px rgba(42,36,24,.12)',
+  boxShadow: 'var(--shadow-card)',
 }
 
 const PILL_DOT = <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--j-accent)' }}/>
@@ -656,8 +662,9 @@ export default function App() {
     const id = session?.user?.id
     if (!id) { fermaMessaggi(); return }
     avviaMessaggi(id)
-    // Se questo dispositivo ha già le notifiche attive, l'iscrizione dev'essere
-    // a nome di chi è entrato adesso (vedi lib/push).
+    // Se questo dispositivo ha già dato il permesso alle notifiche, l'iscrizione
+    // dev'essere a nome di chi è entrato adesso — e se non c'è si rifà: sono
+    // accese di serie (vedi lib/push).
     void riallineaPush(id).catch(() => { /* tabella assente o rete: si riprova al prossimo avvio */ })
     return () => fermaMessaggi()
   }, [session?.user?.id])
@@ -924,6 +931,11 @@ export default function App() {
               <JarvisBoot onDone={handleBoot}/>
             </Suspense>
           )}
+
+          {/* L'invito alle notifiche, una volta per dispositivo. Dopo il saluto
+              d'ingresso e dopo le domande del primo accesso: due finestre una
+              sull'altra non si leggono. */}
+          {pronto && booted && !(profiloVuoto && !setupFatto) && <InvitoNotifiche userId={session.user.id}/>}
 
           <Suspense fallback={null}>
             <JarvisProfile open={!!profilo} sezione={profilo ?? 'impostazioni'} onClose={() => setProfilo(null)}/>

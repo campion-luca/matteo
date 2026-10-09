@@ -650,8 +650,8 @@ export function HyroxCard({ ex, onLog, onDelete }: {
         </button>
         {onDelete && (
           <button onClick={e => { e.stopPropagation(); onDelete(e) }} aria-label={t('Elimina')}
-            className="flex items-center justify-center w-[32px] h-[32px] rounded-none"
-            style={{ background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer', flexShrink: 0 }}>
+            className="flex items-center justify-center w-[32px] h-[32px]"
+            style={{ borderRadius: 'var(--radius-sm)', background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer', flexShrink: 0 }}>
             <Icons.trash size={14} stroke={1.6}/>
           </button>
         )}

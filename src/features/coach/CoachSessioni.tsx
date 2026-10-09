@@ -10,16 +10,34 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { fmtKg, fmtNum, fmtVol, fmtDurata, setRepsOf } from '@/features/gym/gymModel'
-import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { fmtShortDate, fmtDayMon } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
-import { analizzaGiornate, perSettimana, haProblemi, type EsitoEsercizio, type Giornata, type SettimanaSessioni } from './analisiSessioni'
+import { giornateAllievo, perSettimana, haProblemi, esitoCarichi, giorniDellaSettimana, type EsitoCarichi, type EsitoEsercizio, type Giornata, type SettimanaSessioni } from './analisiSessioni'
 
 // Rosso e verde veri anche nel tema premium, che --danger e --ok li scolora.
 const ROSSO = 'var(--segnale-giu)'
 const VERDE = 'var(--segnale-su)'
+
+// I colori dei quadratini, uno per giorno della settimana: del marrone dell'app
+// se ci si è allenati, grigio se no; verde se i carichi sono saliti, rosso se
+// sono scesi, metà e metà se è successo l'uno e l'altro. Lo stesso colore fa da
+// filo alla riga della giornata, così il quadratino e la riga si ritrovano.
+//
+// Il marrone è `--tertiary-ink` (quello dei titoli di sezione) e NON l'accent:
+// l'accent cambia col tema, e nel tema chiaro è verde, in Neon è il lime, in
+// Logbook il verde delle serie fatte — cioè proprio il colore di «carico
+// salito». Un giorno allenato e un giorno coi carichi saliti sarebbero stati
+// lo stesso quadratino. Il terziario è marrone in Standard e in Premium e
+// grigio chiaro negli altri due: mai verde, mai rosso.
+const GRIGIO = 'color-mix(in srgb, var(--fg-mute) 34%, transparent)'
+const FONDO_ESITO: Record<EsitoCarichi, string> = {
+  pari: 'var(--tertiary-ink)',
+  su: VERDE,
+  giu: ROSSO,
+  misto: `linear-gradient(90deg, ${VERDE} 50%, ${ROSSO} 50%)`,
+}
 
 /** Chiede di correggere un'alzata: l'esercizio dell'allievo e l'alzata com'è. */
 export type Correggi = (exerciseId: string, alzata: PalestraHistoryEntry) => void
@@ -36,13 +54,7 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto, onCo
   onCorreggi?: Correggi
 }) {
   const t = useT()
-  const giornate = useMemo(() => {
-    // Le assegnate prima: a parità di id è la versione dell'allenatore a dire
-    // cosa andava fatto.
-    const schede = [...schedeAssegnate, ...(data.gymSchede ?? []).filter(s => !schedeAssegnate.some(a => a.id === s.id))]
-    const giorniHyrox = hyroxVisibili(data.hyroxExercises).flatMap(ex => ex.history.map(h => h.date)).filter(Boolean)
-    return analizzaGiornate(data.palestraExercises ?? [], schede, data.userWeight ?? 0, giorniHyrox)
-  }, [data, schedeAssegnate])
+  const giornate = useMemo(() => giornateAllievo(data, schedeAssegnate), [data, schedeAssegnate])
 
   const settimane = useMemo(() => perSettimana(giornate, inizio ?? null), [giornate, inizio])
 
@@ -113,9 +125,10 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto, onCo
   )
 }
 
-// La riga di una settimana: numero, giorni, e un quadratino per sessione —
-// rosso se qualcosa non torna, accent se la scheda è stata rispettata, grigio se
-// non c'era una scheda con cui confrontare. È la riga che si legge senza aprire.
+// La riga di una settimana: numero, giorni, e un quadratino per GIORNO — sette,
+// dal primo all'ultimo. Del marrone dell'app se quel giorno ci si è allenati,
+// grigio se no; verde o rosso se i carichi sono saliti o scesi, metà e metà se
+// tutte e due le cose (vedi `esitoCarichi`). È la riga che si legge senza aprire.
 function TestataSettimana({ s, aperta, onToggle }: { s: SettimanaSessioni; aperta: boolean; onToggle?: () => void }) {
   const t = useT()
   const vuota = s.giornate.length === 0
@@ -147,16 +160,29 @@ function TestataSettimana({ s, aperta, onToggle }: { s: SettimanaSessioni; apert
           {' · '}
           {vuota ? t('nessuna sessione')
             : s.giornate.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: s.giornate.length })}
-          {daGuardare > 0 && <span style={{ color: ROSSO, fontWeight: 600 }}> · {daGuardare === 1 ? t('1 da guardare') : t('{n} da guardare', { n: daGuardare })}</span>}
         </span>
+        {/* Su una riga sua: in coda alle date, con i sette quadratini accanto,
+            andava a capo a metà ("1 da / guardare") solo in certe settimane. */}
+        {daGuardare > 0 && (
+          <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10.5, color: ROSSO, fontWeight: 600 }}>
+            {daGuardare === 1 ? t('1 da guardare') : t('{n} da guardare', { n: daGuardare })}
+          </span>
+        )}
       </span>
-      {/* Dalla più vecchia alla più recente, come si legge una settimana. */}
-      <span aria-hidden style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-        {[...s.giornate].reverse().map(g => (
-          <span key={g.date} style={{
-            width: 10, height: 10, borderRadius: 3,
-            background: haProblemi(g) ? ROSSO : g.gruppi.some(x => x.confrontabile) ? 'var(--j-accent)' : 'var(--fg-mute)',
-          }}/>
+      {/* Dal primo all'ultimo giorno, come si legge una settimana. I giorni
+          che devono ancora venire sono più tenui: non sono giorni saltati. */}
+      <span aria-hidden style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+        {giorniDellaSettimana(s).map(d => (
+          <span
+            key={d.date}
+            data-esito={d.giornata ? esitoCarichi(d.giornata) : 'vuoto'}
+            title={fmtDayMon(d.date)}
+            style={{
+              width: 10, height: 10, borderRadius: 3,
+              background: d.giornata ? FONDO_ESITO[esitoCarichi(d.giornata)] : GRIGIO,
+              opacity: d.futuro ? 0.4 : 1,
+            }}
+          />
         ))}
       </span>
       {onToggle && (
@@ -172,14 +198,17 @@ function Legenda() {
   const t = useT()
   const voce = (colore: string, testo: string) => (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-      <span style={{ width: 7, height: 7, background: colore, display: 'inline-block' }}/>
+      <span style={{ width: 9, height: 9, borderRadius: 3, background: colore, display: 'inline-block' }}/>
       {testo}
     </span>
   )
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: 10, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: 'var(--fg-mute)' }}>
-      {voce(ROSSO, t('meno del previsto o carico sceso'))}
-      {voce(VERDE, t('carico salito'))}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 14px', marginBottom: 12, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: 'var(--fg-mute)' }}>
+      {voce(FONDO_ESITO.pari, t('allenato'))}
+      {voce(FONDO_ESITO.su, t('carico salito'))}
+      {voce(FONDO_ESITO.giu, t('carico sceso'))}
+      {voce(FONDO_ESITO.misto, t('salito e sceso'))}
+      {voce(GRIGIO, t('nessun allenamento'))}
     </div>
   )
 }
@@ -206,12 +235,13 @@ function RigaGiornata({ g, aperta, onToggle, onCorreggi }: { g: Giornata; aperta
         width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px',
         background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
       }}>
-        {/* Il filo a sinistra dice lo stato senza leggere: rosso se qualcosa non
-            torna, accent se la scheda è stata rispettata, niente se non c'era una
-            scheda con cui confrontare. */}
+        {/* Il filo a sinistra ha il colore del quadratino di questo giorno
+            nella riga della settimana: i carichi saliti, scesi, tutte e due le
+            cose, o come la volta prima. Quello che non torna con la scheda lo
+            dice la riga sotto la data, in rosso. */}
         <span aria-hidden="true" style={{
-          alignSelf: 'stretch', width: 3, flexShrink: 0,
-          background: problemi ? ROSSO : confrontabile ? 'var(--j-accent)' : 'var(--hairline)',
+          alignSelf: 'stretch', width: 3, flexShrink: 0, borderRadius: 'var(--radius-pill)',
+          background: esitoCarichi(g) === 'misto' ? `linear-gradient(180deg, ${VERDE} 50%, ${ROSSO} 50%)` : FONDO_ESITO[esitoCarichi(g)],
         }}/>
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -350,7 +380,7 @@ function Etichetta({ colore, children }: { colore: string; children: ReactNode }
   return (
     <span style={{
       flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase',
-      color: colore, border: `1px solid ${colore}`, padding: '1px 5px',
+      color: colore, border: `1px solid ${colore}`, borderRadius: 'var(--radius-pill)', padding: '1px 6px',
     }}>{children}</span>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, RECUPERO_SEC } from '@/features/gym/anteprimaScheda'
+import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, RECUPERO_SEC, natalDi, etaScheda, schedePerMese } from '@/features/gym/anteprimaScheda'
 import type { GymScheda, GymSchedaExercise, PalestraExercise } from '@/store/useJarvisStore'
 
 // Cosa dice una scheda prima di aprirla: i muscoli che tocca e quanto dura.
@@ -123,5 +123,50 @@ describe('quanto manca alla fine dell’allenamento', () => {
     // La scheda è cresciuta di una serie dopo l'ingresso: quella nuova manca.
     expect(durataRimanente(scheda([riga({ name: 'Panca', sets: 4 })]), { 'r-Panca': [true, true, true] })).toBe(40 + 90)
     expect(durataRimanente(scheda([riga({ name: 'Panca', sets: 2 })]), { 'r-Panca': [true, true, true, true] })).toBe(0)
+  })
+})
+
+// ── Da quanto esiste una scheda ────────────────────────────────
+describe('da quanto esiste una scheda', () => {
+  const t = (s: string, v?: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v?.[k]))
+
+  it('il giorno di nascita: già un giorno, o un istante intero letto nel fuso del telefono', () => {
+    expect(natalDi('2026-09-12')).toBe('2026-09-12')
+    // Una scheda arrivata da un coach porta l'istante: a mezzogiorno il giorno
+    // è lo stesso in qualunque fuso.
+    expect(natalDi('2026-09-12T12:00:00.000Z')).toBe('2026-09-12')
+    expect(natalDi('')).toBeNull()
+    expect(natalDi(undefined)).toBeNull()
+    expect(natalDi('boh')).toBeNull()
+  })
+
+  it('in giorni, poi in settimane, poi in mesi, poi in anni', () => {
+    expect(etaScheda(0, t)).toBe('da oggi')
+    expect(etaScheda(1, t)).toBe('da ieri')
+    expect(etaScheda(9, t)).toBe('da 9 giorni')
+    expect(etaScheda(13, t)).toBe('da 13 giorni')
+    expect(etaScheda(14, t)).toBe('da 2 settimane')
+    expect(etaScheda(41, t)).toBe('da 5 settimane')
+    expect(etaScheda(69, t)).toBe('da 9 settimane')
+    expect(etaScheda(70, t)).toBe('da 2 mesi')
+    expect(etaScheda(200, t)).toBe('da 6 mesi')
+    expect(etaScheda(800, t)).toBe('da 2 anni')
+    // Una data nel futuro (orologio sbagliato) non diventa un numero negativo.
+    expect(etaScheda(-3, t)).toBe('da oggi')
+  })
+
+  it('le schede per mese e anno, dal più recente; dentro al mese resta l’ordine dato', () => {
+    const schede = [{ id: 'coach' }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'vecchia' }, { id: 'boh' }]
+    const nate = new Map([['coach', '2026-10-02'], ['a', '2026-09-20'], ['b', '2026-10-01'], ['c', '2026-09-03'], ['vecchia', '2025-12-30']])
+    const gruppi = schedePerMese(schede, nate)
+    expect(gruppi.map(g => [g.chiave, g.schede.map(s => s.id)])).toEqual([
+      ['2026-10', ['coach', 'b']],
+      ['2026-09', ['a', 'c']],
+      ['2025-12', ['vecchia']],
+      ['senza-data', ['boh']],
+    ])
+    // Il mese parte da zero, come `Date.getMonth()`.
+    expect(gruppi[0]).toMatchObject({ anno: 2026, mese: 9 })
+    expect(gruppi[3]).toMatchObject({ anno: null, mese: null })
   })
 })

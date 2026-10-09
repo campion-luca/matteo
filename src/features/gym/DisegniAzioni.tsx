@@ -79,7 +79,42 @@ function Barre() {
   )
 }
 
-const FIGURE = { coach: Fumetti, schede: Fogli, stats: Barre }
+// ── Le tre card in cima al Coaching ────────────────────────────
+// Stessa mano dei tre disegni qui sopra: sono le porte della stessa app, e la
+// chat usa proprio i due fumetti della card in home.
+
+// Chi ti allena: una persona col fischietto al collo.
+function Allenatore() {
+  return (
+    <>
+      <path style={D1} d="M14 92c0-21 14-35 34-35s34 14 34 35z"/>
+      <circle style={{ ...D2, ...RITAGLIO }} cx="48" cy="33" r="18"/>
+      {/* Il cordino scende dalle spalle e porta il fischietto sul petto. */}
+      <path style={{ ...TRATTO, strokeWidth: 2.6 }} d="M35 59l13 15 13-15"/>
+      <rect style={D3} x="50" y="72.5" width="15" height="7" rx="2.6"/>
+      <circle style={{ ...D3, stroke: 'var(--df)', strokeWidth: 2 }} cx="48" cy="78" r="7.4"/>
+      <circle style={{ fill: 'var(--df)' }} cx="48" cy="78" r="2.4"/>
+    </>
+  )
+}
+
+// Chi alleni tu: più persone, e la spunta di chi è collegato.
+function Gruppo() {
+  return (
+    <>
+      <circle style={D1} cx="23" cy="35" r="11"/>
+      <path style={D1} d="M3 82c0-14 9-23 20-23s20 9 20 23z"/>
+      <circle style={D1} cx="73" cy="35" r="11"/>
+      <path style={D1} d="M53 82c0-14 9-23 20-23s20 9 20 23z"/>
+      <path style={{ ...D2, ...RITAGLIO }} d="M21 92c0-17 12-28 27-28s27 11 27 28z"/>
+      <circle style={{ ...D2, ...RITAGLIO }} cx="48" cy="42" r="14.5"/>
+      <circle style={{ ...D3, stroke: 'var(--df)', strokeWidth: 2 }} cx="72" cy="74" r="10"/>
+      <path style={{ fill: 'none', stroke: 'var(--df)', strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round' }} d="M67.4 74.2l3.2 3.3 6-6.6"/>
+    </>
+  )
+}
+
+const FIGURE = { coach: Fumetti, schede: Fogli, stats: Barre, allenatore: Allenatore, gruppo: Gruppo }
 
 export function DisegnoAzione({ id, style }: { id: keyof typeof FIGURE; style?: CSSProperties }) {
   const Figura = FIGURE[id]

@@ -24,10 +24,29 @@
 // 16.4): in Safari, a scheda aperta, `PushManager` non c'è. `statoPush` lo
 // distingue, perché "non supportato" e "installala e funziona" sono due cose
 // diverse da dire a chi guarda.
+//
+// ── Accese per tutti, per quanto il browser lo permette ────────
+// Le notifiche non si possono accendere di nascosto: la prima volta il
+// permesso lo dà la persona, da un tocco suo, e non c'è modo di saltarlo
+// (su iPhone serve in più l'app installata). Quindi:
+//  • a chi il permesso l'ha già dato si accendono da sole a ogni ingresso
+//    (`riallineaPush`), anche dopo un'uscita e un rientro;
+//  • a chi non l'ha mai dato l'app lo chiede UNA volta, al primo ingresso su
+//    quel dispositivo (`daProporrePush`, vedi InvitoNotifiche);
+//  • chi le spegne dalle impostazioni resta spento: lo si ricorda sul
+//    dispositivo, o al prossimo avvio si riaccenderebbero contro la sua scelta.
 import { supabase, chiamaFunzione } from './supabase'
 import { translateCoachError } from './coach'
+import { readStorage, writeStorage, removeStorage } from './safeStorage'
 
 const CHIAVE_PUBBLICA = (import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '').trim()
+
+/** Le ha spente la persona, da questo dispositivo: non si riaccendono da sole. */
+const SPENTE_DA_QUI = 'jarvis-push-spente-v1'
+/** L'invito del primo ingresso è già stato mostrato su questo dispositivo. */
+const INVITO_FATTO = 'jarvis-push-invito-v1'
+
+const spenteDaQui = () => readStorage('local', SPENTE_DA_QUI) === '1'
 
 export type StatoPush =
   | 'non-configurato'   // manca la chiave pubblica: il push non è stato attivato sul progetto
@@ -108,11 +127,15 @@ export async function attivaPush(userId: string): Promise<StatoPush> {
   const iscrizione = await reg.pushManager.getSubscription()
     ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveInBytes(CHIAVE_PUBBLICA) })
   await registra(userId, iscrizione)
+  // Riaccese a mano: da qui in poi tornano ad accendersi anche da sole.
+  removeStorage('local', SPENTE_DA_QUI)
   return 'attivo'
 }
 
-/** Spegne le notifiche su questo dispositivo: toglie la riga dal server (finché
- *  c'è la sessione per farlo) e l'iscrizione dal browser. */
+/** Toglie l'iscrizione di questo dispositivo: la riga dal server (finché c'è la
+ *  sessione per farlo) e l'iscrizione dal browser. È quello che fa l'uscita
+ *  dall'account, e NON è una scelta della persona: rientrando, le notifiche si
+ *  riaccendono da sole (vedi `riallineaPush`). */
 export async function disattivaPush(): Promise<void> {
   const reg = await registrazione(1500)
   const iscrizione = await reg?.pushManager.getSubscription()
@@ -121,15 +144,46 @@ export async function disattivaPush(): Promise<void> {
   await iscrizione.unsubscribe()
 }
 
-/** All'avvio: se questo dispositivo è già iscritto, la riga dev'essere a nome
- *  di chi è entrato ADESSO. Copre il cambio di account sullo stesso telefono e
- *  le iscrizioni che il browser rinnova da sé. Non chiede niente a nessuno: se
- *  il permesso non c'è, non fa nulla. */
+/** Le spegne perché l'ha chiesto la persona, dall'interruttore delle
+ *  impostazioni: oltre a togliere l'iscrizione, lo si ricorda su questo
+ *  dispositivo, così non si riaccendono al prossimo avvio. */
+export async function spegniPush(): Promise<void> {
+  writeStorage('local', SPENTE_DA_QUI, '1')
+  await disattivaPush()
+}
+
+/** All'avvio: la riga di questo dispositivo dev'essere a nome di chi è entrato
+ *  ADESSO — copre il cambio di account sullo stesso telefono e le iscrizioni che
+ *  il browser rinnova da sé. E se il permesso c'è già ma l'iscrizione no (dopo
+ *  un'uscita, o su un browser che l'ha lasciata scadere) la rifà: le notifiche
+ *  sono accese di serie. Non chiede niente a nessuno: senza permesso, o se sono
+ *  state spente dalle impostazioni, non fa nulla. */
 export async function riallineaPush(userId: string): Promise<void> {
   if (!CHIAVE_PUBBLICA || !haPush() || Notification.permission !== 'granted') return
   const reg = await registrazione()
-  const iscrizione = await reg?.pushManager.getSubscription()
+  if (!reg) return
+  let iscrizione = await reg.pushManager.getSubscription()
+  if (!iscrizione && !spenteDaQui()) {
+    iscrizione = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveInBytes(CHIAVE_PUBBLICA) })
+  }
   if (iscrizione) await registra(userId, iscrizione)
+}
+
+/** C'è da chiedere il permesso? Solo a chi può darlo con un tocco e non è mai
+ *  stato interpellato: push configurato, browser che lo sa fare, permesso né
+ *  dato né negato, e l'invito non ancora mostrato su questo dispositivo. Chi
+ *  deve prima installare l'app (iPhone in Safari) lo legge nelle impostazioni:
+ *  qui gli si chiederebbe una cosa che non può fare. */
+export async function daProporrePush(): Promise<boolean> {
+  if (!CHIAVE_PUBBLICA || !haPush()) return false
+  if (readStorage('local', INVITO_FATTO) === '1' || spenteDaQui()) return false
+  if (Notification.permission !== 'default') return false
+  return (await statoPush()) === 'spento'
+}
+
+/** L'invito è stato mostrato (accettato o no): non si ripropone. */
+export function segnaInvitoPush(): void {
+  writeStorage('local', INVITO_FATTO, '1')
 }
 
 /** Fa partire la notifica per questo messaggio verso l'altra persona. Non

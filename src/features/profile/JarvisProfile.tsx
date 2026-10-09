@@ -16,7 +16,8 @@ import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
 import { Icons } from '@/components/ui/Icons'
-import { supabase } from '@/lib/supabase'
+import { supabase, idUtenteSuDisco } from '@/lib/supabase'
+import { attivaPush, spegniPush, statoPush, type StatoPush } from '@/lib/push'
 import { esci } from '@/lib/uscita'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
@@ -48,7 +49,7 @@ const PALETTE_KEYS = ['green', 'rose', 'malva'] as const
 // questo punto la bloccherebbe sulla lingua che c'era in quel momento.
 const LAYOUTS: Array<{ id: LayoutMode; label: string; hint: string }> = [
   { id: 'standard', label: 'Standard', hint: 'I colori del tema scelto sopra.' },
-  { id: 'premium',  label: 'Premium',  hint: 'Sempre nero, vetro e contorni bianchi. Ignora l’interruttore chiaro/scuro.' },
+  { id: 'premium',  label: 'Premium',  hint: 'Sempre scuro: superfici piene, dati in grigio e un solo colore per i tasti. Ignora l’interruttore chiaro/scuro.' },
   { id: 'neon',     label: 'Neon',     hint: 'Quasi nero con un solo accento lime, per progressi e tasti principali.' },
   { id: 'logbook',  label: 'Logbook',  hint: 'Scuro e sobrio: verde per serie fatte e record, blu per le azioni secondarie.' },
 ]
@@ -152,12 +153,13 @@ function EditToggle({ editing, onToggle }: { editing: boolean; onToggle: () => v
 }
 
 // Pastiglia bicolore: mostra cosa fa il layout invece di dirlo. "Standard" campiona
-// l'accent vivo, "Premium" il fondo nero con il segno bianco sopra — che è
-// esattamente il suo contrasto. "Neon" il suo fondo e il suo unico accento,
+// l'accent vivo, "Premium" il suo fondo quasi nero e il suo accento terracotta
+// (era nero e bianco, da quando l'accent di Premium era bianco: non lo è più da
+// settembre, e la pastiglia mostrava un tema che non c'è). "Neon" il suo fondo e il suo unico accento,
 // "Logbook" i suoi due colori.
 const SWATCH: Record<LayoutMode, [string, string]> = {
   standard: ['var(--j-accent)', 'var(--j-accent-soft)'],
-  premium:  ['#000000', '#ffffff'],
+  premium:  ['#0d0c0b', ACCENT_FISSI.premium.accent],
   neon:     ['#0b0b0f', ACCENT_FISSI.neon.accent],
   logbook:  [ACCENT_FISSI.logbook.accent, '#5aa9ff'],
 }
@@ -166,7 +168,7 @@ function LayoutSwatch({ mode }: { mode: LayoutMode }) {
   const half = { width: 11, height: 22, flexShrink: 0 } as const
   const [a, b] = SWATCH[mode] ?? SWATCH.standard
   return (
-    <div style={{ display: 'flex', border: '1px solid var(--hairline)' }}>
+    <div style={{ display: 'flex', border: '1px solid var(--hairline)', borderRadius: 6, overflow: 'hidden' }}>
       <div style={{ ...half, background: a }}/>
       <div style={{ ...half, background: b }}/>
     </div>
@@ -356,67 +358,63 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
       fontFamily: NUC.font, color: 'var(--fg)',
     }}>
 
-      {/* Header — la barra prende tutta la larghezza, il suo contenuto no: freccia,
-          titolo e "Salva" stanno sulla stessa colonna delle voci qui sotto, o su uno
-          schermo largo il back finirebbe a un palmo dalla roba che comanda. */}
-      <div style={{
-        borderBottom: '1px solid var(--divider)',
-        background: 'var(--surface)',
-        flexShrink: 0,
-      }}>
-      <div className="j-colonna" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 18px 12px',
-      }}>
-        {/* Il back è uno solo e sa dov'è: da un pannello torna all'elenco, dall'elenco
-            chiude le impostazioni. Due frecce sovrapposte — una del pannello e una
-            della pagina — sono il modo più rapido di far uscire qualcuno per sbaglio. */}
-        <button
-          onClick={() => pannello ? setPannello(null) : onClose()}
-          aria-label={pannello ? t('Torna alle impostazioni') : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
-          className="j-btn-back" style={{ width: 34, height: 34 }}
-        >
-          <Icons.chevL size={15}/>
-        </button>
-        <div className="j-eyebrow" style={{ letterSpacing: '.18em' }}>
-          {pannello === 'tema' ? t('Cambio tema')
-            : mieiDati ? t('Profilo') : t('Impostazioni')}
-        </div>
-        {/* "Salva" vale per i campi dell'elenco (nome, dati). Dentro i pannelli non
-            c'è niente da salvare — tema e widget si applicano al tocco — e un tasto
-            che non fa nulla è peggio di un tasto assente. Lo spazio resta occupato
-            perché il titolo, che è centrato, altrimenti scivolerebbe a destra. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, minWidth: 62, height: 34, flexShrink: 0 }}>
-          {/* La conferma (vedi `useSalvato`). Sta SEMPRE nel flusso e cambia solo
-              opacità: comparendo dal nulla sposterebbe il titolo a ogni tocco. E
-              sta accanto a "Salva", non al suo posto: chi esce dal campo del nome
-              toccando proprio "Salva" si vedrebbe sparire il tasto da sotto il dito. */}
-          <span role="status" style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
-            color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
-            opacity: salvato ? 1 : 0, transition: 'opacity var(--motion-fast) var(--ease)',
-          }}>
-            {/* Il testo c'è solo quando serve: un lettore di schermo annuncia
-                una regione `status` quando il suo contenuto cambia, non quando
-                diventa opaca. */}
-            <Icons.check size={12} stroke={2.6}/>{salvato ? t('Salvato') : <span aria-hidden>{t('Salvato')}</span>}
-          </span>
+      {/* Testata — la stessa delle schede, delle statistiche e del coaching:
+          freccia a sinistra, titolo grande accanto. Prima era una barra a sé
+          (freccia piccola, titolo in maiuscoletto al centro, fondo diverso), e
+          aprendo le impostazioni sembrava di essere usciti dall'app.
+          Sta sulla stessa colonna delle voci qui sotto, o su uno schermo largo il
+          back finirebbe a un palmo dalla roba che comanda. */}
+      <div className="j-colonna j-page-header">
+        <div className="flex items-center gap-3">
+          {/* Il back è uno solo e sa dov'è: da un pannello torna all'elenco, dall'elenco
+              chiude le impostazioni. Due frecce sovrapposte — una del pannello e una
+              della pagina — sono il modo più rapido di far uscire qualcuno per sbaglio. */}
+          <button
+            onClick={() => pannello ? setPannello(null) : onClose()}
+            aria-label={pannello ? t('Torna alle impostazioni') : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
+            className="j-btn-back"
+          >
+            <Icons.back size={20} stroke={1.8}/>
+          </button>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+            <div className="j-page-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {pannello === 'tema' ? t('Cambio tema')
+                : mieiDati ? t('Profilo') : t('Impostazioni')}
+            </div>
+            {/* La conferma (vedi `useSalvato`), sotto il titolo: dove le altre
+                pagine hanno l'occhiello. C'è sempre e cambia solo opacità:
+                comparendo dal nulla sposterebbe tutto a ogni tocco. */}
+            <span role="status" style={{
+              // Appesa sotto il titolo senza occupare posto: il titolo resta
+              // centrato sulla freccia anche quando la conferma non si vede.
+              position: 'absolute', left: 0, top: '100%',
+              display: 'flex', alignItems: 'center', gap: 4, height: 14, marginTop: 2,
+              fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase',
+              color: 'var(--j-accent-ink)', whiteSpace: 'nowrap',
+              opacity: salvato ? 1 : 0, transition: 'opacity var(--motion-fast) var(--ease)',
+            }}>
+              {/* Il testo c'è solo quando serve: un lettore di schermo annuncia
+                  una regione `status` quando il suo contenuto cambia, non quando
+                  diventa opaca. */}
+              <Icons.check size={12} stroke={2.6}/>{salvato ? t('Salvato') : <span aria-hidden>{t('Salvato')}</span>}
+            </span>
+          </div>
+          {/* "Salva" vale per i campi dell'elenco (nome, dati). Dentro i pannelli e
+              nelle impostazioni non c'è niente da salvare — tutto si applica al
+              tocco — e un tasto che non fa nulla è peggio di un tasto assente. */}
           {!pannello && mieiDati && (
-            /* PROTOTIPO ombra hard — vedi .j-hard in globals.css */
             <button onClick={handleSave} className="j-hard" style={{
-              height: 34, padding: '0 14px', borderRadius: 'var(--radius-sm)',
+              height: 44, padding: '0 18px', borderRadius: 'var(--radius)', flexShrink: 0,
               background: 'var(--j-accent)', border: 'none',
-              color: 'var(--j-accent-fg)', fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
+              color: 'var(--j-accent-fg)', fontFamily: NUC.font, fontSize: 14, fontWeight: 500,
               cursor: 'pointer',
             }}>{t('Salva')}</button>
           )}
         </div>
       </div>
-      </div>
 
       {/* Content */}
-      <div className="j-profile-body j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '22px 22px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="j-profile-body j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {pannello === 'tema' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Dark mode */}
@@ -656,6 +654,11 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         {/* Lingua */}
         <LinguaSection/>
 
+        {/* Notifiche: stavano in cima al Coaching, dove a ogni ingresso
+            toglievano una riga alle cose da fare. Sono un'impostazione del
+            dispositivo, e si cercano qui. */}
+        <NotificheSection/>
+
         {/* L'aspetto: una card che apre il suo pannello. Erano tre sezioni
             impilate (dark mode, tema colore, layout). Accanto c'era "Cambio
             widget", tolto: il riepilogo ha tre sezioni fisse e niente da
@@ -684,7 +687,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--hairline)')}
           >
             <span style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink }}>{t('Cambia password')}</span>
-            <span style={{ color: NUC.faint, fontSize: 12, transform: showChangePwd ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 200ms', display: 'inline-block' }}>▸</span>
+            <span style={{ color: NUC.faint, display: 'flex', transform: showChangePwd ? 'rotate(90deg)' : 'none', transition: 'transform 200ms' }}><Icons.chev size={14} stroke={2}/></span>
           </button>
 
           {showChangePwd && (
@@ -880,6 +883,63 @@ function LinguaSection() {
   )
 }
 
+// ── Notifiche ──────────────────────────────────────────────────
+// Un interruttore, e sotto in che stato si è. Di serie sono accese: l'app le
+// chiede al primo ingresso e a chi ha già detto di sì le riaccende da sola
+// (vedi lib/push). Da qui si spengono, e si riaccendono.
+//
+// Dice sempre cosa fare, perché le notifiche hanno cinque modi diversi di "non
+// andare" — permesso negato, iPhone senza l'app installata, browser senza
+// push… — e un interruttore fermo che non spiega perché è peggio di niente.
+// Dove il push non è configurato sul progetto la sezione non c'è: prometterebbe
+// notifiche che non possono arrivare.
+function NotificheSection() {
+  const t = useT()
+  const [stato, setStato] = useState<StatoPush | null>(null)
+  const [lavoro, setLavoro] = useState(false)
+  const [errore, setErrore] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    statoPush().then(s => { if (vivo) setStato(s) }).catch(() => { if (vivo) setStato('non-supportato') })
+    return () => { vivo = false }
+  }, [])
+
+  if (stato === null || stato === 'non-configurato') return null
+
+  const attivo = stato === 'attivo'
+  const cambia = async () => {
+    const io = idUtenteSuDisco()
+    if (!io || lavoro) return
+    setLavoro(true); setErrore(null)
+    try {
+      if (attivo) { await spegniPush(); setStato('spento') }
+      else setStato(await attivaPush(io))
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLavoro(false)
+    }
+  }
+
+  const testo =
+    attivo ? t('Notifiche attive su questo dispositivo.')
+    : stato === 'spento' ? t('Attiva le notifiche per sapere subito quando ti scrivono o un allievo finisce un allenamento.')
+    : stato === 'negato' ? t('Le notifiche sono bloccate per questa app. Riattivale dalle impostazioni del telefono o del browser.')
+    : stato === 'da-installare' ? t('Su iPhone le notifiche arrivano solo con l’app installata: da Safari tocca Condividi, poi “Aggiungi alla schermata Home”, e aprila da lì.')
+    : t('Questo browser non supporta le notifiche.')
+
+  return (
+    <Section
+      title={t('Notifiche')}
+      hint={testo}
+      right={<Toggle on={attivo} onClick={() => { void cambia() }} disabled={lavoro || !(attivo || stato === 'spento')} label={t('Notifiche')}/>}
+    >
+      {errore && <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: 'var(--danger)' }}>{errore}</div>}
+    </Section>
+  )
+}
+
 // Card di un pannello di impostazioni: icona, nome, e sotto lo stato attuale.
 // Sono due e stanno affiancate, quindi il testo deve reggere metà larghezza di un
 // telefono: il sottotitolo dice a colpo d'occhio com'è messa la cosa ("Journal ·
@@ -976,7 +1036,7 @@ function PesoSection() {
       </div>
 
       {ultime.length >= 2 ? (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--hairline)', padding: 12 }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 12 }}>
           <div style={{
             display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
             gap: 8, marginBottom: 8,

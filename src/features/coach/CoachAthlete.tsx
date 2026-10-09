@@ -14,7 +14,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { LineChart } from '@/features/gym/gymShared'
-import { entryVolume, entry1RM, fmtVol, fmtKg, fmtNum, fmtReps, setRepsOf, sortedHistory, displayMuscle } from '@/features/gym/gymModel'
+import { entryVolume, fmtVol, fmtKg, fmtReps, displayMuscle } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
 import { perMuscolo } from './gruppi'
 import { TendinaGruppo } from './TendinaGruppo'
@@ -22,12 +22,11 @@ import { quotaCorpo, corpoLibero } from '@/features/gym/catalogo'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
-import { fmtDayMonth, daysShort } from '@/lib/dateFormat'
+import { fmtDayMonth, fmtShortDate, daysShort } from '@/lib/dateFormat'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { NotaCoach } from '@/lib/coach'
-import type { PalestraExercise } from '@/store/useJarvisStore'
-import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
+import type { PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 interface Sessione {
   date: string
@@ -140,15 +139,21 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
   // chiunque fosse pesante, e fra due allievi vinceva la bilancia, non la forza.
   // Restano nelle sessioni e nella forza per distretto; qui si confrontano i
   // chili messi sul bilanciere.
+  //
+  // La migliore è quella in cui si è spostato di più: chili × colpi × serie,
+  // cioè i tre numeri che dell'alzata si leggono. Prima contava il massimale
+  // stimato, che è un numero calcolato e che nessuno ha alzato: accanto a ogni
+  // riga c'era "72 kg" per una panca fatta a 60. Di ogni esercizio entra una
+  // sola alzata, la sua migliore, e si vedono le prime cinque.
   const migliori = useMemo(() => {
     return palestra
       .filter(ex => ex.history.length > 0 && !corpoLibero(ex))
       .map(ex => {
         const p = peso * quotaCorpo(ex)
-        const top = ex.history.reduce((b, h) => entry1RM(h, p) > entry1RM(b, p) ? h : b)
-        return { nome: ex.n, muscle: displayMuscle(ex.muscle), h: top, rm: Math.round(entry1RM(top, p)) }
+        const top = ex.history.reduce((b, h) => entryVolume(h, p) > entryVolume(b, p) ? h : b)
+        return { nome: ex.n, muscle: displayMuscle(ex.muscle), h: top, lavoro: entryVolume(top, p) }
       })
-      .sort((a, b) => b.rm - a.rm)
+      .sort((a, b) => b.lavoro - a.lavoro)
       .slice(0, 5)
   }, [palestra, peso])
 
@@ -305,8 +310,8 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
                   {/* La barra è il punteggio 0–100, la stessa scala della mappa
                       del corpo: 100 = "forte" per QUEL distretto, così i numeri
                       di gambe e bicipiti si confrontano davvero. */}
-                  <span style={{ width: 84, height: 5, background: 'var(--surface-2)', border: '1px solid var(--hairline)', flexShrink: 0 }}>
-                    <span style={{ display: 'block', height: '100%', width: `${d.score}%`, background: 'var(--j-accent)' }}/>
+                  <span style={{ width: 84, height: 6, background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-pill)', overflow: 'hidden', flexShrink: 0 }}>
+                    <span style={{ display: 'block', height: '100%', width: `${d.score}%`, background: 'var(--j-accent)', borderRadius: 'var(--radius-pill)' }}/>
                   </span>
                   <span style={{
                     width: 26, textAlign: 'right', flexShrink: 0,
@@ -323,7 +328,7 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
       {/* ── Migliori alzate ────────────────────────────────── */}
       {migliori.length > 0 && (
         <div>
-          <NucEyebrow right={<span style={{ textTransform: 'none' }}>{t('massimale stimato')}</span>}>{t('Migliori alzate')}</NucEyebrow>
+          <NucEyebrow right={<span style={{ textTransform: 'none' }}>{t('chili · serie × colpi')}</span>}>{t('Migliori alzate')}</NucEyebrow>
           <NucCard pad={0}>
             {migliori.map((m, i) => (
               <div key={m.nome} style={{
@@ -333,12 +338,13 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(m.nome)}</div>
                   <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: 'var(--fg-mute)', marginTop: 2 }}>
-                    {tData(m.muscle)} · {m.h.sets_n} × {fmtReps(m.h)} — {fmtKg(m.h)}
+                    {tData(m.muscle)}{m.h.date ? ` · ${fmtShortDate(m.h.date)}` : ''}
                   </div>
                 </div>
-                <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 14, color: 'var(--j-accent-ink)' }}>{m.rm}</div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 9, color: 'var(--fg-mute)', letterSpacing: '.08em' }}>KG</div>
+                {/* Quello che è stato alzato davvero: i chili, e sotto serie × colpi. */}
+                <div style={{ flexShrink: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontFamily: NUC.label, fontSize: 14, fontWeight: 600, color: 'var(--j-accent-ink)', whiteSpace: 'nowrap' }}>{fmtKg(m.h)}</div>
+                  <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: 'var(--fg-mute)', marginTop: 1, whiteSpace: 'nowrap' }}>{m.h.sets_n} × {fmtReps(m.h)}</div>
                 </div>
               </div>
             ))}
@@ -506,91 +512,6 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
   )
 }
 
-// Pagina: l'ultimo allenamento contro il solito.
-// Era una sezione in mezzo alla scheda dell'allievo. Ha una pagina sua perché è
-// una tabella — cresce con gli esercizi, non con lo schermo — e perché è una
-// domanda a sé: "come è andata l'ultima volta rispetto al solito".
-export function UltimoAllenamento({ palestra }: { palestra: PalestraExercise[] }) {
-  const t = useT()
-  const tData = useTData()
-  // ── L'ultima volta contro il solito, esercizio per esercizio ───────
-  // La domanda di un allenatore non è "quanto ha spostato" ma "sta calando?".
-  // Serve un metro interno alla persona: il suo solito su QUELL'esercizio. Un
-  // numero assoluto non ce l'ha — 60 kg di panca sono tanti o pochi a seconda di
-  // chi li fa — mentre "tre serie invece delle solite quattro" si legge da sé.
-  const confronto = useMemo(() => {
-    return palestra
-      .filter(ex => ex.history.length >= 2)
-      .map(ex => {
-        const hist = sortedHistory(ex.history)
-        const ultima = hist[hist.length - 1]
-        // Fino a sei precedenti: più indietro si va, più il "solito" descrive un
-        // altro periodo di allenamento invece di quello in corso.
-        const prima = hist.slice(0, -1).slice(-6)
-        // I colpi si confrontano sulla serie PIÙ CORTA: è lì che un allenamento
-        // cede, e il valore rappresentativo (i colpi della serie più pesante)
-        // nasconderebbe un finale a 6 dietro un inizio a 10.
-        const colpiDi = (h: PalestraHistoryEntry) => Math.min(...setRepsOf(h))
-        const solito = {
-          serie: mediana(prima.map(h => h.sets_n)),
-          colpi: mediana(prima.map(colpiDi)),
-          kg:    mediana(prima.map(h => h.kg)),
-        }
-        const ora = { serie: ultima.sets_n, colpi: colpiDi(ultima), kg: ultima.kg }
-        const giù = {
-          serie: ora.serie < solito.serie,
-          colpi: ora.colpi < solito.colpi,
-          kg:    ora.kg    < solito.kg,
-        }
-        return { ex, nome: ex.n, ultima, solito, giù, cala: giù.serie || giù.colpi || giù.kg }
-      })
-      // I cali per primi: sono il motivo per cui questa tabella esiste. A parità,
-      // l'allenamento più recente.
-      .sort((a, b) => Number(b.cala) - Number(a.cala) || (b.ultima.date ?? '').localeCompare(a.ultima.date ?? ''))
-      .slice(0, 8)
-  }, [palestra])
-
-  if (confronto.length === 0) {
-    return <div className="j-empty">{t('Servono almeno due allenamenti sullo stesso esercizio per avere un confronto.')}</div>
-  }
-
-  return (
-    <div>
-      <NucEyebrow right={<span style={{ textTransform: 'none' }}>{t('rispetto al solito')}</span>}>{t('Ultimo allenamento')}</NucEyebrow>
-      <NucCard pad={0}>
-        <div style={{
-          display: 'flex', gap: 8, padding: '9px 14px',
-          borderBottom: '1px solid var(--divider)',
-          fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em',
-          textTransform: 'uppercase', color: 'var(--fg-mute)',
-        }}>
-          <span style={{ flex: 1, minWidth: 0 }}>{t('Esercizio')}</span>
-          <span style={{ width: 40, textAlign: 'right', flexShrink: 0 }}>{t('Serie')}</span>
-          <span style={{ width: 40, textAlign: 'right', flexShrink: 0 }}>{t('Colpi')}</span>
-          <span style={{ width: 62, textAlign: 'right', flexShrink: 0 }}>Kg</span>
-        </div>
-        {confronto.map((c, i) => (
-          <div key={c.ex.id} style={{ padding: '10px 14px', borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(c.nome)}</span>
-              <Cella giù={c.giù.serie} w={40}>{c.ultima.sets_n}</Cella>
-              <Cella giù={c.giù.colpi} w={40}>{fmtReps(c.ultima)}</Cella>
-              <Cella giù={c.giù.kg} w={62}>{fmtKg(c.ultima)}</Cella>
-            </div>
-            {/* Il metro, scritto solo quando serve: su una riga in pari sarebbe
-                la ripetizione dei numeri che le stanno sopra. */}
-            {c.cala && (
-              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: 'var(--danger)', marginTop: 3 }}>
-                {t('di solito')} {c.solito.serie} × {c.solito.colpi} — {fmtNum(c.solito.kg)} kg
-              </div>
-            )}
-          </div>
-        ))}
-      </NucCard>
-    </div>
-  )
-}
-
 // Un bottone che apre una pagina: icona, nome, e sotto lo stato di ciò che
 // contiene. È la stessa forma delle card del menù impostazioni — due controlli
 // affiancati che portano altrove — e la freccia in alto è quello che li fa
@@ -620,27 +541,6 @@ function BottonePagina({ icon, label, sotto, onClick }: {
         }}>{sotto}</span>
       </span>
     </button>
-  )
-}
-
-// Il "solito" è la MEDIANA delle volte precedenti, non la media: una giornata
-// storta o un massimale isolato spostano la media, e con lei il metro con cui si
-// giudica tutto il resto. A parità di posizioni centrali si prende la più bassa,
-// così il rosso resta un segnale e non un'abitudine.
-function mediana(v: number[]): number {
-  if (!v.length) return 0
-  const s = [...v].sort((a, b) => a - b)
-  return s[Math.floor((s.length - 1) / 2)]
-}
-
-// Una cella numerica della tabella: rossa quando è sotto il solito.
-function Cella({ giù, w, children }: { giù: boolean; w: number; children: ReactNode }) {
-  return (
-    <span style={{
-      width: w, flexShrink: 0, textAlign: 'right',
-      fontFamily: NUC.label, fontSize: 12.5, fontVariantNumeric: 'tabular-nums',
-      color: giù ? 'var(--danger)' : 'var(--fg)', fontWeight: giù ? 600 : 400,
-    }}>{children}</span>
   )
 }
 

@@ -267,10 +267,12 @@ export const EN_UI: Record<string, string> = {
   'Senza nome': 'Unnamed',
 
   // ── Personal Coach ───────────────────────────────────────────
-  // "Seguire" qui è allenare qualcuno, non il "follow" dei social: in inglese
-  // le due liste si chiamano col verbo dell'allenatore.
-  'Ti seguono': 'Coaching you',
-  'Segui': 'You coach',
+  // Le tre card in cima: chi allena te, chi alleni tu, e i messaggi. "Seguiti"
+  // qui sono le persone che si allenano con te, non il "follow" dei social.
+  'Coach': 'Coach',
+  'Seguiti': 'Athletes',
+  '1 allievo': '1 athlete',
+  '{n} allievi': '{n} athletes',
   'Caricamento…': 'Loading…',
   'Attendi…': 'Please wait…',
   'Annulla': 'Cancel',
@@ -330,7 +332,6 @@ export const EN_UI: Record<string, string> = {
   'oggi': 'today',
   'ieri': 'yesterday',
   '{n} gg fa': '{n}d ago',
-  'Ultimo allenamento': 'Last workout',
   'Note sugli esercizi': 'Exercise notes',
   'Nessuna scritta': 'None written',
   '1 scritta': '1 written',
@@ -346,20 +347,16 @@ export const EN_UI: Record<string, string> = {
   'Sessioni o gare': 'Sessions or races',
   'Nessun tempo in gara': 'No race time',
   '{n} in tutto': '{n} in total',
-  'massimale stimato': 'estimated max',
+  'chili · serie × colpi': 'kg · sets × reps',
   'Migliori alzate': 'Best lifts',
   'Nessuna nota': 'No note',
   'Modifica': 'Edit',
   'Scrivi': 'Write',
   'Cosa deve ricordarsi su {esercizio}': 'What they should remember about {esercizio}',
   'Nota su {esercizio}': 'Note on {esercizio}',
-  'Servono almeno due allenamenti sullo stesso esercizio per avere un confronto.':
-    'A comparison needs at least two workouts on the same exercise.',
-  'rispetto al solito': 'compared to usual',
   'Esercizio': 'Exercise',
   'Serie': 'Sets',
   'Colpi': 'Reps',
-  'di solito': 'usually',
 
   // ── Home ─────────────────────────────────────────────────────
   'La tua settimana': 'Your week',
@@ -592,7 +589,11 @@ export const EN_UI: Record<string, string> = {
   'Nessuna sessione': 'No sessions',
   '1 giornata': '1 training day',
   '{n} giornate': '{n} training days',
-  'meno del previsto o carico sceso': 'less than planned or load down',
+  // La legenda dei quadratini: uno per giorno della settimana.
+  'allenato': 'trained',
+  'carico sceso': 'load down',
+  'salito e sceso': 'up and down',
+  'nessun allenamento': 'no workout',
   'carico salito': 'load up',
   '1 esercizio saltato': '1 exercise skipped',
   '{n} esercizi saltati': '{n} exercises skipped',
@@ -731,8 +732,8 @@ export const EN_UI: Record<string, string> = {
   'Standard': 'Standard',
   'I colori del tema scelto sopra.': 'The colours of the theme chosen above.',
   'Premium': 'Premium',
-  'Sempre nero, vetro e contorni bianchi. Ignora l’interruttore chiaro/scuro.':
-    'Always black, glass and white outlines. Ignores the light/dark switch.',
+  'Sempre scuro: superfici piene, dati in grigio e un solo colore per i tasti. Ignora l’interruttore chiaro/scuro.':
+    'Always dark: solid surfaces, data in grey and a single colour for buttons. Ignores the light/dark switch.',
   'Neon': 'Neon',
   'Quasi nero con un solo accento lime, per progressi e tasti principali.':
     'Near-black with a single lime accent, for progress and main buttons.',
@@ -804,7 +805,6 @@ export const EN_UI: Record<string, string> = {
   'Elimina scheda': 'Delete plan',
 
   // ── Richieste su una scheda condivisa ────────────────────────
-  'Messaggi': 'Messages',
   'Richieste a {chi}': 'Requests to {chi}',
   'Chiedi all’allenatore': 'Ask your coach',
   'Torna alla scheda': 'Back to plan',
@@ -826,8 +826,8 @@ export const EN_UI: Record<string, string> = {
   'Rispondi su': 'Reply about',
   'Scrivi la risposta…': 'Write your reply…',
   'Le richieste non si possono leggere adesso. Riprova più tardi.': 'Requests can’t be loaded right now. Try again later.',
-  'Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Segui” o in “Ti seguono”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
-    'No conversations. To message someone, tap their name under “You coach” or “Coaching you”; anyone who receives a plan from you can also ask for info or a replacement from the question mark at the top of the plan.',
+  'Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Seguiti” o in “Coach”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
+    'No conversations. To message someone, tap their name under “Athletes” or “Coach”; anyone who receives a plan from you can also ask for info or a replacement from the question mark at the top of the plan.',
 
   // ── Chat diretta, avvisi e notifiche push ──
   'Conversazioni': 'Conversations',
@@ -952,7 +952,12 @@ export const EN_UI: Record<string, string> = {
   'Le notifiche sono bloccate per questa app. Riattivale dalle impostazioni del telefono o del browser.': 'Notifications are blocked for this app. Turn them back on in your phone or browser settings.',
   'Su iPhone le notifiche arrivano solo con l’app installata: da Safari tocca Condividi, poi “Aggiungi alla schermata Home”, e aprila da lì.': 'On iPhone, notifications only arrive with the app installed: in Safari tap Share, then “Add to Home Screen”, and open it from there.',
   'Questo browser non supporta le notifiche.': 'This browser doesn’t support notifications.',
-  'Disattiva': 'Turn off',
+  // Le notifiche stanno nelle impostazioni, e al primo ingresso l'app le propone.
+  'Notifiche': 'Notifications',
+  'Vuoi sapere subito quando il coach ti scrive, ti assegna una scheda o corregge un’alzata — e, se alleni qualcuno, quando finisce un allenamento?':
+    'Want to know straight away when your coach writes to you, assigns a plan or corrects a lift — and, if you coach someone, when they finish a workout?',
+  'Si cambia quando vuoi da Impostazioni.': 'You can change this any time in Settings.',
+  'Non ora': 'Not now',
   'Attiva': 'Turn on',
   // Minuscolo: sta dentro la bolla al posto del nome ("tu: ...").
   'tu': 'you',
@@ -1105,4 +1110,33 @@ export const EN_UI: Record<string, string> = {
   // ── Carosello dei gruppi muscolari ──
   'Ultima volta: {data}': 'Last time: {data}',
   'Vedi a carosello': 'View as carousel',
+
+  // ── Due allenamenti a confronto (vista allenatore) ──
+  'Scegli due allenamenti': 'Pick two workouts',
+  'Tocca i due allenamenti da mettere a confronto: chili e colpi, esercizio per esercizio.':
+    'Tap the two workouts to compare: kg and reps, exercise by exercise.',
+  'Scelto il primo: ora tocca il secondo.': 'First one picked: now tap the second.',
+  'Servono almeno due allenamenti per fare un confronto.': 'A comparison needs at least two workouts.',
+  'Nessun esercizio in comune fra i due allenamenti.': 'The two workouts have no exercise in common.',
+  'stessa scheda': 'same plan',
+  'Cambia': 'Change',
+  'Prima': 'Before',
+  'Dopo': 'After',
+  'Chili': 'Load',
+  'colpo': 'rep',
+  'solo il {data}': 'only on {data}',
+
+  // ── Da quanto esiste una scheda, e il form con gli esercizi compressi ──
+  'Creata il {data}': 'Created on {data}',
+  'Ricevuta il {data}': 'Received on {data}',
+  'da oggi': 'since today',
+  'da ieri': 'since yesterday',
+  'da {n} giorni': 'for {n} days',
+  'da {n} settimane': 'for {n} weeks',
+  'da {n} mesi': 'for {n} months',
+  'da {n} anni': 'for {n} years',
+  'Esercizio da scrivere': 'Exercise to fill in',
+  'con nota': 'with a note',
+  'da completare': 'incomplete',
+  'Fatto': 'Done',
 }

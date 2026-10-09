@@ -6,6 +6,7 @@
 // Logica pura: l'elenco la disegna (vedi SchedeListPage), i conti si provano qui.
 import type { GymScheda, GymSchedaExercise, PalestraExercise } from '@/store/useJarvisStore'
 import { colpiPrevisti, displayMuscle } from './gymModel'
+import { localISO } from '@/lib/isoDate'
 
 /** Il recupero fra una serie e l'altra: un minuto e mezzo, lo stesso del timer
  *  dell'allenamento (vedi TimerRecupero). Lo ha fissato chi usa l'app. */
@@ -98,4 +99,55 @@ export function durataRimanente(scheda: GymScheda, spuntate: Record<string, bool
 export function durataArrotondata(sec: number): number {
   if (sec <= 0) return 0
   return Math.max(5, Math.round(sec / 300) * 5) * 60
+}
+
+// ── Da quanto tempo esiste una scheda ──────────────────────────
+// Una scheda si cambia ogni tot settimane, e per saperlo serve leggere da
+// quanto la si sta usando. Si conta dal giorno in cui è stata scritta; per una
+// scheda mandata dal coach, dal giorno in cui la si è ricevuta la prima volta
+// (ritoccarla o rimandarla non lo sposta).
+
+/** Il giorno di nascita di una scheda, "YYYY-MM-DD". Le schede scritte qui
+ *  portano già il giorno; quelle arrivate da un coach un istante intero, che si
+ *  legge nel fuso del telefono. `null` se non si sa. */
+export function natalDi(valore: string | null | undefined): string | null {
+  if (!valore) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valore)) return valore
+  const d = new Date(valore)
+  return Number.isNaN(d.getTime()) ? null : localISO(d)
+}
+
+/** "da oggi" · "da 9 giorni" · "da 5 settimane" · "da 4 mesi" · "da 2 anni".
+ *  In settimane finché le settimane si contano a mente (è l'unità con cui si
+ *  ragiona su una scheda), poi in mesi. `t` arriva da chi chiama: questo file
+ *  non conosce la lingua. */
+export function etaScheda(giorni: number, t: (s: string, v?: Record<string, string | number>) => string): string {
+  if (giorni <= 0) return t('da oggi')
+  if (giorni === 1) return t('da ieri')
+  if (giorni < 14) return t('da {n} giorni', { n: giorni })
+  if (giorni < 70) return t('da {n} settimane', { n: Math.floor(giorni / 7) })
+  const mesi = Math.floor(giorni / 30.44)
+  if (mesi < 24) return t('da {n} mesi', { n: mesi })
+  return t('da {n} anni', { n: Math.floor(mesi / 12) })
+}
+
+/** Le schede divise per mese e anno di nascita, dal più recente. Dentro un mese
+ *  resta l'ordine in cui arrivano (prima quelle del coach, poi le proprie come
+ *  le si è messe in fila). Quelle senza una data stanno in fondo, a parte. */
+export function schedePerMese<T extends { id: string }>(
+  schede: readonly T[],
+  nateIl: Map<string, string>,
+): Array<{ chiave: string; anno: number | null; mese: number | null; schede: T[] }> {
+  const gruppi = new Map<string, T[]>()
+  for (const s of schede) {
+    const k = nateIl.get(s.id)?.slice(0, 7) ?? ''
+    gruppi.set(k, [...(gruppi.get(k) ?? []), s])
+  }
+  return [...gruppi.entries()]
+    // "" (senza data) è la più piccola: finisce in fondo da sola.
+    .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+    .map(([chiave, lista]) => {
+      const [anno, mese] = chiave ? chiave.split('-').map(Number) : [null, null]
+      return { chiave: chiave || 'senza-data', anno, mese: mese === null ? null : mese - 1, schede: lista }
+    })
 }

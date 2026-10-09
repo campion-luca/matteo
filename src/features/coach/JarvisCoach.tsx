@@ -7,19 +7,23 @@
 // Due ruoli nella stessa schermata, perché sono due lati della stessa cosa e la
 // stessa persona può stare da entrambi (chi allena si allena anche).
 //
-//  • "Ti seguono"  — genero un codice, lo do a chi mi deve seguire, e vedo chi
-//                    ha accesso ai miei allenamenti. Da qui glielo tolgo.
-//  • "Segui"       — inserisco il codice di qualcuno e ne apro la scheda.
+//  • "Coach"    — genero un codice, lo do a chi mi deve seguire, e vedo chi
+//                 ha accesso ai miei allenamenti. Da qui glielo tolgo.
+//  • "Seguiti"  — inserisco il codice di qualcuno e ne apro la scheda.
+//  • "Chat"     — i messaggi con gli uni e con gli altri.
+// (Fino a ottobre 2026 si chiamavano "Ti seguono", "Segui" e "Messaggi".)
 //
 // Il codice lo genera SEMPRE chi condivide i propri dati. Nel verso opposto
 // l'allenatore manderebbe una richiesta e all'allievo resterebbe da accettarla —
 // un consenso che si dà per non far aspettare l'altro, che è il modo peggiore di
 // darlo. Le regole vere stanno nel database: vedi supabase/coach_schema.sql.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { localISO } from '@/lib/isoDate'
+import { localISO, giorniTra, todayISO } from '@/lib/isoDate'
+import { natalDi, etaScheda } from '@/features/gym/anteprimaScheda'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
-import { NucCard, NucEyebrow, NucSubTabs } from '@/components/ui/NucComponents'
+import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
+import { DisegnoAzione } from '@/features/gym/DisegniAzioni'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { useT } from '@/lib/i18n'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
@@ -32,13 +36,13 @@ import {
   noteAllievo, salvaNotaCoach, type NotaCoach,
   type CoachLink, type CoachInvite, type AthleteData,
 } from '@/lib/coach'
-import { CoachAthlete, UltimoAllenamento, NoteEsercizi } from './CoachAthlete'
+import { CoachAthlete, NoteEsercizi } from './CoachAthlete'
+import { CoachConfronto } from './CoachConfronto'
 import { CoachMessaggi } from './CoachMessaggi'
 import { BadgeNonLetti } from './messaggiUI'
 import { useNonLetti, useMessaggi, avvisa } from '@/lib/messaggiLive'
 import { bozzaChat, idChat, nonLetti } from '@/lib/messaggi'
 import { ChatDiretta } from './ChatDiretta'
-import { NotifichePush } from './NotifichePush'
 import { fmtKg, fmtReps } from '@/features/gym/gymModel'
 import { CoachSessioni } from './CoachSessioni'
 import { CoachGrafici, CoachEsercizio } from './CoachEsercizi'
@@ -156,20 +160,20 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
 
   return (
     <Pagina titolo={t('Personal Coach')} onBack={onBack} isDesktop={isDesktop}>
-      <NucSubTabs
-        options={[
-          { id: 'seguito', label: t('Ti seguono') },
-          { id: 'allenatore', label: t('Segui') },
-          { id: 'messaggi', label: t('Messaggi'), badge: <BadgeNonLetti n={daLeggere}/> },
-        ]}
-        value={ruolo}
-        onChange={v => setRuolo(v as Ruolo)}
-        style={{ marginBottom: 16 }}
+      <SezioniCoach
+        valore={ruolo}
+        onChange={setRuolo}
+        daLeggere={daLeggere}
+        // Finché l'elenco non è arrivato sotto il nome non si scrive niente:
+        // "Nessuno" per un secondo, a chi un coach ce l'ha, sarebbe una bugia.
+        sotto={caricamento ? {} : {
+          seguito: allenatori.length ? (allenatori[0].coach_name || t('Allenatore')) : t('Nessuno'),
+          allenatore: atleti.length === 0 ? t('Nessuno') : atleti.length === 1 ? t('1 allievo') : t('{n} allievi', { n: atleti.length }),
+          messaggi: daLeggere > 0 ? t('{n} da leggere', { n: daLeggere }) : undefined,
+        }}
       />
 
       {errore && <Avviso testo={errore} tono="errore"/>}
-
-      <NotifichePush userId={userId}/>
 
       {caricamento ? (
         <div className="j-empty">{t('Caricamento…')}</div>
@@ -234,7 +238,96 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
   )
 }
 
-// ── Lato "ti seguono": genero il codice ────────────────────────
+// ── Le tre sezioni, in cima ────────────────────────────────────
+// Tre card come quelle in home (Coaching · Schede · Statistiche), non più una
+// barra di tre parole: «Coach» è chi allena te, «Seguiti» chi alleni tu, «Chat»
+// i messaggi con tutti e due. Ognuna col suo disegno e la sua tinta — le stesse
+// tre di casa (`--azione-…`), così nei temi a colore unico restano in riga col
+// resto.
+//
+// A differenza di quelle in home non aprono una pagina: scelgono cosa c'è sotto,
+// quindi una delle tre è sempre accesa. Accesa = tinta piena e bordo deciso; le
+// altre due si ritirano, ma restano leggibili — sono tasti, non decorazione.
+const SEZIONI: Array<{ id: Ruolo; disegno: 'allenatore' | 'gruppo' | 'coach'; tinta: string }> = [
+  { id: 'seguito',    disegno: 'allenatore', tinta: 'var(--azione-coach)' },
+  { id: 'allenatore', disegno: 'gruppo',     tinta: 'var(--azione-schede)' },
+  { id: 'messaggi',   disegno: 'coach',      tinta: 'var(--azione-stats)' },
+]
+const ALTEZZA_SEZIONE = 'clamp(98px, 15dvh, 132px)'
+
+function SezioniCoach({ valore, onChange, daLeggere, sotto }: {
+  valore: Ruolo
+  onChange: (r: Ruolo) => void
+  /** I messaggi non letti: il pallino sulla card della chat. */
+  daLeggere: number
+  /** Una riga sotto il nome di ogni card: chi è il coach, quanti allievi. */
+  sotto: Partial<Record<Ruolo, string>>
+}) {
+  const t = useT()
+  const nomi: Record<Ruolo, string> = { seguito: t('Coach'), allenatore: t('Seguiti'), messaggi: t('Chat') }
+  return (
+    <div role="tablist" aria-label={t('Personal Coach')} style={{
+      display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'clamp(8px, 2.4vw, 12px)',
+      // Il pallino della chat sporge dall'angolo: gli serve spazio sopra.
+      marginTop: 6, marginBottom: 18,
+    }}>
+      {SEZIONI.map(s => {
+        const accesa = s.id === valore
+        const fondo = `color-mix(in srgb, ${s.tinta} ${accesa ? 30 : 11}%, var(--surface))`
+        const colori = {
+          '--d1': `color-mix(in srgb, ${s.tinta} ${accesa ? 42 : 26}%, transparent)`,
+          '--d2': `color-mix(in srgb, ${s.tinta} ${accesa ? 80 : 46}%, transparent)`,
+          '--d3': `color-mix(in srgb, ${s.tinta} 38%, var(--fg))`,
+          '--df': fondo,
+        } as React.CSSProperties
+        const badge = s.id === 'messaggi' ? daLeggere : 0
+        return (
+          <button
+            key={s.id}
+            role="tab"
+            aria-selected={accesa}
+            aria-label={badge > 0 ? `${nomi[s.id]} — ${t('{n} da leggere', { n: badge })}` : undefined}
+            onClick={() => onChange(s.id)}
+            className="j-hard"
+            style={{
+              position: 'relative', height: ALTEZZA_SEZIONE, minWidth: 0,
+              borderRadius: 'var(--radius-lg)', cursor: 'pointer', textAlign: 'left',
+              backgroundColor: fondo,
+              // Sempre 1.5px, cambia solo il colore: passando da 1 a 2 la card
+              // accesa farebbe un saltino di un pixel a ogni tocco.
+              border: `1.5px solid color-mix(in srgb, ${s.tinta} ${accesa ? 88 : 24}%, transparent)`,
+              color: accesa ? 'var(--fg)' : 'var(--fg-soft)',
+              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-end',
+              padding: 'clamp(10px, 3vw, 14px)',
+              ...colori,
+            }}
+          >
+            <DisegnoAzione id={s.disegno} style={{
+              position: 'absolute', top: 'clamp(7px, 2.2vw, 10px)', right: 'clamp(6px, 2vw, 10px)',
+              width: `min(clamp(52px, 17vw, 72px), calc(${ALTEZZA_SEZIONE} - 50px))`, height: 'auto',
+              pointerEvents: 'none', opacity: accesa ? 1 : 0.8,
+            }}/>
+            <span style={{
+              position: 'relative', maxWidth: '100%',
+              fontFamily: NUC.label, fontSize: 'clamp(13px, 3.7vw, 16px)', fontWeight: accesa ? 600 : 500,
+              letterSpacing: '.005em', lineHeight: 1.2,
+            }}>{nomi[s.id]}</span>
+            {/* La riga c'è sempre, anche vuota: senza, il nome scenderebbe di
+                una riga nella card che non ha niente da dire. */}
+            <span style={{
+              position: 'relative', maxWidth: '100%', minHeight: 14, marginTop: 2,
+              fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.3, color: 'var(--fg-mute)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{sotto[s.id] ?? ''}</span>
+            <BadgeNonLetti n={badge} style={{ position: 'absolute', top: -7, right: -7 }}/>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Lato "Coach": genero il codice ─────────────────────────────
 function LatoSeguito({ userId, userName, invito, allenatori, onInvito, onErrore, onScrivi, onRimuovi }: {
   userId: string
   userName: string
@@ -482,7 +575,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // CoachAthlete perché l'intestazione con la freccia è di questo livello: da
   // là sotto, cambiare contenuto senza cambiare header avrebbe lasciato un back
   // che esce dall'allievo invece di tornare al suo riepilogo.
-  const [sotto, setSotto] = useState<null | 'ultimo' | 'note' | 'sessioni' | 'grafici' | 'esercizio' | 'chat'>(null)
+  const [sotto, setSotto] = useState<null | 'confronto' | 'note' | 'sessioni' | 'grafici' | 'esercizio' | 'chat'>(null)
   // Quanti messaggi di questa persona devo ancora leggere: sta sul tasto.
   const { messaggi } = useMessaggi()
   const daLeggereChat = useMemo(() => {
@@ -654,11 +747,12 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   }
 
   // "Confronto" si apre dalle sessioni e ci torna: è una lettura delle stesse
-  // giornate, e uscirne sulla scheda allievo farebbe perdere il segno.
-  if (sotto === 'ultimo') {
+  // giornate, e uscirne sulla scheda allievo farebbe perdere il segno. Lì si
+  // scelgono due allenamenti e si mettono uno accanto all'altro.
+  if (sotto === 'confronto' && dati) {
     return (
-      <Pagina titolo={t('Ultimo allenamento')} onBack={() => setSotto('sessioni')} isDesktop={isDesktop}>
-        <UltimoAllenamento palestra={dati?.palestraExercises ?? []}/>
+      <Pagina titolo={t('Confronto')} onBack={() => setSotto('sessioni')} isDesktop={isDesktop}>
+        <CoachConfronto data={dati} schedeAssegnate={assegnate.map(r => r.scheda)}/>
       </Pagina>
     )
   }
@@ -671,7 +765,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           data={dati}
           schedeAssegnate={assegnate.map(r => r.scheda)}
           inizio={primaScheda}
-          onConfronto={() => setSotto('ultimo')}
+          onConfronto={() => setSotto('confronto')}
           onCorreggi={apriCorrezione}
         />
       </Pagina>,
@@ -841,12 +935,19 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
               <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
                 <span style={{ fontSize: 14, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scheda.title}</span>
                 {r.scheda.draft && (
-                  <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn)', background: 'rgba(var(--warn-rgb),0.12)', border: '1px solid rgba(var(--warn-rgb),0.35)', padding: '1px 5px' }}>{t('Bozza')}</span>
+                  <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn)', background: 'rgba(var(--warn-rgb),0.12)', border: '1px solid rgba(var(--warn-rgb),0.35)', borderRadius: 'var(--radius-pill)', padding: '1px 6px' }}>{t('Bozza')}</span>
                 )}
               </div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: 'var(--fg-mute)', marginTop: 2 }}>
                 {r.scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: r.scheda.exercises.length })}
                 {r.scheda.draft && ` · ${t('non ancora visibile a lui')}`}
+                {/* Da quanto ce l'ha: è quello che dice a chi allena quando
+                    è ora di cambiargliela. Una bozza non l'ha ancora nessuno. */}
+                {!r.scheda.draft && natalDi(r.created_at ?? r.scheda.createdAt) && (
+                  <span style={{ color: 'var(--fg-soft)', fontWeight: 600 }}>
+                    {' · '}{etaScheda(giorniTra(natalDi(r.created_at ?? r.scheda.createdAt)!, todayISO()), t)}
+                  </span>
+                )}
               </div>
             </button>
             <button
@@ -873,35 +974,28 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
 function Pagina({ titolo, onBack, isDesktop, children }: {
   titolo: string; onBack: () => void; isDesktop: boolean; children: React.ReactNode
 }) {
-  // La barra del titolo sta FUORI dall'area che scorre. Era `sticky` dentro di
-  // essa, con fondo `--surface`: nel tema premium quel fondo è quasi trasparente
-  // (bianco al 4,5%), e scorrendo le righe passavano sotto la barra e si leggevano
-  // attraverso il titolo e il tasto indietro. Fuori dallo scroll non c'è niente
-  // che le passi sotto, qualunque sia il tema.
+  const t = useT()
+  // La stessa testata delle schede e delle statistiche: freccia a sinistra,
+  // titolo grande accanto. Prima il Coaching aveva una barra sua — freccia
+  // piccola, titolo in maiuscoletto al centro, fondo diverso — e passando dalle
+  // schede al coach sembrava di cambiare app.
+  // Sta FUORI dall'area che scorre, come sempre: sotto non le passa niente.
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 97,
       background: 'var(--bg)', backgroundImage: 'var(--paper-grain)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      fontFamily: NUC.font, color: NUC.ink,
+      overflow: 'hidden', fontFamily: NUC.font, color: NUC.ink,
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 18px 12px', flexShrink: 0,
-        borderBottom: '1px solid var(--divider)', background: 'var(--surface)',
-      }}>
-        <button onClick={onBack} className="j-btn-back" style={{ width: 34, height: 34 }}>
-          <Icons.chevL size={15}/>
-        </button>
-        <div className="j-eyebrow" style={{ letterSpacing: '.18em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titolo}</div>
-        <div style={{ width: 34, flexShrink: 0 }}/>
-      </div>
-
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <div style={{
-          padding: isDesktop ? '24px 24px 120px' : '16px 16px 120px',
-          width: '100%', maxWidth: isDesktop ? 720 : '100%', margin: '0 auto', boxSizing: 'border-box',
-        }}>
+      <div className="flex flex-col h-full overflow-hidden" style={{ width: '100%', maxWidth: isDesktop ? 720 : '100%', margin: '0 auto' }}>
+        <div className="j-page-header">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
+            <div className="j-page-title" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titolo}</div>
+          </div>
+        </div>
+        {/* In fondo resta spazio: l'ultima cosa della pagina è spesso un campo
+            (la chat, una nota) e non deve finire sotto la tastiera. */}
+        <div className="j-scroll-area" style={{ paddingTop: 4, paddingBottom: 'calc(var(--nav-clear, env(safe-area-inset-bottom)) + 96px)' }}>
           {children}
         </div>
       </div>
@@ -969,7 +1063,7 @@ function Bottone({ children, onClick, disabled, variante = 'accent' }: {
 function Avviso({ testo, tono }: { testo: string; tono: 'ok' | 'errore' }) {
   return (
     <div style={{
-      padding: '10px 12px', marginBottom: 12,
+      padding: '10px 12px', marginBottom: 12, borderRadius: 'var(--radius)',
       background: tono === 'errore' ? 'rgba(var(--danger-rgb),0.06)' : 'var(--surface-2)',
       border: `1px solid ${tono === 'errore' ? 'rgba(var(--danger-rgb),0.24)' : 'var(--hairline)'}`,
       fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.5,

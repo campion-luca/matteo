@@ -52,6 +52,8 @@ export const Icons = {
   bookOpen:  (p: IconProps = {}) => ic(<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>, p),
   repeat:    (p: IconProps = {}) => ic(<><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.5 9A9 9 0 0 0 5.6 5.4L1 10m22 4-4.6 4.6A9 9 0 0 1 3.5 15"/></>, p),
   clock:     (p: IconProps = {}) => ic(<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></>, p),
+  // Il foglio di un calendario con i due anelli: "da quando".
+  calendar:  (p: IconProps = {}) => ic(<><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></>, p),
   search:    (p: IconProps = {}) => ic(<><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></>, p),
   x:         (p: IconProps = {}) => ic(<><path d="M18 6L6 18M6 6l12 12"/></>, p),
   // Tre nodi e due archi: la forma che tutti riconoscono come "condividi".

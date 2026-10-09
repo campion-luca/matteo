@@ -41,7 +41,9 @@
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { effectiveLoad, entryVolume, setRepsOf, displayMuscle, colpiPrevisti } from '@/features/gym/gymModel'
 import { quotaCorpo } from '@/features/gym/catalogo'
+import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { giorniTra, localISO, todayISO } from '@/lib/isoDate'
+import type { AthleteData } from '@/lib/coach'
 
 export interface EsitoEsercizio {
   /** L'id dell'esercizio nello storico dell'allievo. Assente se è stato saltato
@@ -295,6 +297,91 @@ export function analizzaGiornate(
   return giornate.sort((a, b) => b.date.localeCompare(a.date))
 }
 
+/** Le giornate di un allievo, dai dati che arrivano dal server e dalle schede
+ *  che gli ho assegnato. Sta qui perché le leggono due pagine — le sessioni e
+ *  il confronto — e devono leggere le stesse. */
+export function giornateAllievo(data: AthleteData, schedeAssegnate: GymScheda[]): Giornata[] {
+  // Le assegnate prima: a parità di id è la versione dell'allenatore a dire
+  // cosa andava fatto.
+  const schede = [...schedeAssegnate, ...(data.gymSchede ?? []).filter(s => !schedeAssegnate.some(a => a.id === s.id))]
+  const giorniHyrox = hyroxVisibili(data.hyroxExercises).flatMap(ex => ex.history.map(h => h.date)).filter((d): d is string => !!d)
+  return analizzaGiornate(data.palestraExercises ?? [], schede, data.userWeight ?? 0, giorniHyrox)
+}
+
+// ── Com'è andata una giornata sui carichi ──────────────────────
+// Il colore del quadratino nella riga della settimana. Una cosa sola, i chili
+// rispetto all'ultima volta: saliti, scesi, tutte e due le cose, o come prima.
+// Quello che non torna con la scheda (un esercizio saltato, una serie corta) sta
+// scritto accanto: qui si guarda da lontano se quella settimana si è spinto.
+export type EsitoCarichi = 'su' | 'giu' | 'misto' | 'pari'
+
+export function esitoCarichi(g: Giornata): EsitoCarichi {
+  if (g.caricoSalito > 0 && g.caloCarico > 0) return 'misto'
+  if (g.caricoSalito > 0) return 'su'
+  if (g.caloCarico > 0) return 'giu'
+  return 'pari'
+}
+
+// ── Due allenamenti a confronto ────────────────────────────────
+// Chi allena sceglie due giornate e guarda, esercizio per esercizio, cosa è
+// cambiato: i chili e i colpi. Il verso è sempre dal più vecchio al più
+// recente, in qualunque ordine si siano scelte.
+export interface RigaConfronto {
+  nome: string
+  muscle?: string
+  /** L'alzata nella giornata più vecchia e in quella più recente. Una delle due
+   *  manca se l'esercizio è stato fatto solo in una. */
+  prima?: PalestraHistoryEntry
+  dopo?: PalestraHistoryEntry
+  /** Di quanto sono cambiati i chili (il carico più pesante della giornata).
+   *  `null` se manca una delle due, o se non c'è un carico da confrontare. */
+  kg: number | null
+  /** Di quanto sono cambiati i colpi fatti in tutto, sommando le serie. */
+  colpi: number | null
+}
+
+export interface ConfrontoGiornate {
+  prima: Giornata
+  dopo: Giornata
+  righe: RigaConfronto[]
+}
+
+/** I colpi fatti in tutto in un'alzata: tre serie da dieci sono trenta. */
+export const colpiTotali = (h: PalestraHistoryEntry) => setRepsOf(h).reduce((s, c) => s + c, 0)
+
+export function confrontaGiornate(a: Giornata, b: Giornata): ConfrontoGiornate {
+  const [prima, dopo] = a.date <= b.date ? [a, b] : [b, a]
+  // Solo quello che è stato fatto davvero: un esercizio saltato non ha numeri.
+  const fatti = (g: Giornata) => g.gruppi.flatMap(gr => gr.esercizi).filter(e => !!e.fatto)
+  const chiave = (e: EsitoEsercizio) => e.exId ?? norm(e.nome)
+  const diPrima = new Map<string, EsitoEsercizio>()
+  for (const e of fatti(prima)) if (!diPrima.has(chiave(e))) diPrima.set(chiave(e), e)
+
+  const righe: RigaConfronto[] = []
+  const visti = new Set<string>()
+  // Nell'ordine della giornata più recente: è quella che si sta giudicando.
+  for (const e of fatti(dopo)) {
+    const k = chiave(e)
+    if (visti.has(k)) continue
+    visti.add(k)
+    const p = diPrima.get(k)
+    if (!p?.fatto) { righe.push({ nome: e.nome, muscle: e.muscle, dopo: e.fatto, kg: null, colpi: null }); continue }
+    const kgPrima = caricoMesso(p.fatto), kgDopo = caricoMesso(e.fatto!)
+    righe.push({
+      nome: e.nome, muscle: e.muscle, prima: p.fatto, dopo: e.fatto,
+      // A corpo libero senza zavorra da tutte e due le parti i chili non sono
+      // una scelta: lì parlano solo i colpi.
+      kg: kgPrima === 0 && kgDopo === 0 ? null : mezzoChilo(kgDopo - kgPrima),
+      colpi: colpiTotali(e.fatto!) - colpiTotali(p.fatto),
+    })
+  }
+  // In fondo quello che c'era solo la volta prima.
+  for (const [k, p] of diPrima) {
+    if (!visti.has(k)) righe.push({ nome: p.nome, muscle: p.muscle, prima: p.fatto, kg: null, colpi: null })
+  }
+  return { prima, dopo, righe }
+}
+
 // ── Le giornate, settimana per settimana ───────────────────────
 // Un allenatore non ragiona per date ma per settimane di programma: "alla
 // terza settimana ha saltato il giovedì". E le settimane che contano sono le
@@ -363,4 +450,24 @@ export function perSettimana(giornate: Giornata[], inizio: string | null, oggi: 
     out.push({ n: null, da: precedenti[precedenti.length - 1].date, a: precedenti[0].date, inCorso: false, giornate: precedenti })
   }
   return out
+}
+
+/** Un giorno nella riga di una settimana: allenato (con la sua giornata) o no. */
+export interface GiornoSettimana {
+  date: string
+  giornata: Giornata | null
+  /** Non è ancora arrivato: non è un giorno saltato. */
+  futuro: boolean
+}
+
+/** I sette giorni di una settimana, dal primo all'ultimo, ognuno con la sua
+ *  giornata se quel giorno ci si è allenati. "Prima delle schede" non è una
+ *  settimana — è lunga quanto capita — e lì tornano solo le giornate fatte. */
+export function giorniDellaSettimana(s: SettimanaSessioni, oggi: string = todayISO()): GiornoSettimana[] {
+  if (s.n === null) return [...s.giornate].reverse().map(g => ({ date: g.date, giornata: g, futuro: false }))
+  const perData = new Map(s.giornate.map(g => [g.date, g]))
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = piuGiorni(s.da, i)
+    return { date, giornata: perData.get(date) ?? null, futuro: date > oggi }
+  })
 }
