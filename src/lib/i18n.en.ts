@@ -404,9 +404,6 @@ export const EN_UI: Record<string, string> = {
   'Esercizi': 'Exercises',
   'Gara': 'Race',
   'Gruppi muscolari': 'Muscle groups',
-  // Qui "scheda" è la pagina dell'esercizio, non una scheda d'allenamento.
-  'Scegli un esercizio per vederne la scheda': 'Pick an exercise to see its details',
-  'Apri un gruppo muscolare, poi un esercizio': 'Open a muscle group, then an exercise',
   'Aggiungi gli esercizi di base': 'Add the basic exercises',
   'Ne manca 1, con la sua immagine': '1 missing, with its image',
   'Ne mancano {n}, con la loro immagine': '{n} missing, with their images',

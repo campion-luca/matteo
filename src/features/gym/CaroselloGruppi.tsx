@@ -6,6 +6,9 @@
 // È la vista di partenza dei gruppi (vedi `vistaGruppiIniziale`); griglia ed
 // elenco restano dietro l'interruttore accanto al titolo.
 //
+// Da desktop le stesse card non si sfogliano: stanno tutte in vista, più
+// piccole (vedi `SchieraGruppi` in fondo).
+//
 // ── Perché i colori PIENI anche in Premium ──
 // Premium spegne i colori dei dati in grigio (`useMono`), e per le macchie
 // piccole — il filetto di una riga, un'icona — è la regola giusta. Qui però il
@@ -44,6 +47,32 @@ function ieri(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** I toni di una card, dal colore del suo gruppo. Il fondo è il colore schiarito
+ *  verso il bianco, l'inchiostro lo stesso colore scurito verso il nero: una
+ *  sola tinta per card, a due altezze. Con qualsiasi colore di gruppo il testo
+ *  sta ben sopra 7:1. `acceso` è il distretto sulla figura. */
+function toni(colori: Record<string, string>, muscle: string) {
+  const c = colori[muscle] ?? colori.Altro ?? '#8a7440'
+  return {
+    fondo: `color-mix(in srgb, ${c} 52%, #fff)`,
+    inchiostro: `color-mix(in srgb, ${c} 22%, #000)`,
+    acceso: `color-mix(in srgb, ${c} 45%, #000)`,
+  }
+}
+
+/** "Ultima volta: ieri", oppure "Mai allenato": quando si è lavorato un gruppo. */
+function useQuando(): (items: PalestraExercise[]) => string {
+  const t = useT()
+  const [oggi] = useState(todayISO)
+  const [ieriIso] = useState(ieri)
+  return items => {
+    const quando = ultimaVolta(items)
+    if (!quando) return t('Mai allenato')
+    const data = quando === oggi ? t('oggi') : quando === ieriIso ? t('ieri') : fmtDayMonthFull(quando)
+    return t('Ultima volta: {data}', { data })
+  }
+}
+
 export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApri, onNuovo }: {
   gruppi: Array<{ muscle: string; items: PalestraExercise[] }>
   /** I colori GREZZI dei gruppi, non desaturati: vedi il commento in testa. */
@@ -59,8 +88,7 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
   const t = useT()
   const tData = useTData()
   const nastro = useRef<HTMLDivElement>(null)
-  const [oggi] = useState(todayISO)
-  const [ieriIso] = useState(ieri)
+  const quando = useQuando()
 
   // A che card si è: la posizione diviso il passo (una card più lo spazio). Si
   // scrive solo quando cambia, così scorrere non ridisegna niente fra un
@@ -111,17 +139,7 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
         }}
       >
         {gruppi.map(({ muscle, items }) => {
-          const c = colori[muscle] ?? colori.Altro ?? '#8a7440'
-          // Il fondo è il colore schiarito verso il bianco, l'inchiostro lo stesso
-          // colore scurito verso il nero: una sola tinta per card, a due altezze.
-          // Con qualsiasi colore di gruppo il testo sta ben sopra 7:1.
-          const fondo = `color-mix(in srgb, ${c} 52%, #fff)`
-          const inchiostro = `color-mix(in srgb, ${c} 22%, #000)`
-          const quando = ultimaVolta(items)
-          const data = !quando ? null
-            : quando === oggi ? t('oggi')
-            : quando === ieriIso ? t('ieri')
-            : fmtDayMonthFull(quando)
+          const { fondo, inchiostro, acceso } = toni(colori, muscle)
           return (
             <button key={muscle} onClick={() => onApri(muscle)} className="j-carosello-card j-focus" style={{ ...card, background: fondo, color: inchiostro }}>
               {/* La figura occupa la metà destra, alta quanto la card: è il
@@ -133,7 +151,7 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
                 <MuscleIcon
                   muscle={muscle} icon={icone[muscle]} size={200}
                   color={inchiostro}
-                  acceso={`color-mix(in srgb, ${c} 45%, #000)`}
+                  acceso={acceso}
                   style={{ height: '100%', width: 'auto', maxWidth: '100%', opacity: 0.9 }}
                 />
               </div>
@@ -147,7 +165,7 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{tData(muscle)}</div>
                 <div style={{ fontFamily: NUC.label, fontSize: 11.5, marginTop: 4, opacity: 0.85 }}>
-                  {data ? t('Ultima volta: {data}', { data }) : t('Mai allenato')}
+                  {quando(items)}
                 </div>
               </div>
             </button>
@@ -187,6 +205,98 @@ export function CaroselloGruppi({ gruppi, colori, icone, indice, onIndice, onApr
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ── La schiera: il carosello, da desktop ───────────────────────
+// Chiesta così (ott 2026): da desktop niente scorrimento, tutti i gruppi in
+// vista, anche se più piccoli. Sono le card del carosello strette in una fila:
+// lo stesso colore pieno, la stessa figura col distretto acceso.
+//
+// Strette, cambia come sono composte: la figura sta al centro e il nome sotto,
+// non più di fianco. E "Ultima volta" non ha più dove stare scritto — va nel
+// suggerimento che compare fermando il puntatore, che su desktop c'è.
+//
+// Niente puntini e niente "1 / 8": non c'è una card in vista, lo sono tutte.
+
+/** Quante tessere tiene una riga, al massimo. In una pagina larga 860px nove
+ *  sono tessere da 84: più strette, il nome di un gruppo non ci sta. */
+const PER_RIGA = 9
+
+export function SchieraGruppi({ gruppi, colori, icone, onApri, onNuovo }: {
+  gruppi: Array<{ muscle: string; items: PalestraExercise[] }>
+  /** I colori GREZZI dei gruppi, non desaturati: vedi il commento in testa. */
+  colori: Record<string, string>
+  icone: Record<string, string>
+  onApri: (muscle: string) => void
+  onNuovo: () => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const quando = useQuando()
+
+  // Gli otto gruppi di serie più "Nuovo gruppo" fanno una riga sola. Chi ne ha
+  // creati altri va a capo, ma in righe pari: dieci tessere sono cinque e
+  // cinque, non nove e una rimasta sola.
+  const tessere = gruppi.length + 1
+  const righe = Math.ceil(tessere / PER_RIGA)
+  const colonne = Math.ceil(tessere / righe)
+
+  const tessera: CSSProperties = {
+    minWidth: 0,
+    // In `dvh`, come le card del carosello: la fila deve finire sopra il bordo
+    // della finestra, e quanto spazio le resta lo decide l'altezza dello schermo.
+    height: 'clamp(132px, 24dvh, 220px)',
+    borderRadius: 'var(--radius)',
+    position: 'relative', overflow: 'hidden',
+    padding: 0, border: 'none', cursor: 'pointer', textAlign: 'left',
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${colonne}, minmax(0, 1fr))`, gap: 8 }}>
+      {gruppi.map(({ muscle, items }) => {
+        const { fondo, inchiostro, acceso } = toni(colori, muscle)
+        return (
+          <button key={muscle} onClick={() => onApri(muscle)} title={quando(items)} className="j-carosello-card j-focus" style={{ ...tessera, background: fondo, color: inchiostro }}>
+            {/* La figura prende tutto quello che il testo lascia libero. */}
+            <div aria-hidden style={{
+              position: 'absolute', top: '7%', bottom: 46, left: 0, right: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <MuscleIcon
+                muscle={muscle} icon={icone[muscle]} size={120}
+                color={inchiostro}
+                acceso={acceso}
+                style={{ height: '100%', width: 'auto', maxWidth: '100%', opacity: 0.9 }}
+              />
+            </div>
+            <div style={{ position: 'absolute', left: 8, right: 8, bottom: 9 }}>
+              <div style={{
+                fontFamily: NUC.label, fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {items.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: items.length })}
+              </div>
+              <div style={{
+                fontFamily: NUC.font, fontSize: 13.5, fontWeight: 700,
+                lineHeight: 1.15, letterSpacing: '-.01em', marginTop: 2,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{tData(muscle)}</div>
+            </div>
+          </button>
+        )
+      })}
+
+      {/* Ultima, come nel carosello. */}
+      <button onClick={onNuovo} className="j-carosello-card j-focus" style={{
+        ...tessera, background: 'transparent', border: '1.5px dashed var(--hairline)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+        padding: '0 6px', color: 'var(--fg-mute)', textAlign: 'center',
+      }}>
+        <Icons.plus size={22} stroke={1.8}/>
+        <span style={{ fontFamily: NUC.font, fontSize: 12, lineHeight: 1.2 }}>{t('Nuovo gruppo')}</span>
+      </button>
     </div>
   )
 }

@@ -13,7 +13,7 @@ import type React from 'react'
 import { NUC, accentInkFor, cursore } from '@/lib/jarvis-tokens'
 import { NucCard, NucSubTabs, NucEyebrow } from '@/components/ui/NucComponents'
 import { SalutoHeader } from '@/components/ui/SalutoHeader'
-import { SplitPane, SplitVuoto, Strato } from '@/components/ui/SplitPane'
+import { Pila, Strato } from '@/components/ui/Pila'
 import { Cronologia } from '@/components/ui/Cronologia'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
@@ -37,7 +37,7 @@ import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { esercizidaCatalogo, quotaCorpo, aColpi, corpoLibero } from './catalogo'
 import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
 import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi, type VistaGruppi } from './vistaEsercizi'
-import { CaroselloGruppi } from './CaroselloGruppi'
+import { CaroselloGruppi, SchieraGruppi } from './CaroselloGruppi'
 import { supabase } from '@/lib/supabase'
 import { noteRicevute, type NotaCoach } from '@/lib/coach'
 import { useNonLetti } from '@/lib/messaggiLive'
@@ -47,6 +47,7 @@ import { LineChart, FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
 import { caricoDiRiferimento } from './limitiAlzata'
 import { useIsDark } from '@/hooks/useIsDark'
+import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal, type OpzioniModificaEsercizio } from './gymModals'
@@ -216,7 +217,7 @@ function AzioniGym({ onCoach, onSchede, onStats }: {
   return (
     // Il margine sopra non è solo respiro: il badge dei messaggi sporge di 7px
     // dall'angolo della prima card, e l'area che scorre lo taglierebbe.
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 8, marginBottom: 'clamp(12px, 2.2dvh, 18px)', maxWidth: 640 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 8, marginBottom: 'clamp(12px, 2.2dvh, 18px)' }}>
       {card('coach',  t('Coaching'),    onCoach)}
       {card('schede', t('Schede'),      onSchede)}
       {card('stats',  t('Statistiche'), onStats)}
@@ -1210,12 +1211,12 @@ function VistaGruppiSwitch({ valore, onChange }: { valore: VistaGruppi; onChange
 // viene tagliata sopra e sotto, cioè esattamente dove stanno la testa e i piedi.
 const GRIGLIA: React.CSSProperties = {
   display: 'grid',
-  // Il tetto è basso apposta. `vw` misura la FINESTRA, non la colonna: da desktop
-  // questa griglia vive nella colonna di sinistra dello split, larga 460px, e
-  // 18.5vw lì dentro vale mezzo schermo — quindi a decidere è sempre il massimo.
-  // A 104px la colonna ne teneva tre da 134, cioè quattro righe; a 92 ne tiene
-  // quattro e le righe tornano tre.
-  gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(64px, 18.5vw, 92px), 1fr))',
+  // Su telefono decide `vw`, e ne entrano quattro per riga; 92px è il tetto
+  // oltre cui la colonna non cresce. Da desktop quel tetto non basta: la pagina
+  // è larga 860px, e a 92 ci starebbero otto card in fila col nome troncato. Lì
+  // la misura la dà `--card-min` (vedi .j-desktop in globals.css), e per riga ne
+  // entrano cinque.
+  gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-min, clamp(64px, 18.5vw, 92px)), 1fr))',
   gap: 'clamp(5px, 1.2dvh, 9px)',
 }
 
@@ -1583,11 +1584,14 @@ function SezioneGruppi({ gruppi, totaleEsercizi, mancanti, onAggiungiCatalogo, c
   // La card del carosello in vista: sta qui perché il "1 / 8" si scrive accanto
   // al titolo della sezione, fuori dal carosello.
   const [cardGruppo, setCardGruppo] = useState(0)
+  // Da desktop il carosello non si sfoglia: i gruppi sono tutti in vista (vedi
+  // SchieraGruppi), e non c'è una card a cui si è arrivati da contare.
+  const isDesktop = useIsDesktop()
   return (
     <>
       <NucEyebrow right={
         <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {vistaGruppi === 'carosello' && gruppi.length > 0 && (
+          {vistaGruppi === 'carosello' && !isDesktop && gruppi.length > 0 && (
             <span aria-live="polite" style={{ letterSpacing: '.08em' }}>
               {Math.min(cardGruppo, gruppi.length - 1) + 1} / {gruppi.length}
             </span>
@@ -1625,15 +1629,25 @@ function SezioneGruppi({ gruppi, totaleEsercizi, mancanti, onAggiungiCatalogo, c
         </button>
       )}
       {vistaGruppi === 'carosello' ? (
-        <CaroselloGruppi
-          gruppi={gruppi}
-          colori={coloriPieni}
-          icone={icone}
-          indice={cardGruppo}
-          onIndice={setCardGruppo}
-          onApri={onApri}
-          onNuovo={onNuovo}
-        />
+        isDesktop ? (
+          <SchieraGruppi
+            gruppi={gruppi}
+            colori={coloriPieni}
+            icone={icone}
+            onApri={onApri}
+            onNuovo={onNuovo}
+          />
+        ) : (
+          <CaroselloGruppi
+            gruppi={gruppi}
+            colori={coloriPieni}
+            icone={icone}
+            indice={cardGruppo}
+            onIndice={setCardGruppo}
+            onApri={onApri}
+            onNuovo={onNuovo}
+          />
+        )
       ) : vistaGruppi === 'elenco' ? (
         <ElencoGruppi
           gruppi={gruppi}
@@ -1765,8 +1779,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     return () => { vivo = false }
   }, [])
   // L'esercizio aperto è quello dello STORE, ritrovato per id: `selectedExercise`
-  // ricorda solo quale. Tenendone una copia, su desktop — dove la scheda resta
-  // aperta a destra mentre si fa altro — il pannello mostrava lo storico di
+  // ricorda solo quale. Tenendone una copia, quando su desktop la scheda restava
+  // aperta a destra mentre si faceva altro, il pannello mostrava lo storico di
   // prima, e alla prima nota o correzione lo riscriveva nello store cancellando
   // l'alzata dell'allenamento fatto nel frattempo.
   const esercizioAperto = selectedExercise
@@ -2055,10 +2069,10 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   )
 
   // ── Le pagine ───────────────────────────────────────────────────
-  // Costruite come valori e non più come rami di `return`: su desktop due di
-  // loro sono a video INSIEME (vedi SplitPane in fondo), e un `return` anticipato
-  // può mostrarne una sola. Su telefono l'ordine di precedenza è lo stesso di
-  // prima — la più profonda copre le altre.
+  // Costruite come valori e non come rami di `return`: sono gli strati di una
+  // pila (vedi Pila in fondo), e quelli coperti restano montati sotto — un
+  // `return` anticipato ne terrebbe in vita uno solo. L'ordine di precedenza è
+  // quello di sempre: la più profonda copre le altre.
 
   const paginaHyrox = selectedHyrox ? (() => {
     const isRace = RACE_IDS.has(selectedHyrox.id)
@@ -2121,12 +2135,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   ) : null
 
   const paginaRadice = (
-    // Il tetto di larghezza è per quando questa pagina è a TUTTA l'area di
-    // contenuto — le statistiche su desktop (vedi sotto). Senza, i tab e le
-    // quattro card dei comandi si stiravano per milletrecento pixel, e le barre
-    // del volume diventavano righe lunghe un monitor. Dentro la colonna dello
-    // split non ha effetto: lì la larghezza è già molto sotto.
-    <div className="flex flex-col h-full overflow-hidden" style={{ width: '100%', maxWidth: 860, margin: '0 auto' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Niente respiro sotto: quello che segue (le tre card dei comandi) porta
           già il suo margine sopra, e i due sommati staccavano la settimana dalle
           card più di quanto le card stiano staccate dal resto. */}
@@ -2265,7 +2274,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // ritoccare la card. Qui hanno tutta la pagina.
   // Si monta solo aperta: i grafici non si calcolano finché non li si guarda.
   const paginaStatistiche = stats ? (
-    <div className="flex flex-col h-full overflow-hidden" style={{ width: '100%', maxWidth: 860, margin: '0 auto' }}>
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="j-page-header">
         <div className="flex items-center gap-3">
           <button onClick={() => setStats(false)} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
@@ -2316,9 +2325,9 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     setSelectedHyrox(stazione)
   }
 
-  // Modali e ricerca globale stanno FUORI dalle pagine: su desktop la radice può
-  // non essere a video (a sinistra c'è il gruppo aperto), e un modale montato
-  // dentro di lei sparirebbe insieme a lei mentre è aperto.
+  // Modali e ricerca globale stanno FUORI dalle pagine: la radice può essere
+  // coperta (sopra c'è il gruppo aperto), e un modale montato dentro di lei
+  // sparirebbe insieme a lei mentre è aperto.
   const contorno = (
     <>
       {modals}
@@ -2330,45 +2339,28 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     </>
   )
 
-  // A sinistra l'elenco su cui si sta navigando — i gruppi muscolari, oppure gli
-  // esercizi del gruppo aperto — a destra la scheda di quello che si è scelto.
-  // Su telefono SplitPane mostra solo lo strato più alto, che è il comportamento
-  // di sempre.
+  // Una pagina alla volta, al centro: i gruppi muscolari, poi gli esercizi del
+  // gruppo aperto, poi la scheda di quello che si è scelto — ognuna copre la
+  // precedente, che sotto resta com'era (vedi Pila).
   //
   // Le schede sono un mondo a sé, con la propria navigazione interna (elenco →
-  // scheda → allenamento in corso): non si infilano in una delle due colonne, si
-  // prendono la pagina. Si posano SOPRA la home invece di sostituirla, così
-  // uscendone la home è ancora lì com'era (vedi Strato). Il tetto di larghezza
-  // è lo stesso della radice — una scheda è un elenco di righe, e una riga lunga
-  // un monitor non si legge.
-  //
-  // Le statistiche fanno lo stesso: sono grafici, non aprono niente di fianco,
-  // e spartire lo schermo con una colonna vuota li stringerebbe a metà per
-  // niente.
+  // scheda → allenamento in corso), e le statistiche una pagina di grafici con
+  // la sua freccia per tornare: si posano SOPRA la home invece di sostituirla,
+  // così uscendone la home è ancora lì. Stanno nella stessa colonna di tutto il
+  // resto — la larghezza la dà lo strato, uguale per ogni pagina.
   return (
     <>
       <Strato coperto={showSchede || stats}>
-        <SplitPane
+        <Pila
           radice={paginaRadice}
           master={paginaMuscolo}
           detail={paginaEsercizio ?? paginaHyrox}
-          vuoto={
-            <SplitVuoto>
-              {/* Dalla radice un esercizio non è ancora scegliibile: prima si apre un
-                  gruppo. Dirlo qui evita l'invito a fare una cosa che non si può fare. */}
-              {selectedMuscle
-                ? t('Scegli un esercizio per vederne la scheda')
-                : t('Apri un gruppo muscolare, poi un esercizio')}
-            </SplitVuoto>
-          }
         />
       </Strato>
       {paginaStatistiche && <Strato coperto={false}>{paginaStatistiche}</Strato>}
       {showSchede && (
         <Strato coperto={false}>
-          <div style={{ width: '100%', maxWidth: 860, height: '100%', margin: '0 auto' }}>
-            <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false) }}/>
-          </div>
+          <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false) }}/>
         </Strato>
       )}
       {contorno}

@@ -21,7 +21,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { localISO } from '@/lib/isoDate'
-import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { maxLifts, maxTotal, SOURCE_LABELS } from '@/features/gym/gymMaxLifts'
 import { BodyMapPanel } from '@/features/gym/BodyMap'
@@ -52,7 +51,6 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
     palestra: st.palestraExercises,
     hyrox: hyroxVisibili(st.hyroxExercises),
   })))
-  const isDesktop = useIsDesktop()
   const [showCalendario, setShowCalendario] = useState(false)
   const [maxAperti, setMaxAperti] = useState(false)
 
@@ -243,7 +241,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
 
   return (
     <>
-      <NucCard pad={14} style={{ marginBottom: 16, maxWidth: isDesktop ? 720 : undefined }}>
+      <NucCard pad={14} style={{ marginBottom: 16 }}>
         <div style={{
           fontFamily: NUC.label, fontSize: 12, fontWeight: 700, letterSpacing: '.18em',
           textTransform: 'uppercase', color: 'var(--fg)', paddingBottom: 4,

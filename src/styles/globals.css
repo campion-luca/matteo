@@ -734,8 +734,8 @@
      bandiere larga un metro con in fondo una spunta. La barra del titolo resta a
      tutta larghezza, perché una barra è quello che deve sembrare; quello che sta
      dentro si incolonna e si centra.
-     720px è la stessa misura del riquadro del riepilogo: le due schermate si
-     aprono una dopo l'altra e devono avere lo stesso passo. */
+     Più stretta delle pagine dell'allenamento (860px, vedi Strato): quelle sono
+     griglie di card, questi sono elenchi di voci e campi da compilare. */
   .j-colonna {
     width: 100%;
     max-width: 720px;
@@ -1263,6 +1263,32 @@
    Tolto su richiesta: qui il fondo è fermo. (In Standard scuro ce n'è di nuovo
    uno che si muove, chiesto in prova a ottobre: vedi il blocco qui sotto.) */
 .j-bg-fondo { background-image: var(--paper-grain); }
+
+/* ── Desktop: tutto più grande ───────────────────────────────────
+   L'app è disegnata sul telefono: testi da 13-15px, etichette da 10, tasti da
+   36. A un palmo dagli occhi vanno bene; su un monitor, a un braccio, sono
+   piccoli. Qui non si ritocca misura per misura — sono scritte inline in ogni
+   componente — ma si ingrandisce l'app intera, fondo e modali compresi, così le
+   proporzioni restano quelle del telefono.
+
+   `zoom` e non `transform: scale`: ingrandisce anche la geometria, quindi le
+   pagine continuano a riempire la finestra e a scorrere dentro i loro bordi,
+   senza dover rimpicciolire a mano il contenitore del rapporto inverso.
+
+   Tre passi: di base, da portatile e fino al Full HD, e sui monitor più grandi.
+   I due più alti chiedono anche l'ALTEZZA: ingrandendo, in una finestra bassa
+   entrano meno righe, e un portatile da 13 pollici con l'app al 150%
+   mostrerebbe mezza home.
+
+   La classe la mette App sul contenitore del ramo desktop (da 1024px in su,
+   vedi useIsDesktop).
+
+   `--card-min` è la colonna minima della griglia di gruppi ed esercizi (vedi
+   GRIGLIA in JarvisGym): sul telefono la decide la larghezza dello schermo, qui
+   la pagina è larga 860px e con quella misura le card sarebbero otto per riga. */
+.j-desktop { zoom: 1.15; --card-min: 150px; }
+@media (min-width: 1360px) and (min-height: 740px)  { .j-desktop { zoom: 1.3; } }
+@media (min-width: 2000px) and (min-height: 1000px) { .j-desktop { zoom: 1.5; } }
 
 /* ── Standard scuro: il fondo (in prova, ott 2026) ───────────────
    Il tema con cui l'app si presenta. Un bruno quasi nero e due aloni grandi e

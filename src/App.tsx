@@ -967,8 +967,9 @@ export default function App() {
         paddingTop: isDesktop ? 0 : 'env(safe-area-inset-top)',
       }}>
         {isDesktop ? (
-          // ── Desktop: full-width sidebar + content ──────────────
-          <div className="j-bg-fondo" style={{
+          // ── Desktop: a tutta finestra, ingrandito ──────────────
+          // `j-desktop` è la misura: vedi globals.css.
+          <div className="j-bg-fondo j-desktop" style={{
             flex: 1,
             display: 'flex',
             height: '100%',
@@ -984,11 +985,10 @@ export default function App() {
             position: 'relative',
             ...cssVars,
           }}>
-            {/* Area di contenuto. Non è più una colonna di 800px centrata: da
-                desktop le pagine si aprono ACCANTO all'elenco che le ha aperte
-                (vedi SplitPane), e la seconda colonna ha bisogno dello spazio
-                che il cappello si teneva come margine. La larghezza di lettura la
-                decide adesso ogni pannello per conto suo. */}
+            {/* Area di contenuto, larga quanto la finestra: la colonna al centro
+                se la fa ogni pagina (vedi Strato e .j-colonna). Stringere QUI
+                vorrebbe dire stringere anche il fondo e il velo dei modali, che
+                invece devono coprire lo schermo intero. */}
             <div
               ref={containerRef}
               data-jmodal-root
