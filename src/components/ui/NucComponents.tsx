@@ -58,7 +58,9 @@ export function NucCard({ children, style = {}, strong = false, pad = 18, onPres
         position: 'relative',
         borderRadius: 'var(--radius-lg)', padding: pad,
         background: strong ? NUC.cardStrong : NUC.card,
-        border: `1px solid ${NUC.hairline}`,
+        // Contorno pieno d'inchiostro, e niente ombra: le card sono piatte
+        // (rebranding, ott 2026 — l'ombra è solo del CTA).
+        border: 'var(--bordo)',
         ...(soft && {
           boxShadow: 'var(--shadow-card)',
           transform: `scale(${pressed && onPress ? 0.99 : 1})`,
@@ -106,8 +108,8 @@ export function NucSegmented({ options, value, onChange, fontSize = 10 }: NucSeg
         <button key={o.id} onClick={() => onChange(o.id)} style={{
           flex: 1, position: 'relative', zIndex: 1, background: 'transparent', border: 'none',
           color: o.id === value ? NUC.ink : NUC.faint,
-          fontFamily: NUC.label, fontSize, fontWeight: o.id === value ? 600 : 500,
-          letterSpacing: '.12em', textTransform: 'uppercase',
+          fontFamily: NUC.label, fontSize: Math.max(fontSize, 15), fontWeight: 700,
+          letterSpacing: '.04em', textTransform: 'uppercase',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
           transition: 'color 220ms',
@@ -129,7 +131,7 @@ export function NucSubTabs({ options, value, onChange, style }: NucSubTabsProps)
   const trovato = options.findIndex(o => o.id === value)
   const idx = Math.max(0, trovato)
   return (
-    <div style={{ position: 'relative', display: 'flex', background: 'var(--surface)', border: `1px solid var(--hairline)`, borderRadius: 'var(--radius-sm)', padding: 3, height: 34, ...style }}>
+    <div style={{ position: 'relative', display: 'flex', background: 'var(--surface)', border: `1px solid var(--hairline)`, borderRadius: 'var(--radius-sm)', padding: 3, height: 44, ...style }}>
       <div className="nuc-seg-pill" style={{
         position: 'absolute', top: 3, bottom: 3,
         width: `calc((100% - 6px) / ${options.length})`,
@@ -138,7 +140,7 @@ export function NucSubTabs({ options, value, onChange, style }: NucSubTabsProps)
         opacity: trovato < 0 ? 0 : 1,
         // Il guscio è a `--radius-sm` con 3px di padding: la pillola dentro sta a
         // quel raggio meno il padding, o gli angoli le escono dai suoi.
-        borderRadius: 9,
+        borderRadius: 0,
         background: 'var(--surface-2)',
         border: 'none',
         boxShadow: 'var(--shadow-card)',
@@ -147,8 +149,8 @@ export function NucSubTabs({ options, value, onChange, style }: NucSubTabsProps)
         <button key={o.id} onClick={() => onChange(o.id)} style={{
           flex: 1, position: 'relative', zIndex: 1, background: 'transparent', border: 'none',
           color: o.id === value ? 'var(--fg)' : NUC.faint,
-          fontFamily: NUC.label, fontSize: 10, fontWeight: o.id === value ? 600 : 500,
-          letterSpacing: '.16em', textTransform: 'uppercase',
+          fontFamily: NUC.label, fontSize: 15, fontWeight: 700,
+          letterSpacing: '.04em', textTransform: 'uppercase',
           cursor: 'pointer', transition: 'color 220ms',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
         }}>
@@ -164,12 +166,38 @@ interface NucEyebrowProps { children: ReactNode; right?: ReactNode; style?: CSSP
 
 export function NucEyebrow({ children, right, style }: NucEyebrowProps) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 2px', marginBottom: 10, ...style }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: 0, marginBottom: 12, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-        {/* Il titolo di sezione è una rifinitura: prende il colore terziario. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.16em', color: 'var(--tertiary-ink)', textTransform: 'uppercase' }}>{children}</div>
+        {/* Titolo di sezione: Condensed 800, 24px, maiuscolo, in inchiostro. */}
+        <div style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 800, lineHeight: 1, letterSpacing: '.02em', color: 'var(--fg)', textTransform: 'uppercase' }}>{children}</div>
       </div>
-      {right && <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', color: NUC.faint, textTransform: 'uppercase', flexShrink: 0 }}>{right}</div>}
+      {/* A destra il link della sezione ("TUTTE →"): 16px, 700. */}
+      {right && <div style={{ fontFamily: NUC.display, fontSize: 16, fontWeight: 700, letterSpacing: '.06em', color: 'var(--fg)', textTransform: 'uppercase', flexShrink: 0 }}>{right}</div>}
     </div>
+  )
+}
+
+// ── Interruttore ───────────────────────────────────────────────
+// Un rettangolo col bordo d'inchiostro e un quadratino dentro: spento il
+// quadratino è nero a sinistra su fondo bianco, acceso il fondo diventa nero e
+// il quadratino bianco va a destra. Le stesse due tinte del cursore delle
+// scelte (`.j-switch`), senza la pillola tonda di prima (rebranding, ott 2026).
+export function Interruttore({ acceso, onClick, etichetta, disabled }: {
+  acceso: boolean; onClick: () => void; etichetta: string; disabled?: boolean
+}) {
+  return (
+    <button
+      type="button" role="switch" aria-checked={acceso} aria-label={etichetta}
+      onClick={onClick} disabled={disabled}
+      className="j-focus"
+      style={{
+        width: 46, height: 26, padding: 2, flexShrink: 0, boxSizing: 'border-box',
+        display: 'flex', justifyContent: acceso ? 'flex-end' : 'flex-start',
+        background: acceso ? 'var(--ink)' : 'var(--surface)', border: 'var(--bordo)',
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <span aria-hidden style={{ width: 18, height: 18, background: acceso ? 'var(--surface)' : 'var(--ink)' }}/>
+    </button>
   )
 }

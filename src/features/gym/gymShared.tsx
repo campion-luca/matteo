@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { useT, useTData } from '@/lib/i18n'
@@ -81,8 +81,6 @@ function labelIndexes(n: number, spacing: number, labelW: number): Set<number> {
 
 export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, labelSize = 8, yAxis = false, yFormat, pointLabels }: LineChartProps) {
   const t = useT()
-  const uid = useId().replace(/:/g, '')
-  const gradId = `lc-fill-${uid}`
 
   if (data.length < 2) return (
     <div className="j-empty" style={{ height, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -141,7 +139,6 @@ export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, l
     y: TOP + (1 - (v - scale.lo) / range) * plotH,
   }))
   const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-  const areaD = `${pathD} L${LEFT + plotW},${TOP + plotH} L${LEFT},${TOP + plotH} Z`
 
   // Le due file si contano separatamente: "21/08" occupa il doppio di "70", e
   // diradarle con lo stesso passo avrebbe nascosto valori che ci stavano benissimo.
@@ -152,31 +149,31 @@ export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, l
   return (
     <div style={{ width: '100%', overflowX: 'hidden' }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height, display: 'block' }}>
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22"/>
-            <stop offset="100%" stopColor={color} stopOpacity="0"/>
-          </linearGradient>
-        </defs>
 
         {/* Griglia e scala dei valori */}
         {yAxis && scale.ticks.map(t => {
           const y = TOP + (1 - (t - scale.lo) / range) * plotH
           return (
             <g key={t}>
-              <line x1={LEFT} y1={y} x2={W} y2={y} stroke="var(--hairline)" strokeWidth={0.6}/>
+              <line x1={LEFT} y1={y} x2={W} y2={y} stroke="var(--line)" strokeWidth={0.8}/>
               <text x={LEFT - Y_GAP} y={y + labelSize * 0.35} textAnchor="end" fill={NUC.faint}
                 style={{ fontFamily: NUC.label, fontSize: labelSize * 0.85 }}>{fmtY(t)}</text>
             </g>
           )
         })}
 
-        <path d={areaD} fill={`url(#${gradId})`}/>
-        <path d={pathD} fill="none" stroke={color} strokeWidth={big ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round"
-          style={{ filter: `drop-shadow(0 0 3px ${color})` }}/>
-        {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }}/>
-        ))}
+        {/* Una linea piena e dei quadratini (rebranding, ott 2026): niente
+            sfumatura sotto e niente alone, che erano la voce di un altro tema.
+            L'ultimo punto è pieno d'accento: è quello di cui si sta parlando. */}
+        <path d={pathD} fill="none" stroke={color} strokeWidth={big ? 1.8 : 1.4} strokeLinejoin="miter"/>
+        {pts.map((p, i) => {
+          const ultimo = i === pts.length - 1
+          const lato = dotR * 2 + (ultimo ? 1 : 0)
+          return (
+            <rect key={i} x={p.x - lato / 2} y={p.y - lato / 2} width={lato} height={lato}
+              fill={ultimo ? 'var(--j-accent)' : 'var(--surface)'} stroke={ultimo ? 'var(--ink)' : color} strokeWidth={1.2}/>
+          )
+        })}
 
         {/* Il valore di ogni punto, appoggiato sopra il pallino. Rende leggibile
             l'esatto senza costringere a inseguire la griglia con l'occhio. */}
@@ -215,9 +212,12 @@ export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, l
 // `onIngrandisci`: la foto diventa un tasto che la apre in grande (vedi
 // `FotoGrande`). Solo dove c'è una foto vera: il disegno del gruppo muscolare,
 // ingrandito, non direbbe niente di più.
-export function FacciaEsercizio({ nome, muscolo, lato, onIngrandisci }: {
+export function FacciaEsercizio({ nome, muscolo, lato, onIngrandisci, colore }: {
   nome: string; muscolo?: string; lato: number
   onIngrandisci?: () => void
+  /** Il colore del gruppo muscolare, come contorno della foto: è lì che vive
+   *  dal rebranding (prima era una striscia sul bordo della card). */
+  colore?: string
 }) {
   const t = useT()
   const tData = useTData()
@@ -226,8 +226,8 @@ export function FacciaEsercizio({ nome, muscolo, lato, onIngrandisci }: {
     // `-sm` e non il raggio pieno: il riquadro è quadrato e sta fra i 40 e i 48px,
     // dove 16px di raggio se ne mangiano gli angoli e la figura dentro comincia a
     // sembrare ritagliata in tondo.
-    width: lato, height: lato, flexShrink: 0, borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--hairline)', background: 'var(--surface-2)',
+    width: lato, height: lato, flexShrink: 0, borderRadius: 'var(--radius-sm)', boxSizing: 'border-box',
+    border: colore ? `3px solid ${colore}` : '1px solid var(--hairline)', background: 'var(--surface-2)',
   } as const
   if (foto && onIngrandisci) {
     return (
@@ -298,8 +298,8 @@ export function DataPunto({ iso, ripiego }: {
     <div style={{ width: 34, flexShrink: 0, textAlign: 'center', paddingTop: 1 }}>
       {d ? (
         <>
-          <div style={{ fontFamily: NUC.font, fontSize: 20, fontWeight: 600, lineHeight: 1, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}>{d.giorno}</div>
-          <div style={{ fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: NUC.faint, marginTop: 4 }}>{d.mese}</div>
+          <div style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 800, lineHeight: 1, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}>{d.giorno}</div>
+          <div style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 3 }}>{d.mese}</div>
         </>
       ) : (
         <div style={{ fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.06em', color: NUC.faint, paddingTop: 5 }}>{ripiego ?? '—'}</div>
@@ -327,7 +327,7 @@ export function SegnaleCarico({ variazione, record, primo, massimale }: {
   const unita = variazione?.unita === 'colpi' ? t('colpi') : 'kg'
   const etichetta = (testo: string) => (
     <span style={{
-      padding: '2px 6px', borderRadius: 6,
+      padding: '2px 6px', borderRadius: 0,
       background: 'color-mix(in srgb, var(--j-accent) 16%, transparent)', color: 'var(--j-accent-ink)',
       fontFamily: NUC.label, fontSize: 9.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
     }}>{testo}</span>
@@ -358,10 +358,13 @@ export function SegnaleCarico({ variazione, record, primo, massimale }: {
 // vista su ogni riga, a un dito l'uno dall'altro: due bersagli da 26px ripetuti
 // per ogni alzata, per due gesti che si fanno di rado. Dietro i puntini la riga
 // resta una riga, e il cestino non è più il vicino di casa della matita.
-export function MenuAzioni({ etichetta, azioni }: {
+export function MenuAzioni({ etichetta, azioni, grande }: {
   /** Cosa dice il tasto al lettore di schermo ("Azioni sull'alzata"). */
   etichetta: string
   azioni: Array<{ nome: string; icona: ReactNode; pericolo?: boolean; onClick: () => void }>
+  /** Il quadratino da 44 col bordo, per la testata di una pagina. Senza, i tre
+   *  puntini nudi in fondo a una riga. */
+  grande?: boolean
 }) {
   const [aperto, setAperto] = useState(false)
   const guscio = useRef<HTMLDivElement>(null)
@@ -387,18 +390,21 @@ export function MenuAzioni({ etichetta, azioni }: {
       <button
         onClick={() => setAperto(a => !a)}
         aria-label={etichetta} aria-haspopup="menu" aria-expanded={aperto}
-        className="j-hit j-focus flex items-center justify-center"
-        style={{
+        className={grande ? 'j-hard j-focus flex items-center justify-center' : 'j-hit j-focus flex items-center justify-center'}
+        style={grande ? {
+          width: 44, height: 44, cursor: 'pointer',
+          background: aperto ? 'var(--surface-2)' : 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
+        } : {
           width: 30, height: 30, borderRadius: 'var(--radius-sm)', cursor: 'pointer',
           background: aperto ? 'var(--surface-2)' : 'transparent', border: 'none', color: NUC.faint,
         }}
       >
-        <Icons.dots size={18}/>
+        <Icons.dots size={18} style={grande ? { transform: 'rotate(90deg)' } : undefined}/>
       </button>
       {aperto && (
         <div ref={menu} role="menu" style={{
           position: 'absolute', top: '100%', right: 0, zIndex: 30, marginTop: 4, minWidth: 156,
-          background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 'var(--radius)',
+          background: 'var(--surface-menu)', border: 'var(--bordo)', borderRadius: 'var(--radius)',
           boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
         }}>
           {azioni.map((a, i) => (
@@ -410,6 +416,9 @@ export function MenuAzioni({ etichetta, azioni }: {
                 padding: '12px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
                 borderTop: i === 0 ? 'none' : '1px solid var(--divider)',
                 fontFamily: NUC.font, fontSize: 14, color: a.pericolo ? 'var(--danger)' : NUC.ink,
+                // Una riga sola: il menù è largo quanto la voce più lunga, non
+                // quanto il tasto da cui si apre.
+                whiteSpace: 'nowrap',
               }}
             >
               <span style={{ display: 'flex', flexShrink: 0 }}>{a.icona}</span>

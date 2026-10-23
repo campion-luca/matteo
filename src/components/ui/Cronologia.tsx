@@ -33,7 +33,7 @@ const TESTATA: CSSProperties = {
   background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
 }
 
-export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c => c, anni: conAnni = true }: {
+export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c => c, anni: conAnni = true, riquadro, intestazione }: {
   /** Già nell'ordine in cui vanno lette dentro un mese (di solito dalla più recente). */
   voci: readonly T[]
   /** La data ISO della voce ("2026-09-23"); `undefined` per le voci senza giorno. */
@@ -51,6 +51,13 @@ export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c 
    *  porta l'anno accanto al nome, così il giorno che ce ne saranno due non si
    *  confondono. */
   anni?: boolean
+  /** Tutti i mesi in un riquadro solo, col bordo d'inchiostro, e ogni mese con
+   *  la sua fascia grigia in testa (rebranding, ott 2026). Solo con `anni`
+   *  spento. Chiuso, un mese dice "SETTEMBRE · 2 SESSIONI". */
+  riquadro?: boolean
+  /** Nel riquadro, a destra della fascia di un mese APERTO: il nome della
+   *  colonna di destra delle righe ("1RM"). */
+  intestazione?: string
 }) {
   const t = useT()
   const { anni, senzaData } = perAnnoEMese(voci, dataDi)
@@ -83,6 +90,58 @@ export function Cronologia<T>({ voci, dataDi, chiaveDi, conta, voce, gruppo = c 
     )
   }
   const questAnno = new Date().getFullYear()
+
+  if (riquadro && !conAnni) {
+    const mesi = anni.flatMap(a => a.mesi)
+    return (
+      <div style={{ background: 'var(--surface)', border: 'var(--bordo)' }}>
+        {mesi.map((m, i) => {
+          const meseAperto = aperto(m.chiave)
+          const nome = `${fmtMese(m.mese)}${m.anno !== questAnno ? ` ${m.anno}` : ''}`
+          return (
+            <div key={m.chiave}>
+              <button
+                onClick={() => cambia(m.chiave)} aria-expanded={meseAperto} className="j-focus"
+                style={{
+                  ...TESTATA, minHeight: 40, padding: '0 14px',
+                  background: 'var(--surface-2)', borderTop: i === 0 ? 'none' : '1px solid var(--line)',
+                  borderBottom: meseAperto ? '1px solid var(--line)' : 'none',
+                  fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.ink,
+                }}
+              >
+                <span>{meseAperto ? nome : `${nome} · ${conta(m.voci.length)}`}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: NUC.faint }}>
+                  {meseAperto && intestazione}
+                  {!(meseAperto && intestazione) && (
+                    <span style={{ display: 'flex', transform: meseAperto ? 'rotate(-90deg)' : 'rotate(90deg)', transition: 'transform .2s' }}>
+                      <Icons.chev size={13} stroke={2.2}/>
+                    </span>
+                  )}
+                </span>
+              </button>
+              {meseAperto && elenco(m.voci)}
+            </div>
+          )
+        })}
+        {senzaData.length > 0 && (
+          <div>
+            <button
+              onClick={() => cambia(SENZA_DATA)} aria-expanded={aperto(SENZA_DATA)} className="j-focus"
+              style={{
+                ...TESTATA, minHeight: 40, padding: '0 14px', background: 'var(--surface-2)',
+                borderTop: mesi.length ? '1px solid var(--line)' : 'none',
+                fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.ink,
+              }}
+            >
+              <span>{t('Senza data')} · {conta(senzaData.length)}</span>
+              <Freccia aperto={aperto(SENZA_DATA)}/>
+            </button>
+            {aperto(SENZA_DATA) && elenco(senzaData)}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>

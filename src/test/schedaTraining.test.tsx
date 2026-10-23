@@ -462,8 +462,9 @@ describe('allenamento: le aggiunte di settembre', () => {
     // E prima di cominciare, sul dettaglio.
     expect(screen.getByText(/Non fai questa scheda da 21 giorni/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /inizia allenamento/i }))
-    expect(screen.getByText('Dopo lo stop')).toBeInTheDocument()
-    expect(screen.getByText(/farai più fatica a sollevare questi carichi/)).toBeInTheDocument()
+    // Il perché in breve, coi giorni: «Dopo lo stop · 21 gg».
+    expect(screen.getByText(/Dopo lo stop · 2\d gg/)).toBeInTheDocument()
+    expect(screen.getByText(/farai più fatica del solito/)).toBeInTheDocument()
     expect(screen.queryByText('Puoi salire')).not.toBeInTheDocument()
   })
 

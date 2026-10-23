@@ -1,11 +1,10 @@
 // ── La settimana, sotto il saluto ──────────────────────────────
-// Sette giorni da lunedì a domenica: l'iniziale sopra, il numero sotto. I
-// giorni in cui ci si è allenati sono un cerchio pieno, verde (`--fatto-bg`):
-// è la cosa che la striscia esiste per dire, e si deve leggere senza cercarla.
-// Prima era un cerchio appena più chiaro del fondo con un puntino sotto, e a
-// colpo d'occhio la settimana sembrava vuota. Oggi è il cerchio pieno d'accent
-// finché non ci si allena; poi diventa verde anche lui, con un anello d'accent
-// attorno a dire che è oggi. Quelli che devono ancora venire restano spenti.
+// Sette giorni da lunedì a domenica, in un riquadro col bordo d'inchiostro:
+// il giorno in tre lettere sopra, il numero sotto, un filo fra una cella e
+// l'altra (rebranding, ott 2026). Un giorno in cui ci si è allenati ha la barra
+// d'accento sul fondo: è la cosa che la striscia esiste per dire, e si deve
+// leggere senza cercarla. Oggi è la cella piena d'inchiostro; quelli che devono
+// ancora venire restano grigi.
 //
 // La settimana del calendario e non "gli ultimi 7 giorni": "come sta andando la
 // mia settimana" si legge da lunedì.
@@ -18,9 +17,46 @@ import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { localISO, giorniTra, todayISO } from '@/lib/isoDate'
 import { ultimoAllenamento, quantoFa } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
-import { daysShort } from '@/lib/dateFormat'
+import { daysAbbr } from '@/lib/dateFormat'
 import { useT, useLang } from '@/lib/i18n'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
+
+export interface GiornoSettimana {
+  iso: string; dow: string; num: number
+  fatto: boolean; oggi: boolean; futuro: boolean
+}
+
+/** Le sette celle, senza il contenitore (che le mette in griglia, sette
+ *  colonne): le usa anche la pagina dell'allievo, dove la striscia non apre
+ *  niente. */
+export function CelleSettimana({ giorni }: { giorni: GiornoSettimana[] }) {
+  return (
+    <>
+      {giorni.map((g, i) => (
+        <span key={g.iso} data-allenato={g.fatto || undefined} data-oggi={g.oggi || undefined} style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          padding: '9px 0 6px', minWidth: 0,
+          borderLeft: i === 0 ? 'none' : '1px solid var(--line)',
+          // La barra c'è sempre, trasparente dove non serve: un giorno che
+          // diventa "fatto" non cambia misura di un pixel.
+          borderBottom: `5px solid ${g.fatto ? 'var(--j-accent)' : 'transparent'}`,
+          background: g.oggi ? 'var(--ink)' : 'transparent',
+          color: g.oggi ? 'var(--surface)' : g.futuro ? 'var(--muted-dark)' : 'var(--fg)',
+        }}>
+          <span style={{
+            fontFamily: NUC.label, fontSize: 12, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase',
+            color: g.oggi ? 'var(--surface)' : 'var(--fg-mute)',
+          }}>
+            {g.dow}
+          </span>
+          <span style={{ fontFamily: NUC.label, fontSize: 22, fontWeight: g.oggi ? 800 : 700, lineHeight: 1 }}>
+            {g.num}
+          </span>
+        </span>
+      ))}
+    </>
+  )
+}
 
 // `memo`: non ha props, quindi si ridisegna solo quando cambiano i suoi dati
 // (lo storico, la lingua) e non ogni volta che si ridisegna la home intorno.
@@ -34,10 +70,10 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
   // la costruzione di un mese di celle che quasi mai si guarda.
   const [calendarioVisto, setCalendarioVisto] = useState(false)
 
-  const giorni = useMemo(() => {
+  const giorni = useMemo<GiornoSettimana[]>(() => {
     const oggi = new Date()
     const oggiISO = localISO(oggi)
-    const DOW = daysShort(lang)
+    const DOW = daysAbbr(lang)
     const lunedi = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - ((oggi.getDay() + 6) % 7))
     const allenati = new Set<string>()
     s.palestra.forEach(ex => ex.history.forEach(h => { if (h.date) allenati.add(h.date) }))
@@ -64,36 +100,16 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
         aria-label={t('Apri il calendario degli allenamenti')}
         className="j-focus"
         style={{
-          display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', width: '100%',
+          // Un riquadro solo, bianco, col bordo d'inchiostro; dentro sette celle
+          // divise da un filo. Oggi è la cella piena d'inchiostro, un giorno
+          // fatto ha la barra d'accento sul fondo della sua cella.
+          display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', width: '100%',
           padding: 0, margin: fermoDa !== null && fermoDa >= 2 ? '0 0 9px' : '0 0 clamp(10px, 1.8dvh, 16px)',
-          background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit',
+          background: 'var(--surface)', border: 'var(--bordo)', cursor: 'pointer', color: 'inherit',
+          overflow: 'hidden',
         }}
       >
-        {giorni.map(g => (
-          <div key={g.iso} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.04em', color: 'var(--fg-mute)' }}>
-              {/* Una lettera sola (L M M G V S D): la posizione basta a
-                  distinguere i due M, e con due lettere la riga si affolla. */}
-              {g.dow.charAt(0).toUpperCase()}
-            </span>
-            <span data-allenato={g.fatto || undefined} style={{
-              width: 'clamp(32px, 9vw, 38px)', aspectRatio: '1 / 1', borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: NUC.font, fontSize: 'clamp(13px, 3.8vw, 15px)', fontWeight: g.oggi || g.fatto ? 700 : 500,
-              background: g.fatto ? 'var(--fatto-bg)' : g.oggi ? 'var(--j-accent)' : 'transparent',
-              // Il bordo c'è sempre, trasparente dove non serve: così un giorno
-              // che diventa "fatto" non cambia misura di un pixel.
-              border: `1px solid ${g.fatto ? 'var(--fatto-bordo)' : 'transparent'}`,
-              color: g.fatto ? 'var(--fg)' : g.oggi ? 'var(--j-accent-fg)' : g.futuro ? 'var(--fg-mute)' : 'var(--fg)',
-              // Outline e non box-shadow: Premium spegne ogni ombra, e l'anello
-              // sparirebbe con loro (come nel calendario).
-              outline: g.oggi && g.fatto ? '2px solid var(--j-accent)' : undefined,
-              outlineOffset: g.oggi && g.fatto ? 2 : undefined,
-            }}>
-              {g.num}
-            </span>
-          </div>
-        ))}
+        <CelleSettimana giorni={giorni}/>
       </button>
       {fermoDa !== null && fermoDa >= 2 && (
         <div style={{

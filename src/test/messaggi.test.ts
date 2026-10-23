@@ -150,7 +150,7 @@ describe('quando è arrivato', () => {
   })
 
   it('di ieri lo dice a parole', () => {
-    expect(fmtQuando(new Date(2026, 8, 17, 23, 40).toISOString(), adesso)).toBe('ieri 23:40')
+    expect(fmtQuando(new Date(2026, 8, 17, 23, 40).toISOString(), adesso)).toBe('ieri • 23:40')
   })
 
   it('“ieri” è il giorno di calendario, non 24 ore', () => {
@@ -161,7 +161,7 @@ describe('quando è arrivato', () => {
   })
 
   it('più indietro mostra il giorno', () => {
-    expect(fmtQuando(new Date(2026, 8, 12, 18, 30).toISOString(), adesso)).toBe('12/09 18:30')
+    expect(fmtQuando(new Date(2026, 8, 12, 18, 30).toISOString(), adesso)).toBe('12/09 • 18:30')
   })
 
   it('una data che non si legge esce com’è invece di dire NaN', () => {

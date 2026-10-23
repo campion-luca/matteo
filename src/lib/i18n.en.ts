@@ -219,6 +219,9 @@ export const EN_UI: Record<string, string> = {
   'Uomo': 'Male',
   'Donna': 'Female',
   '{n} anni': '{n} years',
+  // L'unità piccola accanto all'età, nei dati del profilo.
+  'anni': 'years',
+  'Si calcola dalla data di nascita': 'Worked out from your date of birth',
   'Avanti': 'Next',
   'Iniziamo': 'Let’s go',
 
@@ -269,7 +272,6 @@ export const EN_UI: Record<string, string> = {
   // ── Personal Coach ───────────────────────────────────────────
   // Le tre card in cima: chi allena te, chi alleni tu, e i messaggi. "Seguiti"
   // qui sono le persone che si allenano con te, non il "follow" dei social.
-  'Coach': 'Coach',
   'Seguiti': 'Athletes',
   '1 allievo': '1 athlete',
   '{n} allievi': '{n} athletes',
@@ -286,11 +288,7 @@ export const EN_UI: Record<string, string> = {
   'Nuovo codice': 'New code',
   'Copiato': 'Copied',
   'Tocca per copiare · scade il {data}': 'Tap to copy · expires on {data}',
-  'Chi vede i tuoi allenamenti': 'Who can see your workouts',
-  'Nessuno. I tuoi dati sono solo tuoi.': 'No one. Your data is yours alone.',
   'Collega un allievo': 'Connect an athlete',
-  'Chiedi il codice a chi vuoi seguire: lo genera dalla sua app, in questa stessa schermata.':
-    'Ask the person you want to coach for their code: they generate it in their app, on this same screen.',
   'CODICE': 'CODE',
   'Collega': 'Connect',
   'I tuoi allievi': 'Your athletes',
@@ -306,10 +304,7 @@ export const EN_UI: Record<string, string> = {
   'Togliere dalla lista?': 'Remove from the list?',
   'Non vedrai più gli allenamenti di {chi}. Per rientrare servirà un codice nuovo.':
     'You’ll no longer see workouts from {chi}. Getting back in will take a new code.',
-  'Questa persona': 'This person',
   'questa persona': 'this person',
-  'questo allenatore': 'this coach',
-  'questo allievo': 'this athlete',
   'Questa persona non ha ancora salvato nulla.': 'This person hasn’t saved anything yet.',
   'Schede assegnate': 'Assigned plans',
   'Condividi la scheda': 'Share plan',
@@ -333,10 +328,11 @@ export const EN_UI: Record<string, string> = {
   'ieri': 'yesterday',
   '{n} gg fa': '{n}d ago',
   'Note sugli esercizi': 'Exercise notes',
-  'Nessuna scritta': 'None written',
   '1 scritta': '1 written',
   '{n} scritte': '{n} written',
-  'Volume per settimana': 'Volume per week',
+  'Volume / settimana': 'Volume / week',
+  'kg totali': 'total kg',
+  'su 100': 'out of 100',
   'Peso': 'Weight',
   '{kg} kg oggi': '{kg} kg today',
   'Forza per distretto': 'Strength by body area',
@@ -347,7 +343,6 @@ export const EN_UI: Record<string, string> = {
   'Sessioni o gare': 'Sessions or races',
   'Nessun tempo in gara': 'No race time',
   '{n} in tutto': '{n} in total',
-  'chili · serie × colpi': 'kg · sets × reps',
   'Migliori alzate': 'Best lifts',
   'Nessuna nota': 'No note',
   'Modifica': 'Edit',
@@ -359,10 +354,8 @@ export const EN_UI: Record<string, string> = {
   'Colpi': 'Reps',
 
   // ── Home ─────────────────────────────────────────────────────
-  'La tua settimana': 'Your week',
   'Registra un’alzata: qui vedrai squat, panca piana e stacco da terra.':
     'Log a lift: your squat, bench press and deadlift will show up here.',
-  'Total': 'Total',
   '{r}× il tuo peso': '{r}× your body weight',
   '{r}× peso': '{r}× body weight',
   'Mai allenato': 'Never trained',
@@ -395,8 +388,7 @@ export const EN_UI: Record<string, string> = {
   'Solleva 100 kg in una singola serie.': 'Lift 100 kg in a single set.',
   'Light weight baby': 'Light weight baby',
   'Cento alzate di schiena. Light weight, baby!': 'A hundred back lifts. Light weight, baby!',
-  'Registra {target} alzate di dorso (ne hai {fatte}).':
-    'Log {target} back lifts (you have {fatte}).',
+  'Registra {target} alzate di dorso.': 'Log {target} back lifts.',
 
   // ── Palestra ─────────────────────────────────────────────────
   'Pesi': 'Weights',
@@ -418,8 +410,13 @@ export const EN_UI: Record<string, string> = {
 
   // ── Dettaglio esercizio ──────────────────────────────────────
   'Nuova alzata': 'New lift',
-  'Reset alzate': 'Reset lifts',
-  'Svuota lo storico, tieni l’esercizio': 'Clear the history, keep the exercise',
+  'Azioni sull’esercizio': 'Exercise actions',
+  'Svuota lo storico': 'Clear the history',
+  'Registra la prima alzata qui sotto.': 'Log your first lift below.',
+  'Migliore': 'Best',
+  // La sigla resta quella: "one-rep max" anche in italiano.
+  '1RM': '1RM',
+  '1RM stimato': 'Estimated 1RM',
   'Storico': 'History',
   '1 sessione': '1 session',
   '{n} sessioni': '{n} sessions',
@@ -434,7 +431,7 @@ export const EN_UI: Record<string, string> = {
   'kg stim.': 'kg est.',
   'Alzata': 'Lift',
   'Andamento': 'Progress',
-  'Visualizza grafico andamento': 'View progress chart',
+  'Grafico completo': 'Full chart',
   'Registra almeno 2 alzate per vedere i grafici': 'Log at least 2 lifts to see the charts',
   'Servono almeno 2 sessioni per visualizzare i grafici': 'Charts need at least 2 sessions',
   'Miglior alzata': 'Best lift',
@@ -449,7 +446,7 @@ export const EN_UI: Record<string, string> = {
   'Note': 'Notes',
   'Le tue': 'Yours',
   'Note dell’esercizio': 'Exercise notes',
-  'Esecuzione, modalità…': 'Execution, method…',
+  'Esecuzione, modalità, sensazioni…': 'Execution, method, feel…',
 
   // ── Statistiche ──────────────────────────────────────────────
   'Volume per muscolo': 'Volume per muscle',
@@ -494,19 +491,29 @@ export const EN_UI: Record<string, string> = {
   'Nome scheda (es. Upper A)': 'Plan name (e.g. Upper A)',
   'Esercizio {n}': 'Exercise {n}',
   'superset': 'superset',
-  'collegato': 'linked',
+  // Da dove viene l'esercizio scelto per una riga della scheda.
+  'dalla libreria': 'from your library',
+  'nuovo esercizio': 'new exercise',
   'Sposta su': 'Move up',
   'Sposta giù': 'Move down',
   'Nome esercizio': 'Exercise name',
   'Scegli il gruppo…': 'Choose group…',
   'Nota': 'Note',
   '(opzionale)': '(optional)',
-  'Testo': 'Text',
+  'facoltativa': 'optional',
+  'Tempo, presa, attrezzo…': 'Tempo, grip, equipment…',
+  'Ripetizioni': 'Reps',
+  '1 serie': '1 set',
+  // I tasti − e + accanto a serie e ripetizioni, per il lettore di schermo.
+  '{cosa}: uno in meno': '{cosa}: one less',
+  '{cosa}: uno in più': '{cosa}: one more',
   // Dopo un allenamento, nel dettaglio della scheda: cosa è finito nello storico.
   'Allenamento salvato': 'Workout saved',
   'Tocca un’alzata per correggere i chili o i colpi.': 'Tap a lift to correct its weight or reps.',
-  'In superset con il prossimo': 'In superset with the next one',
-  'Superset con il prossimo': 'Superset with the next one',
+  'Fino a cedimento': 'To failure',
+  'Ripetizioni massime invece di un numero fisso': 'As many reps as you can instead of a set number',
+  'Superset col successivo': 'Superset with the next one',
+  'Nessun recupero tra questo e il prossimo': 'No rest between this one and the next',
   'Aggiungi esercizio': 'Add exercise',
   'Manca il nome della scheda': 'The plan name is missing',
   'Aggiungi almeno un esercizio con un nome': 'Add at least one named exercise',
@@ -523,7 +530,10 @@ export const EN_UI: Record<string, string> = {
   'Inizia allenamento': 'Start workout',
   '{fatti}/{tot} esercizi completati': '{fatti}/{tot} exercises completed',
   'obiettivo': 'target',
-  'ultima volta': 'last time',
+  'Ultima volta: {alzata}': 'Last time: {alzata}',
+  'Uguale su tutte le serie': 'Same on every set',
+  'Rip': 'Reps',
+  'rip': 'reps',
   'uguale': 'same',
   'Serie {n}': 'Set {n}',
   'serie': 'sets',
@@ -566,8 +576,9 @@ export const EN_UI: Record<string, string> = {
   'Figura': 'Figure',
   'Crea gruppo': 'Create group',
   'Chiudi il profilo': 'Close profile',
-  'Pesati ogni mattina appena sveglio, a stomaco vuoto: è l’unico modo perché due misure siano confrontabili. Conta la direzione, non il numero di oggi.':
-    'Weigh yourself every morning right after waking up, on an empty stomach: it’s the only way two readings can be compared. What counts is the direction, not today’s number.',
+  'Pesata di oggi': 'Today’s weigh-in',
+  'Ogni mattina, appena sveglio, a stomaco vuoto. Conta la direzione, non il numero.':
+    'Every morning, right after waking up, on an empty stomach. The direction counts, not the number.',
   'Distanza': 'Distance',
   'Nessuna sessione da {dist}': 'No {dist} sessions',
   'nessuna sessione': 'no sessions',
@@ -583,9 +594,6 @@ export const EN_UI: Record<string, string> = {
   'allenamento': 'workout',
   'dal tuo profilo': 'from your profile',
   'Servono almeno {n} segmenti registrati': 'At least {n} logged segments needed',
-  'Nessuna sessione': 'No sessions',
-  '1 giornata': '1 training day',
-  '{n} giornate': '{n} training days',
   // La legenda dei quadratini: uno per giorno della settimana.
   'allenato': 'trained',
   'carico sceso': 'load down',
@@ -698,45 +706,18 @@ export const EN_UI: Record<string, string> = {
   'Peso di oggi in kg': 'Today’s weight in kg',
   'Registra': 'Log',
   '{d} kg dalla prima delle {n} pesate': '{d} kg since the first of {n} weigh-ins',
-  'Serve una seconda pesata per vedere la direzione.':
-    'It takes a second weigh-in to see the direction.',
-  'Nessuna pesata registrata.': 'No weigh-ins logged.',
+  'Con una seconda pesata qui compare la direzione.': 'With a second weigh-in, the direction shows up here.',
+  'Registra la prima pesata: dalla seconda qui compare la direzione.':
+    'Log your first weigh-in: from the second one, the direction shows up here.',
 
   // ── Lingua ───────────────────────────────────────────────────
   'Lingua': 'Language',
-  'La lingua dell’app. I nomi che hai scritto tu restano come li hai scritti.':
-    'The app’s language. Names you typed yourself stay just as you wrote them.',
   'Impostare la lingua su {lingua}?': 'Set the language to {lingua}?',
   'Tutta l’app passa in {lingua}. Puoi tornare indietro da qui quando vuoi.':
     'The whole app switches to {lingua}. You can switch back from here any time.',
   'Sì, cambia lingua': 'Yes, change language',
 
   // ── Aspetto ──────────────────────────────────────────────────
-  'Cambio tema': 'Change theme',
-  'Dark mode': 'Dark mode',
-  'Fondo scuro e inchiostro chiaro.': 'Dark background and light ink.',
-  'Tema colore': 'Colour theme',
-  'Sospeso dal layout {layout} — torna attivo con Standard.':
-    'Paused by the {layout} layout — back on with Standard.',
-  'Journal': 'Journal',
-  'Rosa': 'Rose',
-  'Malva': 'Mauve',
-  'scuro': 'dark',
-  'Cambio layout': 'Change layout',
-  'Sfondo fuso': 'Blended background',
-  'Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.':
-    'Black, orange and blue-grey blended into one another instead of just the warm glows. Applies to dark themes.',
-  'Standard': 'Standard',
-  'I colori del tema scelto sopra.': 'The colours of the theme chosen above.',
-  'Premium': 'Premium',
-  'Sempre scuro: superfici piene, dati in grigio e un solo colore per i tasti. Ignora l’interruttore chiaro/scuro.':
-    'Always dark: solid surfaces, data in grey and a single colour for buttons. Ignores the light/dark switch.',
-  'Neon': 'Neon',
-  'Quasi nero con un solo accento lime, per progressi e tasti principali.':
-    'Near-black with a single lime accent, for progress and main buttons.',
-  'Logbook': 'Logbook',
-  'Scuro e sobrio: verde per serie fatte e record, blu per le azioni secondarie.':
-    'Dark and plain: green for completed sets and records, blue for secondary actions.',
   // La conferma che compare in testata a ogni modifica (vedi `useSalvato`).
   'Salvato': 'Saved',
 
@@ -751,8 +732,6 @@ export const EN_UI: Record<string, string> = {
 
   // ── Svuota le alzate ─────────────────────────────────────────
   'Memoria delle alzate': 'Lift history',
-  'Azzera lo storico di tutti gli esercizi e riparti da zero. Esercizi, schede, dati personali e pesate restano dove sono.':
-    'Reset the history of every exercise and start from scratch. Exercises, plans, personal data and weigh-ins stay where they are.',
   'Svuota 1 alzata': 'Clear 1 lift',
   'Svuota {n} alzate': 'Clear {n} lifts',
   'tutte le alzate': 'all lifts',
@@ -785,8 +764,13 @@ export const EN_UI: Record<string, string> = {
   'I tuoi allenamenti': 'Your workouts',
   'settimana di fila': 'week in a row',
   'settimane di fila': 'weeks in a row',
-  '1 giorno di allenamento': '1 training day',
-  '{n} giorni di allenamento': '{n} training days',
+  // Accanto alla serie, i giorni di allenamento del mese che si sta guardando.
+  'giorno a {mese}': 'day in {mese}',
+  'giorni a {mese}': 'days in {mese}',
+  'selezionato': 'selected',
+  'Apri': 'Open',
+  'Apri le schede del giorno': 'Open the day’s plans',
+  'Chiudi le schede del giorno': 'Close the day’s plans',
   'Nessun allenamento registrato.': 'No workouts logged.',
   'Tocca un giorno per vedere cosa hai fatto.': 'Tap a day to see what you did.',
   'Non ti sei allenato': 'You didn’t train',
@@ -794,7 +778,6 @@ export const EN_UI: Record<string, string> = {
   'Apri il calendario degli allenamenti': 'Open the workout calendar',
   'Massimali ipotetici': 'Estimated maxes',
   'Il total compare con tutte e tre le alzate': 'The total appears once all three lifts are in',
-  'Riepilogo complessivo': 'Overall summary',
 
   // ── Schede: modalità modifica ────────────────────────────────
   'Modifica elenco': 'Edit list',
@@ -804,7 +787,6 @@ export const EN_UI: Record<string, string> = {
   // ── Richieste su una scheda condivisa ────────────────────────
   'Richieste a {chi}': 'Requests to {chi}',
   'Chiedi all’allenatore': 'Ask your coach',
-  'Torna alla scheda': 'Back to plan',
   'Chiedi quello che ti serve sotto l’esercizio che riguarda: {chi} lo legge e risponde da qui. La scheda resta com’è finché non la cambia chi te l’ha mandata.':
     'Ask what you need under the exercise it’s about: {chi} reads it and replies from here. The plan stays as it is until the person who sent it changes it.',
   'Sulla scheda': 'About the plan',
@@ -823,8 +805,6 @@ export const EN_UI: Record<string, string> = {
   'Rispondi su': 'Reply about',
   'Scrivi la risposta…': 'Write your reply…',
   'Le richieste non si possono leggere adesso. Riprova più tardi.': 'Requests can’t be loaded right now. Try again later.',
-  'Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Seguiti” o in “Coach”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
-    'No conversations. To message someone, tap their name under “Athletes” or “Coach”; anyone who receives a plan from you can also ask for info or a replacement from the question mark at the top of the plan.',
 
   // ── Chat diretta, avvisi e notifiche push ──
   'Conversazioni': 'Conversations',
@@ -932,8 +912,6 @@ export const EN_UI: Record<string, string> = {
     'You only sign out of this device. Anything not yet saved to the cloud, and a workout left half done, stay here: you’ll find them when you sign back in on this phone. You need a connection to sign back in.',
   'Esci': 'Sign out',
   'La rete non risponde. Riprova fra poco.': 'The network isn’t responding. Try again shortly.',
-  'Scarica un file con allenamenti, schede e pesate: una copia tua, fuori dall’app.':
-    'Download a file with your workouts, plans and weigh-ins: your own copy, outside the app.',
   'Scrivi a {chi}': 'Message {chi}',
   'scheda': 'plan',
   'correzione': 'correction',
@@ -970,7 +948,6 @@ export const EN_UI: Record<string, string> = {
   '{n} in calo': '{n} down',
   'primo allenamento': 'first workout',
   'carichi invariati': 'same loads',
-  'Dal coach': 'From coach',
   'Creata da te': 'Created by you',
   'Nome della scheda': 'Plan name',
   'Storico allenamenti': 'Workout history',
@@ -1013,7 +990,6 @@ export const EN_UI: Record<string, string> = {
   '{n} tempi mancanti: totale parziale': '{n} times missing: partial total',
   'Apri un giorno per vederne le alzate, poi toccane una per correggere chili, colpi o nota.': 'Open a day to see its lifts, then tap one to correct its weight, reps or note.',
   'Senza data': 'No date',
-  'ultimo {giorno}': 'last on {giorno}',
   'L’ultima volta {fatte} serie su {serie}: meglio scendere.': 'Last time {fatte} of {serie} sets: better to go lighter.',
   'L’ultima volta una serie sotto i {n} colpi: meglio scendere.': 'Last time one set under {n} reps: better to go lighter.',
   'L’ultima volta hai dovuto alleggerire: riparti più basso.': 'Last time you had to drop the weight: start lower.',
@@ -1025,7 +1001,7 @@ export const EN_UI: Record<string, string> = {
   'L’ultima volta le ultime serie sono salite e hanno retto: oggi tutte a {kg} kg.': 'Last time the last sets went up and held: today all of them at {kg} kg.',
   'L’ultima volta l’ultima serie è salita e ha retto: oggi {alte} serie su {serie} a {kg} kg.': 'Last time the last set went up and held: today {alte} of {serie} sets at {kg} kg.',
   'Ripeti i carichi dell’ultima volta.': 'Repeat last time’s loads.',
-  'Dopo lo stop': 'After the break',
+  'Dopo lo stop · {n} gg': 'After the break · {n} days',
   'Esercizio nuovo': 'New exercise',
   'Muscolo già stanco': 'Muscle already tired',
   'Lo fai da poco: per le prime due settimane resta su questi carichi e cura l’esecuzione. Del peso si riparla dopo.': 'You’ve only just started it: for the first two weeks stay on these loads and focus on technique. The weight can wait.',
@@ -1077,7 +1053,7 @@ export const EN_UI: Record<string, string> = {
   'Salta': 'Skip',
   'Tempo di recuperare e registrare la serie.': 'Time to rest and log the set.',
   'Elimina gruppo': 'Delete group',
-  'Non lo fai da {n} giorni: probabilmente farai più fatica a sollevare questi carichi, visto lo stop. Riparti da qui senza salire.': 'You haven’t done it for {n} days: after the break, these loads will probably feel harder. Restart from here without going up.',
+  'Probabilmente farai più fatica del solito. Riparti da qui, senza salire.': 'It will probably feel harder than usual. Restart from here, without going up.',
   'La scheda è cambiata dall’ultima volta: riparti dai carichi che avevi.': 'The plan has changed since last time: restart from the loads you had.',
   'Non fai questa scheda da {n} giorni: probabilmente farai più fatica con i carichi dell’ultima volta.': 'You haven’t done this plan for {n} days: last time’s loads will probably feel harder.',
   '{n} giorni fa': '{n} days ago',
@@ -1106,7 +1082,7 @@ export const EN_UI: Record<string, string> = {
 
   // ── Carosello dei gruppi muscolari ──
   'Ultima volta: {data}': 'Last time: {data}',
-  'Vedi a carosello': 'View as carousel',
+  'Vedi a riquadri': 'View as tiles',
 
   // ── Due allenamenti a confronto (vista allenatore) ──
   'Scegli due allenamenti': 'Pick two workouts',
@@ -1136,4 +1112,112 @@ export const EN_UI: Record<string, string> = {
   'con nota': 'with a note',
   'da completare': 'incomplete',
   'Fatto': 'Done',
+
+  // ── Coaching: codici, facce e profili ──
+  'Codici': 'Codes',
+  'Ci si collega con un codice: lo genera chi si fa seguire, e lo inserisce chi lo segue.':
+    'You connect with a code: the person being coached generates it, and the coach enters it.',
+  'Cosa vuoi fare?': 'What do you want to do?',
+  'Farmi seguire': 'Get coached',
+  'Genero il mio codice': 'I generate my code',
+  'Seguire qualcuno': 'Coach someone',
+  'Inserisco il suo codice': 'I enter their code',
+  'Ti segue già {chi}.': '{chi} is already coaching you.',
+  'Chiedi il codice a chi vuoi seguire: lo genera dalla sua app, dalla chiave in alto a destra del Coaching.':
+    'Ask the person you want to coach for their code: they generate it in their app, from the key at the top right of Coaching.',
+  'Vai ai seguiti': 'Go to your athletes',
+  'Nessuna conversazione. Per scrivere a qualcuno aprilo da “Coaching” o da “Seguiti”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.':
+    'No conversations. To message someone, open them from “Coaching” or “Athletes”; anyone who receives a plan from you can also ask for info or a replacement from the question mark at the top of the plan.',
+  'Lo segui dal {data}': 'You’ve coached them since {data}',
+  'Nessuno ti segue.': 'No one is coaching you.',
+  'I tuoi dati sono solo tuoi. Per farti seguire genera un codice e dallo a chi ti allena: lo trovi anche nella chiave in alto a destra.':
+    'Your data is yours alone. To get coached, generate a code and give it to your coach: you’ll also find it under the key at the top right.',
+  'Profilo di {chi}': '{chi}’s profile',
+  'Chiedi il codice a chi vuoi seguire e inseriscilo qui: lo genera dalla sua app.':
+    'Ask the person you want to coach for their code and enter it here: they generate it in their app.',
+  'Inserisci un codice': 'Enter a code',
+  'Personal trainer': 'Personal trainer',
+  'Si allena dal': 'Training since',
+  '1 anno': '1 year',
+  'Focus principali': 'Main focus',
+  'Chi è': 'About',
+  'Formazione e certificazioni': 'Education and certifications',
+  'Esperienze': 'Experience',
+  'Obiettivi': 'Goals',
+  'Percorso': 'Background',
+  'Infortuni e limitazioni': 'Injuries and limitations',
+  '{chi} non ha ancora compilato il profilo.': '{chi} hasn’t filled in their profile yet.',
+  'Torna al profilo': 'Back to profile',
+  'Profilo pubblico': 'Public profile',
+  'Quello che vedono il tuo coach e chi segui': 'What your coach and your athletes see',
+  'Cambia la foto': 'Change photo',
+  'Aggiungi una foto': 'Add a photo',
+  'Profilo salvato.': 'Profile saved.',
+  'Serve l’accesso per avere un profilo.': 'Sign in to have a profile.',
+  'Così ti vede chi ti segue e chi segui. Quello che non hai ancora salvato qui c’è già, a loro arriva col salvataggio.':
+    'This is how your coach and your athletes see you. Anything you haven’t saved yet already shows here; they’ll see it once you save.',
+  'Tu': 'You',
+  'Torna a modificare': 'Back to editing',
+  'Lo vedono solo il tuo coach e le persone che segui. Se cambi coach, quello nuovo trova già qui chi sei e da dove arrivi.':
+    'Only your coach and the people you coach can see it. If you change coach, the new one already finds here who you are and where you come from.',
+  'Cambia foto': 'Change photo',
+  'Aggiungi foto': 'Add photo',
+  'Togli': 'Remove',
+  'Viene ridotta a un quadrato piccolo prima di partire: non rallenta niente.':
+    'It’s shrunk to a small square before upload: it doesn’t slow anything down.',
+  'Cognome': 'Surname',
+  'Il tuo cognome': 'Your surname',
+  'Ti alleni dal': 'Training since',
+  'Separati da virgole.': 'Comma separated.',
+  'es. ipertrofia, forza, Hyrox': 'e.g. hypertrophy, strength, Hyrox',
+  'Chi sei': 'About you',
+  'Due righe su di te.': 'A couple of lines about you.',
+  'Alleni altre persone?': 'Do you coach other people?',
+  'Sì, sono un personal trainer': 'Yes, I’m a personal trainer',
+  'Studi, corsi, certificazioni.': 'Studies, courses, certifications.',
+  'Dove hai lavorato, chi hai seguito.': 'Where you’ve worked, who you’ve coached.',
+  'Dove vuoi arrivare.': 'Where you want to get to.',
+  'Il tuo percorso': 'Your background',
+  'Sport fatti, pause, come sei arrivato fin qui.': 'Sports you’ve done, breaks, how you got here.',
+  'Quello che chi ti allena deve sapere.': 'What your coach needs to know.',
+  'Anteprima': 'Preview',
+  'Scegli un’immagine.': 'Choose an image.',
+  'Questa immagine non si apre.': 'This image can’t be opened.',
+  'L’anno in cui hai cominciato va scritto per intero, fra il 1940 e oggi.':
+    'Write the full year you started, between 1940 and today.',
+
+  // ── Home: la scheda di oggi ──
+  'Tutte': 'All',
+  'Nessuna scheda. Scrivine una: da qui ti dirà ogni giorno quale tocca.': 'No plans yet. Write one: from here it will tell you which one is up each day.',
+  'Crea una scheda': 'Create a plan',
+  'Oggi · {scheda} · fatta': 'Today · {scheda} · done',
+  'Oggi · {scheda}': 'Today · {scheda}',
+  'mai fatta': 'never done',
+  'ultima volta {quando}': 'last time {quando}',
+  'esercizio': 'exercise',
+  'esercizi': 'exercises',
+  'minuti': 'minutes',
+  'Fatta oggi · apri la scheda': 'Done today · open the plan',
+
+  // ── Statistiche (rebranding) ──
+  'Dettagli': 'Details',
+  'Settimana di fila': 'Week in a row',
+  'Settimane di fila': 'Weeks in a row',
+  'Sessioni {n}/7': 'Sessions {n}/7',
+
+  // ── Dettaglio della scheda (rebranding) ──
+  'Da {chi}': 'From {chi}',
+  'gg': 'd',
+  'Superset · nessun recupero tra i due': 'Superset · no rest between the two',
+  'Superset · nessun recupero tra loro': 'Superset · no rest between them',
+
+  // ── Impostazioni (rebranding) ──
+  'Generale': 'General',
+  'Account': 'Account',
+  'Zona pericolosa': 'Danger zone',
+  'I nomi che hai scritto tu restano come li hai scritti.': 'Names you wrote yourself stay as you wrote them.',
+  'Allenamenti, schede e pesate in un file, fuori dall’app.': 'Workouts, plans and weigh-ins in a file, outside the app.',
+  'Tieni premuto': 'Hold to confirm',
+  'Azzera lo storico di tutti gli esercizi. Esercizi, schede, dati personali e pesate restano dove sono.':
+    'Clears the history of every exercise. Exercises, plans, personal data and weigh-ins stay where they are.',
 }

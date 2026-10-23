@@ -21,7 +21,7 @@ const alle = (ora: number, giorno = new Date(2026, 9, 8)) => {
   vi.setSystemTime(new Date(giorno.getFullYear(), giorno.getMonth(), giorno.getDate(), ora, 30))
 }
 const conNome = (userName: string) => useJarvisStore.setState({ ...EMPTY_STATE, userName }, true)
-// Quanti `em` il componente dice che occupa la riga più lunga: 0,57 a carattere.
+// Quanti `em` il componente dice che occupa la riga più lunga: 0,5 a carattere (Barlow Condensed 800 in maiuscolo).
 const larghezza = (c: HTMLElement) => Number(c.querySelector<HTMLElement>('.j-saluto')!.style.getPropertyValue('--saluto-em'))
 
 beforeEach(() => { localStorage.clear() })
@@ -40,12 +40,12 @@ describe('il saluto in testata', () => {
     // «Buon pomeriggio,» sono sedici caratteri, «Luca.» cinque.
     alle(15)
     conNome('Luca')
-    expect(larghezza(render(<SalutoHeader {...azioni()}/>).container)).toBeCloseTo(0.57 * 16)
+    expect(larghezza(render(<SalutoHeader {...azioni()}/>).container)).toBeCloseTo(0.5 * 16)
     cleanup()
     // La mattina la formula è corta: con un nome lungo comanda il nome.
     alle(9)
     conNome('Maria Vittoria')
-    expect(larghezza(render(<SalutoHeader {...azioni()}/>).container)).toBeCloseTo(0.57 * 15)
+    expect(larghezza(render(<SalutoHeader {...azioni()}/>).container)).toBeCloseTo(0.5 * 15)
   })
 
   it('un nome oltre il limite, salvato prima che ci fosse, non rimpicciolisce tutto: conta fino al limite', () => {
@@ -55,7 +55,7 @@ describe('il saluto in testata', () => {
     // Il nome c'è per intero — a tagliarlo coi puntini è la riga — ma nel conto
     // vale quanto il più lungo che oggi si possa scrivere.
     expect(container.querySelectorAll('.j-saluto-riga')[1]).toHaveTextContent('Giovanni Battista Maria.')
-    expect(larghezza(container)).toBeCloseTo(0.57 * (NOME_MAX + 1))
+    expect(larghezza(container)).toBeCloseTo(0.5 * (NOME_MAX + 1))
   })
 
   it('la formula del 2 giugno è troppo lunga per una riga: va a capo lei, non il nome', () => {
@@ -65,7 +65,7 @@ describe('il saluto in testata', () => {
     expect(screen.getByText('Buona Festa della Repubblica,')).not.toHaveClass('j-saluto-riga')
     expect(container.querySelectorAll('.j-saluto-riga')).toHaveLength(1)
     // E non stringe il corpo oltre quello che serve a una formula normale.
-    expect(larghezza(container)).toBeCloseTo(0.57 * 20)
+    expect(larghezza(container)).toBeCloseTo(0.5 * 20)
   })
 
   it('senza nome resta una frase sola', () => {
@@ -99,14 +99,17 @@ describe('la settimana in testata', () => {
     expect(container.querySelectorAll('[data-allenato]')).toHaveLength(0)
   })
 
-  it('il giorno in cui ci si è allenati è pieno, nel verde del "fatto"', () => {
+  it('il giorno in cui ci si è allenati ha la barra d’accent sotto', () => {
     useJarvisStore.setState({ ...EMPTY_STATE, palestraExercises: oggiAllenato }, true)
     const { container } = render(<SettimanaStrip/>)
     const pieni = container.querySelectorAll<HTMLElement>('[data-allenato]')
     expect(pieni).toHaveLength(1)
     expect(pieni[0]).toHaveTextContent(String(new Date().getDate()))
-    expect(pieni[0].style.background).toContain('--fatto-bg')
-    // È oggi: l'anello d'accent attorno lo dice ancora, anche se il fondo è verde.
-    expect(pieni[0].style.outline).toContain('--j-accent')
+    expect(pieni[0].style.borderBottom).toContain('--j-accent')
+    // È oggi: la cella è anche piena d'inchiostro, e le due cose si vedono insieme.
+    expect(pieni[0]).toHaveAttribute('data-oggi')
+    expect(pieni[0].style.background).toContain('--ink')
+    // Il giorno in tre lettere, come sul calendario di carta.
+    expect(container).toHaveTextContent(/lun.*mar.*mer.*gio.*ven.*sab.*dom/i)
   })
 })

@@ -9,9 +9,10 @@
 // I calcoli sono gli STESSI della propria scheda (gymModel, gymStrength): due
 // formule diverse per "quanto sei forte" a seconda di chi guarda sarebbero due
 // app che non si parlano.
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
+import { CelleSettimana, type GiornoSettimana } from '@/features/dashboard/SettimanaStrip'
 import { Icons } from '@/components/ui/Icons'
 import { LineChart } from '@/features/gym/gymShared'
 import { entryVolume, fmtVol, fmtKg, fmtReps, displayMuscle } from '@/features/gym/gymModel'
@@ -22,7 +23,7 @@ import { quotaCorpo, corpoLibero } from '@/features/gym/catalogo'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
-import { fmtDayMonth, fmtShortDate, daysShort } from '@/lib/dateFormat'
+import { fmtDayMonth, daysAbbr } from '@/lib/dateFormat'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { NotaCoach } from '@/lib/coach'
@@ -34,16 +35,13 @@ interface Sessione {
   alzate: Array<{ ex: string; muscle: string; h: PalestraHistoryEntry }>
 }
 
-export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessioni, onApriGrafici, onApriNote }: {
+export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApriGrafici, onApriNote }: {
   data: AthleteData
   /** Le schede assegnate, già montate da chi le sa scrivere. Arrivano come slot e
    *  non come dati perché questa è una vista: legge e disegna, non salva niente.
    *  Qui si decide solo DOVE stanno — subito sotto la settimana, che è la prima
    *  cosa che un allenatore guarda, e prima di tutto il resto, che è storia. */
   slotSchede?: ReactNode
-  /** Il tasto che apre la chat con questa persona. Come `slotSchede`: lo monta
-   *  chi sa cosa fa; qui si decide solo dove sta — sotto le tre porte. */
-  slotChat?: ReactNode
   /** Quante note ho scritto: sta sul bottone, così si sa se dentro c'è qualcosa. */
   note?: number
   /** Apre la pagina delle sessioni, giornata per giornata. */
@@ -89,15 +87,17 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
   const settimana = useMemo(() => {
     // Le iniziali dei giorni seguono la lingua scelta: `lang` è in coda alle
     // dipendenze, quindi al cambio lingua la settimana si ricalcola.
-    const DOW = daysShort(lang)
+    const DOW = daysAbbr(lang)
     const oggi = new Date()
     const oggiISO = localISO(oggi)
     const lunedì = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - ((oggi.getDay() + 6) % 7))
     const fatti = new Set(sessioni.map(s => s.date))
-    const giorni = Array.from({ length: 7 }, (_, i) => {
+    // Le stesse celle della striscia in home: chi allena legge la settimana
+    // dell'allievo come legge la sua.
+    const giorni: GiornoSettimana[] = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(lunedì.getFullYear(), lunedì.getMonth(), lunedì.getDate() + i)
       const iso = localISO(d)
-      return { iso, dow: DOW[i], num: d.getDate(), trained: fatti.has(iso), futuro: iso > oggiISO }
+      return { iso, dow: DOW[i], num: d.getDate(), fatto: fatti.has(iso), oggi: iso === oggiISO, futuro: iso > oggiISO }
     })
     const daLunedì = sessioni.filter(s => s.date >= giorni[0].iso && s.date <= oggiISO)
     return {
@@ -129,9 +129,14 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
 
   // ── Migliori alzate per distretto ────────────────────────────
   const distretti = useMemo(
-    () => districtStrength(palestra, peso, data.userSex).filter(d => d.level > 0),
+    () => districtStrength(palestra, peso, data.userSex).filter(d => d.level > 0).sort((a, b) => b.score - a.score),
     [palestra, peso, data.userSex],
   )
+  // Il distretto più indietro, in accento: è quello su cui lavorare. Solo se è
+  // davvero indietro — sotto metà scala — o in un allievo equilibrato si
+  // accenderebbe un 90 come se fosse un problema.
+  const indietro = distretti.length > 1 && distretti[distretti.length - 1].score < 50
+    ? distretti[distretti.length - 1].muscle : null
 
   // ── Le migliori alzate in assoluto ───────────────────────────
   // Senza gli esercizi a corpo libero. Lì il "carico" è il peso di chi li fa:
@@ -144,7 +149,8 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
   // cioè i tre numeri che dell'alzata si leggono. Prima contava il massimale
   // stimato, che è un numero calcolato e che nessuno ha alzato: accanto a ogni
   // riga c'era "72 kg" per una panca fatta a 60. Di ogni esercizio entra una
-  // sola alzata, la sua migliore, e si vedono le prime cinque.
+  // sola alzata, la sua migliore, e si vedono le prime tre: le altre sono nei
+  // grafici, dietro "Tutte".
   const migliori = useMemo(() => {
     return palestra
       .filter(ex => ex.history.length > 0 && !corpoLibero(ex))
@@ -154,7 +160,7 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
         return { nome: ex.n, muscle: displayMuscle(ex.muscle), h: top, lavoro: entryVolume(top, p) }
       })
       .sort((a, b) => b.lavoro - a.lavoro)
-      .slice(0, 5)
+      .slice(0, 3)
   }, [palestra, peso])
 
   const ultimoAllenamento = sessioni[0]?.date
@@ -170,188 +176,199 @@ export function CoachAthlete({ data, slotSchede, slotChat, note = 0, onApriSessi
     )
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+  const ultimo = giorniFa === null ? '—' : giorniFa === 0 ? t('oggi') : giorniFa === 1 ? t('ieri') : t('{n} gg fa', { n: giorniFa })
+  const fermo = giorniFa !== null && giorniFa > GIORNI_DI_STOP
+  const porte = [
+    onApriSessioni && { icona: <Icons.list size={16} stroke={1.9}/>, n: sessioni.length, label: t('Sessioni'), onClick: onApriSessioni },
+    onApriGrafici && { icona: <Icons.chart size={16} stroke={1.9}/>, n: conStorico, label: t('Grafici'), onClick: onApriGrafici },
+    onApriNote && { icona: <Icons.pencil size={16} stroke={1.9}/>, n: note, label: t('Note'), onClick: onApriNote },
+  ].filter(Boolean) as Array<{ icona: ReactNode; n: number; label: string; onClick: () => void }>
 
-      {/* ── Colpo d'occhio ─────────────────────────────────── */}
-      <div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+
+      {/* ── Questa settimana: i sette giorni, e sotto quante volte e quando ── */}
+      <section>
         <NucEyebrow>{t('Questa settimana')}</NucEyebrow>
-        <NucCard pad={14}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {settimana.giorni.map(g => (
-              <div key={g.iso} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', color: 'var(--fg-mute)', textTransform: 'uppercase' }}>{g.dow}</div>
-                <div style={{
-                  width: 26, height: 26, borderRadius: 'var(--radius-sm)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: g.trained ? 'var(--j-accent)' : 'transparent',
-                  border: `1px solid ${g.trained ? 'var(--j-accent)' : 'var(--hairline)'}`,
-                  color: g.trained ? 'var(--j-accent-fg)' : (g.futuro ? 'var(--fg-mute)' : 'var(--fg-soft)'),
-                  fontFamily: NUC.label, fontSize: 11,
-                  opacity: g.futuro ? 0.45 : 1,
-                }}>{g.num}</div>
-              </div>
-            ))}
+        <div style={RIQUADRO}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: 'var(--bordo)' }}>
+            <CelleSettimana giorni={settimana.giorni}/>
           </div>
-          <div style={{ display: 'flex', gap: 18, borderTop: '1px solid var(--divider)', paddingTop: 12 }}>
-            {/* Il volume settimanale non c'è più: "20 kg" o "12.400 kg" non dice
-                niente a chi guarda un allievo — non ha un metro con cui
-                confrontarlo, e cambia coi chili spostati, non con l'impegno. Al
-                suo posto, sotto, c'è il confronto col solito di QUESTA persona. */}
-            <Tile k={t('Allenamenti')} v={String(settimana.sessioni)}/>
-            <Tile
-              k={t('Ultimo')}
-              v={giorniFa === null ? '—' : giorniFa === 0 ? t('oggi') : giorniFa === 1 ? t('ieri') : t('{n} gg fa', { n: giorniFa })}
-              allarme={giorniFa !== null && giorniFa > GIORNI_DI_STOP}
-            />
+          {/* Il volume settimanale non c'è: "12.400 kg" non dice niente a chi
+              guarda un allievo — non ha un metro con cui confrontarlo, e cambia
+              coi chili spostati, non con l'impegno. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+            <Numero v={String(settimana.sessioni)} k={t('Allenamenti')}/>
+            <Numero v={ultimo} k={t('Ultimo')} allarme={fermo} style={{ borderLeft: 'var(--bordo)' }}/>
           </div>
-          {/* Oltre la soglia lo si dice per esteso: è il dato che cambia cosa
-              scrivere a questa persona, e un "14 gg fa" fra due numeri si perde. */}
-          {giorniFa !== null && giorniFa > GIORNI_DI_STOP && (
-            <div role="note" style={{
-              marginTop: 12, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-              background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
-              fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--warn)',
-            }}>
-              {t('Non si allena da {n} giorni: alla ripresa farà più fatica con i carichi di prima.', { n: giorniFa })}
+        </div>
+        {/* Oltre la soglia lo si dice per esteso: è il dato che cambia cosa
+            scrivere a questa persona, e un "14 gg fa" fra due numeri si perde. */}
+        {fermo && (
+          <div role="note" style={{
+            marginTop: 10, padding: '10px 12px', background: 'var(--surface)', border: '2px solid var(--j-accent)',
+            fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: 'var(--fg)',
+          }}>
+            {t('Non si allena da {n} giorni: alla ripresa farà più fatica con i carichi di prima.', { n: giorniFa })}
+          </div>
+        )}
+      </section>
+
+      {/* ── Le schede assegnate, e sotto le tre porte ─────────────
+          Sessioni, grafici e note: ciascuna col suo numero, e dietro una
+          pagina sua. Erano bottoni con una riga di testo ("22 giornate"); il
+          numero grande si legge prima. Una a zero resta grigia: lì dentro non
+          c'è ancora niente. */}
+      {(slotSchede || porte.length > 0) && (
+        <section>
+          {slotSchede}
+          {porte.length > 0 && (
+            <div style={{ ...RIQUADRO, display: 'grid', gridTemplateColumns: `repeat(${porte.length}, minmax(0, 1fr))` }}>
+              {porte.map((p, i) => (
+                <button
+                  key={p.label} onClick={p.onClick} aria-label={`${p.label}: ${p.n}`}
+                  className="j-riga-gruppo j-focus"
+                  style={{
+                    minWidth: 0, padding: '12px 12px 13px', textAlign: 'left', cursor: 'pointer',
+                    background: 'transparent', border: 'none', borderLeft: i === 0 ? 'none' : '1px solid var(--line)',
+                    display: 'flex', flexDirection: 'column', gap: 10, color: NUC.ink,
+                  }}
+                >
+                  <span style={{ display: 'flex' }}>{p.icona}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 30, fontWeight: 800, lineHeight: 1, color: p.n === 0 ? 'var(--muted-dark)' : NUC.ink }}>{p.n}</span>
+                    <span style={{ ...ETICHETTA, display: 'block', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
+                  </span>
+                </button>
+              ))}
             </div>
           )}
-        </NucCard>
-      </div>
-
-      {slotSchede}
-
-      {/* Le note dietro un bottone. Erano una sezione lunga in mezzo alla pagina
-          — l'elenco di TUTTI gli esercizi — e spingeva sotto la piega i grafici e
-          la forza, che sono il colpo d'occhio. Dietro un bottone ci si va quando
-          serve, e la pagina resta leggibile.
-
-          Qui accanto c'era anche "Ultimo allenamento", ed è sceso in fondo, di
-          fianco a Sessioni: è una lettura del diario, non una scheda a parte, e
-          in cima competeva per lo sguardo con le note, che sono una scrittura. */}
-      {/* Sessioni e note, due porte affiancate. Le sessioni erano una tendina
-          in fondo alla pagina che mostrava una giornata per volta: adesso hanno
-          una pagina loro, dove ogni giornata si confronta con la sua scheda. */}
-      {/* Tre adesso: in mezzo i grafici, esercizio per esercizio. Le etichette
-          sono una parola sola — "Note" e non "Note sugli esercizi" — perché in un
-          terzo di schermo la frase intera finiva troncata coi puntini. */}
-      {(onApriSessioni || onApriGrafici || onApriNote) && (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${[onApriSessioni, onApriGrafici, onApriNote].filter(Boolean).length}, minmax(0, 1fr))`, gap: 8 }}>
-          {onApriSessioni && (
-            <BottonePagina
-              icon={<Icons.list size={20} stroke={1.6}/>}
-              label={t('Sessioni')}
-              sotto={sessioni.length === 0 ? t('Nessuna sessione') : sessioni.length === 1 ? t('1 giornata') : t('{n} giornate', { n: sessioni.length })}
-              onClick={onApriSessioni}
-            />
-          )}
-          {onApriGrafici && (
-            <BottonePagina
-              icon={<Icons.chart size={20} stroke={1.6}/>}
-              label={t('Grafici')}
-              sotto={conStorico === 1 ? t('1 esercizio') : t('{n} esercizi', { n: conStorico })}
-              onClick={onApriGrafici}
-            />
-          )}
-          {onApriNote && (
-            <BottonePagina
-              icon={<Icons.pencil size={20} stroke={1.6}/>}
-              label={t('Note')}
-              sotto={note === 0 ? t('Nessuna scritta') : note === 1 ? t('1 scritta') : t('{n} scritte', { n: note })}
-              onClick={onApriNote}
-            />
-          )}
-        </div>
+        </section>
       )}
-
-      {slotChat}
 
       {/* ── Volume nel tempo ───────────────────────────────── */}
       {volumeSettimane.some(w => w.volume > 0) && (
-        <div>
-          <NucEyebrow>{t('Volume per settimana')}</NucEyebrow>
-          <NucCard pad={12}>
+        <section>
+          <NucEyebrow right={<span style={UNITA}>{t('kg totali')}</span>}>{t('Volume / settimana')}</NucEyebrow>
+          <div style={{ ...RIQUADRO, padding: 12 }}>
             <LineChart
               data={volumeSettimane.map(w => w.volume)}
               labels={volumeSettimane.map(w => w.label)}
               pointLabels={volumeSettimane.map(w => fmtVol(w.volume))}
-              height={112} color="var(--j-accent)" yAxis labelSize={9}
+              height={112} color="var(--ink)" yAxis labelSize={9}
               yFormat={v => fmtVol(v)}
             />
-          </NucCard>
-        </div>
+          </div>
+        </section>
       )}
 
       {/* ── Peso ───────────────────────────────────────────── */}
       {pesate.length >= 2 && (
-        <div>
-          <NucEyebrow right={<span style={{ textTransform: 'none' }}>{t('{kg} kg oggi', { kg: pesate[pesate.length - 1].kg })}</span>}>{t('Peso')}</NucEyebrow>
-          <NucCard pad={12}>
+        <section>
+          <NucEyebrow right={<span style={UNITA}>{t('{kg} kg oggi', { kg: pesate[pesate.length - 1].kg })}</span>}>{t('Peso')}</NucEyebrow>
+          <div style={{ ...RIQUADRO, padding: 12 }}>
             <LineChart
               data={pesate.map(p => p.kg)}
               labels={pesate.map(p => fmtDayMonth(p.date))}
               pointLabels={pesate.map(p => String(p.kg))}
-              height={112} color="var(--chart-2)" yAxis labelSize={9}
+              height={112} color="var(--ink)" yAxis labelSize={9}
               yFormat={v => v.toFixed(1)}
             />
-          </NucCard>
-        </div>
+          </div>
+        </section>
       )}
 
       {/* ── Forza per distretto ────────────────────────────── */}
       {distretti.length > 0 && (
-        <div>
-          <NucEyebrow>{t('Forza per distretto')}</NucEyebrow>
-          <NucCard pad={14}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {distretti.map(d => (
-                <div key={d.muscle} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 13, color: 'var(--fg)' }}>{tData(d.muscle)}</span>
+        <section>
+          <NucEyebrow right={<span style={UNITA}>{t('su 100')}</span>}>{t('Forza per distretto')}</NucEyebrow>
+          <div style={{ ...RIQUADRO, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {distretti.map(d => {
+              const acceso = d.muscle === indietro
+              return (
+                <div key={d.muscle} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ width: 'clamp(68px, 22vw, 96px)', flexShrink: 0, fontFamily: NUC.font, fontSize: 13.5, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(d.muscle)}</span>
                   {/* La barra è il punteggio 0–100, la stessa scala della mappa
                       del corpo: 100 = "forte" per QUEL distretto, così i numeri
                       di gambe e bicipiti si confrontano davvero. */}
-                  <span style={{ width: 84, height: 6, background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-pill)', overflow: 'hidden', flexShrink: 0 }}>
-                    <span style={{ display: 'block', height: '100%', width: `${d.score}%`, background: 'var(--j-accent)', borderRadius: 'var(--radius-pill)' }}/>
+                  <span aria-hidden style={{ flex: 1, minWidth: 0, height: 10, background: 'var(--line)' }}>
+                    <span style={{ display: 'block', height: '100%', width: `${Math.min(100, Math.max(0, d.score))}%`, background: acceso ? 'var(--j-accent)' : 'var(--ink)' }}/>
                   </span>
                   <span style={{
-                    width: 26, textAlign: 'right', flexShrink: 0,
-                    fontFamily: NUC.label, fontSize: 13, fontVariantNumeric: 'tabular-nums',
-                    color: 'var(--j-accent-ink)',
+                    width: 34, textAlign: 'right', flexShrink: 0,
+                    fontFamily: NUC.display, fontSize: 19, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                    color: acceso ? 'var(--j-accent-ink)' : NUC.ink,
                   }}>{d.score}</span>
                 </div>
-              ))}
-            </div>
-          </NucCard>
-        </div>
+              )
+            })}
+          </div>
+        </section>
       )}
 
       {/* ── Migliori alzate ────────────────────────────────── */}
       {migliori.length > 0 && (
-        <div>
-          <NucEyebrow right={<span style={{ textTransform: 'none' }}>{t('chili · serie × colpi')}</span>}>{t('Migliori alzate')}</NucEyebrow>
-          <NucCard pad={0}>
+        <section>
+          <NucEyebrow right={onApriGrafici ? (
+            <button onClick={onApriGrafici} className="j-focus" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, minHeight: 32,
+              background: 'none', border: 'none', cursor: 'pointer',
+              font: 'inherit', fontSize: 14, letterSpacing: 'inherit', textTransform: 'inherit', color: 'inherit',
+            }}>
+              {t('Tutte')} <Icons.arrow size={15} stroke={2.2}/>
+            </button>
+          ) : undefined}>{t('Migliori alzate')}</NucEyebrow>
+          <div style={RIQUADRO}>
             {migliori.map((m, i) => (
               <div key={m.nome} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px',
-                borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
+                display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+                borderTop: i === 0 ? 'none' : '1px solid var(--line)',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(m.nome)}</div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: 'var(--fg-mute)', marginTop: 2 }}>
-                    {tData(m.muscle)}{m.h.date ? ` · ${fmtShortDate(m.h.date)}` : ''}
+                  <div style={{ fontFamily: NUC.font, fontSize: 14.5, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(m.nome)}</div>
+                  <div style={{ ...ETICHETTA, marginTop: 3 }}>
+                    {tData(m.muscle)}{m.h.date ? ` · ${fmtDayMonth(m.h.date)}` : ''}
                   </div>
                 </div>
                 {/* Quello che è stato alzato davvero: i chili, e sotto serie × colpi. */}
                 <div style={{ flexShrink: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 14, fontWeight: 600, color: 'var(--j-accent-ink)', whiteSpace: 'nowrap' }}>{fmtKg(m.h)}</div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: 'var(--fg-mute)', marginTop: 1, whiteSpace: 'nowrap' }}>{m.h.sets_n} × {fmtReps(m.h)}</div>
+                  <div style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 800, lineHeight: 1, color: NUC.ink, whiteSpace: 'nowrap' }}>{chiliGrandi(fmtKg(m.h))}</div>
+                  <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 700, color: NUC.faint, marginTop: 3, whiteSpace: 'nowrap' }}>{m.h.sets_n} × {fmtReps(m.h)}</div>
                 </div>
               </div>
             ))}
-          </NucCard>
-        </div>
+          </div>
+        </section>
       )}
 
+    </div>
+  )
+}
+
+// Il riquadro di ogni sezione: bianco, col bordo d'inchiostro.
+const RIQUADRO: CSSProperties = { background: 'var(--surface)', border: 'var(--bordo)' }
+// L'etichetta sotto un numero, e la riga piccola sotto un nome.
+const ETICHETTA: CSSProperties = { fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-mute)' }
+// L'unità di misura in cima a una sezione ("kg totali", "su 100"): sta dove le
+// altre sezioni hanno il loro link, ma piccola e grigia, perché non si tocca.
+const UNITA: CSSProperties = { fontSize: 12, letterSpacing: '.1em', color: 'var(--fg-mute)' }
+
+/** "75 kg" → il numero grande e l'unità piccola; "BW +25 kg" resta intero. Lo
+ *  spazio resta, così il testo della riga è ancora "75 kg". */
+function chiliGrandi(testo: string): ReactNode {
+  const m = testo.match(/^(.*)\s(kg)$/)
+  return m ? <>{m[1]} <span style={{ fontSize: '.46em', fontWeight: 700, color: NUC.faint, textTransform: 'uppercase' }}>{m[2]}</span></> : testo
+}
+
+/** Un numero grande con la sua etichetta sotto: "3 / ALLENAMENTI". */
+function Numero({ v, k, allarme, style }: { v: string; k: string; allarme?: boolean; style?: CSSProperties }) {
+  return (
+    <div style={{ minWidth: 0, padding: '12px 14px 13px', ...style }}>
+      <div style={{
+        fontFamily: NUC.display, fontSize: 30, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase',
+        color: allarme ? 'var(--j-accent-ink)' : NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{v}</div>
+      <div style={{ ...ETICHETTA, marginTop: 5 }}>{k}</div>
     </div>
   )
 }
@@ -508,47 +525,6 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
       </NucCard>
       </TendinaGruppo>
       ))}
-    </div>
-  )
-}
-
-// Un bottone che apre una pagina: icona, nome, e sotto lo stato di ciò che
-// contiene. È la stessa forma delle card del menù impostazioni — due controlli
-// affiancati che portano altrove — e la freccia in alto è quello che li fa
-// leggere come collegamenti invece che come etichette.
-function BottonePagina({ icon, label, sotto, onClick }: {
-  icon: ReactNode; label: string; sotto: string; onClick: () => void
-}) {
-  return (
-    <button onClick={onClick} className="j-hard" style={{
-      padding: '14px 12px', borderRadius: 'var(--radius)', textAlign: 'left',
-      background: 'var(--surface)', border: '1px solid var(--hairline)',
-      display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, cursor: 'pointer',
-    }}>
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ color: 'var(--j-accent-ink)', display: 'flex' }}>{icon}</span>
-        <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', flexShrink: 0 }}/>
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{
-          display: 'block', fontFamily: NUC.label, fontSize: 10, fontWeight: 600,
-          letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{label}</span>
-        <span style={{
-          display: 'block', fontFamily: NUC.font, fontSize: 11.5, color: 'var(--fg-mute)',
-          marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{sotto}</span>
-      </span>
-    </button>
-  )
-}
-
-function Tile({ k, v, allarme }: { k: string; v: string; allarme?: boolean }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 3 }}>{k}</div>
-      <div style={{ fontFamily: NUC.font, fontSize: 19, fontWeight: 500, letterSpacing: -0.4, color: allarme ? 'var(--warn)' : 'var(--fg)' }}>{v}</div>
     </div>
   )
 }

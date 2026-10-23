@@ -75,6 +75,12 @@ export function daysShort(lang: Lang = getLang()): readonly string[] {
   return DAYS_SHORT[lang]
 }
 
+/** "lun" · "mar" … "dom" ("Mon" … "Sun"): le prime tre lettere del nome, da
+ *  lunedì. Per la settimana in home, che le scrive in maiuscolo. */
+export function daysAbbr(lang: Lang = getLang()): readonly string[] {
+  return DAYS_LONG[lang].map(g => g.slice(0, 3))
+}
+
 
 // Indice 0-11 del mese di una data ISO (`-1` se la stringa non è una data).
 function monthIndex(iso: string): number {
@@ -129,7 +135,7 @@ export function fmtDayMonth(iso: string): string {
 
 
 
-/** "14:32" · "ieri 14:32" · "19/08 14:32" — quando è arrivato un messaggio.
+/** "14:32" · "ieri • 14:32" · "19/08 • 14:32" — quando è arrivato un messaggio.
  *
  *  Tre forme e non una perché in una conversazione la distanza che conta cambia
  *  col tempo: di oggi si vuole l'ora, di ieri si vuole sapere che era ieri, e più
@@ -148,6 +154,8 @@ export function fmtQuando(iso: string, adesso = new Date()): string {
   const giorno = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
   const scarto = Math.round((giorno(adesso) - giorno(d)) / 86_400_000)
   if (scarto === 0) return ora
-  if (scarto === 1) return `${getLang() === 'en' ? 'yesterday' : 'ieri'} ${ora}`
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${ora}`
+  // Un pallino fra il giorno e l'ora: "12/09 18:30", tutto cifre, si leggeva
+  // come un numero solo.
+  if (scarto === 1) return `${getLang() === 'en' ? 'yesterday' : 'ieri'} • ${ora}`
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} • ${ora}`
 }

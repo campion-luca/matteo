@@ -5,8 +5,8 @@
 //
 // Logica pura: l'elenco la disegna (vedi SchedeListPage), i conti si provano qui.
 import type { GymScheda, GymSchedaExercise, PalestraExercise } from '@/store/useJarvisStore'
-import { colpiPrevisti, displayMuscle } from './gymModel'
-import { localISO } from '@/lib/isoDate'
+import { colpiPrevisti, displayMuscle, ultimaVoltaPerScheda } from './gymModel'
+import { localISO, giorniTra } from '@/lib/isoDate'
 
 /** Il recupero fra una serie e l'altra: un minuto e mezzo, lo stesso del timer
  *  dell'allenamento (vedi TimerRecupero). Lo ha fissato chi usa l'app. */
@@ -150,4 +150,44 @@ export function schedePerMese<T extends { id: string }>(
       const [anno, mese] = chiave ? chiave.split('-').map(Number) : [null, null]
       return { chiave: chiave || 'senza-data', anno, mese: mese === null ? null : mese - 1, schede: lista }
     })
+}
+
+// ── La scheda di oggi ──────────────────────────────────────────
+// La home mostra UNA scheda, quella da fare oggi. Le schede non hanno un
+// giorno della settimana: si girano (A, B, C, poi di nuovo A), e la prossima
+// del giro è quella che non si fa da più tempo. Prima ancora quelle mai fatte,
+// nell'ordine dell'elenco: una scheda nuova è la prossima da provare.
+// Se oggi una scheda è già stata fatta, è lei la scheda di oggi — fatta.
+
+export interface SchedaDiOggi {
+  scheda: GymScheda
+  /** Oggi è già stata fatta. */
+  fattaOggi: boolean
+  /** Da quanti giorni non la si fa. `null` se mai. */
+  giorniFa: number | null
+}
+
+/** `schede` nell'ordine dell'elenco (quelle del coach prima, poi le proprie). */
+export function schedaDiOggi(schede: GymScheda[], palestra: PalestraExercise[], oggi: string): SchedaDiOggi | null {
+  // Le bozze no: sono lavoro lasciato a metà, non cose su cui allenarsi. E
+  // nemmeno una scheda senza un esercizio scritto.
+  const valide = schede.filter(sc => !sc.draft && sc.exercises.some(e => e.name.trim()))
+  if (!valide.length) return null
+  const ultime = ultimaVoltaPerScheda(palestra)
+  const fatta = valide.find(sc => ultime.get(sc.id) === oggi)
+  if (fatta) return { scheda: fatta, fattaOggi: true, giorniFa: 0 }
+  let scelta = valide[0]
+  let quando = ultime.get(scelta.id) ?? null
+  for (const sc of valide.slice(1)) {
+    if (quando === null) break
+    const q = ultime.get(sc.id) ?? null
+    if (q === null || q < quando) { scelta = sc; quando = q }
+  }
+  return { scheda: scelta, fattaOggi: false, giorniFa: quando === null ? null : Math.max(0, giorniTra(quando, oggi)) }
+}
+
+/** Quante serie ha la scheda in tutto: la somma delle righe con un nome, con lo
+ *  stesso tetto per riga della stima della durata. */
+export function serieDellaScheda(scheda: GymScheda): number {
+  return scheda.exercises.reduce((n, r) => n + (r.name.trim() ? Math.min(SERIE_MAX, Math.max(1, Math.floor(r.sets) || 1)) : 0), 0)
 }

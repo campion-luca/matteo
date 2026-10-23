@@ -1,5 +1,5 @@
-/* I font (Inter + Fraunces, quest'ultimo solo per il saluto in home) sono caricati via <link> in index.html
-   con preconnect: evita il doppio download e il render-blocking dell'@import. */
+/* I font (Barlow e Barlow Condensed) sono caricati via <link> in index.html con
+   preconnect: evita il doppio download e il render-blocking dell'@import. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,129 +7,96 @@
 /* ── Office / Paper design tokens ──────────────────────────────── */
 :root {
   /* Fa adattare i controlli nativi (calendario di input[type=date], orologio di
-     input[type=time], scrollbar) al tema. Senza, in dark mode il calendario del
-     browser resta bianco. */
+     input[type=time], scrollbar) al tema, che è uno solo e chiaro. */
   color-scheme: light;
 
-  /* Backgrounds — tema "Journal" (light = copertina aperta, carta) */
-  --bg:        #e9e3d4;   /* carta di fondo pagina */
-  --surface:   #f7f3e8;   /* carta chiara delle card */
-  --surface-2: #efe8d8;
-  --input-bg:  #fcfaf3;
+  /* ── Colori (rebranding, ott 2026) ─────────────────────────────
+     Un tema solo. Cemento, bianco, inchiostro e UN accento rosso-arancio. Erano
+     quattro layout per tre palette per chiaro e scuro, e ogni tasto andava
+     guardato in una dozzina di combinazioni; i colori erano diventati tanti, e
+     due coppie (l'oro dei tasti e l'arancio degli avvisi, il salmone di
+     "elimina" e il rame dei titoli) si somigliavano fino a confondersi. */
+  --bg:        #F1F1EF;   /* fondo pagina, grigio cemento, tinta unita */
+  --surface:   #FFFFFF;   /* card, righe, chip */
+  --surface-2: #F1F1EF;   /* fondo dei controlli dentro una card bianca */
+  --input-bg:  #FFFFFF;
 
-  /* Paper grain texture */
-  --paper-grain:
-    radial-gradient(120% 80% at 80% -10%, rgba(255,255,255,.5), transparent 60%),
-    repeating-linear-gradient(0deg, transparent 0 27px, rgba(42,36,24,.045) 27px 28px);
+  /* Niente texture né aloni: il fondo è una tinta unita. Il token resta perché
+     lo nominano i contenitori, e "nessuna immagine" è una risposta valida. */
+  --paper-grain: none;
 
-  /* Foreground */
-  --fg:      #26221b;
-  --fg-soft: #4a4436;
-  --fg-mute: #675e4a;   /* micro-label ≥AA anche sullo sfondo pagina #e9e3d4 (5.01:1); lo spec #6e6754 dava 4.40 su bg */
+  /* Inchiostro: testo, bordi, la card "Oggi", l'ombra del CTA. */
+  --ink:        #141414;
+  --fg:         #141414;
+  --fg-soft:    #3A3A38;
+  --fg-mute:    #5E5E5E;   /* secondario su chiaro: 5.7:1 sul fondo */
+  --muted-dark: #A8A8A4;   /* secondario sull'inchiostro: 7.7:1 */
+  --line:       #DCDCD8;   /* divisori dentro un blocco chiaro */
+  --line-dark:  #3A3A38;   /* divisori dentro la card nera */
 
-  /* Metallo ottone — SOLO decorativo (bordi premium, badge, divisori).
-     --brass-ink usabile come testo solo bold ≥12px (contrasto al limite su carta). */
-  --brass:      #b08a47;
-  --brass-ink:  #8a6930;
-  --kraft:      #b69b78;
+  /* Ottone e kraft erano la seconda voce del tema Journal; restano come nomi,
+     in inchiostro e grigio. */
+  --brass:      #141414;
+  --brass-ink:  #141414;
+  --kraft:      #A8A8A4;
+  /* Seconda serie dei grafici: grigio, accanto all'accento della prima. */
+  --chart-2:    #5E5E5E;
 
-  /* Seconda serie dei grafici. Esiste come token proprio perché nessuno di quelli
-     già in casa reggeva: `--brass` in dark e premium è ridefinito come
-     `var(--j-accent)`, quindi le due linee sarebbero diventate lo stesso colore
-     proprio nei temi scuri; `--kraft` sulla carta chiara sta a 2.3:1 e sparisce.
-     Qui il valore è scelto per distinguersi dall'accent in OGNI tema e per stare
-     sopra 3:1 sul fondo (la soglia dei contenuti non testuali). */
-  --chart-2:    #8a5a6e;
+  /* Stati. L'accento dice tutto ciò che chiede attenzione: il gesto principale,
+     un giorno fatto, un calo, un errore, un "elimina". Il resto è inchiostro. */
+  --ok:            #E4472B;
+  --segnale-su:      #141414;
+  --segnale-giu:     #C03A20;
+  --segnale-giu-rgb: 192,58,32;
+  --ok-soft:       #E4472B;
+  --warn:          #C03A20;
+  --danger:        #C03A20;
+  --danger-strong: #9E2C16;
+  --danger-rgb:    192,58,32;
+  --warn-rgb:      192,58,32;
 
-  /* Stato (readiness, avvisi). Anche questi hanno override in `.dark`. */
-  --ok:            #35674c;
-  /* I segnali di andamento: freccia su/giù, serie mancanti, reset. Separati da
-     --ok/--danger perché il tema premium quelli li porta a grigio e bianco, e una
-     freccia "in calo" bianca non si distingue da una "in crescita". Questi restano
-     verde e rosso in ogni tema. */
-  --segnale-su:      #2f7a4c;
-  --segnale-giu:     #b3401f;
-  --segnale-giu-rgb: 179,64,31;
-  --ok-soft:       #47775f;
-  --warn:          #8a5e1e;
-  --danger:        #ae3f25;
-  --danger-strong: #8e2e18;
-  --danger-rgb:    174,63,37;   /* tinte danger inline: rgba(var(--danger-rgb), α) */
-  --warn-rgb:      138,94,30;   /* tinte warn inline: rgba(var(--warn-rgb), α) */
+  /* Pomello dei toggle. */
+  --knob: #FFFFFF;
 
-  /* Pomello dei toggle: disco chiaro che resta chiaro anche in dark. */
-  --knob: #faf7ef;
+  --track:      #DCDCD8;
+  --scrim:      rgba(20,20,20,0.45);
 
-
-  /* Bordeaux — i prossimi impegni nella panoramica di home. Non è un accent
-     alternativo: colora un'informazione ("questo deve ancora arrivare"), quindi
-     resta fuori dal picker dei temi. In dark un bordeaux vero sparirebbe sulla
-     copertina verde, perciò lì schiarisce a rosé mantenendo la stessa tinta.
-     Contrasti sul caso peggiore (--surface-2): 6.82 in light, 4.72 in dark. */
-
-  /* Binario delle barre di avanzamento. Token e non rgba fisso: era caldo in entrambi
-     i temi e restava tale in monocromatico, dove nessun override lo raggiungeva. */
-  --track:      rgba(60,42,20,0.12);
-  /* Velo dietro ai modali (JModal) — stessa storia: era un rgba(44,36,24,.36) fisso. */
-  --scrim:      rgba(44,36,24,0.36);
-
-  /* Palette categorica calda (muscoli, picker colore).
-     Mid-tone: ogni tinta resta visibile sia su carta (#f7f3e8) sia su copertina (#1b3a2f). */
+  /* Palette categorica (muscoli, picker colore): sono dati, non stati. */
   --cat-1:  #3f7357; --cat-2:  #2f7a6b; --cat-3:  #6e7a38; --cat-4:  #557a3a;
   --cat-5:  #b0873f; --cat-6:  #c08a2e; --cat-7:  #b0562f; --cat-8:  #9e4a2c;
   --cat-9:  #a2687a; --cat-10: #8a5a6e; --cat-11: #b07a5e; --cat-12: #5f7e86;
   --cat-13: #8a7440; --cat-14: #a5442a;
 
-  /* Borders — inchiostro carta */
-  --hairline:      rgba(42,36,24,.20);
-  --hairline-soft: rgba(42,36,24,.10);
-  /* Righe che dividono DENTRO un blocco (sotto un titolo, fra testata e contenuto).
-     Token a parte perché nei temi a vetro il contorno diventa bianco pieno, e le
-     divisioni interne con lo stesso peso trasformerebbero ogni card in una griglia. */
-  --divider:       rgba(42,36,24,.20);
+  /* Bordi. `--hairline` è il contorno dei controlli (chip, tasti): inchiostro.
+     `--hairline-soft` e `--divider` le righe DENTRO un blocco: grigio chiaro. */
+  --hairline:      #141414;
+  --hairline-soft: #DCDCD8;
+  --divider:       #DCDCD8;
 
-  /* Superficie degli elementi che GALLEGGIANO sopra altro contenuto (modali, pill,
-     toast): sulla carta coincide con --surface, nei temi a vetro resta più piena
-     perché sotto non c'è il fondo ma testo da non far trasparire. */
-  --surface-pop:   #f7f3e8;
-  /* Menù a tendina che si aprono SOPRA altri campi (i suggerimenti degli
-     esercizi): pieno in ogni tema. Il vetro qui non basta — dentro una card già
-     di vetro la sfocatura non si applica, e i campi sotto si leggono attraverso. */
-  --surface-menu:  #f7f3e8;
-  /* Contorno dei tasti pieni d'accent: sulla carta nessuno (trasparente, così
-     l'ingombro è lo stesso in ogni tema), sul vetro bianco come tutto il resto. */
+  --surface-pop:   #FFFFFF;
+  --surface-menu:  #FFFFFF;
   --accent-edge:   transparent;
 
-  /* Terziario: le rifiniture — titoli di sezione, la data in home, i grassetti.
-     Il colore scelto è #C58B64 (rame caldo: ha preso il posto dell'azzurro
-     #ACC8E5, che sul nero era l'unica nota fredda di tutta l'app); sulla carta
-     chiara sta a 2.4:1 e sparirebbe, quindi qui `--tertiary-ink` (quello che si
-     usa come testo) è la stessa tinta scurita fino a 5.1:1 su --surface-2. Nei
-     temi scuri i due coincidono. */
-  --tertiary:      #C58B64;
-  --tertiary-ink:  #7D5840;
+  /* Il terziario (titoli di sezione, la data) era rame: adesso i titoli sono
+     inchiostro e le date grigie. */
+  --tertiary:      #5E5E5E;
+  --tertiary-ink:  #5E5E5E;
 
-  /* Le tre card dei comandi in home (Coaching · Schede · Statistiche): una
-     tinta a testa, presa da colori che l'app ha già — la terracotta degli aloni
-     del fondo, l'ottone, il verde delle serie fatte. Non sono il colore della
-     card: la card le MESCOLA alla propria superficie (vedi AzioniGym), così
-     restano tre carte dello stesso mazzo e non tre riquadri colorati. Ogni tema
-     ridichiara le sue. */
-  --azione-coach:  #b5583a;
-  --azione-schede: #b08a47;
-  --azione-stats:  #35674c;
+  /* Le card dei comandi in home e nel Coaching: una tinta sola, l'inchiostro. */
+  --azione-coach:  #141414;
+  --azione-schede: #141414;
+  --azione-stats:  #141414;
 
-  /* Un giorno in cui ci si è allenati, nella settimana in testata e nel
-     calendario: pieno nel verde del "fatto" (`--ok`, quello di ogni tema), ma
-     velato — è una cella con dentro un numero da leggere, non un tasto. L'oro
-     resta a dire OGGI. Mescolato al trasparente e non a una superficie, perché
-     le celle stanno su fondi diversi (la pagina, il modale). */
-  --fatto-bg:    color-mix(in srgb, var(--ok) 26%, transparent);
-  --fatto-bordo: color-mix(in srgb, var(--ok) 58%, transparent);
+  /* Un giorno fatto: la barra d'accento sotto la cella (vedi SettimanaStrip). */
+  --fatto-bg:    color-mix(in srgb, var(--j-accent) 14%, transparent);
+  --fatto-bordo: var(--j-accent);
 
   /* ── Raggi ─────────────────────────────────────────────────────
-     L'app è nata squadrata: angoli vivi ovunque, e questo token valeva 0. Adesso
-     gli angoli sono smussati come li si aspetta su un telefono.
+     Zero ovunque (rebranding, ott 2026): l'app torna squadrata come era nata.
+     I quattro token restano perché i componenti li usano per nome, e un giorno
+     potrebbero tornare a valere qualcosa. La regola di allora, per quel giorno:
+     L'app è nata squadrata: angoli vivi ovunque, e questo token valeva 0. Poi
+     gli angoli sono stati smussati come li si aspetta su un telefono.
      Quattro misure e non una, perché il raggio non è una costante ma una
      proporzione: 20px su una card la ammorbidiscono, gli stessi 20px su un tasto
      quadrato da 26px ne fanno un cerchio. Il passo è quello che si legge nelle
@@ -140,17 +107,16 @@
        sm  controlli piccoli (26–36px), chip, miniature
        pill  ciò che È una pillola — barre di avanzamento, badge, levette —
              dove il raggio deve seguire l'altezza qualunque essa sia. */
-  --radius-lg:   20px;
-  --radius:      16px;
-  --radius-sm:   12px;
-  --radius-pill: 999px;
+  --radius-lg:   0;
+  --radius:      0;
+  --radius-sm:   0;
+  --radius-pill: 0;
   /* Elevazione unica, calda e quasi invisibile (l'inchiostro carta, non il nero freddo). */
-  --shadow-card: 0 1px 2px rgba(42,36,24,.06), 0 4px 12px rgba(42,36,24,.05);
-  --shadow-pop:  0 8px 18px -8px rgba(42,36,24,.5);
+  /* Le card sono piatte: l'unica ombra dell'app è quella del CTA (vedi .j-cta). */
+  --shadow-card: none;
+  --shadow-pop:  none;
 
-  /* Rilievo delle icone della barra in basso, che non ha più uno sfondo
-     proprio: senza un'ombra resterebbero appiccicate alla carta. */
-  --nav-lift: rgba(42,36,24,.30);
+  --nav-lift: rgba(20,20,20,.30);
 
   /* Ombra offsettata (vedi .j-hard). Netta: nessuna sfocatura e tinta densa, che è
      ciò che le dà il carattere da stampa a caratteri mobili. Una versione
@@ -162,7 +128,13 @@
      Deve comunque stare più scura del fondo su cui cade: in `.dark` un nero puro
      sulla copertina verde non si vedrebbe, quindi lì diventa un verde-nero, e con
      l'alpha più alta perché su fondo scuro una velatura sparisce. */
-  --shadow-hard-col: rgba(42,36,24,.55);
+  --shadow-hard-col: #141414;
+
+  /* ── Bordi (rebranding) ────────────────────────────────────────
+     Card e righe hanno un contorno pieno d'inchiostro da 2px; i chip da 1px; le
+     divisioni DENTRO un blocco una riga sottile (`--hairline-soft`). */
+  --bordo:       2px solid var(--ink);
+  --bordo-chip:  1px solid var(--ink);
 
   /* Motion — ritmo unico in tutta l'app: una curva, due durate.
      fast = tap/hover · smooth = cambi di vista, pill scorrevoli, reveal */
@@ -170,38 +142,41 @@
   --motion-fast:   160ms;
   --motion-smooth: 280ms;
 
-  /* Typography — Inter per tutto. Fraunces resta per una cosa sola, il saluto
-     col nome in cima alla home: è la voce dell'app, non un titolo tra i tanti, e
-     se lo condividesse con le card smetterebbe di distinguersi. Titoli e corpo
-     prima usavano due caratteri (Fraunces/Inter): la gerarchia ora la fanno
-     corpo e peso, e l'app parla con una voce sola.
-     Se un titolo ti sembra chiedere il serif, non riaprire un token "display":
-     `--font-saluto` è riservato al saluto. */
-  --font-saluto:  'Fraunces', Georgia, serif;
-  --font-body:    'Inter', system-ui, sans-serif;
-  --font-label:   'Inter', system-ui, sans-serif;
+  /* Typography — due tagli della stessa famiglia (rebranding, ott 2026).
+     Barlow Condensed per tutto ciò che si legge a colpo d'occhio: titoli,
+     numeri, etichette, tasti e chip, quasi sempre in maiuscolo. Barlow per il
+     testo che si legge riga per riga: nomi degli esercizi, dettagli.
+     Erano Inter per tutto e Fraunces per il solo saluto; il saluto adesso è un
+     titolo come gli altri. */
+  --font-display: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body:    'Barlow', system-ui, sans-serif;
+  --font-label:   var(--font-display);
+  --font-saluto:  var(--font-display);
 
   /* Tailwind/shadcn compatibility tokens (HSL) — solo quelli referenziati in tailwind.config.ts. */
-  --background:         43 32% 87%;
-  --foreground:         38 17% 13%;
-  --card:               44 48% 94%;
-  --card-foreground:    38 17% 13%;
-  --primary:            157 33% 26%;
-  --primary-foreground: 103 30% 95%;
-  --border:             42 27% 78%;
+  --background:         60 6% 94%;
+  --foreground:         0 0% 8%;
+  --card:               0 0% 100%;
+  --card-foreground:    0 0% 8%;
+  --primary:            9 77% 53%;
+  --primary-foreground: 0 0% 8%;
+  --border:             0 0% 8%;
 
-  /* Accent Journal (light = verde copertina). I valori reali sono iniettati inline
-     da App.tsx sul contenitore dell'app (dipendono dalla palette scelta + dark
-     mode); questi sono i fallback usati fuori da quel contenitore (es. ErrorBoundary). */
-  --j-accent:      #2c5847;
-  --j-accent-soft: #47775f;
-  --j-accent-deep: #1c3e31;
-  /* Inchiostro SOPRA un fondo accent (crema o scuro, secondo la luminanza). */
-  --j-accent-fg:   #f2f7f0;
-  /* Accent leggibile COME TESTO sulla superficie corrente. */
-  --j-accent-ink:  #27503f;
-  --j-rgb:         44,88,71;
-  --j-deep-rgb:    28,62,49;
+  /* L'accento: rosso-arancio. Uno solo, per tutta l'app (non c'è più una palette
+     da scegliere). */
+  --j-accent:      #E4472B;
+  --j-accent-soft: #EC6A52;
+  --j-accent-deep: #C03A20;
+  /* La scritta SOPRA l'accento: bianca, su ogni tasto arancione (scelta di
+     design). Fa 4.0:1 — sopra la soglia delle scritte grandi (3:1), sotto quella
+     del testo piccolo (4.5:1): per questo i tasti pieni scrivono in grande e in
+     grassetto. */
+  --j-accent-fg:   #FFFFFF;
+  /* L'accento COME TESTO su chiaro: un filo più scuro, 4.8:1 sul fondo (quello
+     pieno si ferma a 3.6). Sull'inchiostro l'accento pieno regge da solo. */
+  --j-accent-ink:  #C03A20;
+  --j-rgb:         228,71,43;
+  --j-deep-rgb:    192,58,32;
 }
 
 @layer base {
@@ -253,8 +228,10 @@
      inline più piccoli (12–14px in login, profilo, schede) — così
      il focus non fa più "saltare" il layout. Su desktop (pointer: fine) nulla cambia:
      resta la densità compatta di progetto. Esclusi i controlli che non zoomano. */
+  /* I campi delle serie in allenamento ne restano fuori: sono a 28px, già
+     sopra la soglia, e qui sarebbero rimpiccioliti a 16. */
   @media (pointer: coarse) {
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not(.j-serie-campo):not(.j-campo-grande),
     textarea,
     select {
       font-size: 16px !important;
@@ -291,11 +268,12 @@
   .j-field {
     height: 44px; box-sizing: border-box;
     background: var(--input-bg);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     border-radius: var(--radius); padding: 0 12px;
     color: var(--fg);
     font-family: var(--font-body);
-    font-size: 15px; width: 100%; min-width: 0; outline: none;
+    /* 16px sempre: sotto, iOS ingrandisce la pagina al tocco. */
+    font-size: 16px; width: 100%; min-width: 0; outline: none;
   }
   /* Su touch: 16px evita lo zoom automatico di iOS al focus (che fa "saltare" il form) */
   @media (pointer: coarse) {
@@ -322,6 +300,14 @@
      quella del campo (in pixel, vedi NoteEsercizio), così resta al centro. */
   .j-nota-campo::placeholder {
     color: var(--fg-mute); opacity: .5;
+    font-size: 12.5px;
+  }
+
+  /* Il campo della chat. Il testo resta a 16px sul telefono (sotto, iOS ingrandisce
+     la pagina al tocco); il segnaposto no: "Scrivi un messaggio…" grande quanto un
+     messaggio vero era la cosa più vistosa della schermata. */
+  .j-chat-campo::placeholder {
+    color: var(--fg-mute); opacity: .6;
     font-size: 12.5px;
   }
 
@@ -378,6 +364,33 @@
   }
 
   /* Larger form input (profile) */
+  /* ── Un campo grande, senza il bordo del campo ─────────────────
+     Il nome nel profilo, il peso della pesata: il testo è in Condensed, alto
+     come un titolo, e il riquadro lo dà chi gli sta intorno. Escluso dalla
+     regola dei 16px su touch: è già più grande. */
+  .j-campo-grande {
+    border: none; background: transparent; padding: 0; margin: 0;
+    font-family: var(--font-display); font-weight: 800; color: var(--fg);
+    width: 100%; min-width: 0; outline: none; line-height: 1.1;
+  }
+  .j-campo-grande::placeholder { color: var(--muted-dark); }
+  /* Il nome: maiuscolo come il titolo della pagina, col filo sotto quando lo si
+     scrive. */
+  .j-campo-nome {
+    font-size: clamp(24px, 7.6vw, 32px); height: 40px; text-transform: uppercase;
+    border-bottom: 2px solid transparent;
+  }
+  .j-campo-nome:focus { border-bottom-color: var(--j-accent); }
+  /* Il nome di una scheda, nel suo form: in un riquadro col bordo. */
+  .j-campo-titolo {
+    height: 56px; padding: 0 14px; box-sizing: border-box;
+    background: var(--surface); border: var(--bordo);
+    font-size: 24px; text-transform: uppercase;
+  }
+  .j-campo-titolo:focus { border-color: var(--j-accent); }
+  /* Il riquadro del peso: il fuoco si vede sul bordo intero. */
+  .j-campo-riquadro:focus-within { border-color: var(--j-accent) !important; }
+
   .j-field-lg {
     height: 52px; box-sizing: border-box;
     background: var(--input-bg);
@@ -394,51 +407,43 @@
   .j-field-lg::placeholder { color: var(--fg-mute); }
 
   /* ── Una serie, in allenamento ────────────────────────────────
-     Spunta, colpi e chili sono UNA riga: un contenitore solo, con un filo fra
-     una casella e l'altra. Prima erano tre tasti staccati, e a colpo d'occhio
-     i chili della seconda serie potevano sembrare della prima.
-     Il fuoco si vede sulla casella (`:focus-within`), perché il campo dentro
-     non ha un bordo suo. Su touch il corpo resta 16px (vedi sopra: sotto,
-     iOS ingrandisce la pagina al tocco). */
-  .j-serie {
-    display: flex; align-items: stretch; height: 40px; box-sizing: border-box;
-    border-radius: var(--radius-sm); overflow: hidden;
-    border: 1px solid var(--hairline); background: var(--input-bg);
-    transition: border-color 120ms, background-color 120ms;
-  }
+     Una riga della tabella delle serie (vedi CardAllenamento): il numero
+     grande, e l'unità piccola subito dopo ("75 kg"). Il campo non ha un bordo
+     suo: è largo quanto il numero (lo decide lo stile inline, in `ch`), e il
+     fuoco si vede sulla casella intera (`:focus-within`). 28px stanno ben sopra
+     i 16 sotto cui iOS ingrandisce la pagina al tocco. */
   .j-serie-cella {
-    position: relative; flex: 1; min-width: 0; display: flex; align-items: center;
+    display: flex; align-items: baseline; min-width: 0; height: 44px;
+    padding: 0 4px; margin-left: -4px; box-sizing: border-box; cursor: text;
+    line-height: 44px;
     transition: background-color 120ms;
   }
-  .j-serie-cella::before {
-    content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px;
-    background: var(--hairline);
-  }
-  .j-serie-cella:focus-within { background: rgba(var(--j-rgb), .10); }
+  .j-serie-cella:focus-within { background: rgba(var(--j-rgb), .08); }
   .j-serie-campo {
-    width: 100%; height: 100%; min-width: 0; box-sizing: border-box;
+    min-width: 0; height: 44px; box-sizing: content-box;
     background: transparent; border: 0; outline: none; border-radius: 0;
-    text-align: center; padding: 0 30px 0 8px;
-    color: var(--fg); font-family: var(--font-body);
-    font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+    text-align: left; padding: 0;
+    color: var(--fg); font-family: var(--font-display);
+    font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums;
   }
-  .j-serie-campo::placeholder { color: var(--fg-mute); font-weight: 400; }
+  .j-serie-campo::placeholder { color: var(--muted-dark); font-weight: 600; }
 
   /* Il riquadro in cui si scrive la nota di un esercizio: squadrato, e col
      testo piccolo (vedi `CampoNota` in GymSchede per come ci arriva). */
   .j-nota-box {
-    overflow: hidden; border-radius: 4px;
+    overflow: hidden; border-radius: 0;
     border: 1px solid var(--hairline); background: var(--input-bg);
     transition: border-color 120ms;
   }
   .j-nota-box:focus-within { border-color: var(--j-accent); }
 
   /* Micro-label / eyebrow — Inter in maiuscoletto spaziato */
+  /* Data, occhiello: Condensed 600, 15px, spaziato, nel grigio del secondario. */
   .j-eyebrow {
     font-family: var(--font-label);
-    font-size: clamp(11px, 1.4vw, 12px); font-weight: 600;
-    line-height: 1.2; letter-spacing: .16em;
-    color: var(--tertiary-ink); text-transform: uppercase;
+    font-size: 15px; font-weight: 600;
+    line-height: 1.2; letter-spacing: .08em;
+    color: var(--fg-mute); text-transform: uppercase;
   }
 
   /* ── Focus da tastiera ─────────────────────────────────────────
@@ -493,72 +498,53 @@
 
      I `.j-btn-*` qui elencati NON devono ridichiarare box-shadow/transform: sono
      definiti più sotto e, a parità di specificità, vincerebbero per ordine. */
-  .j-hard,
-  .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log {
-    --j-hard-d: 3px;
-    /* Zero sfocatura: è il punto dell'ombra "hard". La variabile resta perché la
-       usano hover e active, che la dimezzano insieme alla profondità. */
-    --j-hard-b: 0px;
-    box-shadow: var(--j-hard-d) var(--j-hard-d) var(--j-hard-b) 0 var(--shadow-hard-col);
-    /* `background` sta qui, non nelle classi bottone: se una di loro ridichiarasse
-       `transition` sovrascriverebbe questa e l'ombra smetterebbe di animarsi. Sugli
-       elementi che non cambiano fondo è un no-op. */
+  /* ── Ombra: una sola, sul CTA ──────────────────────────────────
+     Rebranding (ott 2026): le card sono piatte, e l'ombra piena resta a una cosa
+     sola — il tasto principale. 4px a riposo; premendolo scende di 2 dentro la
+     propria ombra, che si accorcia a 2. Così un'ombra vuol dire sempre "questo è
+     il gesto", e non si confonde più con dieci elementi sollevati per schermata.
+
+     `.j-hard` e `.j-hard-sm` restano come classi dei tasti e delle card che si
+     premono, ma senza ombra: il tocco lo dice un velo più scuro (`filter`, che
+     vale anche sui fondi scritti inline). */
+  .j-cta, .j-btn-accent, .j-btn-accent-sm {
+    box-shadow: 4px 4px 0 0 var(--ink);
     transition:
       box-shadow var(--motion-fast) var(--ease),
-      transform  var(--motion-fast) var(--ease),
-      background var(--motion-fast) var(--ease);
+      transform  var(--motion-fast) var(--ease);
   }
-  .j-hard-sm { --j-hard-d: 2px; --j-hard-b: 0px; }
-  @media (hover: hover) {
-    .j-hard:hover,
-    .j-btn-accent:hover, .j-btn-accent-sm:hover, .j-btn-add:hover, .j-btn-back:hover, .j-btn-log:hover {
-      --j-hard-h: calc(var(--j-hard-d) / 2);
-      box-shadow: var(--j-hard-h) var(--j-hard-h) calc(var(--j-hard-b) / 2) 0 var(--shadow-hard-col);
-      transform: translate(var(--j-hard-h), var(--j-hard-h));
-    }
+  .j-cta:active, .j-btn-accent:active, .j-btn-accent-sm:active {
+    box-shadow: 2px 2px 0 0 var(--ink);
+    transform: translate(2px, 2px);
   }
-  /* `:active` copre anche il tap: su mobile l'hover non esiste e, quando il browser
-     lo simula, resta appiccicato dopo il tocco. */
-  .j-hard:active,
-  .j-btn-accent:active, .j-btn-accent-sm:active, .j-btn-add:active, .j-btn-back:active, .j-btn-log:active {
-    box-shadow: 0 0 0 0 var(--shadow-hard-col);
-    transform: translate(var(--j-hard-d), var(--j-hard-d));
-  }
-  /* Un elemento disabilitato non si preme: resta piatto, senza ombra da sollevare. */
-  .j-hard:disabled,
-  .j-btn-accent:disabled, .j-btn-accent-sm:disabled, .j-btn-add:disabled, .j-btn-back:disabled, .j-btn-log:disabled {
+  .j-cta:disabled, .j-btn-accent:disabled, .j-btn-accent-sm:disabled {
     box-shadow: none;
     transform: none;
   }
-  /* I modali non si premono: l'ombra è statica, il "foglio appoggiato sul tavolo". */
-  .j-hard-static { box-shadow: 5px 5px 0 0 var(--shadow-hard-col); }
-
-  /* Come .j-hard ma inerte, alla profondità delle card. Per le superfici che portano
-     l'ombra senza essere tasti (le card della home che non si premono): `:hover` e
-     `:active` risalgono agli antenati, quindi con .j-hard un tap su un bottone dentro
-     la card farebbe affondare la card intera. */
-  .j-hard-flat { box-shadow: 3px 3px 0 0 var(--shadow-hard-col); }
+  .j-hard, .j-hard-sm, .j-btn-add, .j-btn-back, .j-btn-log {
+    transition: filter var(--motion-fast) var(--ease);
+  }
+  .j-hard:active, .j-hard-sm:active, .j-btn-add:active, .j-btn-back:active, .j-btn-log:active {
+    filter: brightness(0.92);
+  }
+  .j-hard:disabled, .j-hard-sm:disabled { filter: none; }
+  /* Modali e card che non si premono: piatti anche loro. */
+  .j-hard-static, .j-hard-flat { box-shadow: none; }
 
   @media (prefers-reduced-motion: reduce) {
-    /* Resta il salto di ombra, sparisce lo scorrimento. */
-    .j-hard, .j-hard:hover, .j-hard:active,
-    .j-btn-accent, .j-btn-accent:hover, .j-btn-accent:active,
-    .j-btn-accent-sm, .j-btn-accent-sm:hover, .j-btn-accent-sm:active,
-    .j-btn-add, .j-btn-add:hover, .j-btn-add:active,
-    .j-btn-back, .j-btn-back:hover, .j-btn-back:active,
-    .j-btn-log, .j-btn-log:hover, .j-btn-log:active { transform: none; }
+    .j-cta, .j-cta:active, .j-btn-accent, .j-btn-accent:active, .j-btn-accent-sm, .j-btn-accent-sm:active { transform: none; }
   }
 
   /* Primary CTA button (48px) — ombra, pressione e transizione arrivano dal blocco
      .j-hard: qui restano solo forma e colore. Niente `opacity` all'hover, era la
      vecchia risposta al passaggio del mouse e ora la dà la pressione. */
   .j-btn-accent {
-    height: 48px; border-radius: var(--radius);
+    height: 60px; border-radius: var(--radius);
     background: var(--j-accent);
     border: none;
     color: var(--j-accent-fg);
-    font-family: var(--font-body);
-    font-size: clamp(13px, 1.8vw, 14px); font-weight: 500; letter-spacing: .01em; line-height: 1.2; cursor: pointer;
+    font-family: var(--font-display); text-transform: uppercase;
+    font-size: 24px; font-weight: 800; letter-spacing: .06em; line-height: 1; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
     width: 100%; margin-top: 4px;
   }
@@ -569,8 +555,8 @@
     background: var(--j-accent);
     border: none;
     color: var(--j-accent-fg);
-    font-family: var(--font-body);
-    font-size: clamp(13px, 1.8vw, 14px); font-weight: 500; letter-spacing: .01em; line-height: 1.2; cursor: pointer;
+    font-family: var(--font-display); text-transform: uppercase;
+    font-size: 16px; font-weight: 700; letter-spacing: .06em; line-height: 1.1; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
     width: 100%;
   }
@@ -578,7 +564,7 @@
   /* Ghost/outline icon button */
   .j-btn-ghost {
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     color: var(--fg-soft);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -598,7 +584,7 @@
   .j-btn-add {
     width: 44px; height: 44px; border-radius: var(--radius);
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     color: var(--j-accent-ink);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -609,7 +595,7 @@
   .j-btn-back {
     width: 44px; height: 44px; border-radius: var(--radius);
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     color: var(--fg-soft);
     cursor: pointer; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -620,10 +606,10 @@
   .j-btn-log {
     width: 100%; height: 44px; border-radius: var(--radius);
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     color: var(--j-accent-ink);
-    font-family: var(--font-body);
-    font-size: 13px; cursor: pointer;
+    font-family: var(--font-display); text-transform: uppercase;
+    font-size: 16px; font-weight: 700; letter-spacing: .06em; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 6px;
   }
   .j-btn-log:hover, .j-btn-log:active { background: var(--surface-2); }
@@ -652,11 +638,13 @@
   }
 
   /* Page title */
+  /* Titolo pagina: Condensed 800, 44px, maiuscolo. Scende fino a 30px sugli
+     schermi stretti, dove accanto ha la freccia e qualche tasto. */
   .j-page-title {
-    font-family: var(--font-body);
-    font-size: clamp(26px, 4vw, 32px); font-weight: 500;
-    line-height: 1.1;
-    letter-spacing: -0.005em; color: var(--fg);
+    font-family: var(--font-display); text-transform: uppercase;
+    font-size: clamp(30px, 9vw, 44px); font-weight: 800;
+    line-height: .95;
+    letter-spacing: -0.01em; color: var(--fg);
   }
 
   /* Centered empty-state label (body role) */
@@ -677,7 +665,7 @@
   .j-stat-tile {
     text-align: center;
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     border-radius: var(--radius-lg); padding: 10px 6px;
     box-shadow: var(--shadow-card);
   }
@@ -685,7 +673,7 @@
   /* Chart wrapper */
   .j-chart-box {
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     border-radius: var(--radius-lg); padding: 10px;
     box-shadow: var(--shadow-card);
   }
@@ -743,66 +731,48 @@
   }
 
   /* ── Interruttori a segmenti ──────────────────────────────
-     Griglia/elenco, Kg/Volte, intera/mezza. Una regola sola perché sono la stessa
-     cosa vista in tre posti, e finché lo stile stava scritto inline in ognuno erano
-     tre cose che si assomigliavano.
+     Fronte/Retro, Kg/Volte, griglia/elenco, intera/mezza: una regola sola per
+     tutti (rebranding, ott 2026). Un riquadro col bordo d'inchiostro, celle
+     bianche con la scritta nera; quella scelta è piena d'inchiostro con la
+     scritta bianca — come la cella di oggi nella settimana.
 
-     Il contrasto fra scelto e non scelto è di LUMINOSITÀ, non di colore: il guscio
-     è la superficie di base, la cella attiva è quella sollevata. Era il contrario
-     — cella attiva più SCURA del guscio, con un contorno d'accent a dire che era
-     lei — e su fondo scuro un contorno colorato si legge come rifinitura, non come
-     "sei qui". L'accent resta dov'è un'azione; qui si sta solo dicendo cosa si
-     guarda. */
+     Il cursore è uno e SCIVOLA da una cella all'altra: due fondi che si
+     accendono e spengono dicono "è cambiato qualcosa", un blocco che si sposta
+     dice "sono passato di là". `--i` è la cella scelta, `--n` quante sono: li
+     scrive chi usa l'interruttore (vedi `cursore` in jarvis-tokens). */
   .j-switch {
     position: relative;
     display: flex;
-    gap: 3px; padding: 3px;
+    gap: 0; padding: 0;
     background: var(--surface);
-    border: 1px solid var(--hairline);
+    border: var(--bordo);
     border-radius: var(--radius);
-    /* `--i` = indice della cella scelta, `--n` = quante sono. Li scrive chi usa
-       l'interruttore: sono l'unica cosa che deve sapere per far scorrere il
-       cursore qui sotto. */
     --i: 0;
     --n: 2;
   }
-
-  /* Il cursore. Uno solo, e si SPOSTA: è quello che fa vedere il passaggio da
-     una cella all'altra invece di farle accendere e spegnere sul posto — due
-     fondi che sfumano dicono "è cambiato qualcosa", un blocco che scivola dice
-     "sono passato di là".
-     La larghezza è quella di UNA cella: tolti i 3px di padding per lato e i
-     (n-1) spazi in mezzo, diviso n. Il passo è la propria larghezza più uno
-     spazio — in `translateX` il 100% è dell'elemento, non del contenitore. */
   .j-switch::before {
     content: '';
     position: absolute;
-    top: 3px; bottom: 3px; left: 3px;
-    width: calc((100% - 6px - (var(--n) - 1) * 3px) / var(--n));
-    transform: translateX(calc(var(--i) * (100% + 3px)));
-    background: var(--surface-2);
-    border-radius: var(--radius-sm);
+    top: 0; bottom: 0; left: 0;
+    width: calc(100% / var(--n));
+    transform: translateX(calc(var(--i) * 100%));
+    background: var(--ink);
     transition: transform var(--motion-fast) var(--ease);
     pointer-events: none;
   }
-  /* Variante piena d'accent: i due modi di allenarsi (Pesi / Hyrox), dove la
-     scelta non è "come guardo" ma "dove sono". */
-  .j-switch-accent::before { background: var(--j-accent); }
-
   .j-switch-cell {
-    /* Sopra al cursore, e tutte della stessa larghezza: il cursore ne vale una,
-       e con celle di misure diverse si fermerebbe sempre un po' più in là. */
+    /* Sopra al cursore, e tutte della stessa larghezza: il cursore ne vale una. */
     position: relative; z-index: 1;
     flex: 1; min-width: 0;
     border: none; background: transparent;
-    color: var(--fg-mute);
+    color: var(--fg);
+    font-family: var(--font-display); font-size: 13px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: color var(--motion-fast) var(--ease);
   }
-  /* Il fondo non sta più qui: ce l'ha il cursore. Alla cella resta l'inchiostro. */
-  .j-switch-cell[aria-pressed="true"] { color: var(--fg); }
-  .j-switch-accent .j-switch-cell[aria-pressed="true"] { color: var(--j-accent-fg); }
+  .j-switch-cell[aria-pressed="true"], .j-switch-cell[aria-checked="true"] { color: var(--surface); }
 
   @media (prefers-reduced-motion: reduce) {
     .j-switch::before { transition: none; }
@@ -817,21 +787,36 @@
      là di così, quello che avanza finisce coi puntini.
      Dove le unità di contenitore non ci sono resta tutto com'era: corpo fisso,
      e il testo che va a capo da sé. */
+  /* Il saluto è il titolo della home: Condensed 800, 44px, maiuscolo. */
   .j-saluto {
-    font-family: var(--font-saluto);
-    font-size: clamp(23px, 3.2dvh, 31px);
-    font-weight: 500; letter-spacing: -0.01em;
-    line-height: 1.05; color: var(--fg);
+    font-family: var(--font-saluto); text-transform: uppercase;
+    font-size: 44px;
+    font-weight: 800; letter-spacing: -0.01em;
+    line-height: .95; color: var(--fg);
   }
   @supports (width: 1cqw) {
     .j-saluto-colonna { container-type: inline-size; }
     .j-saluto {
-      font-size: clamp(17px, calc(100cqw / var(--saluto-em, 9)), clamp(23px, 3.2dvh, 31px));
-      /* Più aria fra le righe: chi taglia in orizzontale taglia anche sotto, e
-         a 1.05 le gambe di «g» e «p» ci finivano dentro. */
-      line-height: 1.16;
+      font-size: clamp(26px, calc(100cqw / var(--saluto-em, 9)), 44px);
+      /* Un filo d'aria in più: chi taglia in orizzontale taglia anche sotto. */
+      line-height: 1;
     }
     .j-saluto-riga { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+
+  /* Le card-porta: le tre in home (Coaching, Esercizi, Statistiche) e quelle
+     da scegliere nel Coaching. Bianche col bordo d'inchiostro; il disegno nero
+     coi dettagli d'accento. Accesa (una sezione scelta) diventa piena
+     d'inchiostro, come la cella di oggi nella settimana. I quattro colori del
+     disegno sono variabili (vedi DisegniAzioni): dal più tenue al più deciso,
+     più il fondo per i ritagli. */
+  .j-card-azione {
+    --d1: var(--line); --d2: var(--ink); --d3: var(--j-accent); --df: var(--surface);
+    background: var(--surface); color: var(--fg); border: var(--bordo);
+  }
+  .j-card-azione.accesa {
+    --d1: var(--line-dark); --d2: var(--muted-dark); --df: var(--ink);
+    background: var(--ink); color: var(--surface);
   }
 
   /* Card del carosello dei gruppi: la pressione è una stretta appena accennata.
@@ -845,423 +830,19 @@
      telefono basso quaranta pixel di vuoto in cima sono quaranta pixel tolti alla
      griglia, che è la ragione per cui si è aperta l'app. */
   .j-page-header {
-    padding: clamp(12px, 2.4dvh, 24px) 20px clamp(8px, 1.8dvh, 16px);
+    padding: 24px 20px clamp(8px, 1.8dvh, 16px);
     flex-shrink: 0;
   }
 }
 
-/* ── Dark mode ───────────────────────────────────────────────────── */
-.dark {
-  /* La barra in basso poggia sul fondo pagina, che qui è nero: un'ombra scura non
-     si vedrebbe. Il rilievo lo dà un alone chiaro, appena accennato. */
-  --nav-lift: rgba(255,255,255,.22);
-  color-scheme: dark;
+/* ── Un tema solo ─────────────────────────────────────────────────
+   Fino a ottobre 2026 qui sotto c'erano i temi: scuro, Premium, Neon e Logbook,
+   ognuno con le sue superfici, i suoi tasti e il suo fondo. Il rebranding li ha
+   tolti tutti — i colori sono quelli di `:root`, e valgono ovunque. */
 
-  /* Dark vero: fondo nero, non più la copertina verde del "Journal chiuso".
-     Le tre superfici salgono a scalini — su un nero unico le card sparirebbero
-     e resterebbe solo il bordo a dire dove finisce una e comincia l'altra. */
-  --bg:        #000000;
-  --surface:   #121212;
-  --surface-2: #1c1c1c;
-  --input-bg:  #1c1c1c;
-
-  /* Testo bianco, con due gradini sotto per la gerarchia. */
-  --fg:      #ffffff;
-  --fg-soft: #d4d4d4;
-  /* Il fondo che conta NON è --surface ma --surface-2: le micro-label vivono dentro
-     le tile del riepilogo e i chip dei filtri, che sono i più chiari. Qui dà 6.36:1
-     sul peggiore — sul nero il margine è ampio, era la copertina verde a stringerlo. */
-  --fg-mute: #9e9e9e;
-
-  /* Borders — bianco velato: sul nero è l'unica cosa che disegna i contorni,
-     visto che nessuna ombra scura si vede. */
-  --hairline:      rgba(255,255,255,0.16);
-  --hairline-soft: rgba(255,255,255,0.09);
-
-  --paper-grain: none;
-
-  /* In dark --brass coincide con l'accent oro: non si duplica lo slot,
-     si ripunta ai token accent iniettati inline. */
-  --brass:     var(--j-accent);
-  --brass-ink: var(--j-accent-ink);
-  --chart-2:   #d99aae;
-
-  --ok:            #7fc98d;
-  --segnale-su:      #7fc98d;
-  --segnale-giu:     #ec8168;
-  --segnale-giu-rgb: 236,129,104;
-  --ok-soft:       #8fd39a;
-  --warn:          #e2a85e;
-  --danger:        #ec8168;
-  --danger-strong: #f59b82;
-  --danger-rgb:    236,129,104;
-  --warn-rgb:      226,168,94;
-
-  --knob: #f0f0f0;
-
-  --track:      rgba(255,255,255,0.10);
-  /* Più fitto che altrove: su fondo nero un velo leggero non separa il modale da niente. */
-  --scrim:      rgba(0,0,0,0.72);
-
-  --shadow-card: 0 1px 0 rgba(0,0,0,.28), 0 10px 24px -18px rgba(0,0,0,.55);
-  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.85);
-
-  /* Sul fondo pagina nero un'ombra scura è invisibile per definizione, e va bene
-     così: lì a delimitare gli elementi è il bordo. Serve invece sulle superfici
-     sollevate (--surface, --surface-2), dove un tasto ci cade sopra. */
-  --shadow-hard-col: rgba(0,0,0,.85);
-
-  --background:         0 0% 0%;
-  --foreground:         0 0% 100%;
-  --card:               0 0% 7%;
-  --card-foreground:    0 0% 100%;
-  --border:             0 0% 18%;
-}
-
-/* ── Layout "Premium" ────────────────────────────────────────────
-   Nero pieno, vetro, testo e dettagli bianchi, nessuna ombra. NON si combina
-   con `.dark`: lo scavalca. Ha la stessa specificità (una classe sola), quindi a
-   vincere è l'ordine — per questo il blocco sta in fondo al foglio. Spostarlo più
-   su lo farebbe perdere contro `.dark` con l'interruttore acceso.
-   L'accent bianco lo inietta App.tsx (MONO_DARK), non serve dichiararlo qui. */
-.premium {
-  color-scheme: dark;
-
-  /* Le superfici salgono appena: bastano a separare una card dal fondo, ma il
-     lavoro grosso lo fa il bordo bianco velato. */
-  --bg:        #000000;
-  --surface:   #0a0a0a;
-  --surface-2: #141414;
-  --input-bg:  #141414;
-
-  --paper-grain: none;
-
-  --fg:      #ffffff;
-  --fg-soft: #d4d4d4;
-  --fg-mute: #a0a0a0;
-
-  --hairline:      rgba(255,255,255,.20);
-  --hairline-soft: rgba(255,255,255,.11);
-
-  --brass:     var(--j-accent);
-  --brass-ink: var(--j-accent-ink);
-  --kraft:     #8a8a8a;
-  --chart-2:   #999999;
-
-  /* Su fondo nero la scala si ribalta: "grida" il chiaro, non lo scuro. */
-
-  --ok:            #b5b5b5;
-  --segnale-su:      #6fd08a;
-  --segnale-giu:     #f06a55;
-  --segnale-giu-rgb: 240,106,85;
-  --ok-soft:       #9e9e9e;
-  --warn:          #dedede;
-  --danger:        #ffffff;
-  --danger-strong: #ffffff;
-  --danger-rgb:    255,255,255;
-  --warn-rgb:      222,222,222;
-
-  --knob: #ffffff;
-
-  --track:      rgba(255,255,255,0.11);
-  --scrim:      rgba(0,0,0,0.75);
-
-  --shadow-card: 0 1px 0 rgba(0,0,0,.6), 0 10px 24px -18px rgba(0,0,0,.9);
-  --shadow-pop:  0 8px 18px -8px rgba(0,0,0,.95);
-  /* Sul nero pieno un'ombra scura non esiste: qui è più CHIARA del fondo. */
-  --shadow-hard-col: rgba(90,90,90,.45);
-  /* La barra in basso poggia sul nero: il rilievo lo dà un alone chiaro. */
-  --nav-lift: rgba(255,255,255,.24);
-
-  --background:         0 0% 0%;
-  --foreground:         0 0% 100%;
-  --card:               0 0% 4%;
-  --card-foreground:    0 0% 100%;
-  --border:             0 0% 20%;
-}
-
-/* ── Superfici piene ──────────────────────────────────────────────
-   I temi scuri (`.dark` e `.premium`): nero pieno con aloni caldi sul FONDO, e
-   sopra superfici opache. Scavalca i token di superficie, bordo e ombra di
-   entrambi; colori di stato e accent restano quelli di ciascun tema.
-
-   ── Cos'era prima, e perché è cambiato ──────────────────────────
-   Era vetro: le superfici erano bianco VELATO (`rgba(255,255,255,.045)`) sopra
-   `backdrop-filter: blur()`, e il contorno bianco quasi pieno (.62) perché con un
-   fondo semitrasparente il bordo era l'unica cosa che disegnasse i blocchi.
-   L'utente ha chiesto tasti pieni, senza trasparenza. È una sola decisione con tre
-   conseguenze, e vanno insieme o il risultato è peggio del punto di partenza:
-
-    1. superfici OPACHE — grigi caldi, non bianco velato;
-    2. niente `backdrop-filter` — sotto una superficie opaca non sfoca niente e
-       costa comunque un layer GPU per elemento;
-    3. contorno TENUE (.14 invece di .62) — è la conseguenza meno ovvia e la più
-       importante: il bordo bianco serviva a separare un blocco che da solo non si
-       vedeva. Una superficie opaca si stacca dal nero per conto suo, e lasciando
-       il bordo a .62 ogni tasto resta disegnato due volte.
-
-   Gli aloni caldi sul fondo restano: non passano più attraverso le card, ma il
-   fondo della pagina è ancora una stanza con una luce di sbieco invece di un
-   piano nero. */
-.dark, .premium {
-  /* Non nero pieno: un grigio bruno appena sopra lo zero. Il nero assoluto su uno
-     schermo OLED spegne il pixel, e il salto fra fondo e prima superficie diventa
-     un bordo netto invece di un piano continuo. Qui il fondo resta il piano più
-     scuro di tutti — sotto `--surface` — ma è un colore, non l'assenza di uno. */
-  --bg:          #0d0c0b;
-  /* Due aloni arancioni agli angoli opposti (in alto a sinistra, in basso a
-     destra) danno profondità: il fondo non è più un piano ma una stanza con una
-     luce calda che entra di sbieco. Un terzo, più leggero e più largo, sta al
-     centro e lega i due angoli, così il caldo non resta confinato ai bordi.
-     Stanno SOTTO a quelli bianchi nell'elenco, che restano la luce principale. */
-  /* Due metà (fredda e calda) sommate in `--paper-grain`: erano separate per lo
-     sfondo in movimento, che non c'è più. */
-  --grain-freddo:
-    radial-gradient(70% 38% at 50% -4%, rgba(255,255,255,.17), transparent 72%),
-    radial-gradient(55% 32% at 104% 42%, rgba(255,255,255,.075), transparent 70%),
-    radial-gradient(60% 34% at -6% 82%, rgba(255,255,255,.085), transparent 70%);
-  --grain-caldo:
-    radial-gradient(75% 48% at -10% -8%, rgba(236,112,44,.42), rgba(236,112,44,.12) 45%, transparent 74%),
-    radial-gradient(75% 48% at 110% 108%, rgba(236,112,44,.40), rgba(236,112,44,.11) 45%, transparent 74%),
-    radial-gradient(60% 34% at 50% 52%, rgba(236,112,44,.14), rgba(236,112,44,.04) 50%, transparent 76%);
-  --paper-grain: var(--grain-freddo), var(--grain-caldo);
-  --tertiary-ink: #C58B64;
-  /* Le tinte dei tre comandi, più luminose che sulla carta: qui si mescolano a
-     una superficie quasi nera, e quelle del tema chiaro ci annegherebbero. */
-  --azione-coach:  #cf6a45;
-  --azione-schede: #c9a25e;
-  --azione-stats:  #6fa58a;
-
-  /* Grigi caldissimi, non neutri: il fondo porta aloni arancioni e un grigio
-     freddo sopra ci stona. Tre gradini, come prima — fondo, superficie, superficie
-     sollevata — ma adesso sono tinte vere e non veli. */
-  --surface:      #1c1916;
-  --surface-2:    #272320;
-  --input-bg:     #211d1a;
-  /* Ciò che GALLEGGIA (modali, pill, toast) sta un gradino più su del resto: sotto
-     non c'è il fondo ma testo che non deve trasparire. */
-  --surface-pop:  #241f1c;
-  --surface-menu: #2b2622;
-
-  /* Tenue: il contorno non deve più disegnare i blocchi (lo fa la superficie), gli
-     rifinisce solo il bordo. Vedi il punto 3 qui sopra. */
-  --hairline:      rgba(255,255,255,.14);
-  --hairline-soft: rgba(255,255,255,.08);
-  --divider:       rgba(255,255,255,.10);
-  --border:        0 0% 18%;
-
-  --track:  rgba(255,255,255,.12);
-  --scrim:  rgba(0,0,0,.6);
-
-  /* Luce sul bordo alto (il vetro prende luce dallo spigolo) + un'ombra lunga e
-     morbida che lo stacca dagli aloni. */
-  --shadow-card: inset 0 1px 0 rgba(255,255,255,.14), 0 18px 36px -22px rgba(0,0,0,.95);
-  --shadow-pop:  inset 0 1px 0 rgba(255,255,255,.16), 0 24px 48px -16px rgba(0,0,0,.95);
-
-  /* Spessore del tasto: il bordo che si vede SOTTO un controllo a riposo e che
-     sparisce quando lo si preme. Adesso che le superfici sono opache è un'ombra
-     vera — scura — e non più un filo di luce: un tasto pieno che poggia su un
-     piano proietta, non brilla. Sui tasti accent diventa l'accent profondo. */
-  --key-edge: rgba(0,0,0,.75);
-  /* I tasti pieni d'accent non portano contorno: il colore basta a staccarli. */
-  --accent-edge: transparent;
-  --nav-lift: rgba(255,255,255,.24);
-}
-
-/* Le option dei <select> le disegna il sistema su un foglio proprio: un fondo
-   velato lì non ha niente sotto e diventa trasparente sul bianco del menù. */
-:is(.dark, .premium) select option { background: #111; color: #fff; }
-
-/* Qui stavano `.j-glass` e `.j-glass-pop`, che smerigliavano il fondo dietro card
-   e modali. Sono sparite con le superfici opache: sotto una tinta piena il
-   `backdrop-filter` non ha niente da sfocare e costa comunque un layer GPU per
-   elemento — su un elenco di trenta esercizi, trenta layer per zero pixel di
-   differenza. Con loro se n'è andato anche `backface-visibility`, che serviva solo
-   a evitare il lampo chiaro di Safari alla prima pittura del filtro.
-   Il velo DIETRO ai modali resta, ed è un'altra cosa: quello sfoca la pagina, non
-   la superficie di sé stesso (vedi lo scrim in Primitives/ConfirmModal). */
-
-/* I campi: contorno tenue e un filo di luce sullo spigolo alto, che su una
-   superficie piena legge come incavo. */
-:is(.dark, .premium) .j-field, :is(.dark, .premium) .j-field-lg {
-  border-color: var(--hairline);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-}
-:is(.dark, .premium) .j-field:focus, :is(.dark, .premium) .j-field-lg:focus {
-  border-color: var(--j-accent);
-  box-shadow: 0 0 0 3px rgba(var(--j-rgb), .25);
-}
-
-/* ── Tasti a pressione (vetro) ──────────────────────────────────
-   Stesso contratto di `.j-hard` (riposo → hover a metà → active a fondo, ingombro
-   costante), ma in verticale e con lo spessore di un tasto vero invece dell'ombra
-   da stampa in diagonale, che sul nero non si vedeva affatto.
-
-   A riposo: un filo di luce sullo spigolo alto, spessore `--key-edge` sotto, ombra
-   lunga. Premuto: il tasto scende di tutto lo spessore, lo spessore sparisce e al
-   suo posto compare un'ombra INTERNA — la superficie sembra affondare, non
-   spostarsi.
-
-   La luce sullo spigolo è scesa da .22 a .07 passando alle superfici piene: su un
-   velo trasparente serviva a dire dove finiva il tasto, su una tinta piena a .22
-   disegna una riga chiara in cima a ogni bottone. */
-:is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log) {
-  --j-hard-d: 4px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.07),
-    0 var(--j-hard-d) 0 0 var(--key-edge),
-    0 calc(var(--j-hard-d) + 12px) 22px -12px rgba(0,0,0,.95);
-}
-:is(.dark, .premium) .j-hard-sm { --j-hard-d: 2px; }
-@media (hover: hover) {
-  :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
-    --j-hard-h: calc(var(--j-hard-d) / 2);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.09),
-      0 var(--j-hard-h) 0 0 var(--key-edge),
-      0 calc(var(--j-hard-h) + 10px) 20px -12px rgba(0,0,0,.95);
-    transform: translateY(var(--j-hard-h));
-  }
-}
-:is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):active {
-  box-shadow:
-    inset 0 3px 10px rgba(0,0,0,.6),
-    inset 0 1px 2px rgba(0,0,0,.5),
-    0 0 0 0 var(--key-edge);
-  transform: translateY(var(--j-hard-d));
-}
-:is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
-  box-shadow: none;
-  transform: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.dark, .premium) :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):is(:hover, :active) { transform: none; }
-}
-
-/* Tasti pieni d'accent: tinta piena e basta. Lo spessore sotto è l'accent
-   profondo, così il tasto poggia sulla propria ombra invece che su un nero
-   generico. `.j-accent-key` è per i tasti accent scritti inline (la nav, Inizia
-   allenamento).
-   Qui passava anche un riflesso in gradiente che li faceva leggere come vetro
-   colorato: è esattamente l'effetto che l'utente ha chiesto di togliere. */
-:is(.dark, .premium) :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
-  --key-edge: color-mix(in srgb, var(--j-accent-deep) 70%, #000);
-  border: 1px solid var(--accent-edge);
-  background-image: none;
-}
-
-
-/* Card inerti con l'ombra e modali: luce sullo spigolo e ombra lunga, niente spessore. */
-:is(.dark, .premium) .j-hard-flat { box-shadow: var(--shadow-card); }
-:is(.dark, .premium) .j-hard-static { box-shadow: var(--shadow-pop); }
-
-/* Il ghost e il cestino si premevano con uno `scale`: sul vetro affondano come gli altri. */
-:is(.dark, .premium) .j-btn-ghost { box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
-:is(.dark, .premium) .j-btn-ghost:active,
-:is(.dark, .premium) .j-btn-del:active {
-  transform: translateY(1px);
-  box-shadow: inset 0 2px 8px rgba(0,0,0,.6);
-}
-
-/* ── Premium: nessuna ombra ──────────────────────────────────────
-   Il vetro senza ombre: a staccare i blocchi dal fondo restano il contorno bianco e
-   la smerigliatura. Le ombre del tema sono quasi tutte token, ma diverse sono
-   scritte inline (pill, toast, pomello degli interruttori, bagliore dei grafici) e
-   nessun token le raggiunge: da qui la regola a tappeto con !important, l'unica
-   che batte uno stile inline.
-
-   Senza lo spessore sotto, la pressione dei tasti la dice il movimento: il tasto
-   non scende all'hover (non c'è più un'ombra in cui scivolare, sembrerebbe solo
-   tremare) e premuto si abbassa e si stringe appena, schiarendosi. */
-.premium {
-  --shadow-card: none;
-  --shadow-pop:  none;
-  --shadow-hard-col: transparent;
-  --key-edge:    transparent;
-  --nav-lift:    transparent;
-  /* I tre comandi: qui il colore è uno solo, la terracotta. La prende il
-     primo; gli altri due sono un grigio caldo e uno neutro. */
-  --azione-coach:  #a64b32;
-  --azione-schede: #8c7468;
-  --azione-stats:  #7d7d7d;
-}
-.premium *, .premium *::before, .premium *::after {
-  box-shadow: none !important;
-  text-shadow: none !important;
-}
-/* Il bagliore delle linee dei grafici e l'ombra del segnalibro sono `drop-shadow`
-   inline. Selettore sull'attributo e non `filter: none` a tappeto: la grana di
-   NucGrain è un filtro SVG vero e sparirebbe insieme alle ombre. */
-.premium [style*="drop-shadow"] { filter: none !important; }
-@media (hover: hover) {
-  .premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):hover {
-    transform: none;
-  }
-}
-.premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del) {
-  transition:
-    transform  var(--motion-fast) var(--ease),
-    filter     var(--motion-fast) var(--ease),
-    background var(--motion-fast) var(--ease);
-}
-/* Il ritardo è per lo scorrimento. iOS accende `:active` al primo contatto, prima
-   di sapere se è un tocco o l'inizio di uno scroll: appoggiando il dito su una
-   card per scorrere la lista, la card si stringeva e si schiariva per un istante
-   e poi tornava com'era — un sussulto a ogni scorrimento. Con 60ms di attesa uno
-   scroll se ne va prima che la pressione si veda; un tocco vero la vede lo stesso.
-   Solo all'entrata: al rilascio la regola qui sopra torna senza ritardo. */
-.premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del):active {
-  transform: translateY(1px) scale(.97);
-  filter: brightness(1.25);
-  transition-delay: 60ms;
-}
-.premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log):disabled {
-  transform: none;
-  filter: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .premium :is(.j-hard, .j-btn-accent, .j-btn-accent-sm, .j-btn-add, .j-btn-back, .j-btn-log, .j-btn-ghost, .j-btn-del):active { transform: none; }
-}
-
-.dark body {
-  background: var(--bg);
-  background-image: none;
-}
-
-/* ── Sfondo fuso (in prova) ──────────────────────────────────────
-   Il fondo standard dei temi scuri ha due sole tinte: il nero e il caldo
-   arancione agli angoli. Qui entra una terza voce, il grigio-azzurro #8593A4, e
-   le tre si sovrappongono invece di dividersi in zone — l'arancione scende da
-   sinistra, l'azzurro sale da destra, e dove si incontrano (la fascia centrale)
-   il nero le tiene insieme. È l'unica differenza rispetto al fondo di serie:
-   niente qui tocca superfici, bordi o testo.
-
-   Si accende dalle impostazioni (Aspetto · Sfondo fuso) e si spegne allo stesso
-   modo: per questo è una classe sull'<html> e non una riscrittura del token di
-   base. `.dark.bg-fusione` vale due classi contro una, quindi vince su `.dark`
-   senza bisogno di !important. */
-:is(.dark, .premium).bg-fusione {
-  /* Stessa divisione in due metà del fondo di serie (vedi lì): il grigio-azzurro
-     sta col bianco nella metà FREDDA, l'arancione col suo legante nella CALDA. */
-  --grain-freddo:
-    radial-gradient(70% 38% at 50% -6%, rgba(255,255,255,.14), transparent 72%),
-    radial-gradient(72% 46% at 6% 34%, rgba(133,147,164,.30), rgba(133,147,164,.08) 48%, transparent 78%),
-    radial-gradient(80% 50% at 110% 52%, rgba(133,147,164,.34), rgba(133,147,164,.10) 45%, transparent 76%);
-  --grain-caldo:
-    radial-gradient(86% 56% at -14% -12%, rgba(236,112,44,.46), rgba(236,112,44,.14) 42%, transparent 76%),
-    radial-gradient(86% 56% at 114% 112%, rgba(236,112,44,.44), rgba(236,112,44,.12) 42%, transparent 76%),
-    /* Il legante: la tinta a metà strada fra le due, larga e quasi invisibile.
-       Senza, arancione e azzurro restano due macchie che si toccano. */
-    radial-gradient(92% 62% at 50% 56%, rgba(171,129,114,.18), rgba(171,129,114,.05) 52%, transparent 78%);
-  --paper-grain: var(--grain-freddo), var(--grain-caldo);
-}
-
-/* Il contenitore che PORTA il fondo dell'app. Qui c'era anche lo "Sfondo in
-   movimento": due livelli grandi una volta e mezza lo schermo che ruotavano senza
-   fermarsi mai. Costavano poco alla CPU ma tenevano il compositor al lavoro a ogni
-   fotogramma, e su iPhone era il motivo per cui i tocchi arrivavano in ritardo.
-   Tolto su richiesta: qui il fondo è fermo. (In Standard scuro ce n'è di nuovo
-   uno che si muove, chiesto in prova a ottobre: vedi il blocco qui sotto.) */
+/* Il contenitore che PORTA il fondo dell'app: una tinta unita (rebranding,
+   ott 2026). Qui c'erano gli aloni che si muovevano, lo "sfondo fuso" e i fondi
+   dei temi scuri; con un tema solo e chiaro il fondo è il colore e basta. */
 .j-bg-fondo { background-image: var(--paper-grain); }
 
 /* ── Desktop: tutto più grande ───────────────────────────────────
@@ -1289,212 +870,3 @@
 .j-desktop { zoom: 1.15; --card-min: 150px; }
 @media (min-width: 1360px) and (min-height: 740px)  { .j-desktop { zoom: 1.3; } }
 @media (min-width: 2000px) and (min-height: 1000px) { .j-desktop { zoom: 1.5; } }
-
-/* ── Standard scuro: il fondo (in prova, ott 2026) ───────────────
-   Il tema con cui l'app si presenta. Un bruno quasi nero e due aloni grandi e
-   lenti: uno caldo che sale dall'angolo in basso a destra, uno grigio-azzurro
-   che scende da quello in alto a sinistra. Al posto dei tre aloni bianchi e dei
-   tre arancioni del fondo condiviso qui sopra — che restano a Premium, insieme
-   allo "Sfondo fuso".
-
-   Il CSS è quello scritto dall'utente (un `.bg` fisso con `::before` e
-   `::after` che vanno alla deriva in 32 e 40 secondi), portato sul contenitore
-   che il fondo lo porta già, `.j-bg-fondo`, invece che su un elemento nuovo.
-
-   ATTENZIONE, è un fondo che SI MUOVE, e qui uno c'è già stato (vedi sopra):
-   tolto a settembre perché su iPhone i tocchi arrivavano in ritardo. Questo è
-   più leggero — due cerchi da 70vmax che si spostano con `transform` e basta,
-   quindi li muove il compositor senza ridisegnare niente — ma tiene comunque due
-   livelli grandi in movimento sotto tutta l'app. Se i tocchi tornano lenti, il
-   primo sospetto è lui: basta togliere le due `animation` qui sotto e il fondo
-   resta identico, fermo.
-
-   Il selettore: `.dark` senza Premium, Neon e Logbook — cioè Standard con
-   l'interruttore scuro acceso. Pesa due classi, quanto `.dark.bg-fusione`, e
-   venendo DOPO lo batte: lo sfondo fuso è acceso di serie, e senza questo il
-   fondo nuovo non si vedrebbe mai. */
-.dark:not(.premium, .neon, .logbook) {
-  --bg: #15110e;
-  /* La copia FERMA dei due aloni, nella posizione da cui partono. Serve a chi il
-     fondo lo dipinge da sé sopra la pagina — impostazioni, questionario,
-     accesso, caricamento: sono schermate piene, e quelle in movimento restano
-     sotto. 32.2vmax è dove il gradiente dei cerchi diventa trasparente (il 65%
-     della mezza diagonale di un quadrato da 70vmax). */
-  --paper-grain:
-    radial-gradient(circle 32.2vmax at calc(100% - 10vmax) calc(100% - 5vmax), rgba(201,120,60,.22), transparent),
-    radial-gradient(circle 32.2vmax at 10vmax 5vmax, rgba(110,130,150,.14), transparent);
-}
-/* Sulla pagina principale gli aloni sono i due pseudo-elementi: la copia ferma
-   lì sotto li raddoppierebbe. `isolation` chiude il contenitore in un suo piano,
-   così lo `z-index: -1` li mette dietro a tutto il contenuto ma davanti al
-   colore di fondo — senza, finirebbero dietro al contenitore stesso. */
-.dark:not(.premium, .neon, .logbook) .j-bg-fondo {
-  background-image: none;
-  isolation: isolate;
-}
-.dark:not(.premium, .neon, .logbook) .j-bg-fondo::before,
-.dark:not(.premium, .neon, .logbook) .j-bg-fondo::after {
-  content: '';
-  position: absolute; z-index: -1;
-  width: 70vmax; height: 70vmax; border-radius: 50%;
-  pointer-events: none;
-  will-change: transform;
-}
-.dark:not(.premium, .neon, .logbook) .j-bg-fondo::before {
-  background: radial-gradient(circle, rgba(201,120,60,.22), transparent 65%);
-  bottom: -30vmax; right: -25vmax;
-  animation: j-deriva-calda 32s ease-in-out infinite alternate;
-}
-.dark:not(.premium, .neon, .logbook) .j-bg-fondo::after {
-  background: radial-gradient(circle, rgba(110,130,150,.14), transparent 65%);
-  top: -30vmax; left: -25vmax;
-  animation: j-deriva-fredda 40s ease-in-out infinite alternate;
-}
-@keyframes j-deriva-calda  { to { transform: translate(-15vmax, -10vmax) scale(1.15); } }
-@keyframes j-deriva-fredda { to { transform: translate(12vmax, 15vmax) scale(.9); } }
-@media (prefers-reduced-motion: reduce) {
-  .dark:not(.premium, .neon, .logbook) .j-bg-fondo::before,
-  .dark:not(.premium, .neon, .logbook) .j-bg-fondo::after { animation: none; }
-}
-
-/* ── Layout "Neon" e "Logbook" ───────────────────────────────────
-   Due temi scuri a tinta fissa, costruiti SOPRA `.dark`: App accende `.dark`
-   insieme alla classe del tema (anche con l'interruttore chiaro/scuro spento),
-   quindi superfici piene, tasti a pressione e campi arrivano già dalle regole
-   `:is(.dark, .premium)` qui sopra. Questi blocchi cambiano solo i colori.
-
-   `:root.neon` e non `.neon`: pesa due classi, come `.dark.bg-fusione`, che
-   altrimenti rimetterebbe gli aloni arancioni sul fondo. A parità di peso vince
-   l'ordine: per questo i blocchi stanno IN FONDO al foglio, e lì devono restare.
-
-   L'accent (lime, verde) lo inietta App.tsx da `ACCENT_FISSI` in jarvis-tokens. */
-
-/* Neon — una base quasi nera e UN accento ad alta energia, il lime, riservato a
-   progressi e tasti principali. Tutto il resto è una scala di grigi freddi: è
-   quello che lascia al lime il compito di dire "qui succede qualcosa". */
-:root.neon {
-  /* Quasi nero, non nero: riposa l'occhio e lascia vedere dove comincia una
-     card. Antracite a salire, tre gradini come negli altri temi scuri. */
-  --bg:           #0b0b0f;
-  --surface:      #14141a;
-  --surface-2:    #1e1e26;
-  --input-bg:     #18181f;
-  --surface-pop:  #1b1b23;
-  --surface-menu: #23232c;
-  /* Fondo piatto: una luce arancione accanto al lime sarebbe un secondo accento. */
-  --paper-grain:  none;
-
-  --fg:      #f4f4f6;
-  --fg-soft: #c8c8d0;
-  --fg-mute: #9a9aa6;   /* 5.9:1 su --surface-2, il fondo peggiore */
-
-  --hairline:      rgba(255,255,255,.10);
-  --hairline-soft: rgba(255,255,255,.06);
-  --divider:       rgba(255,255,255,.08);
-
-  /* Titoli di sezione e grassetti restano nei grigi: colorarli sarebbe dare
-     all'app un secondo accento, che è proprio ciò che questo tema non ha. */
-  --tertiary:     #c8c8d0;
-  --tertiary-ink: #c8c8d0;
-  --kraft:        #8a8a96;
-  /* I tre comandi in home: un solo accento anche qui — il lime al primo, due
-     grigi agli altri. */
-  --azione-coach:  #c8ff00;
-  --azione-schede: #c8c8d0;
-  --azione-stats:  #7c7c8c;
-  --chart-2:      #8e8ea0;
-
-  /* Il progresso è lime come l'azione. Il rosso resta: non è un accento, è un
-     avviso, e una serie in calo dev'essere distinguibile da una in crescita. */
-  --ok:              #c8ff00;
-  --ok-soft:         #a9d900;
-  --segnale-su:      #c8ff00;
-  --segnale-giu:     #ff6b5e;
-  --segnale-giu-rgb: 255,107,94;
-  --warn:            #f5b84a;
-  --warn-rgb:        245,184,74;
-  --danger:          #ff6b5e;
-  --danger-strong:   #ff8a80;
-  --danger-rgb:      255,107,94;
-
-  /* Sul lime un pomello chiaro sparisce (1.2:1): da acceso diventa scuro. */
-  --knob:    #f4f4f6;
-  --knob-on: #0b0b0f;
-
-  --track: rgba(255,255,255,.10);
-  --scrim: rgba(0,0,0,.66);
-
-  --shadow-card: none;
-  --shadow-pop:  0 24px 48px -16px rgba(0,0,0,.95);
-  --key-edge:    rgba(0,0,0,.8);
-}
-/* I tasti secondari ("+ Sessione", il "+") di serie scrivono in accent: qui il
-   lime è dei tasti PRINCIPALI, quindi tornano bianchi. */
-.neon :is(.j-btn-log, .j-btn-add) { color: var(--fg); }
-/* L'unico effetto del tema: sotto i tasti pieni l'ombra lunga è del loro colore
-   invece che nera. Una classe sola davanti, apposta: così hover e pressione
-   (che pesano di più, vedi "Tasti a pressione") continuano a vincere e il tasto
-   affonda come negli altri temi scuri. */
-.neon :is(.j-btn-accent, .j-btn-accent-sm, .j-accent-key) {
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.22),
-    0 var(--j-hard-d, 4px) 0 0 var(--key-edge),
-    0 calc(var(--j-hard-d, 4px) + 10px) 26px -10px rgba(var(--j-rgb), .45);
-}
-
-/* Logbook — il diario del pesista: scuro, neutro, facile da leggere fra una
-   serie e l'altra. Due colori con due mestieri: il VERDE (l'accent) per ciò che
-   è fatto — serie completate, record, progressi — e per il tasto principale; il
-   BLU per le azioni secondarie. */
-:root.logbook {
-  --bg:           #0f1114;
-  --surface:      #1a1d21;
-  --surface-2:    #252930;
-  --input-bg:     #1e2126;
-  --surface-pop:  #22262c;
-  --surface-menu: #2a2f36;
-  --paper-grain:  none;
-
-  --fg:      #f2f4f7;
-  --fg-soft: #c5cad3;
-  --fg-mute: #9aa2ae;   /* 5.6:1 su --surface-2 */
-
-  --hairline:      rgba(255,255,255,.11);
-  --hairline-soft: rgba(255,255,255,.06);
-  --divider:       rgba(255,255,255,.08);
-
-  /* Il blu. Non sta in `--tertiary-ink`: quello colora i TITOLI di sezione, e un
-     titolo blu qui si leggerebbe come una cosa da toccare. Lo prendono solo i
-     tasti secondari (sotto) e la seconda serie dei grafici. */
-  --logbook-blu:  #5aa9ff;   /* 5.9:1 su --surface-2 */
-  --tertiary:     #c5cad3;
-  --tertiary-ink: #c5cad3;
-  --kraft:        #8a929e;
-  /* I tre comandi in home: i due colori del tema, e un grigio. */
-  --azione-coach:  var(--logbook-blu);
-  --azione-schede: #30d158;
-  --azione-stats:  #9aa1ad;
-  --chart-2:      var(--logbook-blu);
-
-  --ok:              #30d158;
-  --ok-soft:         #5ee07f;
-  --segnale-su:      #30d158;
-  --segnale-giu:     #ff6961;
-  --segnale-giu-rgb: 255,105,97;
-  --warn:            #ffb340;
-  --warn-rgb:        255,179,64;
-  --danger:          #ff6961;
-  --danger-strong:   #ff8a84;
-  --danger-rgb:      255,105,97;
-
-  --knob: #ffffff;
-
-  --track: rgba(255,255,255,.10);
-  --scrim: rgba(0,0,0,.62);
-
-  --shadow-card: none;
-  --shadow-pop:  0 24px 48px -16px rgba(0,0,0,.9);
-}
-/* Le azioni secondarie: registrare una sessione, aggiungere, tornare indietro,
-   i tasti a contorno. */
-.logbook :is(.j-btn-log, .j-btn-add, .j-btn-back, .j-btn-ghost) { color: var(--logbook-blu); }

@@ -26,14 +26,14 @@ describe('la pagina delle statistiche', () => {
   it('la card la apre sopra la home, col suo titolo e il riepilogo in cima', async () => {
     const user = userEvent.setup()
     monta()
-    expect(screen.queryByText('Riepilogo complessivo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Questa settimana')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Statistiche' }))
 
-    expect(screen.getByText('Riepilogo complessivo')).toBeInTheDocument()
+    expect(screen.getByText('Questa settimana')).toBeInTheDocument()
     expect(screen.getByText('Statistiche', { selector: '.j-page-title' })).toBeInTheDocument()
-    // La home è sotto, coperta: le sue card e i gruppi non si raggiungono più
+    // La home è sotto, coperta: le sue card e le schede non si raggiungono più
     // finché non si torna indietro.
-    expect(screen.queryByRole('button', { name: 'Schede' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Esercizi' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Statistiche' })).not.toBeInTheDocument()
   })
 
@@ -43,10 +43,10 @@ describe('la pagina delle statistiche', () => {
     await user.click(screen.getByRole('button', { name: 'Statistiche' }))
     await user.click(screen.getByRole('button', { name: 'Indietro' }))
 
-    expect(screen.queryByText('Riepilogo complessivo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Questa settimana')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Coaching' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Schede' })).toBeInTheDocument()
-    expect(screen.getByText('Gruppi muscolari')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Esercizi' })).toBeInTheDocument()
+    expect(screen.getByText('Schede')).toBeInTheDocument()
   })
 
   it('la card non è più un interruttore: apre e basta, senza restare accesa', async () => {

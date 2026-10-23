@@ -23,7 +23,9 @@ afterEach(cleanup)
 describe('Riepilogo', () => {
   it('monta con lo stato vuoto', () => {
     render(<Riepilogo {...props()}/>)
-    expect(screen.getByText('Riepilogo complessivo')).toBeInTheDocument()
+    expect(screen.getByText('Questa settimana')).toBeInTheDocument()
+    expect(screen.getByText('Mappa della forza')).toBeInTheDocument()
+    expect(screen.getByText('Massimali ipotetici')).toBeInTheDocument()
   })
 
   it('è una sezione, non una pagina: nessuna intestazione propria', () => {
@@ -49,20 +51,20 @@ describe('Riepilogo', () => {
     expect(screen.queryByLabelText('Apri Personal Coach')).not.toBeInTheDocument()
   })
 
-  it('della settimana dice i giorni fatti e le settimane di fila, senza ridisegnare i sette giorni', () => {
-    // I sette giorni stanno già nella striscia in testata, subito sopra: qui
-    // resta una riga con i due numeri che la striscia non dice.
+  it('della settimana dice le settimane di fila e le sessioni su sette, senza i nomi dei giorni', () => {
+    // I nomi dei giorni stanno già nella striscia della home: qui i sette giorni
+    // sono sette quadratini, e accanto i due numeri che la striscia non dice.
     const oggi = new Date()
     const iso = `${oggi.getFullYear()}-${String(oggi.getMonth() + 1).padStart(2, '0')}-${String(oggi.getDate()).padStart(2, '0')}`
     useJarvisStore.setState({
       palestraExercises: [{ id: 'p1', n: 'Panca piana', muscle: 'Petto', current: { kg: 60, reps: 10, sets_n: 3 }, history: [{ d: 'W', date: iso, kg: 60, reps: 10, sets_n: 3 }] }],
     })
-    render(<Riepilogo {...props()}/>)
-    const riga = screen.getByLabelText('Apri il calendario degli allenamenti')
-    expect(riga).toHaveTextContent('La tua settimana')
-    expect(riga).toHaveTextContent('1/7')
-    // Nessuna iniziale di giorno: la riga non è più una striscia.
-    expect(riga).not.toHaveTextContent(/lun|mar|mer|gio|ven|sab|dom/i)
+    const { container } = render(<Riepilogo {...props()}/>)
+    expect(screen.getByText('Sessioni 1/7')).toBeInTheDocument()
+    expect(screen.getByText('Settimana di fila')).toBeInTheDocument()
+    const settimana = screen.getByText('Questa settimana').closest('section')!
+    expect(settimana).not.toHaveTextContent(/lun|mar|mer|gio|ven|sab|dom/i)
+    expect(container).toBeTruthy()
   })
 
   it('toccando la settimana si apre il calendario con la serie di settimane', async () => {

@@ -8,8 +8,8 @@
 // collegati (`linkedExerciseId`), così la scheda alimenta le statistiche invece
 // di restare una lista a parte.
 import { useState, useMemo, useEffect, useRef, useCallback, memo, type ReactNode, type CSSProperties } from 'react'
-import { NUC, accentFgFor, accentInkFor } from '@/lib/jarvis-tokens'
-import { NucCard } from '@/components/ui/NucComponents'
+import { NUC, accentInkFor } from '@/lib/jarvis-tokens'
+import { NucCard, Interruttore } from '@/components/ui/NucComponents'
 import { Cronologia } from '@/components/ui/Cronologia'
 import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
@@ -30,7 +30,6 @@ import { FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni, FotoGrande } fro
 import { TimerRecupero, TimerIcona } from './TimerRecupero'
 import { caricoConsigliato, contaPerMuscolo, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { todayISO, giorniTra, localISO } from '@/lib/isoDate'
-import { useIsDark } from '@/hooks/useIsDark'
 import { uid } from '@/lib/uid'
 import { idUtenteSuDisco } from '@/lib/supabase'
 import { schedeRicevute, schedeRicevuteInCache, schedaRicevutaInCache, ricordaSchedeRicevute, eliminaSchedaAssegnata, myAthletes, myCoaches, condividiScheda, type CoachScheda, type CoachLink } from '@/lib/coach'
@@ -38,7 +37,7 @@ import { bozzaChat } from '@/lib/messaggi'
 import { avvisa } from '@/lib/messaggiLive'
 import { riassuntoAllenamento, serieValide, chiliScritti } from './riassuntoAllenamento'
 import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX } from './limitiAlzata'
-import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, natalDi, etaScheda, schedePerMese, type MuscoloToccato } from './anteprimaScheda'
+import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, natalDi, etaScheda, schedePerMese, serieDellaScheda, type MuscoloToccato } from './anteprimaScheda'
 import { OminoMuscoli } from './MuscleIcons'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
@@ -54,11 +53,10 @@ function muscleColor(muscle: string | undefined, muscleColors: Record<string, st
 
 // I colori muscolo sono tinte calde mid-tone (palette categorica Journal): usati
 // come TESTO su carta chiara o come FONDO sotto testo chiaro possono avvicinarsi
-// alla soglia AA. Questi due li rendono leggibili.
-function muscleTextColor(hex: string, dark: boolean): string {
-  return accentInkFor(hex, dark)
+// alla soglia AA. Questa li rende leggibili come testo.
+function muscleTextColor(hex: string): string {
+  return accentInkFor(hex)
 }
-const onMuscleColor = accentFgFor
 
 // ── A corpo libero, anche se nessuno l'ha mai detto ────────────
 // Un esercizio è a corpo libero se lo dice lui (`corpoLibero`: il segno
@@ -80,13 +78,15 @@ function aCorpoLibero(ex: PalestraExercise | undefined, riga: { name: string; bo
 // due, non negli altri tre) erano più casuali che volute.
 //   `azioni` = bottoni a destra del titolo · `extra` = riga sotto il titolo
 //   (la barra di avanzamento della sessione)
-function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
+function SchedaPage({ onBack, title, sub, tronca, azioni, extra, piede, children }: {
   onBack: () => void
   title: ReactNode
   sub: ReactNode
   tronca?: boolean
   azioni?: ReactNode
   extra?: ReactNode
+  /** Il tasto fermo in fondo, fuori dall'area che scorre ("Salva scheda"). */
+  piede?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -116,6 +116,9 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
         {extra}
       </div>
       {children}
+      {piede && (
+        <div className="j-page-cta" style={{ borderTop: 'var(--bordo)', background: 'var(--bg)' }}>{piede}</div>
+      )}
     </div>
   )
 }
@@ -127,9 +130,8 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, children }: {
 // `size`: 44 come il "+" e il tasto indietro; 40 accanto al "+" dell'elenco.
 const iconBtn = (danger = false, size = 44): CSSProperties => ({
   width: size, height: size, borderRadius: 'var(--radius)', cursor: 'pointer',
-  background: danger ? 'rgba(var(--danger-rgb),0.06)' : 'var(--surface)',
-  border: danger ? '1px solid rgba(var(--danger-rgb),0.18)' : `1px solid ${NUC.hairline}`,
-  color: danger ? 'var(--danger)' : NUC.dim,
+  background: 'var(--surface)', border: 'var(--bordo)',
+  color: danger ? 'var(--danger)' : NUC.ink,
 })
 
 
@@ -646,7 +648,6 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
       <SchedaTrainingPage
         scheda={active}
         palestraExercises={palestraExercises}
-        muscleColors={muscleColors}
         onExit={lasciaAperto}
         // Chiuso senza salvare: non c'è più niente da riprendere, e si torna
         // alla scheda come dopo un allenamento finito.
@@ -807,7 +808,6 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
 }) {
   const t = useT()
   const tData = useTData()
-  const dark = useIsDark()
   // Quale sagoma accendere per i gruppi che l'utente si è creato.
   const icone = useMuscleIcons()
   const hasExercises = schede.some(s => s.exercises.length > 0)
@@ -884,7 +884,7 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
             {modifica ? <Icons.check size={17} stroke={2.4}/> : <Icons.pencil size={16} stroke={1.8}/>}
           </button>
         )}
-        <button onClick={onNew} className="j-btn-add"><Icons.plus size={18} stroke={2}/></button>
+        <button onClick={onNew} aria-label={t('Nuova scheda')} title={t('Nuova scheda')} className="j-btn-add"><Icons.plus size={18} stroke={2}/></button>
       </>}
     >
 
@@ -1013,7 +1013,7 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
                             ...CHIP,
                             background: `color-mix(in srgb, ${c} 14%, transparent)`,
                             border: `1px solid color-mix(in srgb, ${c} 38%, transparent)`,
-                            color: muscleTextColor(c, dark),
+                            color: muscleTextColor(c),
                           }}>
                             {tData(m.muscolo)}
                           </span>
@@ -1045,8 +1045,76 @@ function giornoConAnno(iso: string): string {
 // dei titoli di sezione dell'app e un corpo che si legge: prima si vede COSA si
 // sta compilando, poi il campo.
 const ETICHETTA_CAMPO: CSSProperties = {
-  fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.12em',
-  textTransform: 'uppercase', color: 'var(--tertiary-ink)', marginBottom: 5,
+  fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.1em',
+  textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 6,
+}
+
+/** Un passo su «colpi»: 8 → 9, e una forbice si sposta tutta (8-10 → 9-11).
+ *  Vuoto parte da 8, come una riga nuova. */
+function passoColpi(reps: string, d: number): string {
+  const r = reps.trim()
+  const forbice = /^(\d+)\s*[-–]\s*(\d+)$/.exec(r)
+  if (forbice) {
+    const a = Math.max(1, Number(forbice[1]) + d)
+    return `${a}-${Math.max(a, Number(forbice[2]) + d)}`
+  }
+  const n = parseInt(r)
+  return Number.isFinite(n) ? String(Math.max(1, n + d)) : '8'
+}
+
+/** Un numero col meno e il più ai lati: serie e ripetizioni. Il campo in mezzo
+ *  si scrive anche a mano — le ripetizioni possono essere una forbice, "8-10". */
+function Contatore({ etichetta, valore, placeholder, inputMode, bloccato, onChange, onPasso }: {
+  etichetta: string; valore: string; placeholder: string
+  inputMode: 'numeric' | 'text'
+  /** "Fino a cedimento": il numero non c'è, e i tasti non fanno niente. */
+  bloccato?: boolean
+  onChange: (v: string) => void
+  onPasso: (d: -1 | 1) => void
+}) {
+  const t = useT()
+  const tasto = (d: -1 | 1) => (
+    <button
+      type="button" onClick={() => onPasso(d)} disabled={bloccato}
+      aria-label={d < 0 ? t('{cosa}: uno in meno', { cosa: etichetta }) : t('{cosa}: uno in più', { cosa: etichetta })}
+      className="j-focus"
+      style={{
+        width: 44, flexShrink: 0, padding: 0, border: 'none',
+        ...(d < 0 ? { borderRight: 'var(--bordo)' } : { borderLeft: 'var(--bordo)' }),
+        background: 'var(--surface-2)', color: bloccato ? 'var(--muted-dark)' : NUC.ink,
+        fontFamily: NUC.display, fontSize: 24, fontWeight: 800, lineHeight: 1,
+        cursor: bloccato ? 'default' : 'pointer',
+      }}
+    >{d < 0 ? '−' : '+'}</button>
+  )
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={ETICHETTA_CAMPO}>{etichetta}</div>
+      <div className="j-campo-riquadro" style={{ display: 'flex', height: 52, background: 'var(--surface)', border: 'var(--bordo)' }}>
+        {tasto(-1)}
+        <input
+          value={valore} onChange={e => onChange(e.target.value)}
+          readOnly={bloccato} inputMode={inputMode} placeholder={placeholder} aria-label={etichetta}
+          className="j-campo-grande"
+          style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 24, fontVariantNumeric: 'tabular-nums', textTransform: 'uppercase', color: bloccato ? 'var(--fg-mute)' : undefined }}
+        />
+        {tasto(1)}
+      </div>
+    </div>
+  )
+}
+
+/** Una riga con un interruttore: il nome, sotto cosa vuol dire, a destra l'interruttore. */
+function RigaInterruttore({ titolo, sotto, acceso, onCambia }: { titolo: string; sotto: string; acceso: boolean; onCambia: () => void }) {
+  return (
+    <div className="flex items-center" style={{ gap: 12, padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: NUC.ink, lineHeight: 1.25 }}>{titolo}</div>
+        <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: 'var(--fg-mute)', lineHeight: 1.35, marginTop: 2 }}>{sotto}</div>
+      </div>
+      <Interruttore acceso={acceso} onClick={onCambia} etichetta={titolo}/>
+    </div>
+  )
 }
 
 interface FormRow {
@@ -1100,6 +1168,11 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
       : [{ id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', bodyweight: false, note: '', supersetWithNext: false }]
   )
   const [focused, setFocused] = useState<string | null>(null)
+  // La riga di cui si sta cambiando l'esercizio ("Cambia"): lì torna il campo
+  // del nome, con i suggerimenti.
+  const [cambio, setCambio] = useState<string | null>(null)
+  // Le ripetizioni di prima di "Fino a cedimento", per riaverle spegnendolo.
+  const colpiPrima = useRef<Record<string, string>>({})
   // La riga aperta per essere scritta. Le altre stanno compresse: una riga col
   // nome e «serie × colpi», da toccare per aprirla com'era prima. Tutte aperte,
   // otto esercizi erano otto schermate di campi, e per rileggere la scheda o
@@ -1208,6 +1281,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const pickSuggestion = (rowId: string, ex: PalestraExercise) => {
     patch(rowId, { name: ex.n, linkedExerciseId: ex.id, muscle: displayMuscle(ex.muscle) })
     setFocused(null)
+    setCambio(null)
   }
 
   const buildExercises = (): GymSchedaExercise[] => {
@@ -1277,35 +1351,39 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
     }
   }
 
+  const conNome = rows.filter(r => r.name.trim())
+  const serieTotali = conNome.reduce((n, r) => n + (parseInt(r.sets) || 0), 0)
+
   return (
     <SchedaPage
       onBack={esci}
       title={scheda ? t('Modifica scheda') : t('Nuova scheda')}
-      sub={rows.filter(r => r.name.trim()).length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: rows.filter(r => r.name.trim()).length })}
-      // Il salvataggio anche in alto, fuori dalla parte che scorre: una scheda
-      // di otto esercizi è lunga, e scendere fino in fondo per salvare una
-      // correzione al primo era il gesto più ripetuto del form.
-      extra={
-        <button onClick={handleSave} className="j-btn-accent-sm" style={{ marginTop: 12 }}>
-          <Icons.check size={16} stroke={2.2}/> {etichettaSalva}
+      sub={`${conNome.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: conNome.length })} · ${serieTotali === 1 ? t('1 serie') : `${serieTotali} ${t('serie')}`}`}
+      // Il salvataggio sta fermo in fondo, fuori dalla parte che scorre: una
+      // scheda di otto esercizi è lunga, e scendere fino in fondo per salvare
+      // una correzione al primo era il gesto più ripetuto del form. Prima era
+      // un secondo tasto in testata.
+      piede={
+        <button onClick={handleSave} className="j-btn-accent j-focus" style={{ marginTop: 0 }}>
+          {etichettaSalva}
         </button>
       }
     >
 
       <div className="j-scroll-area">
-        {/* Il nome della scheda ha la sua etichetta e un filo d'accent a
-            sinistra: è il campo che dà il nome a tutto il resto, e stava in
-            cima alla pagina identico ai campi degli esercizi sotto. */}
-        <label style={{ display: 'block', marginBottom: 18 }}>
+        {/* Il nome della scheda: in grande e in maiuscolo, come un titolo — è
+            il nome che dà a tutto il resto. */}
+        <label style={{ display: 'block', marginBottom: 22 }}>
           <div style={ETICHETTA_CAMPO}>{t('Nome della scheda')}</div>
           <input
             value={title}
             onChange={e => { clearFeedback(); setTitle(e.target.value) }}
             placeholder={t('Nome scheda (es. Upper A)')}
-            className="j-field"
-            style={{ height: 50, fontFamily: NUC.font, fontSize: 17, fontWeight: 500, borderLeft: '3px solid var(--j-accent)' }}
+            className="j-campo-grande j-campo-titolo"
           />
         </label>
+
+        <div style={ETICHETTA_CAMPO}>{t('Esercizi')}</div>
 
         {rows.map((r, idx) => {
           const suggestions = focused === r.id ? suggestionsFor(r) : []
@@ -1316,243 +1394,188 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
           const isLast = idx === rows.length - 1
           const linkedToPrev = idx > 0 && rows[idx - 1].supersetWithNext
           const eAperta = aperta === r.id
-          const tinta = muscolo ? color : 'var(--j-accent)'
-          const bollino = (
-            <span aria-hidden="true" className="flex items-center justify-center" style={{
-              width: 24, height: 24, flexShrink: 0, borderRadius: 'var(--radius-pill)',
-              background: tinta,
-              color: muscolo ? onMuscleColor(color) : 'var(--j-accent-fg)',
-              fontFamily: NUC.label, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-            }}>{idx + 1}</span>
+          const max = r.reps.trim().toLowerCase() === 'max'
+          // Due esercizi in superset: fra le due card un filo e la parola, e
+          // nessuno spazio — si leggono come un blocco solo.
+          const legame = r.supersetWithNext && !isLast && (
+            <div aria-hidden style={{ position: 'relative', height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 2, marginLeft: -1, background: 'var(--ink)' }}/>
+              <span style={{
+                position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
+                background: 'var(--ink)', color: 'var(--surface)',
+                fontFamily: NUC.display, fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase',
+              }}><Icons.repeat size={11} stroke={2.2}/>{t('superset')}</span>
+            </div>
           )
-          const frecce = (lato: number) => (
-            <>
-              <button onClick={() => move(r.id, -1)} disabled={idx === 0} title={t('Sposta su')} aria-label={t('Sposta su')} className="flex items-center justify-center" style={{ width: lato, height: lato, flexShrink: 0, borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1 }}>
-                <span style={{ display: 'flex', transform: 'rotate(-90deg)' }}><Icons.chev size={13} stroke={2}/></span>
+          const freccia = (dir: -1 | 1, stile: CSSProperties) => {
+            const ferma = dir < 0 ? idx === 0 : idx === rows.length - 1
+            return (
+              <button
+                onClick={() => move(r.id, dir)} disabled={ferma}
+                title={dir < 0 ? t('Sposta su') : t('Sposta giù')} aria-label={dir < 0 ? t('Sposta su') : t('Sposta giù')}
+                className="j-focus flex items-center justify-center"
+                style={{ padding: 0, border: 'none', background: 'transparent', cursor: ferma ? 'default' : 'pointer', opacity: ferma ? 0.3 : 1, ...stile }}
+              >
+                <span style={{ display: 'flex', transform: `rotate(${dir < 0 ? -90 : 90}deg)` }}><Icons.chev size={14} stroke={2.2}/></span>
               </button>
-              <button onClick={() => move(r.id, 1)} disabled={idx === rows.length - 1} title={t('Sposta giù')} aria-label={t('Sposta giù')} className="flex items-center justify-center" style={{ width: lato, height: lato, flexShrink: 0, borderRadius: 'var(--radius-sm)', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim, cursor: idx === rows.length - 1 ? 'default' : 'pointer', opacity: idx === rows.length - 1 ? 0.3 : 1 }}>
-                <span style={{ display: 'flex', transform: 'rotate(90deg)' }}><Icons.chev size={13} stroke={2}/></span>
-              </button>
-            </>
-          )
-          // Il superset si lega da una riga aperta; da compressa resta in vista
-          // solo se c'è già, per poterlo sciogliere senza riaprirla.
-          const ponte = !isLast && (eAperta || r.supersetWithNext) && (
-            <button
-              onClick={() => patch(r.id, { supersetWithNext: !r.supersetWithNext })}
-              className="flex items-center justify-center gap-1.5 w-full"
-              style={{
-                height: 30, borderRadius: 'var(--radius-sm)', marginBottom: eAperta ? 10 : 8, cursor: 'pointer',
-                background: r.supersetWithNext ? 'var(--surface-2)' : 'transparent',
-                border: `1px ${r.supersetWithNext ? 'solid var(--j-accent)' : `dashed ${NUC.hairline}`}`,
-                color: r.supersetWithNext ? 'var(--j-accent-ink)' : NUC.faint,
-                fontFamily: NUC.label, fontSize: 10, letterSpacing: '.08em',
-                transition: 'all 160ms',
-              }}
-            >
-              <Icons.repeat size={12} stroke={1.8}/>
-              {r.supersetWithNext ? t('In superset con il prossimo') : t('Superset con il prossimo')}
-            </button>
-          )
+            )
+          }
 
           // ── Compressa: una riga sola, da toccare per aprirla ──
           if (!eAperta) {
             const senzaNome = r.name.trim() === ''
             const manca = daCompletare(r)
+            const dettagli = [muscolo && tData(muscolo), linkedToPrev && t('superset'), r.note.trim() && t('con nota')].filter(Boolean).join(' · ')
             return (
               <div key={r.id}>
-                <NucCard pad={0} style={{ marginBottom: r.supersetWithNext ? 4 : 8, borderLeft: `3px solid ${tinta}`, overflow: 'hidden' }}>
-                  <div className="flex items-center" style={{ gap: 6, paddingRight: 9 }}>
-                    <button
-                      onClick={() => setAperta(r.id)}
-                      aria-expanded={false}
-                      title={t('Modifica')}
-                      className="j-riga-gruppo flex items-center"
-                      style={{ flex: 1, minWidth: 0, gap: 10, padding: '10px 4px 10px 11px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                      {bollino}
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{
-                          display: 'block', fontFamily: NUC.font, fontSize: 14.5, fontWeight: 500, lineHeight: 1.25,
-                          color: senzaNome ? NUC.faint : NUC.ink, fontStyle: senzaNome ? 'italic' : 'normal',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>{senzaNome ? t('Esercizio da scrivere') : tData(r.name)}</span>
-                        <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.02em', color: NUC.faint, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span style={{ color: NUC.dim, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{r.sets || '–'} × {r.reps.trim() || '–'}</span>
-                          {muscolo && <> · {tData(muscolo)}</>}
-                          {linkedToPrev && <span style={{ color: 'var(--tertiary-ink)' }}> · {t('superset')}</span>}
-                          {r.note.trim() && <> · {t('con nota')}</>}
-                          {manca && <span style={{ color: 'var(--warn)', fontWeight: 600 }}> · {t('da completare')}</span>}
+                <div className="flex items-stretch" style={{ background: 'var(--surface)', border: 'var(--bordo)', marginBottom: legame ? 0 : 10 }}>
+                  <button
+                    onClick={() => setAperta(r.id)}
+                    aria-expanded={false}
+                    title={t('Modifica')}
+                    className="j-riga-gruppo j-focus flex items-center"
+                    style={{ flex: 1, minWidth: 0, gap: 12, padding: '12px 12px 12px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    <span aria-hidden style={{ width: 16, flexShrink: 0, textAlign: 'center', fontFamily: NUC.display, fontSize: 22, fontWeight: 800, color: 'var(--fg-mute)', fontVariantNumeric: 'tabular-nums' }}>{idx + 1}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{
+                        display: 'block', fontFamily: NUC.font, fontSize: 15, fontWeight: 600, lineHeight: 1.25,
+                        color: senzaNome ? NUC.faint : NUC.ink, fontStyle: senzaNome ? 'italic' : 'normal',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{senzaNome ? t('Esercizio da scrivere') : tData(r.name)}</span>
+                      {(dettagli || manca) && (
+                        <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {dettagli}
+                          {manca && <span style={{ color: 'var(--j-accent-ink)' }}>{dettagli ? ' · ' : ''}{t('da completare')}</span>}
                         </span>
-                      </span>
-                      <span style={{ display: 'flex', flexShrink: 0, color: NUC.faint }}><Icons.pencil size={13} stroke={1.7}/></span>
-                    </button>
-                    {/* Spostare un esercizio è il gesto per cui la riga compressa
-                        serve di più: le frecce restano qui fuori. */}
-                    {rows.length > 1 && frecce(28)}
-                  </div>
-                </NucCard>
-                {ponte}
+                      )}
+                    </span>
+                    <span style={{ flexShrink: 0, fontFamily: NUC.display, fontSize: 19, fontWeight: 800, color: NUC.ink, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {r.sets || '–'}×{max ? 'MAX' : r.reps.trim() || '–'}
+                    </span>
+                    <span style={{ display: 'flex', flexShrink: 0, color: NUC.ink }}><Icons.pencil size={15} stroke={1.9}/></span>
+                  </button>
+                  {/* Spostare un esercizio è il gesto per cui la riga compressa
+                      serve di più: le frecce restano qui, una sopra l'altra. */}
+                  {rows.length > 1 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, borderLeft: '1px solid var(--line)' }}>
+                      {freccia(-1, { flex: 1, width: 38, color: NUC.ink })}
+                      {freccia(1, { flex: 1, width: 38, color: NUC.ink, borderTop: '1px solid var(--line)' })}
+                    </div>
+                  )}
+                </div>
+                {legame}
               </div>
             )
           }
 
+          // Il campo del nome c'è finché l'esercizio non ha un nome, mentre lo
+          // si scrive, e dopo "Cambia". Scelto, diventa il riquadro con la foto.
+          const scrive = r.name.trim() === '' || cambio === r.id || focused === r.id
           return (
             <div key={r.id}>
-            {/* Il filo a sinistra c'è sempre: del gruppo muscolare appena lo si
-                sa, dell'accent prima. Senza, una riga ancora vuota era una card
-                grigia fra card grigie. Il numero sta in un bollino dello stesso
-                colore, così le card si contano a colpo d'occhio scorrendo. */}
-            <NucCard pad={14} style={{ marginBottom: r.supersetWithNext ? 4 : 12, borderLeft: `3px solid ${tinta}` }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-                <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
-                  {bollino}
-                  <span style={{ fontFamily: NUC.label, fontSize: 11, fontWeight: 600, letterSpacing: '.12em', color: NUC.ink, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <span className="sr-only">{t('Esercizio {n}', { n: idx + 1 })}</span>
-                    <span aria-hidden="true">{t('Esercizio')}</span>
-                    {linkedToPrev && (
-                      <span style={{ marginLeft: 8, color: 'var(--tertiary-ink)' }}>· {t('superset')}</span>
-                    )}
-                    {r.linkedExerciseId && (
-                      <span style={{ marginLeft: 8, color: 'var(--j-accent-ink)' }}>· {t('collegato')}</span>
-                    )}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {rows.length > 1 && frecce(28)}
-                  {rows.length > 1 && (
-                    <button onClick={() => removeRow(r.id)} aria-label={t('Elimina {cosa}', { cosa: r.name.trim() || t('Esercizio {n}', { n: idx + 1 }) })} className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.18)', color: 'var(--danger)', cursor: 'pointer' }}>
-                      <Icons.trash size={12} stroke={1.6}/>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Nome con ricerca simultanea */}
-              <div style={ETICHETTA_CAMPO}>{t('Nome')}</div>
-              <div style={{ position: 'relative' }}>
-                <input
-                  value={r.name}
-                  onChange={e => cambiaNome(r, e.target.value)}
-                  onFocus={() => setFocused(r.id)}
-                  onBlur={() => setTimeout(() => setFocused(f => f === r.id ? null : f), 150)}
-                  placeholder={t('Nome esercizio')}
-                  aria-label={t('Nome esercizio')}
-                  autoFocus={fuocoSu === r.id}
-                  className="j-field"
-                  style={{ fontWeight: 500 }}
-                />
-                {suggestions.length > 0 && (
-                  // Il menù galleggia SOPRA i campi sotto: con `--surface`, che nei
-                  // temi a vetro è bianco quasi trasparente, i campi si leggevano
-                  // attraverso e i nomi degli esercizi ci si confondevano sopra.
-                  // Fondo pieno (`--surface-menu`): anche la sfocatura del vetro qui
-                  // non funziona, perché la card intorno è già di vetro.
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4,
-                    background: 'var(--surface-menu)', border: `1px solid ${NUC.hairline}`, borderRadius: 'var(--radius)',
-                    boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
-                  }}>
-                    {suggestions.map((ex, i) => (
-                      <button
-                        key={ex.id}
-                        onMouseDown={e => { e.preventDefault(); pickSuggestion(r.id, ex) }}
-                        className="flex items-center gap-2 w-full"
-                        style={{ padding: '11px 12px', background: 'transparent', border: 'none', borderTop: i === 0 ? 'none' : '1px solid var(--divider)', cursor: 'pointer', textAlign: 'left' }}
-                      >
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: muscleColor(ex.muscle, muscleColors), flexShrink: 0 }}/>
-                        <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 13, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</span>
-                        <span style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.08em', color: NUC.faint, textTransform: 'uppercase' }}>{tData(displayMuscle(ex.muscle))}</span>
-                      </button>
-                    ))}
-                  </div>
+            <div style={{ background: 'var(--surface)', border: 'var(--bordo)', marginBottom: legame ? 0 : 10 }}>
+              {/* La testata nera: il numero dell'esercizio, a destra le frecce e il cestino. */}
+              <div className="flex items-center" style={{ minHeight: 48, padding: '0 4px 0 14px', gap: 2, background: 'var(--ink)', color: 'var(--surface)' }}>
+                <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.display, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t('Esercizio {n}', { n: idx + 1 })}
+                  {linkedToPrev && <span style={{ color: 'var(--muted-dark)' }}> · {t('superset')}</span>}
+                </span>
+                {rows.length > 1 && freccia(-1, { width: 40, height: 44, color: 'var(--surface)' })}
+                {rows.length > 1 && freccia(1, { width: 40, height: 44, color: 'var(--surface)' })}
+                {rows.length > 1 && (
+                  <button onClick={() => removeRow(r.id)} aria-label={t('Elimina {cosa}', { cosa: r.name.trim() || t('Esercizio {n}', { n: idx + 1 }) })} className="j-focus flex items-center justify-center" style={{ width: 44, height: 44, padding: 0, border: 'none', background: 'transparent', color: 'var(--surface)', cursor: 'pointer' }}>
+                    <Icons.trash size={17} stroke={1.8}/>
+                  </button>
                 )}
               </div>
 
+              <div style={{ padding: 14 }}>
+              <div style={ETICHETTA_CAMPO}>{t('Esercizio')}</div>
+              {scrive ? (
+                <div style={{ position: 'relative' }}>
+                  <input
+                    value={r.name}
+                    onChange={e => cambiaNome(r, e.target.value)}
+                    onFocus={() => setFocused(r.id)}
+                    onBlur={() => setTimeout(() => {
+                      setFocused(f => f === r.id ? null : f)
+                      setCambio(c => c === r.id ? null : c)
+                    }, 150)}
+                    placeholder={t('Nome esercizio')}
+                    aria-label={t('Nome esercizio')}
+                    autoFocus={fuocoSu === r.id}
+                    className="j-field"
+                    style={{ fontWeight: 600 }}
+                  />
+                  {suggestions.length > 0 && (
+                    // Il menù galleggia SOPRA i campi sotto, su fondo pieno.
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4,
+                      background: 'var(--surface-menu)', border: 'var(--bordo)', overflow: 'hidden',
+                    }}>
+                      {suggestions.map((ex, i) => (
+                        <button
+                          key={ex.id}
+                          onMouseDown={e => { e.preventDefault(); pickSuggestion(r.id, ex) }}
+                          className="j-riga-gruppo flex items-center gap-2 w-full"
+                          style={{ padding: '11px 12px', background: 'transparent', border: 'none', borderTop: i === 0 ? 'none' : '1px solid var(--line)', cursor: 'pointer', textAlign: 'left' }}
+                        >
+                          <span style={{ width: 8, height: 8, background: muscleColor(ex.muscle, muscleColors), flexShrink: 0 }}/>
+                          <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 14, fontWeight: 600, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</span>
+                          <span style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', color: 'var(--fg-mute)', textTransform: 'uppercase' }}>{tData(displayMuscle(ex.muscle))}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Scelto: la foto (col colore del gruppo come cornice), il nome,
+                // da dove viene, e "Cambia" per sceglierne un altro.
+                <div className="flex items-center" style={{ gap: 12, padding: '8px 4px 8px 8px', border: 'var(--bordo)' }}>
+                  <FacciaEsercizio nome={r.name} muscolo={muscolo || undefined} lato={46} colore={muscolo ? color : undefined}/>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: NUC.ink, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(r.name)}</div>
+                    <div style={{ fontFamily: NUC.display, fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[muscolo && tData(muscolo), r.linkedExerciseId ? t('dalla libreria') : t('nuovo esercizio')].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setCambio(r.id); setFuocoSu(r.id) }}
+                    className="j-focus"
+                    style={{ minHeight: 44, padding: '0 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: NUC.ink }}
+                  >{t('Cambia')}</button>
+                </div>
+              )}
+
               {r.origine && r.linkedExerciseId !== r.origine.id && r.name.trim() !== '' && (
                 <div role="note" style={{
-                  marginTop: 8, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-                  background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
-                  fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--warn)',
+                  marginTop: 8, padding: '9px 11px', border: '2px solid var(--j-accent)',
+                  fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.45, color: NUC.ink,
                 }}>
                   {t('Nome cambiato: questa riga diventa un altro esercizio, con uno storico suo. Quello di «{nome}» resta dov’è. Per correggere solo il nome, fallo dalla pagina dell’esercizio.', { nome: tData(r.origine.nome) })}
                 </div>
               )}
 
-              {/* Serie · Colpi: sono i due numeri che fanno la riga, e stanno in
-                  un riquadro loro, più chiaro della card, con le cifre grandi e
-                  al centro — si distinguono dal nome sopra e dalla nota sotto
-                  anche senza leggere le etichette. */}
-              <div className="flex gap-2.5" style={{
-                marginTop: 12, padding: '10px 10px 12px', borderRadius: 'var(--radius)',
-                background: 'var(--surface-2)', border: '1px solid var(--hairline-soft)',
-              }}>
-                <label style={{ flex: 1, minWidth: 0 }}>
-                  <div style={ETICHETTA_CAMPO}>{t('Serie')}</div>
-                  <input value={r.sets} onChange={e => patch(r.id, { sets: e.target.value.replace(/[^0-9]/g, '') })} inputMode="numeric" placeholder="3" className="j-field" style={{ textAlign: 'center', fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}/>
-                </label>
-                <label style={{ flex: 1.4, minWidth: 0 }}>
-                  <div style={ETICHETTA_CAMPO}>{t('Colpi')}</div>
-                  <div className="flex gap-1.5">
-                    <input
-                      value={r.reps}
-                      onChange={e => patch(r.id, { reps: e.target.value })}
-                      placeholder="8"
-                      className="j-field"
-                      style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}
-                    />
-                    {/* "max" è un obiettivo che un numero non sa dire: le serie a
-                        cedimento non hanno un bersaglio da centrare, si va finché
-                        si va. Il campo è testo libero e la parola si potrebbe
-                        scrivere a mano, ma andava scritta uguale ogni volta —
-                        `colpiPrevisti` legge dei numeri e su "max" cade su 0, cioè
-                        "nessun obiettivo", che è esattamente il comportamento
-                        giusto: in allenamento non compare nessun avviso di serie
-                        sotto il bersaglio. Con un tasto la parola è sempre quella.
-
-                        Si ripreme per tornare a un numero: un interruttore che si
-                        accende e non si spegne obbligherebbe a cancellare a mano
-                        quello che un tocco ha scritto. */}
-                    <button
-                      type="button"
-                      onClick={() => patch(r.id, { reps: r.reps.trim().toLowerCase() === 'max' ? '' : 'max' })}
-                      aria-pressed={r.reps.trim().toLowerCase() === 'max'}
-                      style={{
-                        flexShrink: 0, padding: '0 10px', borderRadius: 'var(--radius)', cursor: 'pointer',
-                        background: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : 'var(--surface)',
-                        border: `1px solid ${r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent)' : NUC.hairline}`,
-                        color: r.reps.trim().toLowerCase() === 'max' ? 'var(--j-accent-fg)' : NUC.dim,
-                        fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase',
-                        transition: 'background 160ms, color 160ms, border-color 160ms',
-                      }}
-                    >
-                      max
-                    </button>
-                  </div>
-                </label>
-              </div>
-
               {/* Gruppo muscolare: richiesto solo se l'esercizio è nuovo (non collegato) */}
               {!r.linkedExerciseId && r.name.trim() !== '' && (
                 <div style={{ marginTop: 12 }}>
-                  <div style={ETICHETTA_CAMPO}>
-                    {t('Gruppo muscolare')}
-                  </div>
-                  <select value={r.muscle} onChange={e => patch(r.id, { muscle: e.target.value })} className="j-field">
+                  <div style={ETICHETTA_CAMPO}>{t('Gruppo muscolare')}</div>
+                  <select value={r.muscle} onChange={e => patch(r.id, { muscle: e.target.value })} aria-label={t('Gruppo muscolare')} className="j-field">
                     <option value="">{t('Scegli il gruppo…')}</option>
                     {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
                   </select>
                   {/* Come nel "Nuovo esercizio": l'esercizio nasce qui, ed è qui
                       che si dice se ha un peso da caricare o è il proprio corpo.
                       Senza, un "Dip" creato da una scheda si salvava a 0 kg. */}
-                  <div className="flex gap-2" style={{ marginTop: 8 }}>
-                    {([false, true] as const).map(bw => (
-                      <button key={String(bw)} type="button" onClick={() => patch(r.id, { bodyweight: bw })} aria-pressed={r.bodyweight === bw} style={{
-                        flex: 1, height: 34, borderRadius: 'var(--radius)', cursor: 'pointer',
-                        background: r.bodyweight === bw ? 'var(--surface-2)' : 'var(--surface)',
-                        border: `1px solid ${r.bodyweight === bw ? 'var(--j-accent)' : NUC.hairline}`,
-                        color: r.bodyweight === bw ? 'var(--j-accent-ink)' : NUC.dim,
-                        fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.08em',
+                  <div className="flex" style={{ marginTop: 8, border: 'var(--bordo)' }}>
+                    {([false, true] as const).map((bw, i) => (
+                      <button key={String(bw)} type="button" onClick={() => patch(r.id, { bodyweight: bw })} aria-pressed={r.bodyweight === bw} className="j-focus" style={{
+                        flex: 1, height: 44, cursor: 'pointer', border: 'none', borderLeft: i === 0 ? 'none' : 'var(--bordo)',
+                        background: r.bodyweight === bw ? 'var(--ink)' : 'var(--surface)',
+                        color: r.bodyweight === bw ? 'var(--surface)' : NUC.ink,
+                        fontFamily: NUC.display, fontSize: 13.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
                       }}>
                         {bw ? t('Corpo libero') : t('Con attrezzo')}
                       </button>
@@ -1561,103 +1584,120 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                 </div>
               )}
 
-              {/* Nota (opzionale): mostrata anche durante l'allenamento */}
-              <div style={{ marginTop: 12 }}>
-                {/* Grigia e non del colore delle altre: è l'unica cosa della
-                    riga che si può lasciare vuota, e si deve capire da lontano. */}
-                <div style={{ ...ETICHETTA_CAMPO, color: NUC.faint }}>
-                  {t('Nota')} <span style={{ opacity: 0.7, fontWeight: 500 }}>{t('(opzionale)')}</span>
-                </div>
-                <textarea
-                  value={r.note}
-                  onChange={e => patch(r.id, { note: e.target.value })}
-                  // Una parola sola. L'esempio lungo ("Es. presa larga, tempo
-                  // 3-1-1, RIR 2…") andava a capo dentro un campo alto due righe e
-                  // se ne mangiava metà prima ancora di scriverci dentro.
-                  placeholder={t('Testo')}
-                  className="j-field"
-                  rows={2}
-                  style={{ resize: 'none', lineHeight: 1.5, borderStyle: 'dashed' }}
+              {/* Serie e ripetizioni: i due numeri che fanno la riga, col meno e
+                  il più ai lati. */}
+              <div className="flex" style={{ gap: 12, marginTop: 14 }}>
+                <Contatore
+                  etichetta={t('Serie')} valore={r.sets} placeholder="3" inputMode="numeric"
+                  onChange={v => patch(r.id, { sets: v.replace(/[^0-9]/g, '') })}
+                  onPasso={d => patch(r.id, { sets: String(Math.min(SERIE_MAX, Math.max(1, (parseInt(r.sets) || 0) + d))) })}
+                />
+                <Contatore
+                  etichetta={t('Ripetizioni')} valore={max ? 'max' : r.reps} placeholder="8" inputMode="text" bloccato={max}
+                  onChange={v => patch(r.id, { reps: v })}
+                  onPasso={d => patch(r.id, { reps: passoColpi(r.reps, d) })}
                 />
               </div>
 
+              <div style={{ marginTop: 14, borderTop: '1px solid var(--line)' }}>
+                {/* "max" è un obiettivo che un numero non sa dire: le serie a
+                    cedimento non hanno un bersaglio da centrare. `colpiPrevisti`
+                    su "max" cade su 0, cioè "nessun obiettivo": in allenamento non
+                    compare nessun avviso di serie sotto il bersaglio. Spegnendolo
+                    tornano le ripetizioni di prima. */}
+                <RigaInterruttore
+                  titolo={t('Fino a cedimento')} sotto={t('Ripetizioni massime invece di un numero fisso')}
+                  acceso={max}
+                  onCambia={() => {
+                    if (max) patch(r.id, { reps: colpiPrima.current[r.id] || '8' })
+                    else { colpiPrima.current[r.id] = r.reps; patch(r.id, { reps: 'max' }) }
+                  }}
+                />
+                {/* Sull'ultima riga resta acceso in attesa del prossimo: al
+                    salvataggio, senza un esercizio dopo, non conta (vedi
+                    `buildExercises`). */}
+                <RigaInterruttore
+                  titolo={t('Superset col successivo')} sotto={t('Nessun recupero tra questo e il prossimo')}
+                  acceso={r.supersetWithNext}
+                  onCambia={() => patch(r.id, { supersetWithNext: !r.supersetWithNext })}
+                />
+              </div>
+
+              {/* Nota (facoltativa): si vede anche durante l'allenamento */}
+              <label style={{ display: 'block', marginTop: 14 }}>
+                <div style={ETICHETTA_CAMPO}>{t('Nota')} · {t('facoltativa')}</div>
+                <textarea
+                  value={r.note}
+                  onChange={e => patch(r.id, { note: e.target.value })}
+                  placeholder={t('Tempo, presa, attrezzo…')}
+                  className="j-field"
+                  rows={2}
+                  style={{ height: 72, padding: '10px 12px', resize: 'none', lineHeight: 1.45, border: '1.5px solid var(--muted-dark)' }}
+                />
+              </label>
+
               {/* Richiude la riga: quello che si è scritto resta, e l'elenco
                   torna a leggersi in un colpo d'occhio. Non salva niente — il
-                  salvataggio è della scheda intera, in alto e in fondo. */}
+                  salvataggio è della scheda intera, in fondo. */}
               <button
                 type="button"
                 onClick={() => setAperta(null)}
-                className="j-hard-sm flex items-center justify-center gap-1.5 w-full"
+                className="j-hard j-focus flex items-center justify-center gap-2 w-full"
                 style={{
-                  height: 38, marginTop: 14, borderRadius: 'var(--radius)', cursor: 'pointer',
-                  background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.ink,
-                  fontFamily: NUC.label, fontSize: 10.5, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase',
+                  height: 50, marginTop: 14, cursor: 'pointer', border: 'none',
+                  background: 'var(--ink)', color: 'var(--surface)',
+                  fontFamily: NUC.display, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
                 }}
               >
-                <Icons.check size={14} stroke={2.2}/> {t('Fatto')}
+                <Icons.check size={16} stroke={2.4}/> {t('Fatto')}
               </button>
-            </NucCard>
-
-            {/* Toggle superset con l'esercizio successivo (nessun rest tra i due) */}
-            {ponte}
+              </div>
+            </div>
+            {legame}
             </div>
           )
         })}
 
-        <button onClick={addRow} className="flex items-center justify-center gap-2 w-full" style={{
-          height: 48, borderRadius: 'var(--radius)', cursor: 'pointer', marginBottom: 16,
-          background: 'color-mix(in srgb, var(--j-accent) 8%, var(--surface))', border: '1px dashed var(--j-accent)',
-          color: 'var(--j-accent-ink)', fontFamily: NUC.label, fontSize: 12.5, fontWeight: 600, letterSpacing: '.04em',
+        <button onClick={addRow} className="j-focus flex items-center justify-center gap-2 w-full" style={{
+          height: 54, cursor: 'pointer', marginTop: 4, marginBottom: 18,
+          background: 'transparent', border: '1.5px dashed var(--muted-dark)', color: NUC.ink,
+          fontFamily: NUC.display, fontSize: 15, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
         }}>
-          <Icons.plus size={15} stroke={2}/> {t('Aggiungi esercizio')}
+          <Icons.plus size={16} stroke={2.4}/> {t('Aggiungi esercizio')}
         </button>
 
         {errors.length > 0 && (
-          <div ref={erroriRef} style={{
-            marginBottom: 12, padding: '12px 14px', borderRadius: 'var(--radius)',
-            background: 'rgba(var(--warn-rgb),0.08)', border: '1px solid rgba(var(--warn-rgb),0.3)',
-          }}>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn)', marginBottom: 6 }}>
+          <div ref={erroriRef} style={{ marginBottom: 14, padding: '12px 14px', background: 'var(--surface)', border: '2px solid var(--j-accent)' }}>
+            <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--j-accent-ink)', marginBottom: 6 }}>
               {draftSaved ? t('Bozza salvata · da completare') : t('Da completare')}
             </div>
             <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
               {errors.map((e, i) => (
-                <li key={i} style={{ fontFamily: NUC.font, fontSize: 12, color: NUC.dim, lineHeight: 1.35 }}>{e}</li>
+                <li key={i} style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.ink, lineHeight: 1.4 }}>{e}</li>
               ))}
             </ul>
           </div>
         )}
 
-        <button onClick={handleSave} className="j-btn-accent">
-          {etichettaSalva}
-        </button>
-        <div style={{ fontFamily: NUC.label, fontSize: 9.5, color: NUC.faint, letterSpacing: '.03em', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontFamily: NUC.font, fontSize: 12, color: 'var(--fg-mute)', textAlign: 'center', lineHeight: 1.5 }}>
           {onSaveDraft
             ? t('Se manca qualcosa la scheda viene comunque salvata come bozza, senza perdere il lavoro.')
             : t('Questa scheda è già assegnata: se manca qualcosa non viene salvata, così a chi la usa resta quella di prima.')}
         </div>
 
-        {/* Staccato dal salvataggio da un divisore e da tutto lo spazio che ci
-            sta: sono le due uniche cose in fondo alla pagina, e se si toccassero
-            un pollice che punta la prima prenderebbe la seconda. */}
+        {/* Staccato da tutto il resto: è la sola cosa della pagina che cancella. */}
         {onDelete && (
-          <>
-            <div style={{ height: 1, background: 'var(--divider)', margin: '22px 0 14px' }}/>
-            <button
-              onClick={onDelete}
-              className="j-hard flex items-center justify-center gap-2 w-full"
-              style={{
-                height: 44, borderRadius: 'var(--radius)', cursor: 'pointer',
-                background: 'rgba(var(--danger-rgb),0.06)',
-                border: '1px solid rgba(var(--danger-rgb),0.25)',
-                color: 'var(--danger)',
-                fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
-                letterSpacing: '.14em', textTransform: 'uppercase',
-              }}
-            >
-              <Icons.trash size={14} stroke={1.7}/> {t('Elimina scheda')}
-            </button>
-          </>
+          <button
+            onClick={onDelete}
+            className="j-hard j-focus flex items-center justify-center gap-2 w-full"
+            style={{
+              height: 48, marginTop: 28, cursor: 'pointer',
+              background: 'var(--surface)', border: 'var(--bordo)', color: 'var(--danger)',
+              fontFamily: NUC.display, fontSize: 14, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+            }}
+          >
+            <Icons.trash size={15} stroke={1.9}/> {t('Elimina scheda')}
+          </button>
         )}
       </div>
     </SchedaPage>
@@ -1733,13 +1773,6 @@ function sessioniDellaScheda(scheda: GymScheda, esercizi: PalestraExercise[]): S
       giorno,
       alzate: alzate.sort((a, b) => posto(a.exerciseId, a.nome) - posto(b.exerciseId, b.nome)),
     }))
-}
-
-/** "23 settembre", con l'anno solo se non è quello in corso. */
-function giornoSessione(giorno: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(giorno)) return giorno
-  const anno = giorno.slice(0, 4)
-  return anno === String(new Date().getFullYear()) ? fmtDayMonthFull(giorno) : `${fmtDayMonthFull(giorno)} ${anno}`
 }
 
 /** Cosa si sa di un'alzata dello storico di una scheda: di quanto è cambiato il
@@ -1915,7 +1948,6 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
 }) {
   const t = useT()
   const tData = useTData()
-  const dark = useIsDark()
   const { confirmDelete } = useConfirmDelete()
   const [condividiAperto, setCondividiAperto] = useState(false)
   // La seconda faccia della scheda. Gli esercizi sono gli stessi, ma invece di
@@ -2028,129 +2060,127 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
     </button>
   )
 
-  return (
-    <SchedaPage
-      onBack={richieste ? () => setRichieste(false) : storico ? () => setStorico(false) : onBack} tronca
-      title={scheda.title}
-      sub={richieste
-        ? t('Richieste a {chi}', { chi: daCoach ?? '' })
-        : storico
-          ? t('Storico allenamenti')
-          : scheda.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: scheda.exercises.length })}
-      // I comandi stanno in una riga loro sotto il titolo, non accanto: con tre
-      // tasti il titolo non ci stava e i tasti andavano a capo da soli, a destra,
-      // lasciando mezza riga vuota. In quel vuoto adesso c'è da dove viene la
-      // scheda — scritta da te, o mandata da un allenatore e da quale.
-      extra={<>
-        <div className="flex items-center justify-between gap-3" style={{ marginTop: 14 }}>
-          <div className="flex items-center gap-2.5" style={{ minWidth: 0 }}>
-            <span style={{ display: 'flex', flexShrink: 0, color: daCoach ? 'var(--j-accent-ink)' : NUC.faint }}>
-              {daCoach ? <Icons.chat size={18} stroke={1.7}/> : <Icons.user size={18} stroke={1.7}/>}
-            </span>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 9.5, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: NUC.faint }}>
-                {daCoach ? t('Dal coach') : t('Scheda')}
-              </span>
-              <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 14.5, fontWeight: 500, color: NUC.ink, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {daCoach ?? t('Creata da te')}
-              </span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
-            {/* L'orologio: gli allenamenti già fatti. Solo se ce n'è almeno uno —
-                un tasto che apre una pagina vuota è una promessa non mantenuta. */}
-            {sessioni.length > 0 && !richieste && (
-              <button
-                onClick={() => setStorico(v => !v)}
-                aria-pressed={storico}
-                aria-label={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
-                title={storico ? t('Torna alla scheda') : t('Storico allenamenti')}
-                className="j-hard flex items-center justify-center"
-                style={{
-                  ...iconBtn(),
-                  ...(storico ? {
-                    background: 'var(--j-accent)',
-                    border: '1px solid var(--j-accent)',
-                    color: 'var(--j-accent-fg)',
-                  } : {}),
-                }}
-              >
-                <Icons.clock size={18} stroke={1.9}/>
-              </button>
-            )}
-            {/* Il punto interrogativo: la porta fra le due facce della scheda. */}
-            {puoiChiedere && !storico && (
-              <button
-                onClick={() => setRichieste(r => !r)}
-                aria-pressed={richieste}
-                aria-label={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
-                title={richieste ? t('Torna alla scheda') : t('Chiedi all’allenatore')}
-                className="j-hard flex items-center justify-center"
-                style={{
-                  ...iconBtn(),
-                  position: 'relative',
-                  ...(richieste ? {
-                    background: 'var(--j-accent)',
-                    border: '1px solid var(--j-accent)',
-                    color: 'var(--j-accent-fg)',
-                  } : {}),
-                }}
-              >
-                <Icons.help size={19} stroke={1.9}/>
-                {/* Aperta la vista il badge sparisce perché i messaggi sono appena
-                    stati letti: lasciarlo lì sarebbe un contatore di cose già viste. */}
-                {!richieste && <BadgeNonLetti n={daLeggere} style={{ position: 'absolute', top: -6, right: -6 }}/>}
-              </button>
-            )}
-            {puoiCondividere && (
-              <button
-                onClick={() => setCondividiAperto(true)}
-                aria-label={t('Condividi la scheda')}
-                className="j-hard flex items-center justify-center" style={iconBtn()}
-              >
-                <Icons.share size={17} stroke={1.8}/>
-              </button>
-            )}
-            {/* Matita O cestino, mai tutti e due.
-                Sulle schede MIE c'è la matita, e l'eliminazione sta là dentro (vedi
-                `onDelete` di SchedaFormPage): un cestino a fianco della matita era il
-                vicino di casa del tasto che si preme più spesso.
-                Sulle schede ASSEGNATE la matita non c'è — sono il lavoro
-                dell'allenatore, e riscriverle qui vorrebbe dire che i due si allenano
-                su due versioni diverse senza saperlo — quindi il cestino resta in
-                testata: rifiutarla si può, e senza matita non ha un altro posto dove
-                stare. */}
-            {daCoach ? (
-              <button onClick={onDelete} aria-label={t('Elimina scheda')} className="j-hard flex items-center justify-center" style={iconBtn(true)}>
-                <Icons.trash size={17} stroke={1.6}/>
-              </button>
-            ) : (
-              <button onClick={onEdit} aria-label={t('Modifica')} className="j-hard flex items-center justify-center" style={iconBtn()}>
-                <Icons.pencil size={17} stroke={1.8}/>
-              </button>
-            )}
-          </div>
+  // Gli esercizi a gruppi: uno da solo, o una fila legata in superset. Il
+  // gruppo ha un numero; dentro un superset ogni esercizio ha la sua lettera
+  // (5A, 5B), perché si fanno uno dopo l'altro come se fossero uno.
+  const gruppi = useMemo(() => {
+    const out: Array<Array<{ e: GymSchedaExercise; sigla: string }>> = []
+    scheda.exercises.forEach((e, i) => {
+      const legatoPrima = i > 0 && !!scheda.exercises[i - 1].supersetWithNext
+      if (legatoPrima && out.length) out[out.length - 1].push({ e, sigla: '' })
+      else out.push([{ e, sigla: '' }])
+    })
+    out.forEach((g, n) => g.forEach((r, j) => { r.sigla = g.length > 1 ? `${n + 1}${String.fromCharCode(65 + j)}` : String(n + 1) }))
+    return out
+  }, [scheda.exercises])
+
+  // La riga di un esercizio: il numero, la foto col contorno del colore del suo
+  // gruppo muscolare, il nome e il gruppo, e a destra serie × colpi.
+  const rigaEsercizio = (e: GymSchedaExercise, sigla: string, primo: boolean) => (
+    <div key={e.id} className="flex items-center" style={{ gap: 12, padding: '12px 14px', borderTop: primo ? 'none' : '1px solid var(--line)' }}>
+      <span style={{ width: 28, flexShrink: 0, fontFamily: NUC.display, fontSize: 20, fontWeight: 700, color: NUC.ink }}>{sigla}</span>
+      <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48} colore={muscleColor(e.muscle, muscleColors)}/>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.25, color: NUC.ink }}>{tData(e.name)}</div>
+        <div style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 2 }}>
+          {e.muscle ? tData(displayMuscle(e.muscle)) : t('Senza gruppo')}
         </div>
-        {/* Da quanto la si usa: è quello che dice quando è ora di cambiarla.
-            Una scheda del coach conta da quando è arrivata. Su una riga sua, a
-            tutta larghezza: accanto ai tre tasti la data si troncava proprio
-            sul numero. */}
-        {nataIl && (
-          <div className="flex items-center" style={{ gap: 7, marginTop: 11, fontFamily: NUC.label, fontSize: 11.5, letterSpacing: '.01em', color: NUC.faint }}>
-            <span style={{ display: 'flex', flexShrink: 0 }}><Icons.calendar size={14} stroke={1.7}/></span>
-            <span style={{ minWidth: 0 }}>
-              {daCoach ? t('Ricevuta il {data}', { data: giornoConAnno(nataIl) }) : t('Creata il {data}', { data: giornoConAnno(nataIl) })}
-              {' · '}
-              <strong style={{ fontWeight: 600 }}>{etaScheda(giorniTra(nataIl, todayISO()), t)}</strong>
-            </span>
+        {e.note && (
+          <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: NUC.faint, marginTop: 4, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+            {e.note}
           </div>
         )}
-      </>}
-    >
+      </div>
+      <div style={{ flexShrink: 0, fontFamily: NUC.display, fontSize: 22, fontWeight: 800, color: NUC.ink, whiteSpace: 'nowrap' }}>
+        {e.sets}×{e.reps}
+      </div>
+    </div>
+  )
+
+  // I tre numeri sotto il titolo: esercizi, serie, da quanto non la si fa.
+  const numero = (valore: ReactNode, etichetta: string, primo: boolean) => (
+    <div style={{ padding: '10px 12px', borderLeft: primo ? 'none' : '1px solid var(--line)', minWidth: 0 }}>
+      <div style={{ fontFamily: NUC.display, fontSize: 28, fontWeight: 800, lineHeight: 1, color: NUC.ink, whiteSpace: 'nowrap' }}>{valore}</div>
+      <div style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 4 }}>{etichetta}</div>
+    </div>
+  )
+  const piccolo = (s: string) => <span style={{ fontSize: 13, fontWeight: 700, color: NUC.faint, marginLeft: 2 }}>{s}</span>
+
+  // Da dove viene e da quando: "Creata il 15 set · da 5 settimane", o per una
+  // scheda del coach chi l'ha mandata e quando è arrivata.
+  const provenienza = [
+    daCoach ? t('Da {chi}', { chi: daCoach }) : null,
+    nataIl ? (daCoach ? t('Ricevuta il {data}', { data: giornoConAnno(nataIl) }) : t('Creata il {data}', { data: giornoConAnno(nataIl) })) : (daCoach ? null : t('Creata da te')),
+    nataIl ? etaScheda(giorniTra(nataIl, todayISO()), t) : null,
+  ].filter(Boolean).join(' · ')
+
+  const vistaPrincipale = !richieste && !storico
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="j-page-header">
+        {/* In alto la freccia, e a destra i comandi: condividi e "Modifica"
+            sulle schede mie; la domanda all'allenatore e il cestino su quelle
+            che mi ha mandato (riscriverle qui vorrebbe dire che i due si
+            allenano su due versioni diverse senza saperlo; rifiutarle si può).
+            Lo storico non sta qui: è in fondo, dopo gli esercizi. */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={richieste ? () => setRichieste(false) : storico ? () => setStorico(false) : onBack}
+            aria-label={t('Indietro')} className="j-btn-back"
+          >
+            <Icons.back size={20} stroke={1.8}/>
+          </button>
+          {vistaPrincipale && (
+            <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+              {puoiChiedere && (
+                <button
+                  onClick={() => setRichieste(true)}
+                  aria-label={t('Chiedi all’allenatore')} title={t('Chiedi all’allenatore')}
+                  className="j-hard flex items-center justify-center"
+                  style={{ ...iconBtn(), position: 'relative' }}
+                >
+                  <Icons.help size={19} stroke={1.9}/>
+                  <BadgeNonLetti n={daLeggere} style={{ position: 'absolute', top: -6, right: -6 }}/>
+                </button>
+              )}
+              {puoiCondividere && (
+                <button
+                  onClick={() => setCondividiAperto(true)}
+                  aria-label={t('Condividi la scheda')} title={t('Condividi la scheda')}
+                  className="j-hard flex items-center justify-center" style={iconBtn()}
+                >
+                  <Icons.share size={17} stroke={1.8}/>
+                </button>
+              )}
+              {daCoach ? (
+                <button onClick={onDelete} aria-label={t('Elimina scheda')} className="j-hard flex items-center justify-center" style={iconBtn(true)}>
+                  <Icons.trash size={17} stroke={1.6}/>
+                </button>
+              ) : (
+                <button onClick={onEdit} className="j-hard flex items-center" style={{
+                  height: 44, padding: '0 14px', gap: 7, cursor: 'pointer',
+                  background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
+                  fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                }}>
+                  <Icons.pencil size={15} stroke={1.9}/>{t('Modifica')}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!vistaPrincipale && (
+          <>
+            <div className="j-page-title" style={{ marginTop: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scheda.title}</div>
+            <div className="j-eyebrow mt-0.5">{richieste ? t('Richieste a {chi}', { chi: daCoach ?? '' }) : t('Storico allenamenti')}</div>
+          </>
+        )}
+      </div>
 
       {storico ? (
         <div className="j-scroll-area">
-          <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 8 }}>
+          <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: NUC.faint, marginBottom: 8 }}>
             {t('Apri un giorno per vederne le alzate, poi toccane una per correggere chili, colpi o nota.')}
           </div>
           {/* Per mese e senza anno, come lo storico di un esercizio. */}
@@ -2172,9 +2202,8 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
         <div className="j-scroll-area">
           <div style={{
             marginBottom: 12, padding: '10px 12px',
-            borderRadius: 'var(--radius)',
             background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`,
-            fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.6, letterSpacing: '.02em', color: NUC.dim,
+            fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: NUC.dim,
           }}>
             {t('Chiedi quello che ti serve sotto l’esercizio che riguarda: {chi} lo legge e risponde da qui. La scheda resta com’è finché non la cambia chi te l’ha mandata.', { chi: daCoach ?? '' })}
           </div>
@@ -2184,7 +2213,7 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
               che si chiede su una scheda nuova, non l'ultima. */}
           <NucCard pad={13} style={{ marginBottom: 10 }}>
             <div className="flex items-center justify-between gap-2">
-              <div style={{ fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--tertiary-ink)' }}>
+              <div style={{ fontFamily: NUC.display, fontSize: 15, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: NUC.ink }}>
                 {t('Sulla scheda')}
               </div>
               {tastoChiedi('info', undefined, t('Chiedi'), <Icons.help size={11} stroke={2}/>, false)}
@@ -2197,17 +2226,16 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
           </NucCard>
 
           {scheda.exercises.map(e => {
-            const color = muscleColor(e.muscle, muscleColors)
             const suoi = filo.filter(m => m.esercizio_id === e.id)
             return (
               <div key={e.id} style={{ marginBottom: 8 }}>
-                <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
+                <NucCard pad={13}>
                   <div className="flex items-center justify-between gap-3">
-                    <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={40}/>
+                    <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={44} colore={muscleColor(e.muscle, muscleColors)}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
-                      <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
-                        {e.sets} × {e.reps}
+                      <div style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.25, color: NUC.ink }}>{tData(e.name)}</div>
+                      <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 800, color: NUC.ink, marginTop: 2 }}>
+                        {e.sets}×{e.reps}
                       </div>
                     </div>
                   </div>
@@ -2229,16 +2257,31 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
         </div>
       ) : (
       <div className="j-scroll-area">
+        {/* Da dove viene, il titolo e i tre numeri. Scorrono con gli esercizi:
+            fissi in cima, fra loro e il tasto in fondo restava una finestra
+            di due esercizi. */}
+        {provenienza && <div className="j-eyebrow" style={{ fontSize: 13 }}>{provenienza}</div>}
+        <div className="j-page-title" style={{ marginTop: 4, overflowWrap: 'anywhere' }}>{scheda.title}</div>
+        {scheda.exercises.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', margin: '14px 0 18px', background: 'var(--surface)', border: 'var(--bordo)' }}>
+            {numero(scheda.exercises.length, scheda.exercises.length === 1 ? t('esercizio') : t('esercizi'), true)}
+            {numero(serieDellaScheda(scheda), t('serie'), false)}
+            {numero(
+              giorniStop === null ? '—' : giorniStop === 0 ? t('oggi') : <>{giorniStop}{piccolo(t('gg'))}</>,
+              t('Ultima volta'), false,
+            )}
+          </div>
+        )}
+
         {/* Quello che l'allenamento ha appena scritto, e la strada per correggerlo.
             È in cima perché arrivando qui da "Salva e chiudi" è l'unica cosa nuova
             della pagina: il resto è la scheda, che si sa già com'è. */}
         {appenaSalvate.length > 0 && onCorreggi && (
-          <NucCard pad={13} style={{ marginBottom: 12, borderLeft: '3px solid var(--j-accent)' }}>
-            <div style={{
-              fontFamily: NUC.label, fontSize: 10, fontWeight: 600, letterSpacing: '.14em',
-              textTransform: 'uppercase', color: 'var(--tertiary-ink)', marginBottom: 2,
-            }}>{t('Allenamento salvato')}</div>
-            <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint, marginBottom: 10 }}>
+          <NucCard pad={13} style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: NUC.display, fontSize: 15, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: NUC.ink, marginBottom: 2 }}>
+              {t('Allenamento salvato')}
+            </div>
+            <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: NUC.faint, marginBottom: 10 }}>
               {t('Tocca un’alzata per correggere i chili o i colpi.')}
             </div>
             {appenaSalvate.map((a, i) => (
@@ -2250,57 +2293,45 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
         {scheda.exercises.length === 0 ? (
           <div className="j-empty">{t('Scheda vuota — modificala per aggiungere esercizi')}</div>
         ) : (
-          scheda.exercises.map((e, i) => {
-            const color = muscleColor(e.muscle, muscleColors)
-            const linkedToPrev = i > 0 && scheda.exercises[i - 1].supersetWithNext
-            return (
-              <div key={e.id} style={{ marginBottom: e.supersetWithNext ? 0 : 8 }}>
-                {linkedToPrev && <PonteSuperset/>}
-                <NucCard pad={13} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(linkedToPrev, !!e.supersetWithNext) }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={44}/>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, lineHeight: 1.2, color: NUC.ink }}>{tData(e.name)}</div>
-                      <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
-                        {e.muscle ? tData(displayMuscle(e.muscle)) : t('Senza gruppo')}{e.linkedExerciseId ? ` · ${t('collegato')}` : ''}
-                      </div>
-                    </div>
-                    <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentSoft, letterSpacing: -0.3, flexShrink: 0 }}>
-                      {e.sets} × {e.reps}
-                    </div>
-                  </div>
-                  {e.note && (
-                    <div style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.faint, marginTop: 8, lineHeight: 1.5, letterSpacing: 0.1, whiteSpace: 'pre-wrap' }}>
-                      {e.note}
-                    </div>
-                  )}
-                </NucCard>
+          gruppi.map(g => g.length === 1 ? (
+            <div key={g[0].e.id} style={{ marginBottom: 10, background: 'var(--surface)', border: 'var(--bordo)' }}>
+              {rigaEsercizio(g[0].e, g[0].sigla, true)}
+            </div>
+          ) : (
+            // Un superset: la fascia nera in cima, e sotto gli esercizi uno dopo
+            // l'altro nello stesso riquadro.
+            <div key={g[0].e.id} style={{ marginBottom: 10 }}>
+              <div className="flex items-center" style={{
+                gap: 7, padding: '7px 12px', background: 'var(--ink)', color: 'var(--surface)',
+                fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+              }}>
+                <Icons.repeat size={13} stroke={2.2}/>
+                {g.length === 2 ? t('Superset · nessun recupero tra i due') : t('Superset · nessun recupero tra loro')}
               </div>
-            )
-          })
+              <div style={{ background: 'var(--surface)', border: 'var(--bordo)', borderTop: 'none' }}>
+                {g.map((r, j) => rigaEsercizio(r.e, r.sigla, j === 0))}
+              </div>
+            </div>
+          ))
         )}
 
-        {/* La porta per lo storico anche in fondo alla scheda, oltre all'orologio
-            in testata: è qui che si guarda dopo aver letto gli esercizi. */}
+        {/* Lo storico in fondo: è qui che si guarda dopo aver letto gli esercizi.
+            Solo se c'è almeno un allenamento — un tasto che apre una pagina
+            vuota è una promessa non mantenuta. */}
         {sessioni.length > 0 && (
           <button
             onClick={() => setStorico(true)}
-            className="j-riga-gruppo flex items-center justify-between gap-3 w-full"
+            className="j-hard flex items-center justify-between gap-3 w-full"
             style={{
-              marginTop: 6, padding: '12px 14px', borderRadius: 'var(--radius)', cursor: 'pointer',
-              background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, textAlign: 'left',
+              marginTop: 6, padding: '14px', cursor: 'pointer', textAlign: 'left',
+              background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
             }}
           >
-            <span className="flex items-center gap-2.5" style={{ minWidth: 0, color: NUC.ink }}>
-              <Icons.clock size={16} stroke={1.8}/>
-              <span style={{ fontFamily: NUC.font, fontSize: 14 }}>{t('Storico allenamenti')}</span>
+            <span className="flex items-center gap-2.5" style={{ minWidth: 0 }}>
+              <Icons.clock size={17} stroke={1.9}/>
+              <span style={{ fontFamily: NUC.display, fontSize: 16, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{t('Storico allenamenti')}</span>
             </span>
-            <span className="flex items-center gap-1.5" style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint }}>
-              {giorniStop !== null
-                ? quantoFa(giorniStop, t)
-                : t('ultimo {giorno}', { giorno: giornoSessione(sessioni[0].giorno) })}
-              <Icons.chev size={12} stroke={2}/>
-            </span>
+            <Icons.chev size={16} stroke={2.2}/>
           </button>
         )}
       </div>
@@ -2308,26 +2339,24 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
 
       {/* Il tasto per allenarsi non c'è nella vista delle richieste: lì si sta
           scrivendo, non ci si sta preparando a partire. */}
-      {!richieste && !storico && scheda.exercises.length > 0 && (
-        <div className="j-page-cta">
+      {vistaPrincipale && scheda.exercises.length > 0 && (
+        <div className="j-page-cta" style={{ borderTop: 'var(--bordo)', background: 'var(--bg)' }}>
           {/* Detto PRIMA di cominciare, non a metà della prima serie: chi torna
               dopo uno stop deve saperlo quando sceglie con che peso partire. */}
           {giorniStop !== null && giorniStop > GIORNI_DI_STOP && !inCorso && (
             <div role="note" style={{
-              marginBottom: 10, padding: '9px 11px', borderRadius: 'var(--radius-sm)',
-              background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
-              fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--warn)',
+              marginBottom: 10, padding: '9px 11px',
+              background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`,
+              fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: NUC.ink,
             }}>
               {t('Non fai questa scheda da {n} giorni: probabilmente farai più fatica con i carichi dell’ultima volta.', { n: giorniStop })}
             </div>
           )}
-          <button onClick={onStart} className="j-hard j-accent-key j-focus flex items-center justify-center gap-2 w-full" style={{
-            height: 52, borderRadius: 'var(--radius)', backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)',
-            color: 'var(--j-accent-fg)', cursor: 'pointer', fontFamily: NUC.font, fontSize: 15, fontWeight: 500,
-          }}>
-            <Icons.play size={18}/> {inCorso?.vecchia
+          <button onClick={onStart} className="j-btn-accent j-focus" style={{ marginTop: 0 }}>
+            {inCorso?.vecchia
               ? t('Chiudi l’allenamento del {giorno}', { giorno: fmtDayMon(localISO(new Date(inCorso.iniziataA))) })
               : inCorso ? t('Riprendi allenamento') : t('Inizia allenamento')}
+            <Icons.arrow size={22} stroke={2.4}/>
           </button>
           {/* L'allenamento di un altro giorno rimasto aperto: riprenderlo vuol
               dire salvarne le serie in QUEL giorno. Chi invece è qui per
@@ -2373,7 +2402,7 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
           }
         />
       </JModal>
-    </SchedaPage>
+    </div>
   )
 }
 
@@ -2453,39 +2482,42 @@ function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
   )
 }
 
-// La casella di una serie — i colpi, o i chili — con l'unità stampata dentro a
-// destra. Non ha un bordo suo: è un pezzo della riga (`.j-serie` in
-// globals.css), e fra una casella e l'altra c'è solo un filo. In allarme (colpi
+// La casella di una serie — i colpi, o i chili — col numero grande e l'unità
+// piccola subito dopo (`.j-serie-cella` in globals.css). In allarme (colpi
 // sotto obiettivo, chili mancanti) vira al rosso: fondo, numero e unità insieme,
-// perché il solo numero rosso su una riga scura si perde.
-function CampoSerie({ value, onChange, unita, segnaposto, mode, etichetta, allarme }: {
+// perché il solo numero rosso si perde.
+function CampoSerie({ value, onChange, unita, mode, etichetta, allarme, fatta }: {
   value: string
   onChange: (v: string) => void
+  /** L'unità, scritta piccola subito dopo il numero ("rip", "kg"). */
   unita: string
-  /** Cosa si legge nel campo vuoto, se non è l'unità. */
-  segnaposto?: string
   mode: 'decimal' | 'numeric'
   etichetta: string
   allarme?: boolean
+  /** La serie è spuntata: il numero si spegne in grigio. */
+  fatta?: boolean
 }) {
+  // Il campo è largo quanto il numero che ci sta dentro, così l'unità gli sta
+  // attaccata ("75 kg") invece di restare in fondo alla colonna. `ch` è la
+  // larghezza di una cifra nel carattere del campo.
+  const larghezza = `${Math.max(2, value.length) + 0.4}ch`
   return (
-    <div className="j-serie-cella" style={allarme ? { background: 'rgba(var(--danger-rgb),0.12)' } : undefined}>
+    <label className="j-serie-cella" style={allarme ? { background: 'rgba(var(--danger-rgb),0.10)' } : undefined}>
       <input
         value={value}
         onChange={ev => onChange(ev.target.value)}
         inputMode={mode}
         aria-label={etichetta}
         aria-invalid={allarme || undefined}
-        placeholder={segnaposto ?? unita}
+        placeholder="–"
         className="j-serie-campo"
-        style={allarme ? { color: 'var(--danger)' } : undefined}
+        style={{ width: larghezza, color: allarme ? 'var(--danger)' : fatta ? 'var(--fg-mute)' : undefined }}
       />
       <span aria-hidden style={{
-        position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
-        fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.04em',
+        fontFamily: NUC.display, fontSize: 13, fontWeight: 700, marginLeft: 3,
         color: allarme ? 'var(--danger)' : NUC.faint, pointerEvents: 'none',
       }}>{unita}</span>
-    </div>
+    </label>
   )
 }
 
@@ -2525,16 +2557,23 @@ function CampoNota({ value, onChange, etichetta }: { value: string; onChange: (v
   )
 }
 
-// I tastini nell'angolo della card di un esercizio ("uguale", "nota").
+// I tastini con una scritta dentro la card di un esercizio ("Usa", "Salva").
 const TASTINO: CSSProperties = {
-  height: 26, padding: '0 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-  background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`, color: NUC.dim,
-  fontFamily: NUC.label, fontSize: 9, letterSpacing: '.04em', textTransform: 'uppercase',
+  height: 36, padding: '0 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+  background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, color: NUC.ink,
+  fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+}
+
+// I due quadratini in testata alla card ("uguale su tutte", la nota).
+const QUADRATINO: CSSProperties = {
+  width: 44, height: 44, padding: 0, cursor: 'pointer',
+  background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 
 // Chi parla, davanti a ogni nota della card ("SCHEDA", "ULTIMA VOLTA").
 const ETICHETTA_NOTA: CSSProperties = {
-  marginRight: 6, fontSize: 8.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', fontStyle: 'normal',
+  marginRight: 6, fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', fontStyle: 'normal',
   color: NUC.faint,
 }
 
@@ -2551,17 +2590,14 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
 }) {
   const t = useT()
   const { verso, kg, pesi, da, motivo, fatte, cima, alte } = consiglio
-  // Lo stop e il muscolo già stanco hanno un colore loro: non sono un verso,
-  // sono un avviso.
-  const avviso = motivo === 'stop' || motivo === 'affaticato'
-  const colore = avviso ? 'var(--warn)' : verso === 'su' ? 'var(--segnale-su)' : verso === 'giu' ? 'var(--segnale-giu)' : NUC.dim
+  // Il verso lo dice la freccia davanti al peso; il peso resta d'inchiostro.
   const freccia = verso === 'su' ? '↑' : verso === 'giu' ? '↓' : '='
   // "Valuta" e "devi" non sono la stessa cosa, e il titolo lo dice prima del
   // perché: una settimana piena è un permesso, due sono un ordine.
   const titolo =
     motivo === 'valuta' || motivo === 'primoAumento' || (motivo === 'fresco' && verso === 'su') ? t('Puoi salire')
     : motivo === 'devi' ? t('Devi salire')
-    : motivo === 'stop' ? t('Dopo lo stop')
+    : motivo === 'stop' ? t('Dopo lo stop · {n} gg', { n: consiglio.giorni ?? 0 })
     : motivo === 'nuovo' ? t('Esercizio nuovo')
     : motivo === 'affaticato' ? t('Muscolo già stanco')
     : t('Carico consigliato')
@@ -2580,34 +2616,32 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
     : motivo === 'serieMancanti' ? t('L’ultima volta {fatte} serie su {serie}: meglio scendere.', { fatte: fatte ?? 0, serie })
     : motivo === 'colpiCorti' ? t('L’ultima volta una serie sotto i {n} colpi: meglio scendere.', { n: cima ?? '' })
     : motivo === 'pesoCalato' ? t('L’ultima volta hai dovuto alleggerire: riparti più basso.')
-    : motivo === 'stop' ? t('Non lo fai da {n} giorni: probabilmente farai più fatica a sollevare questi carichi, visto lo stop. Riparti da qui senza salire.', { n: consiglio.giorni ?? 0 })
+    : motivo === 'stop' ? t('Probabilmente farai più fatica del solito. Riparti da qui, senza salire.')
     : motivo === 'schedaCambiata' ? t('La scheda è cambiata dall’ultima volta: riparti dai carichi che avevi.')
     : t('Ripeti i carichi dell’ultima volta.')
   // Con pesi diversi da serie a serie si scrivono tutti: "62,5 kg" da solo
   // farebbe caricare il peso alto anche sulla prima serie.
   const uguali = pesi.every(k => k === pesi[0])
+  // Un riquadro grigio: sopra il perché in breve e il peso, grande, a destra;
+  // sotto la frase che lo spiega.
   return (
-    <div className="flex items-center gap-2.5" style={{
-      marginBottom: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-      background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}`,
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: NUC.faint }}>
+    <div style={{ padding: '10px 12px', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}` }}>
+      <div className="flex items-baseline justify-between gap-3">
+        <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, minWidth: 0 }}>
           {titolo}
         </div>
-        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: colore, marginTop: 1 }}>
+        <div style={{ fontFamily: NUC.display, fontSize: 22, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase', color: NUC.ink, flexShrink: 0, whiteSpace: 'nowrap' }}>
           <span aria-hidden>{freccia} </span>{uguali ? fmtNum(kg) : pesi.map(fmtNum).join(' · ')} kg
         </div>
-        <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.4, color: NUC.dim, marginTop: 2 }}>{perche}</div>
       </div>
-      {applicabile && (
-        <button onClick={onUsa} className="j-hard-sm" style={{
-          ...TASTINO, flexShrink: 0, height: 32, padding: '0 12px', fontSize: 10, fontWeight: 600,
-          color: 'var(--j-accent-ink)',
-        }}>
-          {t('Usa')}
-        </button>
-      )}
+      <div className="flex items-end justify-between gap-3" style={{ marginTop: 6 }}>
+        <div style={{ fontFamily: NUC.font, fontSize: 14, lineHeight: 1.4, color: NUC.ink }}>{perche}</div>
+        {applicabile && (
+          <button onClick={onUsa} className="j-hard" style={{ ...TASTINO, flexShrink: 0 }}>
+            {t('Usa')}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -2625,10 +2659,9 @@ interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; 
 // salvati e lo storico intero copiato e riordinato per leggerne l'ultima nota.
 // Adesso cambia identità solo l'avanzamento dell'esercizio toccato (`p`), i
 // comandi sono stabili, e si ridisegna solo la sua card.
-const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p, last, notaPrima, corpo, attrezzo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota, onChiudiNota, onCorpoLibero }: {
+const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, p, last, notaPrima, corpo, attrezzo, consiglio, notaAperta, onToggle, onPeso, onColpi, onNota, onUsa, onUguale, onApriNota, onChiudiNota, onCorpoLibero }: {
   e: GymSchedaExercise
   legatoPrima: boolean
-  color: string
   p: TrainProgress
   last?: PalestraExercise
   notaPrima?: string
@@ -2656,15 +2689,11 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
 }) {
   const t = useT()
   const tData = useTData()
-  const dark = useIsDark()
   const [fotoGrande, setFotoGrande] = useState(false)
   const nSets = Math.max(1, e.sets)
   // Il bersaglio di OGNI serie: "8-10" è 8 per tutte, "10-8-6" scala.
   const bersagli = colpiPrevisti(e.reps, nSets)
   const aScalare = new Set(bersagli).size > 1
-  // Le serie che contano (spuntate e, con un attrezzo, coi chili scritti):
-  // sono quelle che colorano la riga e i segmenti in testa alla card.
-  const valide = new Set(serieValide(p.checks, p.weights, corpo, attrezzo))
   // Le note che si leggono mentre ci si allena, tutte nello stesso posto: cosa
   // dice la scheda, cosa c'è scritto sull'esercizio, cosa ci si era appuntati
   // l'ultima volta, e quella di oggi una volta chiusa.
@@ -2678,97 +2707,89 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
   // riempiva — e il riepilogo diceva poi che l'esercizio non contava.
   const senzaChili = !corpo && p.checks.some((c, i) => c && !chiliScritti(p.weights[i], attrezzo > 0))
   const exDone = p.checks.length > 0 && p.checks.every(Boolean) && !senzaChili
+  const spuntate = p.checks.filter(Boolean).length
+  // Le colonne della tabella delle serie: numero, colpi, chili, spunta.
+  const COLONNE: CSSProperties = { display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) minmax(0, 1fr) 44px', alignItems: 'center', columnGap: 8, padding: '0 14px' }
+  const intestazione: CSSProperties = { fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint }
   return (
-    <div style={{ marginBottom: e.supersetWithNext ? 0 : 10 }}>
+    <div style={{ marginBottom: e.supersetWithNext ? 0 : 14 }}>
       {legatoPrima && <PonteSuperset/>}
-      <NucCard pad={14} style={{ borderLeft: `3px solid ${color}`, ...bordiSuperset(legatoPrima, !!e.supersetWithNext), opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
-        <div className="flex items-start justify-between gap-3" style={{ marginBottom: 10 }}>
-          <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={54} onIngrandisci={() => setFotoGrande(true)}/>
+      <NucCard pad={0} style={{ ...bordiSuperset(legatoPrima, !!e.supersetWithNext), opacity: exDone ? 0.72 : 1, transition: 'opacity 160ms' }}>
+        {/* ── La testata: la faccia dell'esercizio, il nome, l'obiettivo, e a
+            destra i due quadratini — "uguale su tutte" e la nota. */}
+        <div className="flex items-start" style={{ gap: 12, padding: 14 }}>
+          <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={60} onIngrandisci={() => setFotoGrande(true)}/>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="flex items-center gap-2">
-              {exDone && <Icons.check size={15} stroke={2.6} color={color}/>}
-              <div style={{ fontFamily: NUC.font, fontSize: 16.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: -0.1, color: NUC.ink }}>{tData(e.name)}</div>
+            <div className="flex items-start gap-2">
+              {exDone && <Icons.check size={16} stroke={2.8} style={{ flexShrink: 0, marginTop: 2 }}/>}
+              <div style={{ fontFamily: NUC.display, fontSize: 20, fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase', color: NUC.ink, overflowWrap: 'anywhere' }}>{tData(e.name)}</div>
             </div>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: muscleTextColor(color, dark), marginTop: 3, textTransform: 'uppercase' }}>
+            <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: NUC.ink, marginTop: 4 }}>
               {t('obiettivo')} {e.sets} × {e.reps}
             </div>
             {last && last.history.length > 0 && (
-              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.accentSoft, marginTop: 3 }}>
-                {t('ultima volta')} {last.current.reps} × {fmtKg({ kg: last.current.kg, ...(corpo ? { bodyweight: true as const } : {}) })}
+              <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.35, color: NUC.faint, marginTop: 2 }}>
+                {t('Ultima volta: {alzata}', { alzata: `${last.current.reps} × ${fmtKg({ kg: last.current.kg, ...(corpo ? { bodyweight: true as const } : {}) })}` })}
               </div>
             )}
             {/* Chi ha dichiarato l'attrezzo scrive i soli dischi: lo si ricorda
                 qui, accanto ai campi, perché lo storico mostra invece il totale. */}
             {attrezzo > 0 && (
-              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, marginTop: 3 }}>
+              <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.35, color: NUC.faint, marginTop: 2 }}>
                 {t('scrivi solo i dischi: + {kg} kg di attrezzo', { kg: fmtNum(attrezzo) })}
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-1.5" style={{ flexShrink: 0, alignItems: 'flex-end' }}>
+          <div className="flex flex-col" style={{ gap: 8, flexShrink: 0 }}>
             {nSets > 1 && (
-              <button onClick={() => onUguale(e.id, aScalare)} className="flex items-center gap-1" style={TASTINO}>
-                <Icons.repeat size={11} stroke={1.8}/> {t('uguale')}
+              <button onClick={() => onUguale(e.id, aScalare)} aria-label={t('Uguale su tutte le serie')} title={t('Uguale su tutte le serie')} className="j-hard" style={QUADRATINO}>
+                <Icons.repeat size={17} stroke={1.9}/>
               </button>
             )}
             {!notaAperta && (
               <button
                 onClick={() => onApriNota(e.id)}
                 aria-label={`${tData(e.name)} · ${notaDiOggi ? t('Modifica nota') : t('Aggiungi nota')}`}
-                className="flex items-center gap-1" style={TASTINO}
+                title={notaDiOggi ? t('Modifica nota') : t('Aggiungi nota')}
+                className="j-hard" style={QUADRATINO}
               >
-                <Icons.pencil size={10} stroke={1.8}/> {t('nota')}
+                <Icons.pencil size={15} stroke={1.9}/>
               </button>
             )}
           </div>
         </div>
 
-        {/* A che punto si è, serie per serie: un segmento ciascuna, che si
-            accende quando la serie conta. Si legge prima dei numeri — tre
-            tacche su quattro, e si sa quanta strada manca senza contare le
-            spunte. Gialla quella spuntata senza chili: c'è, ma non vale. */}
-        <div aria-hidden className="flex" style={{ gap: 3, marginBottom: 10 }}>
-          {Array.from({ length: nSets }).map((_, i) => (
-            <span key={i} style={{
-              flex: 1, height: 3, borderRadius: 'var(--radius-pill)',
-              background: valide.has(i) ? color : p.checks[i] ? 'var(--warn)' : 'var(--hairline)',
-              transition: 'background-color 160ms',
-            }}/>
-          ))}
-        </div>
-
         {consiglio && (
-          <ConsiglioCarico
-            consiglio={consiglio}
-            serie={nSets}
-            // Il tasto serve solo se c'è qualcosa da cambiare: con il
-            // consiglio già scritto su ogni serie da fare sarebbe un no-op.
-            applicabile={p.weights.some((w, i) => !p.checks[i] && consiglio.pesi[i] !== undefined && parseNum(w) !== consiglio.pesi[i])}
-            onUsa={() => onUsa(e.id, consiglio.pesi)}
-          />
+          <div style={{ padding: '0 14px 14px' }}>
+            <ConsiglioCarico
+              consiglio={consiglio}
+              serie={nSets}
+              // Il tasto serve solo se c'è qualcosa da cambiare: con il
+              // consiglio già scritto su ogni serie da fare sarebbe un no-op.
+              applicabile={p.weights.some((w, i) => !p.checks[i] && consiglio.pesi[i] !== undefined && parseNum(w) !== consiglio.pesi[i])}
+              onUsa={() => onUsa(e.id, consiglio.pesi)}
+            />
+          </div>
         )}
 
         {/* Le note, sempre in vista e in piccolo, PRIMA delle serie: è prima di
             caricare il bilanciere che serve sapere "sedile al 4" o "presa
-            larga", non dopo. Stavano sparse — quella della scheda e quella
-            dell'ultima volta sotto il nome, quella di oggi in un campo in fondo
-            alla card. */}
+            larga", non dopo. */}
         {(note.length > 0 || (notaDiOggi && !notaAperta)) && (
-          <div style={{ marginBottom: 10, paddingLeft: 9, borderLeft: `2px solid ${NUC.hairline}`, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ margin: '0 14px 14px', paddingLeft: 9, borderLeft: '2px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 3 }}>
             {note.map(n => (
-              <div key={n.chi} style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: NUC.dim, whiteSpace: 'pre-wrap', fontStyle: n.corsivo ? 'italic' : undefined }}>
+              <div key={n.chi} style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: NUC.dim, whiteSpace: 'pre-wrap', fontStyle: n.corsivo ? 'italic' : undefined }}>
                 <span style={ETICHETTA_NOTA}>{n.chi}</span>{n.testo}
               </div>
             ))}
             {notaDiOggi && !notaAperta && (
               // Senza un'etichetta sua: si chiama come quello che c'è scritto
-              // dentro. Il tasto «nota» in testata fa la stessa cosa, e due
-              // tasti con lo stesso nome non si distinguerebbero.
+              // dentro. La matita in testata fa la stessa cosa.
               <button
                 onClick={() => onApriNota(e.id)}
                 style={{
                   background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
-                  fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: NUC.ink, whiteSpace: 'pre-wrap',
+                  fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: NUC.ink, whiteSpace: 'pre-wrap',
                 }}
               >
                 <span style={ETICHETTA_NOTA}>{t('Oggi')}</span>{notaDiOggi}
@@ -2779,21 +2800,21 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
 
         {/* La nota di oggi, mentre la si scrive: qui, dove poi resterà. */}
         {notaAperta && (
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ margin: '0 14px 14px' }}>
             <CampoNota
               value={p.note ?? ''}
               onChange={v => onNota(e.id, v)}
               etichetta={`${tData(e.name)} · ${t('nota')}`}
             />
             <div className="flex items-center justify-between gap-2" style={{ marginTop: 6 }}>
-              <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>
+              <span style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.faint }}>
                 {t('Finisce nell’alzata di oggi.')}
               </span>
               <button
                 onClick={() => onChiudiNota(e.id)}
                 aria-label={`${tData(e.name)} · ${t('Salva la nota')}`}
-                className="j-hard-sm"
-                style={{ ...TASTINO, height: 30, padding: '0 14px', fontSize: 10, fontWeight: 600, color: 'var(--j-accent-ink)' }}
+                className="j-hard"
+                style={{ ...TASTINO, height: 44, padding: '0 16px', color: NUC.ink }}
               >
                 {t('Salva')}
               </button>
@@ -2801,58 +2822,67 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
           </div>
         )}
 
-        {/* Una riga per serie, e una riga è UN pezzo solo: la spunta, i colpi,
-            i chili, con un filo fra l'uno e l'altro. I colpi stanno accanto al
-            peso e non in cima all'esercizio perché è la SINGOLA serie a calare:
-            l'ultima chiude a 6 mentre la prima ha fatto i suoi 10. */}
-        <div className="flex flex-col" style={{ gap: 6 }}>
+        {/* ── Le serie: una tabella a tutta larghezza. In testa SERIE · RIP ·
+            KG e quante se ne sono spuntate; una riga per serie, coi colpi e i
+            chili grandi e la casella da spuntare in fondo. Spuntata, la riga
+            si spegne in grigio e la casella si riempie d'inchiostro. I colpi
+            stanno accanto al peso perché è la SINGOLA serie a calare: l'ultima
+            chiude a 6 mentre la prima ha fatto i suoi 10. */}
+        <div style={{ borderTop: 'var(--bordo)' }}>
+          <div style={{ ...COLONNE, height: 34, borderBottom: '1px solid var(--line)' }}>
+            <span style={intestazione}>{t('Serie')}</span>
+            <span style={intestazione}>{t('Rip')}</span>
+            <span style={intestazione}>kg</span>
+            <span style={{ ...intestazione, textAlign: 'right' }}>{spuntate}/{nSets}</span>
+          </div>
           {Array.from({ length: nSets }).map((_, i) => {
             const on = p.checks[i]
             const colpi = parseInt(p.reps[i] ?? '') || 0
             const corta = colpi > 0 && colpi < (bersagli[i] ?? 0)
             return (
-              <div
-                key={i} className="j-serie"
-                // Fatta: la riga prende il colore del gruppo muscolare, in
-                // trasparenza — si vede a colpo d'occhio dove si è arrivati.
-                style={on ? { borderColor: color, background: `color-mix(in srgb, ${color} 13%, var(--input-bg))` } : undefined}
-              >
-                <button
-                  onClick={() => onToggle(e.id, i)}
-                  aria-pressed={on}
-                  className="flex items-center gap-1.5"
-                  style={{
-                    padding: '0 10px', cursor: 'pointer', flexShrink: 0, minWidth: 80, border: 'none',
-                    background: on ? color : 'transparent',
-                    color: on ? onMuscleColor(color) : NUC.dim,
-                    fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.02em',
-                    transition: 'background-color 120ms',
-                  }}
-                >
-                  {on ? <Icons.check size={13} stroke={2.4} color={onMuscleColor(color)}/> : <span style={{ width: 13, height: 13, borderRadius: 4, border: `1.5px solid ${NUC.faint}`, display: 'inline-block' }}/>}
-                  {t('Serie {n}', { n: i + 1 })}
-                </button>
+              <div key={i} style={{
+                ...COLONNE, minHeight: 60,
+                borderTop: i === 0 ? 'none' : '1px solid var(--line)',
+                background: on ? 'var(--surface-2)' : 'transparent',
+                transition: 'background-color 120ms',
+              }}>
+                <span style={{ fontFamily: NUC.display, fontSize: 20, fontWeight: 600, color: on ? NUC.faint : NUC.ink }}>{i + 1}</span>
                 {/* Prima i colpi, poi i chili: è l'ordine in cui la serie si
                     racconta ("10 per 60") e quello in cui si scrive a fine
                     serie — il peso di solito è già lì dalla volta prima. */}
                 <CampoSerie
                   value={p.reps[i] ?? ''}
                   onChange={v => onColpi(e.id, i, v)}
-                  unita={t('colpi')} mode="numeric"
+                  unita={t('rip')} mode="numeric"
                   etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · ${t('colpi')}`}
                   allarme={corta}
+                  fatta={on}
                 />
                 <CampoSerie
                   value={p.weights[i] ?? ''}
                   onChange={v => onPeso(e.id, i, v)}
                   // A corpo libero i chili sono la sola zavorra: vuoto = niente.
-                  unita="kg" segnaposto={corpo ? t('Zavorra') : undefined} mode="decimal"
+                  unita="kg" mode="decimal"
                   etichetta={`${tData(e.name)} · ${t('serie')} ${i + 1} · kg`}
                   // Spuntata senza chili, con un attrezzo: quella serie non verrà
                   // salvata (vedi `serieValide`). Si dice subito, sul campo che
                   // manca, non a fine allenamento.
                   allarme={!corpo && on && !chiliScritti(p.weights[i], attrezzo > 0)}
+                  fatta={on}
                 />
+                <button
+                  onClick={() => onToggle(e.id, i)}
+                  aria-pressed={on}
+                  aria-label={t('Serie {n}', { n: i + 1 })}
+                  style={{
+                    width: 44, height: 44, padding: 0, cursor: 'pointer', justifySelf: 'end',
+                    border: 'var(--bordo)', background: on ? 'var(--ink)' : 'var(--surface)',
+                    color: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background-color 120ms',
+                  }}
+                >
+                  {on && <Icons.check size={20} stroke={2.6}/>}
+                </button>
               </div>
             )
           })}
@@ -2864,10 +2894,10 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, color, p
             questa alzata e da qui in avanti. */}
         {senzaChili && (
           <div role="note" className="flex items-center justify-between gap-2" style={{
-            marginTop: 10, padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-            background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
+            padding: '10px 14px', borderTop: '1px solid var(--line)',
+            background: 'rgba(var(--warn-rgb),0.08)',
           }}>
-            <span style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.45, color: 'var(--warn)' }}>
+            <span style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: 'var(--warn)' }}>
               {attrezzo > 0 ? t('Scrivi i dischi: 0 se usi solo l’attrezzo.') : t('Senza chili una serie non conta.')}
             </span>
             <button onClick={() => onCorpoLibero(e.id)} style={{ ...TASTINO, flexShrink: 0 }}>
@@ -2902,10 +2932,9 @@ function TempoAllenamento({ da }: { da: number }) {
   return <span aria-label={t('Durata dell’allenamento')}>{t('in corso da {tempo}', { tempo: fmtDurata(sec) })}</span>
 }
 
-function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, onScarta, onFinish, seguito = false }: {
+function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFinish, seguito = false }: {
   scheda: GymScheda
   palestraExercises: PalestraExercise[]
-  muscleColors: Record<string, string>
   /** Si esce e l'allenamento resta aperto: la freccia e «Lascia aperto». */
   onExit: () => void
   /** «Chiudi senza salvare» con delle serie fatte: chi riceve chiede conferma,
@@ -3245,7 +3274,6 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             key={e.id}
             e={e}
             legatoPrima={idx > 0 && !!scheda.exercises[idx - 1].supersetWithNext}
-            color={muscleColor(e.muscle, muscleColors)}
             p={progress[e.id]}
             last={collegati[e.id].last}
             notaPrima={collegati[e.id].notaPrima}
@@ -3274,14 +3302,15 @@ function SchedaTrainingPage({ scheda, palestraExercises, muscleColors, onExit, o
             e le alzate sono solo ciò che se ne salva. */}
         <div className="flex gap-2.5">
           <button onClick={onExit} className="j-hard j-focus" style={{
-            flex: '0 0 auto', height: 48, padding: '0 16px', borderRadius: 'var(--radius)', cursor: 'pointer',
-            background: 'var(--surface)', border: `1px solid ${NUC.hairline}`, color: NUC.ink,
-            // Le stesse lettere di «Termina» accanto (vedi .j-btn-accent).
-            fontFamily: 'var(--font-body)', fontSize: 'clamp(13px, 1.8vw, 14px)', fontWeight: 500, letterSpacing: '.01em', lineHeight: 1.2,
+            flex: '0 0 auto', height: 60, padding: '0 14px', borderRadius: 'var(--radius)', cursor: 'pointer',
+            background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
+            fontFamily: NUC.display, fontSize: 16, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
           }}>
             {t('Lascia aperto')}
           </button>
-          <button onClick={() => setRiepilogo(true)} className="j-btn-accent" style={{ flex: 1, width: 'auto', marginTop: 0 }}>
+          {/* Accanto a un altro tasto il CTA ha mezza riga: a 24px «Termina
+              allenamento» andava a capo. Qui scende quanto basta a starci. */}
+          <button onClick={() => setRiepilogo(true)} className="j-btn-accent" style={{ flex: 1, width: 'auto', marginTop: 0, fontSize: 'clamp(17px, 5vw, 24px)', whiteSpace: 'nowrap' }}>
             {t('Termina Allenamento')}
           </button>
         </div>
@@ -3422,7 +3451,6 @@ function SchedaReportPage({ schede, muscleColors, onBack }: {
 }) {
   const t = useT()
   const tData = useTData()
-  const dark = useIsDark()
   const { rows, total, schedeConEsercizi } = useMemo(() => {
     const counts: Record<string, number> = {}
     let total = 0
@@ -3464,7 +3492,7 @@ function SchedaReportPage({ schede, muscleColors, onBack }: {
                 <div key={r.muscle} className="mb-2.5">
                   <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
                     <div className="flex items-center justify-between gap-3" style={{ marginBottom: 8 }}>
-                      <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, color: muscleTextColor(color, dark) }}>{tData(r.muscle)}</div>
+                      <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, color: muscleTextColor(color) }}>{tData(r.muscle)}</div>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
                         <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em' }}>
                           {r.count === 1 ? t('1 volta') : t('{n} volte', { n: r.count })}

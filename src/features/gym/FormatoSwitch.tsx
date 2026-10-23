@@ -4,7 +4,7 @@
 // sia il modale di registrazione, e GymHyrox importa già i modali: tenerlo lì
 // avrebbe creato un giro di import gymModals → GymHyrox → gymModals.
 import type React from 'react'
-import { NUC, cursore } from '@/lib/jarvis-tokens'
+import { cursore } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
 
 import type { FormatoHyrox } from './hyroxStima'
@@ -43,11 +43,7 @@ export function FormatoSwitch<T extends string = FormatoHyrox>({ valore, onChang
         const on = id === valore
         return (
           <button key={id} type="button" onClick={() => onChange(id)} aria-pressed={on}
-            className="j-switch-cell j-focus" style={{
-              minHeight: 'clamp(34px, 5dvh, 40px)',
-              fontFamily: NUC.label, fontSize: 'clamp(10px, 2.8vw, 11px)', fontWeight: on ? 700 : 500,
-              letterSpacing: '.14em', textTransform: 'uppercase',
-            }}>{label}</button>
+            className="j-switch-cell j-focus" style={{ minHeight: 40 }}>{label}</button>
         )
       })}
     </div>

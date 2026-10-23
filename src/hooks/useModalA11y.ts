@@ -45,6 +45,13 @@ export function useFocusTrap(ref: RefObject<HTMLElement>, active: boolean, onEsc
     const focusFirst = () => {
       const el = ref.current
       if (!el) { raf = requestAnimationFrame(focusFirst); return }
+      // Il focus è già dentro: un campo con `autoFocus`, o qualcuno che ha
+      // toccato un campo prima di questo frame. Resta dov'è. Prima lo si
+      // spostava comunque sul primo elemento, che è quasi sempre la × in
+      // testata: "Nuovo gruppo muscolare" si apriva col focus sulla × invece
+      // che sul nome, e i tasti battuti nel frame sbagliato finivano lì (era il
+      // test che falliva a caso in numeriAlzata).
+      if (el.contains(document.activeElement)) return
       // `preventScroll`: il dialog copre già tutto il contenitore (inset: 0), non
       // c'è niente da portare in vista. Senza, il browser porta il campo appena
       // messo a fuoco dentro l'area visibile scorrendo il primo antenato

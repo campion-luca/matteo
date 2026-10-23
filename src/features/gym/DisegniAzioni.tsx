@@ -1,5 +1,5 @@
 // ── I disegni delle tre card dei comandi in home ───────────────
-// Coaching, Schede, Statistiche: ognuna ha la sua figura, al posto dell'icona
+// Coaching, Esercizi, Statistiche (e Schede, che sta altrove): ognuna ha la sua figura, al posto dell'icona
 // nel riquadro che c'era. A piatti pieni e senza contorni, nello stile della
 // sagoma dei gruppi muscolari qui sotto: due toni della tinta della card per le
 // masse, un terzo — più vicino al colore del testo — per i dettagli.
@@ -79,6 +79,23 @@ function Barre() {
   )
 }
 
+// Un manubrio, i dischi ai due lati: gli esercizi, uno per uno. È la card che
+// apre i gruppi muscolari (ott 2026: prima stavano in home sotto le card).
+function Manubrio() {
+  return (
+    <g transform="rotate(-24 48 48)">
+      <rect style={D1} x="10" y="43" width="76" height="10" rx="3"/>
+      <rect style={{ ...D2, ...RITAGLIO }} x="18" y="24" width="13" height="48" rx="4"/>
+      <rect style={{ ...D2, ...RITAGLIO }} x="8" y="31" width="11" height="34" rx="4"/>
+      <rect style={{ ...D2, ...RITAGLIO }} x="65" y="24" width="13" height="48" rx="4"/>
+      <rect style={{ ...D2, ...RITAGLIO }} x="77" y="31" width="11" height="34" rx="4"/>
+      <rect style={D3} x="40" y="44.5" width="3" height="7" rx="1"/>
+      <rect style={D3} x="46.5" y="44.5" width="3" height="7" rx="1"/>
+      <rect style={D3} x="53" y="44.5" width="3" height="7" rx="1"/>
+    </g>
+  )
+}
+
 // ── Le tre card in cima al Coaching ────────────────────────────
 // Stessa mano dei tre disegni qui sopra: sono le porte della stessa app, e la
 // chat usa proprio i due fumetti della card in home.
@@ -114,7 +131,7 @@ function Gruppo() {
   )
 }
 
-const FIGURE = { coach: Fumetti, schede: Fogli, stats: Barre, allenatore: Allenatore, gruppo: Gruppo }
+const FIGURE = { coach: Fumetti, schede: Fogli, stats: Barre, esercizi: Manubrio, allenatore: Allenatore, gruppo: Gruppo }
 
 export function DisegnoAzione({ id, style }: { id: keyof typeof FIGURE; style?: CSSProperties }) {
   const Figura = FIGURE[id]

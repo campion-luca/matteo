@@ -7,21 +7,24 @@
 // temi e password.
 //
 // Ogni interruttore qui scrive nello store, cioè nel blob che va in cloud.
-// Le anteprime (LayoutSwatch) sono disegnate a mano invece che con screenshot:
-// devono seguire l'accent scelto in quel momento.
-import { useState, useEffect, type ReactNode } from 'react'
-import { NUC, ACCENT_PALETTES, accentFgFor, paletteFor, adjustPaletteForDark, ACCENT_FISSI, temaFisso } from '@/lib/jarvis-tokens'
-import { useStore, useJarvisStore, NOME_MAX, type JarvisState, type LayoutMode } from '@/store/useJarvisStore'
+// (Il pannello "Cambio tema" non c'è più: dal rebranding di ottobre 2026 il tema
+// è uno solo.)
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { NUC, cursore } from '@/lib/jarvis-tokens'
+import { NucEyebrow, Interruttore } from '@/components/ui/NucComponents'
+import { useStore, useJarvisStore, NOME_MAX, type JarvisState } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
+import { fmtNum } from '@/features/gym/gymModel'
 import { Icons } from '@/components/ui/Icons'
 import { supabase, idUtenteSuDisco } from '@/lib/supabase'
 import { attivaPush, spegniPush, statoPush, type StatoPush } from '@/lib/push'
 import { esci } from '@/lib/uscita'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
-import { Flag } from '@/components/ui/Flags'
+import { AvatarProfilo, ProfiloPubblico } from './ProfiloPubblico'
+import { etaDi } from '@/lib/profili'
 
 interface JarvisProfileProps {
   open: boolean
@@ -33,27 +36,6 @@ interface JarvisProfileProps {
    *  icone e non una (vedi SalutoHeader). */
   sezione?: 'impostazioni' | 'utente'
 }
-
-// Restano 3 palette,
-// che è anche il numero di colonne della griglia — prima erano 4 su 3 colonne, con
-// un orfano sulla seconda riga.
-const PALETTE_LABELS: Record<string, string> = {
-  green:   'Journal',
-  rose:    'Rosa',
-  malva:   'Malva',
-}
-const PALETTE_KEYS = ['green', 'rose', 'malva'] as const
-
-// Etichette e spiegazioni restano in italiano qui: sono le CHIAVI del dizionario
-// (vedi i18n.ts). Questa costante nasce una volta sola all'import, e tradurla in
-// questo punto la bloccherebbe sulla lingua che c'era in quel momento.
-const LAYOUTS: Array<{ id: LayoutMode; label: string; hint: string }> = [
-  { id: 'standard', label: 'Standard', hint: 'I colori del tema scelto sopra.' },
-  { id: 'premium',  label: 'Premium',  hint: 'Sempre scuro: superfici piene, dati in grigio e un solo colore per i tasti. Ignora l’interruttore chiaro/scuro.' },
-  { id: 'neon',     label: 'Neon',     hint: 'Quasi nero con un solo accento lime, per progressi e tasti principali.' },
-  { id: 'logbook',  label: 'Logbook',  hint: 'Scuro e sobrio: verde per serie fatte e record, blu per le azioni secondarie.' },
-]
-const LAYOUT_LABELS = Object.fromEntries(LAYOUTS.map(l => [l.id, l.label])) as Record<LayoutMode, string>
 
 // ── La conferma ────────────────────────────────────────────────
 // Qui quasi niente ha un tasto "Salva": interruttori, temi e campi scrivono
@@ -67,7 +49,7 @@ const LAYOUT_LABELS = Object.fromEntries(LAYOUTS.map(l => [l.id, l.label])) as R
 // lo store intero cambia anche per conto suo (un'alzata corretta
 // dall'allenatore, per dire) mentre la pagina è aperta.
 const CAMPI_IMPOSTAZIONI = [
-  'lang', 'darkMode', 'layout', 'bgFuso', 'accentColor', 'customAccentHex',
+  'lang',
   'userName', 'userAge', 'userSex', 'userWeight', 'userHeight', 'userDob', 'weightLog',
 ] as const satisfies ReadonlyArray<keyof JarvisState>
 const DURATA_CONFERMA = 1800
@@ -88,128 +70,23 @@ function useSalvato(attivo: boolean): boolean {
   return salvato
 }
 
-// Sezione: una sola struttura per tutte. Prima ogni blocco aveva il suo gap
-// (8/14/12/12/10) e i divider erano ripetuti a mano; il risultato era il vuoto
-// incoerente fra un blocco e l'altro. Il divider ora lo mette il CSS
-// (`.j-profile-sec + .j-profile-sec`), che regge da solo le sezioni condizionali.
-function Section({ title, hint, action, right, children }: {
-  title: string
-  hint?: string
-  action?: ReactNode
-  right?: ReactNode
-  children?: ReactNode
-}) {
-  return (
-    <section className="j-profile-sec" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div className="j-eyebrow">{title}</div>
-            {action}
-          </div>
-          {hint && <div style={{ fontFamily: NUC.font, fontSize: 13, color: 'var(--fg-mute)', lineHeight: 1.4 }}>{hint}</div>}
-        </div>
-        {right}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-// Interruttore on/off, condiviso da tutte le impostazioni a due stati.
-function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => void; disabled?: boolean; label: string }) {
-  return (
-    <button onClick={onClick} disabled={disabled} role="switch" aria-checked={on} aria-label={label} style={{
-      width: 42, height: 24, borderRadius: 'var(--radius-pill)', padding: 0, flexShrink: 0,
-      background: on ? 'var(--j-accent)' : 'var(--surface-2)',
-      border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
-      cursor: disabled ? 'default' : 'pointer', position: 'relative', opacity: disabled ? 0.6 : 1,
-      transition: 'all 220ms',
-    }}>
-      {/* `--knob-on` lo dichiarano solo i temi con un accent chiarissimo (il
-          lime di Neon), dove il pomello chiaro da acceso non si vedrebbe. */}
-      <div style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 'var(--radius-pill)', background: on ? 'var(--knob-on, var(--knob))' : 'var(--knob)', boxShadow: '0 1px 3px rgba(42,36,24,0.4)', transition: 'left 220ms cubic-bezier(.2,.9,.2,1.2)' }}/>
-    </button>
-  )
-}
-
-// Inline pencil/check toggle button
-function EditToggle({ editing, onToggle }: { editing: boolean; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      style={{
-        width: 20, height: 20, borderRadius: 'var(--radius-sm)',
-        background: editing ? 'var(--j-accent)' : 'transparent',
-        border: `1px solid ${editing ? 'var(--j-accent)' : 'var(--hairline)'}`,
-        color: editing ? 'var(--j-accent-fg)' : 'var(--fg-mute)',
-        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: 'all 160ms', flexShrink: 0,
-      }}
-    >
-      {editing ? <Icons.check size={10} stroke={2.5}/> : <Icons.pencil size={10} stroke={1.8}/>}
-    </button>
-  )
-}
-
-// Pastiglia bicolore: mostra cosa fa il layout invece di dirlo. "Standard" campiona
-// l'accent vivo, "Premium" il suo fondo quasi nero e il suo accento terracotta
-// (era nero e bianco, da quando l'accent di Premium era bianco: non lo è più da
-// settembre, e la pastiglia mostrava un tema che non c'è). "Neon" il suo fondo e il suo unico accento,
-// "Logbook" i suoi due colori.
-const SWATCH: Record<LayoutMode, [string, string]> = {
-  standard: ['var(--j-accent)', 'var(--j-accent-soft)'],
-  premium:  ['#0d0c0b', ACCENT_FISSI.premium.accent],
-  neon:     ['#0b0b0f', ACCENT_FISSI.neon.accent],
-  logbook:  [ACCENT_FISSI.logbook.accent, '#5aa9ff'],
-}
-
-function LayoutSwatch({ mode }: { mode: LayoutMode }) {
-  const half = { width: 11, height: 22, flexShrink: 0 } as const
-  const [a, b] = SWATCH[mode] ?? SWATCH.standard
-  return (
-    <div style={{ display: 'flex', border: '1px solid var(--hairline)', borderRadius: 6, overflow: 'hidden' }}>
-      <div style={{ ...half, background: a }}/>
-      <div style={{ ...half, background: b }}/>
-    </div>
-  )
-}
-
-// `flex: 1` + `minWidth: 0`: nella riga a 3 colonne i campi si dimensionavano sul
-// contenuto, quindi Sesso/Età/Peso venivano di larghezze diverse.
-//
-// La label è volutamente più piccola e chiara dell'eyebrow di sezione (10px/600 con
-// letter-spacing .16em): erano quasi identiche, e "DATA DI NASCITA" — che è un campo
-// dentro "Dati fisici" — si leggeva come un titolo di pari grado. Era quello il
-// "troppo spazio tra le voci": non un gap sbagliato, una gerarchia piatta.
-function StaticField({ label, value }: { label?: string; value: string }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {label && (
-        <div style={{ fontFamily: 'var(--font-label)', fontSize: 9.5, fontWeight: 400, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)', opacity: 0.85 }}>{label}</div>
-      )}
-      {/* Corpo e spaziatura elastici: sono quattro campi affiancati, e su un
-          telefono stretto "180 cm" andava a capo — una casella cresceva di una riga
-          e la fila si sfalsava. */}
-      <div style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(13px, 3.4vw, 15px)', color: value === '—' ? 'var(--fg-mute)' : 'var(--fg)', padding: '10px clamp(7px, 2.4vw, 12px)', background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)', minHeight: 44, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-        {value}
-      </div>
-    </div>
-  )
-}
-
 export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: JarvisProfileProps) {
   const [s, set] = useStore()
   const t = useT()
   const [name, setName] = useState(s.userName || '')
   const [editingBody, setEditingBody] = useState(false)
-  // Il pannello dell'aspetto. È una PAGINA dentro le impostazioni,
-  // non modali: il modale si apre a z-index 90 e le impostazioni sono un overlay a
+  // Il pannello del profilo pubblico. È una PAGINA dentro il profilo,
+  // non un modale: il modale si apre a z-index 90 e le impostazioni sono un overlay a
   // 95, quindi finiva sotto la pagina che l'aveva aperto — si vedevano le due
   // schermate una dentro l'altra. Alzare lo z-index del modale avrebbe spostato il
   // problema sul prossimo overlay; una pagina non ce l'ha proprio, e per due
   // pannelli grandi come questi è anche la forma giusta.
-  const [pannello, setPannello] = useState<null | 'tema'>(null)
+  // È il profilo che vedono il coach e chi segui (vedi ProfiloPubblico).
+  const [pannello, setPannello] = useState<null | 'pubblico'>(null)
+  // Letto una volta: è chi è entrato su questo telefono, e non cambia con la
+  // pagina aperta.
+  const [userId] = useState(idUtenteSuDisco)
+  const [erroreFoto, setErroreFoto] = useState<string | null>(null)
   const mieiDati = sezione === 'utente'
   const [age, setAge]       = useState(s.userAge ? String(s.userAge) : '')
   const [sex, setSex]       = useState<'M' | 'F' | ''>(s.userSex ?? '')
@@ -257,9 +134,15 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
 
   const saveName = () => set({ userName: name.trim() })
 
+  // Con la data di nascita l'età si calcola, come nel primo avvio: quella
+  // scritta a mano a 28 anni restava 28 per sempre, e qui accanto alla data del
+  // compleanno si leggevano due numeri che non tornavano.
+  const etaCalcolata = dob ? etaDi({ nascita: dob, eta: null }) : null
+  const etaDaSalvare = etaCalcolata ?? (age ? parseInt(age) : undefined)
+
   const saveBody = () => {
     set({
-      userAge:    age    ? parseInt(age)      : undefined,
+      userAge:    etaDaSalvare,
       userSex:    sex    ? sex                : undefined,
       userWeight: weight ? parseFloat(weight) : undefined,
       userHeight: height ? parseFloat(height) : undefined,
@@ -271,7 +154,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   const handleSave = () => {
     set({
       userName:   name.trim(),
-      userAge:    age    ? parseInt(age)      : undefined,
+      userAge:    etaDaSalvare,
       userSex:    sex    ? sex                : undefined,
       userWeight: weight ? parseFloat(weight) : undefined,
       userHeight: height ? parseFloat(height) : undefined,
@@ -330,21 +213,6 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
-  const current = s.accentColor ?? 'green'
-  // Un layout a tema fisso (Premium, Neon, Logbook): il colore lo decide lui, e
-  // il picker qui sotto resta sospeso finché non si torna a Standard.
-  const monoOn  = temaFisso(s.layout)
-  const nomeLayout = t(LAYOUT_LABELS[s.layout ?? 'standard'])
-  // Assenti = accese: stesso patto di App.tsx, che è chi legge davvero i due campi.
-  const bgFuso  = s.bgFuso ?? true
-  const initial = (name.trim() || '?')[0].toUpperCase()
-
-  // Stessa risoluzione di App.tsx, altrimenti l'avatar mente: leggeva ACCENT_PALETTES
-  // diretto, senza `paletteFor` né `adjustPaletteForDark`, e restava verde in dark mode
-  // mentre tutta l'app passava all'oro (e cadeva sul verde con accentColor 'custom').
-  const base = temaFisso(s.layout) ? ACCENT_FISSI[s.layout] : paletteFor(current, s.customAccentHex)
-  const pal  = (!monoOn && s.darkMode) ? adjustPaletteForDark(base) : base
-
   if (!mount) return null
 
   return (
@@ -369,16 +237,19 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           {/* Il back è uno solo e sa dov'è: da un pannello torna all'elenco, dall'elenco
               chiude le impostazioni. Due frecce sovrapposte — una del pannello e una
               della pagina — sono il modo più rapido di far uscire qualcuno per sbaglio. */}
+          {/* Dal profilo la freccia salva quello che si è scritto e chiude: il
+              tasto "Salva" in testata non c'è più (rebranding, ott 2026). Il nome
+              si salvava già uscendo dal campo; i dati generali col loro tasto. */}
           <button
-            onClick={() => pannello ? setPannello(null) : onClose()}
-            aria-label={pannello ? t('Torna alle impostazioni') : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
+            onClick={() => pannello ? setPannello(null) : mieiDati ? handleSave() : onClose()}
+            aria-label={pannello ? (mieiDati ? t('Torna al profilo') : t('Torna alle impostazioni')) : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
             className="j-btn-back"
           >
             <Icons.back size={20} stroke={1.8}/>
           </button>
           <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div className="j-page-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {pannello === 'tema' ? t('Cambio tema')
+              {pannello === 'pubblico' ? t('Profilo pubblico')
                 : mieiDati ? t('Profilo') : t('Impostazioni')}
             </div>
             {/* La conferma (vedi `useSalvato`), sotto il titolo: dove le altre
@@ -399,125 +270,13 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               <Icons.check size={12} stroke={2.6}/>{salvato ? t('Salvato') : <span aria-hidden>{t('Salvato')}</span>}
             </span>
           </div>
-          {/* "Salva" vale per i campi dell'elenco (nome, dati). Dentro i pannelli e
-              nelle impostazioni non c'è niente da salvare — tutto si applica al
-              tocco — e un tasto che non fa nulla è peggio di un tasto assente. */}
-          {!pannello && mieiDati && (
-            <button onClick={handleSave} className="j-hard" style={{
-              height: 44, padding: '0 18px', borderRadius: 'var(--radius)', flexShrink: 0,
-              background: 'var(--j-accent)', border: 'none',
-              color: 'var(--j-accent-fg)', fontFamily: NUC.font, fontSize: 14, fontWeight: 500,
-              cursor: 'pointer',
-            }}>{t('Salva')}</button>
-          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="j-profile-body j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {pannello === 'tema' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Dark mode */}
-        <Section
-          title={t('Dark mode')}
-          hint={t('Fondo scuro e inchiostro chiaro.')}
-          right={<Toggle on={!!s.darkMode} onClick={() => set({ darkMode: !s.darkMode })} label={t('Dark mode')}/>}
-        />
-
-        {/* Tema colore */}
-        <Section title={t('Tema colore')} hint={monoOn ? t('Sospeso dal layout {layout} — torna attivo con Standard.', { layout: nomeLayout }) : undefined}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, opacity: monoOn ? 0.5 : 1, transition: 'opacity 220ms' }}>
-            {PALETTE_KEYS.map(c => {
-              const p = ACCENT_PALETTES[c]
-              // In layout "Notte" nessuna palette risulta spuntata: il colore non è
-              // quello che si vede. Il valore resta però selezionabile e memorizzato,
-              // e torna in vigore appena si rimette Standard.
-              const active = current === c && !monoOn
-              return (
-                <button key={c} onClick={() => set({ accentColor: c })} style={{
-                  height: 68, borderRadius: 'var(--radius)',
-                  background: 'var(--surface)',
-                  // Bordo sempre 2px (trasparente da spento): a 1px→2px il bottone
-                  // sobbalzava di un pixel al click.
-                  border: `2px solid ${active ? p.accent : 'transparent'}`,
-                  outline: active ? 'none' : '1px solid var(--hairline)',
-                  outlineOffset: -1,
-                  cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7,
-                  transition: 'all 220ms',
-                  position: 'relative',
-                }}>
-                  {active && (
-                    <div style={{
-                      position: 'absolute', top: 6, right: 6,
-                      width: 14, height: 14, borderRadius: 'var(--radius-sm)',
-                      background: p.accent,
-                      // la spunta usa currentColor: senza questo eredita l'inchiostro
-                      // di pagina e sparisce dentro i pallini scuri.
-                      color: accentFgFor(p.accent),
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Icons.check size={8} stroke={3}/>
-                    </div>
-                  )}
-                  <div style={{ width: 22, height: 22, borderRadius: 'var(--radius-sm)', background: p.accent }}/>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: active ? 'var(--fg)' : 'var(--fg-mute)', textTransform: 'uppercase' }}>
-                    {t(PALETTE_LABELS[c] ?? c)}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </Section>
-
-        {/* Cambio layout */}
-        <Section title={t('Cambio layout')}>
-          {/* Quattro layout: due per riga sul telefono, in fila su uno schermo
-              largo. A 104px di minimo ne stavano tre e il quarto restava solo. */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
-            {LAYOUTS.map(opt => {
-              const active = (s.layout ?? 'standard') === opt.id
-              return (
-                <button key={opt.id} onClick={() => set({ layout: opt.id })} style={{
-                  minHeight: 78, padding: '12px 10px', borderRadius: 'var(--radius)',
-                  background: 'var(--surface)',
-                  border: `2px solid ${active ? 'var(--j-accent)' : 'transparent'}`,
-                  outline: active ? 'none' : '1px solid var(--hairline)',
-                  outlineOffset: -1,
-                  cursor: 'pointer', textAlign: 'left',
-                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
-                  transition: 'all 220ms',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <LayoutSwatch mode={opt.id}/>
-                    <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: active ? 'var(--fg)' : 'var(--fg-mute)', textTransform: 'uppercase' }}>
-                      {t(opt.label)}
-                    </div>
-                  </div>
-                  <div style={{ fontFamily: NUC.font, fontSize: 11, color: 'var(--fg-mute)', lineHeight: 1.35 }}>
-                    {t(opt.hint)}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </Section>
-
-        {/* Sfondo — la variante del fondo di Premium, reversibile da qui.
-            Assente dallo stato vale ACCESA (vedi App.tsx).
-            Solo in Premium: gli altri layout hanno ciascuno il suo fondo (Standard
-            il bruno coi due aloni che si muovono, Neon e Logbook piatto), lì
-            l'interruttore non cambierebbe niente, e un comando che non fa nulla
-            non si mostra. */}
-        {s.layout === 'premium' && (
-          <Section
-            title={t('Sfondo fuso')}
-            hint={t('Nero, arancione e grigio-azzurro sfumati uno dentro l’altro invece dei soli aloni caldi. Vale sui temi scuri.')}
-            right={<Toggle on={bgFuso} onClick={() => set({ bgFuso: !bgFuso })} label={t('Sfondo fuso')}/>}
-          />
-        )}
-
-        </div>
+      <div className="j-profile-body j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 40px', display: 'flex', flexDirection: 'column', gap: mieiDati && !pannello ? 26 : 20 }}>
+      {pannello === 'pubblico' ? (
+        <ProfiloPubblico userId={userId}/>
       ) : (
         <>
 
@@ -527,32 +286,26 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         {mieiDati && (
         <>
 
-        {/* Avatar — quadrato a sinistra, il CAMPO del nome a destra sulla stessa
-            riga. Prima erano due cose: il nome scritto qui e, sotto, una sezione
-            "Nome utente" con la matita per aprirne la modifica. Due righe e un
-            click per un campo da dieci caratteri. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: 'var(--radius)', flexShrink: 0,
-            background: pal.accentSoft,
-            border: `2px solid var(--hairline)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            // accentSoft è la tinta CHIARA della palette: la crema fissa vi spariva sopra.
-            fontFamily: NUC.font, fontSize: 30, fontWeight: 500, color: accentFgFor(pal.accentSoft),
-            transition: 'background 400ms',
-          }}>
-            {initial}
-          </div>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label htmlFor="prof-nome" style={{ fontFamily: 'var(--font-label)', fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)', opacity: 0.85 }}>
-              {t('Nome utente')}
-            </label>
-            {/* Salva all'uscita dal campo, non solo col tasto in alto: il nome è
-                l'unica cosa che si scrive qui e uscire senza toccarlo era il caso
-                normale. */}
+        {/* La faccia e il nome, in un riquadro: a sinistra il quadrato della
+            foto (toccandolo se ne sceglie una), a destra il nome. Il nome è un
+            campo, ma senza il bordo del campo: si legge come il titolo della
+            pagina, e si corregge toccandolo. */}
+        <div style={{ ...CARD, display: 'flex', alignItems: 'center', gap: 16, padding: 14 }}>
+          <AvatarProfilo
+            userId={userId}
+            nome={name}
+            size={72}
+            fondoIniziale="var(--ink)"
+            coloreIniziale="var(--surface)"
+            onErrore={setErroreFoto}
+          />
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label htmlFor="prof-nome" style={ETICHETTA}>{t('Nome utente')}</label>
+            {/* Salva all'uscita dal campo: il nome è l'unica cosa che si scrive
+                qui, e uscire senza toccarlo era il caso normale. */}
             <input
               id="prof-nome"
-              className="j-field-lg"
+              className="j-campo-grande j-campo-nome"
               value={name}
               onChange={e => setName(e.target.value.slice(0, NOME_MAX))}
               onBlur={saveName}
@@ -562,26 +315,44 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
             />
           </div>
         </div>
+        {erroreFoto && (
+          <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: 'var(--danger)', marginTop: -8 }}>{erroreFoto}</div>
+        )}
 
-        {/* Body data section */}
-        <Section
-          title={t('Dati generali')}
-          action={<EditToggle editing={editingBody} onToggle={() => { if (editingBody) saveBody(); else setEditingBody(true) }}/>}
-        >
+        {/* ── Dati generali: quattro numeri in griglia, la data sotto ── */}
+        <section>
+          <NucEyebrow right={
+            <button
+              onClick={() => { if (editingBody) saveBody(); else setEditingBody(true) }}
+              className="j-hard j-focus"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40, padding: '0 12px',
+                fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                // Mentre si scrive il tasto è pieno: è lui che chiude e salva.
+                background: editingBody ? 'var(--ink)' : 'var(--surface)',
+                color: editingBody ? 'var(--surface)' : NUC.ink,
+                border: 'var(--bordo)', cursor: 'pointer',
+              }}
+            >
+              {editingBody ? <Icons.check size={14} stroke={2.6}/> : <Icons.pencil size={13} stroke={2}/>}
+              {editingBody ? t('Salva') : t('Modifica')}
+            </button>
+          }>{t('Dati generali')}</NucEyebrow>
+
           {editingBody ? (
-            <>
-              {/* Sex picker */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)' }}>{t('Sesso')}</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {(['M', 'F'] as const).map(v => (
-                    <button key={v} onClick={() => setSex(sex === v ? '' : v)} style={{
-                      flex: 1, height: 40, borderRadius: 'var(--radius)',
-                      background: sex === v ? 'var(--surface-2)' : 'var(--surface)',
-                      border: `1px solid ${sex === v ? 'var(--j-accent)' : 'var(--hairline)'}`,
-                      color: sex === v ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
-                      fontFamily: NUC.font, fontSize: 14, cursor: 'pointer',
-                      transition: 'all 180ms',
+            <div style={{ ...CARD, padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div id="prof-sesso" style={ETICHETTA}>{t('Sesso')}</div>
+                {/* Si può anche lasciare vuoto: toccando di nuovo quello scelto
+                    lo si toglie. */}
+                <div role="radiogroup" aria-labelledby="prof-sesso" style={{ display: 'flex', border: 'var(--bordo)' }}>
+                  {(['M', 'F'] as const).map((v, i) => (
+                    <button key={v} role="radio" aria-checked={sex === v} onClick={() => setSex(sex === v ? '' : v)} className="j-focus" style={{
+                      flex: 1, height: 44, border: 'none', borderLeft: i === 0 ? 'none' : 'var(--bordo)',
+                      background: sex === v ? 'var(--ink)' : 'var(--surface)',
+                      color: sex === v ? 'var(--surface)' : NUC.ink,
+                      fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                      cursor: 'pointer',
                     }}>
                       {v === 'M' ? t('Uomo') : t('Donna')}
                     </button>
@@ -589,187 +360,159 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                 </div>
               </div>
 
-              {/* Età, peso e altezza: tre campi su una riga. L'altezza sta qui e
-                  non più nel Personal Coach perché la usano in due — il fabbisogno
-                  calorico e la forza relativa della home. */}
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)' }}>{t('Età')}</div>
+              {/* Età, peso e altezza: tre campi su una riga. */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <label style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={ETICHETTA}>{t('Età')}</span>
+                  {/* Con la data di nascita si calcola da sola: il campo la mostra e non si scrive. */}
                   <input
                     type="number" inputMode="numeric" min="10" max="100"
-                    value={age} onChange={e => setAge(e.target.value)}
-                    placeholder="—" className="j-field"
+                    value={etaCalcolata !== null ? String(etaCalcolata) : age} onChange={e => setAge(e.target.value)}
+                    disabled={etaCalcolata !== null} title={etaCalcolata !== null ? t('Si calcola dalla data di nascita') : undefined}
+                    placeholder="—" className="j-field" style={etaCalcolata !== null ? { color: 'var(--fg-mute)' } : undefined}
                   />
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)' }}>{t('Peso (kg)')}</div>
-                  <input
-                    type="number" inputMode="decimal" min="30" max="250" step="0.5"
-                    value={weight} onChange={e => setWeight(e.target.value)}
-                    placeholder="—" className="j-field"
-                  />
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)' }}>{t('Altezza (cm)')}</div>
-                  <input
-                    type="number" inputMode="numeric" min="100" max="230"
-                    value={height} onChange={e => setHeight(e.target.value)}
-                    placeholder="—" className="j-field"
-                  />
-                </div>
+                </label>
+                <label style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={ETICHETTA}>{t('Peso (kg)')}</span>
+                  <input type="number" inputMode="decimal" min="30" max="250" step="0.5" value={weight} onChange={e => setWeight(e.target.value)} placeholder="—" className="j-field"/>
+                </label>
+                <label style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={ETICHETTA}>{t('Altezza (cm)')}</span>
+                  <input type="number" inputMode="numeric" min="100" max="230" value={height} onChange={e => setHeight(e.target.value)} placeholder="—" className="j-field"/>
+                </label>
               </div>
 
-              {/* Date of birth */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase' as const, color: 'var(--fg-mute)' }}>{t('Data di nascita')}</div>
-                <input
-                  type="date" value={dob} onChange={e => setDob(e.target.value)}
-                  className="j-field"
-                />
-              </div>
-            </>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={ETICHETTA}>{t('Data di nascita')}</span>
+                <input type="date" value={dob} onChange={e => setDob(e.target.value)} className="j-field"/>
+              </label>
+            </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <StaticField label={t('Sesso')} value={sex === 'M' ? t('Uomo') : sex === 'F' ? t('Donna') : '—'}/>
-                <StaticField label={t('Età')} value={age ? t('{n} anni', { n: age }) : '—'}/>
-                <StaticField label={t('Peso')} value={weight ? `${weight} kg` : '—'}/>
-                <StaticField label={t('Altezza')} value={height ? `${height} cm` : '—'}/>
+            <div style={CARD}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <Dato k={t('Peso')} v={weight ? fmtNum(parseFloat(weight)) : null} unita="kg"/>
+                <Dato k={t('Altezza')} v={height || null} unita="cm" style={{ borderLeft: '1px solid var(--line)' }}/>
+                <Dato k={t('Età')} v={etaCalcolata !== null ? String(etaCalcolata) : age || null} unita={t('anni')} style={{ borderTop: '1px solid var(--line)' }}/>
+                <Dato k={t('Sesso')} v={sex === 'M' ? t('Uomo') : sex === 'F' ? t('Donna') : null} style={{ borderTop: '1px solid var(--line)', borderLeft: '1px solid var(--line)' }}/>
               </div>
-              <StaticField label={t('Data di nascita')} value={formatDob(dob)}/>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                padding: '11px 14px', background: 'var(--surface-2)', borderTop: '1px solid var(--line)',
+              }}>
+                <span style={{ ...ETICHETTA, fontSize: 12 }}>{t('Data di nascita')}</span>
+                <span style={{ fontFamily: NUC.display, fontSize: 16, fontWeight: 800, color: dob ? NUC.ink : 'var(--muted-dark)', fontVariantNumeric: 'tabular-nums' }}>{formatDob(dob)}</span>
+              </div>
             </div>
           )}
-        </Section>
+        </section>
 
-        {/* Peso */}
+        {/* La pesata */}
         <PesoSection/>
+
+        {/* Il profilo che vedono gli altri: una pagina sua. Nome, cognome, foto
+            e il proprio percorso — per il coach, e per il prossimo coach. */}
+        <div style={CARD}>
+          <RigaImpostazione
+            icona={<Icons.user size={18} stroke={1.9}/>}
+            titolo={t('Profilo pubblico')}
+            sotto={t('Quello che vedono il tuo coach e chi segui')}
+            onClick={() => setPannello('pubblico')}
+          />
+        </div>
 
         </>
         )}
 
         {/* ── Le regolazioni dell'app ──────────────────────────── */}
+        {/* Tre sezioni (rebranding, ott 2026): Generale, Account e — sotto un
+            tratteggio — la Zona pericolosa, dove sta l'unica cosa che cancella
+            dei dati. Erano blocchi uno sotto l'altro, e lo "svuota" stava fra
+            le notifiche e la password. */}
         {!mieiDati && (
         <>
 
-        {/* Lingua */}
-        <LinguaSection/>
-
-        {/* Notifiche: stavano in cima al Coaching, dove a ogni ingresso
-            toglievano una riga alle cose da fare. Sono un'impostazione del
-            dispositivo, e si cercano qui. */}
-        <NotificheSection/>
-
-        {/* L'aspetto: una card che apre il suo pannello. Erano tre sezioni
-            impilate (dark mode, tema colore, layout). Accanto c'era "Cambio
-            widget", tolto: il riepilogo ha tre sezioni fisse e niente da
-            riordinare. */}
-        <div className="j-profile-sec" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
-          <CardImpostazione
-            icon={<Icons.book size={20} stroke={1.6}/>}
-            label={t('Cambio tema')}
-            sotto={monoOn ? nomeLayout : `${t(PALETTE_LABELS[current] ?? current)}${s.darkMode ? ` · ${t('scuro')}` : ''}`}
-            onClick={() => setPannello('tema')}
-          />
-        </div>
-
-        {/* Svuota le alzate */}
-        <SvuotaAlzateSection/>
-
-        {/* Change password */}
-        <div className="j-profile-sec" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => { setShowChangePwd(v => !v); setPwdError(null); setPwdOk(false) }} style={{
-            width: '100%', padding: '13px 16px', borderRadius: 'var(--radius)',
-            background: 'var(--surface)', border: `1px solid var(--hairline)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            cursor: 'pointer', transition: 'border-color 180ms',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--j-accent)')}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--hairline)')}
-          >
-            <span style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink }}>{t('Cambia password')}</span>
-            <span style={{ color: NUC.faint, display: 'flex', transform: showChangePwd ? 'rotate(90deg)' : 'none', transition: 'transform 200ms' }}><Icons.chev size={14} stroke={2}/></span>
-          </button>
-
-          {showChangePwd && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
-              <input
-                type="password" placeholder={t('Password attuale')}
-                value={oldPwd} onChange={e => { setOldPwd(e.target.value); setPwdError(null); setPwdOk(false) }}
-                className="j-field"
-              />
-              <input
-                type="password" placeholder={t('Nuova password')}
-                value={newPwd} onChange={e => { setNewPwd(e.target.value); setPwdError(null); setPwdOk(false) }}
-                className="j-field"
-              />
-              {pwdError && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--danger)', letterSpacing: '.02em' }}>{pwdError}</div>}
-              {pwdOk   && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.02em' }}>{t('Password aggiornata ✓')}</div>}
-              <button
-                disabled={pwdLoading || !oldPwd || !newPwd}
-                onClick={async () => {
-                  if (newPwd.length < 6) { setPwdError(t('La nuova password deve avere almeno 6 caratteri.')); return }
-                  setPwdLoading(true); setPwdError(null)
-                  const { data: { user } } = await supabase.auth.getUser()
-                  if (!user?.email) { setPwdError(t('Utente non trovato.')); setPwdLoading(false); return }
-                  const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: oldPwd })
-                  if (signInErr) { setPwdError(t('Password attuale non corretta.')); setPwdLoading(false); return }
-                  const { error: updateErr } = await supabase.auth.updateUser({ password: newPwd })
-                  if (updateErr) { setPwdError(updateErr.message); setPwdLoading(false); return }
-                  setPwdOk(true); setOldPwd(''); setNewPwd(''); setPwdLoading(false)
-                }}
-                style={{
-                  width: '100%', height: 40, borderRadius: 'var(--radius)',
-                  background: pwdLoading ? 'var(--surface-2)' : 'var(--j-accent)',
-                  border: 'none', color: 'var(--j-accent-fg)',
-                  fontFamily: NUC.font, fontSize: 13, fontWeight: 500,
-                  cursor: pwdLoading ? 'default' : 'pointer',
-                  opacity: (!oldPwd || !newPwd) ? 0.5 : 1,
-                  transition: 'opacity 200ms',
-                }}
-              >
-                {pwdLoading ? '...' : t('Aggiorna password')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Una copia dei dati, prima dell'uscita: è il posto dove la si cerca. */}
-        <div className="j-profile-sec">
-          <button
-            onClick={esporta}
-            style={{
-              width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
-              background: 'none', border: '1px solid var(--hairline)',
-              fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
-              color: 'var(--fg-soft)', cursor: 'pointer',
-            }}
-          >
-            {t('Esporta i miei dati')}
-          </button>
-          <div style={{ fontFamily: NUC.label, fontSize: 10, lineHeight: 1.5, color: 'var(--fg-mute)', marginTop: 7, textAlign: 'center' }}>
-            {t('Scarica un file con allenamenti, schede e pesate: una copia tua, fuori dall’app.')}
+        <section>
+          <NucEyebrow>{t('Generale')}</NucEyebrow>
+          <div style={CARD}>
+            <LinguaSection/>
+            {/* Notifiche: stavano in cima al Coaching, dove a ogni ingresso
+                toglievano una riga alle cose da fare. Sono un'impostazione del
+                dispositivo, e si cercano qui. */}
+            <NotificheSection/>
           </div>
-        </div>
+        </section>
 
-        {/* Logout — wrapper: il divider è un border-top sulla sezione, e sul bottone
-            si sommerebbe al bordo che ha già. */}
-        <div className="j-profile-sec">
-          <button
-            onClick={handleLogout}
-            disabled={uscendo}
-            style={{
-              width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
-              background: 'none', border: '1px solid var(--hairline)',
-              fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
-              color: 'var(--fg-mute)', cursor: 'pointer',
-              transition: 'border-color 200ms, color 200ms',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--danger)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--danger)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--fg-mute)' }}
-          >
-            {uscendo ? t('Attendi…') : t('Logout')}
-          </button>
-        </div>
+        <section>
+          <NucEyebrow>{t('Account')}</NucEyebrow>
+          <div style={CARD}>
+            <RigaImpostazione
+              icona={<Icons.lucchetto size={18} stroke={1.9}/>}
+              titolo={t('Cambia password')}
+              aperta={showChangePwd}
+              onClick={() => { setShowChangePwd(v => !v); setPwdError(null); setPwdOk(false) }}
+            />
+            {showChangePwd && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 14px 14px' }}>
+                <input
+                  type="password" placeholder={t('Password attuale')}
+                  value={oldPwd} onChange={e => { setOldPwd(e.target.value); setPwdError(null); setPwdOk(false) }}
+                  className="j-field"
+                />
+                <input
+                  type="password" placeholder={t('Nuova password')}
+                  value={newPwd} onChange={e => { setNewPwd(e.target.value); setPwdError(null); setPwdOk(false) }}
+                  className="j-field"
+                />
+                {pwdError && <div style={{ fontFamily: NUC.font, fontSize: 13, color: 'var(--danger)' }}>{pwdError}</div>}
+                {pwdOk   && <div style={{ fontFamily: NUC.font, fontSize: 13, color: 'var(--j-accent-ink)' }}>{t('Password aggiornata ✓')}</div>}
+                <button
+                  disabled={pwdLoading || !oldPwd || !newPwd}
+                  onClick={async () => {
+                    if (newPwd.length < 6) { setPwdError(t('La nuova password deve avere almeno 6 caratteri.')); return }
+                    setPwdLoading(true); setPwdError(null)
+                    const { data: { user } } = await supabase.auth.getUser()
+                    if (!user?.email) { setPwdError(t('Utente non trovato.')); setPwdLoading(false); return }
+                    const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: oldPwd })
+                    if (signInErr) { setPwdError(t('Password attuale non corretta.')); setPwdLoading(false); return }
+                    const { error: updateErr } = await supabase.auth.updateUser({ password: newPwd })
+                    if (updateErr) { setPwdError(updateErr.message); setPwdLoading(false); return }
+                    setPwdOk(true); setOldPwd(''); setNewPwd(''); setPwdLoading(false)
+                  }}
+                  className="j-btn-accent-sm"
+                  style={{ opacity: (!oldPwd || !newPwd || pwdLoading) ? 0.5 : 1 }}
+                >
+                  {pwdLoading ? t('Attendi…') : t('Aggiorna password')}
+                </button>
+              </div>
+            )}
+            {/* Una copia dei dati, prima dell'uscita: è il posto dove la si cerca. */}
+            <RigaImpostazione
+              icona={<Icons.scarica size={18} stroke={1.9}/>}
+              titolo={t('Esporta i miei dati')}
+              sotto={t('Allenamenti, schede e pesate in un file, fuori dall’app.')}
+              onClick={esporta}
+              divisa
+            />
+            <RigaImpostazione
+              icona={<Icons.esci size={18} stroke={1.9}/>}
+              titolo={uscendo ? t('Attendi…') : t('Esci')}
+              onClick={handleLogout}
+              disabled={uscendo}
+              freccia={false}
+              divisa
+            />
+          </div>
+        </section>
+
+        {/* Il tratteggio dice che da qui in giù si cancella. */}
+        <div aria-hidden style={{ borderTop: '2px dashed var(--muted-dark)', margin: '2px 0' }}/>
+
+        <section>
+          <NucEyebrow>{t('Zona pericolosa')}</NucEyebrow>
+          <div style={CARD}>
+            <SvuotaAlzateSection/>
+          </div>
+        </section>
 
         {/* Crediti — l'ultima riga della schermata, sbiadita.
             Non è una gentilezza: le illustrazioni degli esercizi vengono dal
@@ -781,16 +524,13 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
             Il testo resta in inglese in tutte le lingue, e fuori da `t()`: è la
             formula che la licenza chiede alla lettera, non una frase
             dell'interfaccia. Tradurla sarebbe riscriverla. */}
-        <div style={{ marginTop: 4, textAlign: 'center' }}>
+        <div style={{ marginTop: 'auto', paddingTop: 24, textAlign: 'center' }}>
           <a
             href="https://repdb.co" target="_blank" rel="noopener noreferrer"
             style={{
-              fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em',
-              color: 'var(--fg-mute)', opacity: 0.55, textDecoration: 'none',
-              transition: 'opacity 200ms',
+              fontFamily: NUC.font, fontSize: 12,
+              color: 'var(--fg-mute)', textDecoration: 'none',
             }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '0.55')}
           >
             Exercise data by RepDB (repdb.co)
           </a>
@@ -844,8 +584,13 @@ function LinguaSection() {
   }
 
   return (
-    <Section title={t('Lingua')} hint={t('La lingua dell’app. I nomi che hai scritto tu restano come li hai scritti.')}>
-      <div role="radiogroup" aria-label={t('Lingua')} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+    <div style={{ padding: 14 }}>
+      <div style={TITOLO_RIGA}>{t('Lingua')}</div>
+      <div style={SOTTO_RIGA}>{t('I nomi che hai scritto tu restano come li hai scritti.')}</div>
+      {/* Il nome di ogni lingua è scritto NELLA lingua — "English", non
+          "Inglese": è l'unica parte della schermata che si capisce quando l'app
+          è nella lingua sbagliata. */}
+      <div role="radiogroup" aria-label={t('Lingua')} className="j-switch" style={{ ...cursore(LANGS.indexOf(attuale), LANGS.length), marginTop: 12 }}>
         {LANGS.map(l => {
           const on = l === attuale
           return (
@@ -854,32 +599,15 @@ function LinguaSection() {
               onClick={() => chiedi(l)}
               role="radio"
               aria-checked={on}
-              className="j-hard"
-              style={{
-                padding: '14px 12px', borderRadius: 'var(--radius)', cursor: on ? 'default' : 'pointer',
-                background: 'var(--surface)',
-                border: `1px solid ${on ? 'var(--j-accent)' : 'var(--hairline)'}`,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9,
-                transition: 'border-color 180ms',
-              }}
+              className="j-switch-cell"
+              style={{ height: 44, cursor: on ? 'default' : 'pointer', fontSize: 15 }}
             >
-              <Flag lang={l} size={38}/>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                <span style={{
-                  fontFamily: NUC.label, fontSize: 10, fontWeight: 600,
-                  letterSpacing: '.14em', textTransform: 'uppercase',
-                  color: on ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
-                  whiteSpace: 'nowrap',
-                }}>{LANG_LABELS[l]}</span>
-                {/* La spunta, non solo il bordo colorato: in layout "Nero" l'accent
-                    non esiste e le due card sarebbero identiche. */}
-                {on && <Icons.check size={13} stroke={2.4} style={{ color: 'var(--j-accent-ink)', flexShrink: 0 }}/>}
-              </span>
+              {LANG_LABELS[l]}
             </button>
           )
         })}
       </div>
-    </Section>
+    </div>
   )
 }
 
@@ -930,78 +658,153 @@ function NotificheSection() {
     : t('Questo browser non supporta le notifiche.')
 
   return (
-    <Section
-      title={t('Notifiche')}
-      hint={testo}
-      right={<Toggle on={attivo} onClick={() => { void cambia() }} disabled={lavoro || !(attivo || stato === 'spento')} label={t('Notifiche')}/>}
-    >
-      {errore && <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: 'var(--danger)' }}>{errore}</div>}
-    </Section>
+    <div style={{ padding: 14, borderTop: '1px solid var(--line)' }}>
+      <div className="flex items-start justify-between" style={{ gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={TITOLO_RIGA}>{t('Notifiche')}</div>
+          <div style={SOTTO_RIGA}>{testo}</div>
+        </div>
+        <Interruttore acceso={attivo} onClick={() => { void cambia() }} disabled={lavoro || !(attivo || stato === 'spento')} etichetta={t('Notifiche')}/>
+      </div>
+      {errore && <div style={{ fontFamily: NUC.font, fontSize: 13, color: 'var(--danger)', marginTop: 8 }}>{errore}</div>}
+    </div>
   )
 }
 
-// Card di un pannello di impostazioni: icona, nome, e sotto lo stato attuale.
-// Sono due e stanno affiancate, quindi il testo deve reggere metà larghezza di un
-// telefono: il sottotitolo dice a colpo d'occhio com'è messa la cosa ("Journal ·
-// scuro") senza aprire nulla.
-//
-// La freccia in alto a destra non è decorazione: senza, la card si legge come
-// un'ETICHETTA di stato — "Cambio tema: Journal" — e non come il collegamento
-// che apre il pannello. La riga che queste card hanno sostituito ce l'aveva, e
-// toglierla ha reso invisibili due delle impostazioni più usate.
-function CardImpostazione({ icon, label, sotto, onClick }: {
-  icon: ReactNode; label: string; sotto: string; onClick: () => void
+// ── I pezzi delle impostazioni ─────────────────────────────────
+// Una card bianca col bordo d'inchiostro, dentro righe divise da un filo.
+const CARD: CSSProperties = { background: 'var(--surface)', border: 'var(--bordo)' }
+const TITOLO_RIGA: CSSProperties = { fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: 'var(--fg)', lineHeight: 1.3 }
+const SOTTO_RIGA: CSSProperties = { fontFamily: NUC.font, fontSize: 13, lineHeight: 1.4, color: 'var(--fg-mute)', marginTop: 2 }
+
+/** Una riga che si tocca: icona, titolo, a volte una riga sotto, e la freccia. */
+function RigaImpostazione({ icona, titolo, sotto, onClick, aperta, disabled, freccia = true, divisa }: {
+  icona: ReactNode; titolo: string; sotto?: string; onClick: () => void
+  /** Apre qualcosa qui sotto (la password): la freccia gira. */
+  aperta?: boolean
+  disabled?: boolean
+  freccia?: boolean
+  /** Il filo sopra: per tutte le righe tranne la prima. */
+  divisa?: boolean
 }) {
   return (
-    <button onClick={onClick} className="j-hard" style={{
-      padding: '14px 12px', borderRadius: 'var(--radius)', textAlign: 'left',
-      background: 'var(--surface)', border: '1px solid var(--hairline)',
-      display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0,
-      cursor: 'pointer',
+    <button onClick={onClick} disabled={disabled} aria-expanded={aperta} className="j-riga-gruppo flex items-center w-full" style={{
+      gap: 12, padding: '14px', minHeight: 52, textAlign: 'left', cursor: disabled ? 'default' : 'pointer',
+      background: 'transparent', border: 'none', borderTop: divisa ? '1px solid var(--line)' : 'none', color: 'var(--fg)',
     }}>
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ color: 'var(--j-accent-ink)', display: 'flex' }}>{icon}</span>
-        <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', flexShrink: 0 }}/>
+      <span style={{ display: 'flex', flexShrink: 0 }}>{icona}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ ...TITOLO_RIGA, display: 'block' }}>{titolo}</span>
+        {sotto && <span style={{ ...SOTTO_RIGA, display: 'block' }}>{sotto}</span>}
       </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{
-          display: 'block', fontFamily: NUC.label, fontSize: 10, fontWeight: 600,
-          letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--fg)',
-        }}>{label}</span>
-        <span style={{
-          display: 'block', fontFamily: NUC.font, fontSize: 11.5, color: 'var(--fg-mute)',
-          marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{sotto}</span>
-      </span>
+      {freccia && (
+        <span style={{ display: 'flex', flexShrink: 0, transform: aperta ? 'rotate(90deg)' : 'none', transition: 'transform var(--motion-fast) var(--ease)' }}>
+          <Icons.chev size={16} stroke={2.2}/>
+        </span>
+      )}
     </button>
   )
 }
 
-// ── Peso ───────────────────────────────────────────────────────
+/** Quanto si tiene premuto un tasto che cancella, prima che cancelli. */
+const DURATA_PRESSIONE = 1500
+
+/** Il tasto della Zona pericolosa: si tiene premuto finché il fondo non si
+ *  riempie, e solo allora fa quello che dice. È la conferma, al posto di un
+ *  dialogo: un tocco per sbaglio non basta, e chi lo vuole davvero non deve
+ *  rispondere a una domanda. Da tastiera, dove tenere premuto non ha senso, il
+ *  tasto chiede conferma come gli altri (`onTastiera`). */
+function TieniPremuto({ etichetta, disabled, onFatto, onTastiera }: {
+  etichetta: string; disabled?: boolean
+  onFatto: () => void
+  onTastiera: () => void
+}) {
+  const t = useT()
+  const [premuto, setPremuto] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const ferma = () => { clearTimeout(timer.current); setPremuto(false) }
+  return (
+    <button
+      disabled={disabled}
+      onPointerDown={e => {
+        if (disabled || e.button !== 0) return
+        setPremuto(true)
+        timer.current = setTimeout(() => { setPremuto(false); onFatto() }, DURATA_PRESSIONE)
+      }}
+      onPointerUp={ferma} onPointerLeave={ferma} onPointerCancel={ferma}
+      // Il menù del tocco lungo, sul telefono, coprirebbe il tasto a metà.
+      onContextMenu={e => e.preventDefault()}
+      onClick={e => { if (e.detail === 0) onTastiera() }}
+      style={{
+        position: 'relative', overflow: 'hidden', width: '100%', height: 52,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 14px',
+        background: 'var(--surface)', border: `2px solid ${disabled ? 'var(--muted-dark)' : 'var(--danger)'}`,
+        color: disabled ? 'var(--fg-mute)' : 'var(--danger)', cursor: disabled ? 'default' : 'pointer',
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation',
+      } as CSSProperties}
+    >
+      {/* Il fondo che si riempie mentre lo si tiene: dice quanto manca. */}
+      <span aria-hidden style={{
+        position: 'absolute', top: 0, bottom: 0, left: 0, width: premuto ? '100%' : '0%',
+        background: 'rgba(var(--danger-rgb), .14)',
+        transition: premuto ? `width ${DURATA_PRESSIONE}ms linear` : 'width 150ms ease-out',
+      }}/>
+      <span style={{ position: 'relative', fontFamily: NUC.display, fontSize: 18, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase' }}>{etichetta}</span>
+      {!disabled && (
+        <span style={{ position: 'relative', fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('Tieni premuto')}</span>
+      )}
+    </button>
+  )
+}
+
+// L'etichetta sopra un numero o un campo: "PESO", "NOME UTENTE".
+const ETICHETTA: CSSProperties = { fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-mute)' }
+
+/** Un dato del profilo: l'etichetta, e sotto il numero grande con l'unità
+ *  piccola accanto ("76,2 KG"). Senza valore, un trattino grigio. */
+function Dato({ k, v, unita, style }: { k: string; v: string | null; unita?: string; style?: CSSProperties }) {
+  return (
+    <div style={{ minWidth: 0, padding: '12px 14px 14px', ...style }}>
+      <div style={ETICHETTA}>{k}</div>
+      <div style={{
+        marginTop: 6, fontFamily: NUC.display, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase',
+        color: v ? NUC.ink : 'var(--muted-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        <span style={{ fontSize: 'clamp(28px, 8.4vw, 36px)' }}>{v ?? '—'}</span>
+        {v && unita && <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.04em', color: 'var(--fg-mute)', marginLeft: 4 }}>{unita}</span>}
+      </div>
+    </div>
+  )
+}
+
+// ── La pesata ──────────────────────────────────────────────────
 // Stava nella scheda Personal Coach, insieme a fabbisogno calorico e proteine.
 // Quella parte è uscita dall'app; le pesate no, perché sono il denominatore di
 // tutta la forza relativa — la mappa del corpo resta vuota senza — e sono la
 // curva che un allenatore collegato guarda per prima.
 //
-// Il posto giusto è qui: il peso di oggi è già in "Dati fisici" due righe sopra,
-// e tenere la misura e il suo storico in due schermate diverse era il motivo per
+// Il posto giusto è qui: il peso di oggi è già in "Dati generali" qui sopra, e
+// tenere la misura e il suo storico in due schermate diverse era il motivo per
 // cui si finiva a correggere il campo a mano invece di registrare una pesata.
 function PesoSection() {
   const t = useT()
   const weightLog = useJarvisStore(st => st.weightLog)
+  const userWeight = useJarvisStore(st => st.userWeight)
   const [kg, setKg] = useState('')
 
   // Una pesata al giorno: risalvare oggi sovrascrive invece di accodare. E il
   // peso del profilo segue sempre l'ultima misura, così il resto dell'app legge
   // un valore solo e non deve scegliere fra due.
+  const valore = parseFloat(kg)
+  const valido = valore > 20 && valore < 400
   const registra = () => {
-    const v = parseFloat(kg)
-    if (!(v > 20 && v < 400)) return
+    if (!valido) return
     const date = todayISO()
     useJarvisStore.setState(st => ({
-      weightLog: [...st.weightLog.filter(e => e.date !== date), { date, kg: v }]
+      weightLog: [...st.weightLog.filter(e => e.date !== date), { date, kg: valore }]
         .sort((a, b) => a.date.localeCompare(b.date)),
-      userWeight: v,
+      userWeight: valore,
     }))
     setKg('')
   }
@@ -1010,60 +813,81 @@ function PesoSection() {
   const delta = ultime.length >= 2 ? ultime[ultime.length - 1].kg - ultime[0].kg : null
 
   return (
-    <Section title={t('Peso')} hint={t('Pesati ogni mattina appena sveglio, a stomaco vuoto: è l’unico modo perché due misure siano confrontabili. Conta la direzione, non il numero di oggi.')}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          type="number" inputMode="decimal" step="0.1"
-          value={kg} onChange={e => setKg(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') registra() }}
-          placeholder={t('Peso di oggi in kg')}
-          className="j-field"
-          style={{ flex: 1, minWidth: 0 }}
-        />
-        {/* Da spento NON è l'accent sbiadito: l'opacità vela testo e fondo insieme,
-            e "REGISTRA" finisce a leggersi male su un verde slavato. Meglio un
-            controllo neutro, che è anche più onesto — non è un tasto acceso a
-            metà, è un tasto che aspetta un numero. */}
-        <button onClick={registra} disabled={!kg} className={kg ? 'j-hard' : undefined} style={{
-          flexShrink: 0, minHeight: 44, padding: '0 16px', borderRadius: 'var(--radius)',
-          background: kg ? 'var(--j-accent)' : 'var(--surface-2)',
-          border: kg ? 'none' : '1px solid var(--hairline)',
-          color: kg ? 'var(--j-accent-fg)' : 'var(--fg-mute)',
-          fontFamily: NUC.label, fontSize: 11, fontWeight: 500,
-          letterSpacing: '.14em', textTransform: 'uppercase',
-          cursor: kg ? 'pointer' : 'default',
-        }}>{t('Registra')}</button>
+    <section>
+      <NucEyebrow style={{ marginBottom: 6 }}>{t('Pesata di oggi')}</NucEyebrow>
+      <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: 'var(--fg-mute)', marginBottom: 12 }}>
+        {t('Ogni mattina, appena sveglio, a stomaco vuoto. Conta la direzione, non il numero.')}
+      </div>
+
+      {/* Il campo più stretto e "Registra" alla sua destra, sulla stessa riga.
+          Nel campo, in grigio, l'ultimo peso: è il numero da cui si parte. */}
+      <div style={{ display: 'flex', gap: 12 }}>
+        <label className="j-campo-riquadro" style={{
+          flex: 1, minWidth: 0, height: 56, display: 'flex', alignItems: 'center', gap: 8,
+          padding: '0 14px', background: 'var(--surface)', border: 'var(--bordo)', cursor: 'text',
+        }}>
+          <input
+            type="number" inputMode="decimal" step="0.1"
+            value={kg} onChange={e => setKg(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') registra() }}
+            aria-label={t('Peso di oggi in kg')}
+            placeholder={userWeight ? fmtNum(userWeight) : '—'}
+            className="j-campo-grande"
+            style={{ flex: 1, minWidth: 0, fontSize: 26 }}
+          />
+          <span aria-hidden style={{ ...ETICHETTA, fontSize: 13 }}>kg</span>
+        </label>
+        {/* Da spento NON è l'accento sbiadito: l'opacità vela testo e fondo
+            insieme, e "REGISTRA" si leggerebbe male. Meglio un tasto grigio,
+            che è anche più onesto — non è acceso a metà, aspetta un numero. */}
+        <button
+          onClick={registra} disabled={!valido}
+          className={valido ? 'j-cta j-focus' : 'j-focus'}
+          style={{
+            flexShrink: 0, height: 56, padding: '0 18px',
+            background: valido ? 'var(--j-accent)' : 'var(--surface)',
+            border: valido ? 'var(--bordo)' : '2px solid var(--line)',
+            color: valido ? 'var(--j-accent-fg)' : 'var(--muted-dark)',
+            fontFamily: NUC.display, fontSize: 17, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+            cursor: valido ? 'pointer' : 'default',
+          }}
+        >{t('Registra')}</button>
       </div>
 
       {ultime.length >= 2 ? (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-lg)', padding: 12 }}>
-          <div style={{
-            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-            gap: 8, marginBottom: 8,
-          }}>
-            <span style={{ fontFamily: NUC.font, fontSize: 20, fontWeight: 500, letterSpacing: -0.4, color: 'var(--fg)' }}>
-              {ultime[ultime.length - 1].kg} kg
+        <div style={{ ...CARD, padding: 12, marginTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontFamily: NUC.display, fontSize: 26, fontWeight: 800, lineHeight: 1, color: NUC.ink }}>
+              {fmtNum(ultime[ultime.length - 1].kg)}<span style={{ ...ETICHETTA, fontSize: 12, marginLeft: 4 }}>kg</span>
             </span>
             {delta !== null && (
-              <span style={{ fontFamily: 'var(--font-label)', fontSize: 11, letterSpacing: '.08em', color: 'var(--fg-mute)' }}>
-                {delta > 0 ? '+' : ''}{t('{d} kg dalla prima delle {n} pesate', { d: delta.toFixed(1), n: ultime.length })}
+              <span style={{ ...ETICHETTA, textTransform: 'none', letterSpacing: '.02em', fontSize: 12.5, textAlign: 'right' }}>
+                {delta > 0 ? '+' : ''}{t('{d} kg dalla prima delle {n} pesate', { d: fmtNum(Number(delta.toFixed(1))), n: ultime.length })}
               </span>
             )}
           </div>
           <LineChart
             data={ultime.map(e => e.kg)}
             labels={ultime.map(e => fmtDayMonth(e.date))}
-            pointLabels={ultime.map(e => String(e.kg))}
-            height={104} color="var(--chart-2)" yAxis labelSize={9}
+            pointLabels={ultime.map(e => fmtNum(e.kg))}
+            height={104} color="var(--ink)" yAxis labelSize={9}
             yFormat={v => v.toFixed(1)}
           />
         </div>
       ) : (
-        <div className="j-empty j-empty-sm">
-          {ultime.length === 1 ? t('Serve una seconda pesata per vedere la direzione.') : t('Nessuna pesata registrata.')}
+        // Il posto dove comparirà il grafico, tratteggiato finché è vuoto.
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, padding: '14px 16px',
+          border: '1.5px dashed var(--muted-dark)', color: 'var(--fg-mute)',
+          fontFamily: NUC.font, fontSize: 13.5, lineHeight: 1.45,
+        }}>
+          <span style={{ display: 'flex', flexShrink: 0, color: NUC.ink }}><Icons.trend size={18} stroke={1.9}/></span>
+          {ultime.length === 1
+            ? t('Con una seconda pesata qui compare la direzione.')
+            : t('Registra la prima pesata: dalla seconda qui compare la direzione.')}
         </div>
       )}
-    </Section>
+    </section>
   )
 }
 
@@ -1081,15 +905,9 @@ function SvuotaAlzateSection() {
   const palestra = useJarvisStore(st => st.palestraExercises)
   const totale = palestra.reduce((n, ex) => n + ex.history.length, 0)
 
+  // Da tastiera: lo stesso, ma dopo un dialogo (vedi TieniPremuto).
   const svuota = () => confirmDelete(
-    () => useJarvisStore.setState(st => ({
-      // `current` torna vuoto insieme allo storico: è il pre-compilato del
-      // prossimo log, e lasciarlo sui carichi cancellati li farebbe rientrare
-      // dalla finestra alla prima alzata registrata.
-      palestraExercises: st.palestraExercises.map(ex => ({
-        ...ex, history: [], current: { kg: 0, reps: 0, sets_n: 0 },
-      })),
-    })),
+    () => azzera(),
     t('tutte le alzate'),
     {
       eyebrow: t('Svuota memoria'),
@@ -1101,30 +919,27 @@ function SvuotaAlzateSection() {
     },
   )
 
+  const azzera = () => useJarvisStore.setState(st => ({
+    // `current` torna vuoto insieme allo storico: è il pre-compilato del
+    // prossimo log, e lasciarlo sui carichi cancellati li farebbe rientrare
+    // dalla finestra alla prima alzata registrata.
+    palestraExercises: st.palestraExercises.map(ex => ({
+      ...ex, history: [], current: { kg: 0, reps: 0, sets_n: 0 },
+    })),
+  }))
+
   return (
-    <Section
-      title={t('Memoria delle alzate')}
-      hint={t('Azzera lo storico di tutti gli esercizi e riparti da zero. Esercizi, schede, dati personali e pesate restano dove sono.')}
-    >
-      <button
-        onClick={svuota}
-        disabled={totale === 0}
-        style={{
-          width: '100%', padding: '11px 0', borderRadius: 'var(--radius)',
-          background: 'none',
-          border: `1px solid ${totale === 0 ? 'var(--hairline)' : 'rgba(var(--danger-rgb),0.35)'}`,
-          fontFamily: NUC.label, fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
-          color: totale === 0 ? 'var(--fg-mute)' : 'var(--danger)',
-          cursor: totale === 0 ? 'default' : 'pointer',
-          transition: 'border-color 200ms, color 200ms',
-        }}
-        onMouseEnter={e => { if (totale > 0) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--danger)' }}
-        onMouseLeave={e => { if (totale > 0) (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(var(--danger-rgb),0.35)' }}
-      >
-        {totale === 0
-          ? t('Nessuna alzata registrata')
-          : totale === 1 ? t('Svuota 1 alzata') : t('Svuota {n} alzate', { n: totale })}
-      </button>
-    </Section>
+    <div style={{ padding: 14 }}>
+      <div style={TITOLO_RIGA}>{t('Memoria delle alzate')}</div>
+      <div style={SOTTO_RIGA}>{t('Azzera lo storico di tutti gli esercizi. Esercizi, schede, dati personali e pesate restano dove sono.')}</div>
+      <div style={{ marginTop: 12 }}>
+        <TieniPremuto
+          etichetta={totale === 0 ? t('Nessuna alzata registrata') : totale === 1 ? t('Svuota 1 alzata') : t('Svuota {n} alzate', { n: totale })}
+          disabled={totale === 0}
+          onFatto={azzera}
+          onTastiera={svuota}
+        />
+      </div>
+    </div>
   )
 }

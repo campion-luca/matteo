@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- file di primitives: co-esporta di proposito hook (useGreeting) e componenti condivisi */
 import { useState, useEffect, useRef, useId, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Icons } from './Icons'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
 import { useFocusTrap, useScrollLock, useModalHost } from '@/hooks/useModalA11y'
@@ -122,8 +123,7 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
         width: '100%', maxWidth: width, maxHeight,
         background: 'var(--surface-pop)',
         backgroundImage: 'var(--paper-grain)',
-        border: `1px solid var(--fg)`,
-        borderRadius: 'var(--radius-lg)',
+        border: 'var(--bordo)',
         color: 'var(--fg)', fontFamily: NUC.font,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         opacity: visible ? 1 : 0,
@@ -133,25 +133,27 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
         outline: 'none',
       }}>
         {title && (
+          // La testata di ogni modale: il titolo come quello di una pagina, in
+          // Condensed maiuscolo, e la X in un quadrato col bordo (rebranding,
+          // ott 2026).
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px 10px', gap: 10,
-            borderBottom: '1px solid var(--divider)',
+            padding: '16px 16px 6px', gap: 10,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
               {leading}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div id={titleId} style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, letterSpacing: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--fg)' }}>{title}</div>
+                <div id={titleId} style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 800, lineHeight: 1.05, letterSpacing: '.01em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--fg)' }}>{title}</div>
                 {subtitle && <div style={{ marginTop: 4 }}>{subtitle}</div>}
               </div>
             </div>
             {headerRight && <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{headerRight}</div>}
-            <button onClick={onClose} aria-label={t('Chiudi')} style={{
-              width: 36, height: 36, borderRadius: 'var(--radius)', flexShrink: 0,
-              background: 'var(--surface-2)', border: `1px solid var(--hairline)`,
-              color: 'var(--fg-mute)', cursor: 'pointer', fontSize: 18, lineHeight: '1',
+            <button onClick={onClose} aria-label={t('Chiudi')} className="j-hard j-focus" style={{
+              width: 44, height: 44, flexShrink: 0,
+              background: 'var(--surface)', border: 'var(--bordo)',
+              color: 'var(--fg)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>×</button>
+            }}><Icons.x size={18} stroke={2.2}/></button>
           </div>
         )}
         <div style={{ padding: title ? '12px 16px 16px' : '16px', overflowY: 'auto', minHeight: 0 }}>

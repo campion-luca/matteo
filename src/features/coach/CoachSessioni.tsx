@@ -178,7 +178,7 @@ function TestataSettimana({ s, aperta, onToggle }: { s: SettimanaSessioni; apert
             data-esito={d.giornata ? esitoCarichi(d.giornata) : 'vuoto'}
             title={fmtDayMon(d.date)}
             style={{
-              width: 10, height: 10, borderRadius: 3,
+              width: 10, height: 10, borderRadius: 0,
               background: d.giornata ? FONDO_ESITO[esitoCarichi(d.giornata)] : GRIGIO,
               opacity: d.futuro ? 0.4 : 1,
             }}
@@ -198,7 +198,7 @@ function Legenda() {
   const t = useT()
   const voce = (colore: string, testo: string) => (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-      <span style={{ width: 9, height: 9, borderRadius: 3, background: colore, display: 'inline-block' }}/>
+      <span style={{ width: 9, height: 9, borderRadius: 0, background: colore, display: 'inline-block' }}/>
       {testo}
     </span>
   )

@@ -112,15 +112,14 @@ describe('dizionario inglese', () => {
     expect(uguali.sort()).toEqual([
       // Con l'inglese l'elenco è più lungo che col tedesco: l'italiano della
       // palestra è pieno di parole inglesi, e quelle restano come sono.
-      //  · nomi propri: Hyrox, Roxzone, Journal, Personal Coach, e i layout
-      //    (Standard, Premium, Neon, Logbook);
-      //  · parole inglesi già nell'interfaccia italiana: Chat, Coach, Coaching, Dark
-      //    mode, Log, Pace, Timer, Total, Trend, Volume, superset, email,
-      //    password, info, "Light weight baby";
-      //  · sigle e unità: Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo.
-      'Chat', 'Coach', 'Coaching', 'Dark mode', 'Hyrox', 'Journal', 'Kg', 'Light weight baby',
-      'Log', 'Logbook', 'Neon', 'No', 'Pace', 'Pace (sec/km)', 'Personal Coach', 'Premium', 'Roxzone',
-      'Standard', 'Timer', 'Total', 'Trend', 'Volume', 'email', 'info', 'min',
+      //  · nomi propri: Hyrox, Roxzone, Personal Coach;
+      //  · parole inglesi già nell'interfaccia italiana: Account, Chat, Coaching, Log,
+      //    Pace, Personal trainer, Timer, Trend, Volume, superset,
+      //    email, password, info, "Light weight baby";
+      //  · sigle e unità: 1RM, Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo.
+      '1RM', 'Account', 'Chat', 'Coaching', 'Hyrox', 'Kg', 'Light weight baby',
+      'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal Coach', 'Personal trainer', 'Roxzone',
+      'Timer', 'Trend', 'Volume', 'email', 'info', 'min',
       'password', 'sec', 'superset', '{gruppo} — default', '{n} sess.',
     ])
   })

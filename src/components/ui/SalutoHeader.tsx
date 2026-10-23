@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react'
-import { NUC } from '@/lib/jarvis-tokens'
 import { useGreeting } from './Primitives'
 import { Icons } from './Icons'
 import { useJarvisStore, NOME_MAX } from '@/store/useJarvisStore'
@@ -30,7 +29,7 @@ import { useT, useLang } from '@/lib/i18n'
  *  Fraunces alle misure a cui lo si usa: la formula più larga («Buon Anno
  *  Nuovo,») sta a 0,545, i nomi lunghi in corsivo poco sotto. Un filo di margine,
  *  perché se il conto sbaglia per difetto la riga finisce coi puntini. */
-const EM_A_CARATTERE = 0.57
+const EM_A_CARATTERE = 0.5
 /** Oltre queste lettere la formula va a capo da sé («Buona Festa della
  *  Repubblica,» ne ha ventinove): stringerla fino a farla stare su una riga la
  *  renderebbe illeggibile, e succede un giorno all'anno. */
@@ -65,14 +64,14 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
   // Il nome, uguale nei due casi. Corsivo e non sottolineato: la sottolineatura
   // è il segno di un link, e un nome che sembra cliccabile ma non fa niente è
   // una promessa rotta.
-  const nome = <em style={{ fontStyle: 'italic', fontWeight: 600 }}>{userName}</em>
+  const nome = <span>{userName}</span>
 
   // I tre comandi: stessa forma, quadrati, sulla riga del saluto. La misura è
   // elastica ma non scende sotto i 34px — sotto non si centra più il pollice.
   const tasto = (label: string, onClick: () => void, icona: JSX.Element) => (
     <button onClick={onClick} aria-label={label} title={label} className="j-hard j-hard-sm j-focus" style={{
-      width: 'clamp(34px, 9.5vw, 42px)', aspectRatio: '1 / 1', borderRadius: 'var(--radius)', flexShrink: 0,
-      background: 'var(--surface)', border: '1px solid var(--hairline)',
+      width: 44, aspectRatio: '1 / 1', borderRadius: 'var(--radius)', flexShrink: 0,
+      background: 'var(--surface)', border: 'var(--bordo)',
       color: 'var(--fg-soft)', cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
@@ -91,10 +90,7 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
       {/* `flex: 1` sul telefono: la colonna prende tutto lo spazio che i tre
           tasti lasciano, ed è su quella larghezza che il saluto si misura. */}
       <div className={suDueRighe ? 'j-saluto-colonna' : undefined} style={{ minWidth: 0, flex: suDueRighe ? 1 : undefined }}>
-        <div style={{
-          fontFamily: NUC.label, fontSize: 'clamp(10.5px, 3vw, 12px)', fontWeight: 600, letterSpacing: '.04em',
-          color: 'var(--tertiary-ink)', marginBottom: 4,
-        }}>{fmtGiornoLungo(new Date(), lang)}</div>
+        <div className="j-eyebrow" style={{ marginBottom: 6 }}>{fmtGiornoLungo(new Date(), lang)}</div>
         {suDueRighe ? (
           <div className="j-saluto" style={{ '--saluto-em': (EM_A_CARATTERE * caratteri).toFixed(2) } as CSSProperties}>
             <div className={formula.length <= FORMULA_MAX ? 'j-saluto-riga' : undefined}>{formula}</div>
@@ -103,12 +99,9 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
         ) : (
           // Su desktop, e senza nome: una frase sola, che va a capo se serve.
           <div style={{
-            fontFamily: 'var(--font-saluto)',
-            // Il minore fra larghezza e altezza: su un telefono basso il saluto su
-            // due righe è la cosa che spinge giù tutto il resto.
-            fontSize: isDesktop ? 'clamp(26px, 3.4vw, 36px)' : 'clamp(23px, 3.2dvh, 31px)',
-            fontWeight: 500, letterSpacing: '-0.01em',
-            lineHeight: 1.05, color: 'var(--fg)',
+            fontFamily: 'var(--font-saluto)', textTransform: 'uppercase',
+            fontSize: 44, fontWeight: 800, letterSpacing: '-0.01em',
+            lineHeight: .95, color: 'var(--fg)',
           }}>
             {greetBefore}
             {nameStart >= 0 && nome}

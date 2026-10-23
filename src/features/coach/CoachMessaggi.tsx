@@ -13,25 +13,38 @@
 import { useState, useMemo, useEffect } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
+import { Avatar } from '@/components/ui/Avatar'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { useT } from '@/lib/i18n'
 import { fmtQuando } from '@/lib/dateFormat'
 import { conversazioni, type Conversazione } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
+import { useProfiliStore, nomeCompleto } from '@/lib/profili'
 import { Bolla, BadgeNonLetti, Composer } from './messaggiUI'
-import { ChatDiretta } from './ChatDiretta'
+import { ChatDiretta, ListaMessaggi } from './ChatDiretta'
+import { Pagina, BarraScrittura } from './PezziCoach'
 
-export function CoachMessaggi({ userId, userName, nomi }: {
+/** La pagina della chat: l'elenco delle conversazioni, e dentro ciascuna. Si
+ *  apre dall'icona in alto a destra del Coaching — era la terza card, accanto a
+ *  "Coach" e "Seguiti", e si leggeva come un terzo modo di stare collegati. */
+export function CoachMessaggi({ userId, userName, nomi, onBack, isDesktop }: {
   userId: string
   userName: string
   /** id → nome delle persone con cui sono collegato. Serve quando in un filo
    *  l'altro non ha ancora scritto: il suo nome di solito si legge dai suoi
    *  messaggi, e senza questo una chat appena aperta si chiamerebbe "Allenatore". */
   nomi?: Map<string, string>
+  onBack: () => void
+  isDesktop: boolean
 }) {
   const t = useT()
-  const nomeDi = (c: Conversazione) =>
-    c.controparte || nomi?.get(c.sonoCoach ? c.athleteId : c.coachId) || (c.sonoCoach ? t('Allievo') : t('Allenatore'))
+  const profili = useProfiliStore(s => s.profili)
+  const altroDi = (c: Conversazione) => (c.sonoCoach ? c.athleteId : c.coachId)
+  // Il nome del profilo prima di tutto: nome e cognome, scelti dalla persona.
+  const nomeDi = (c: Conversazione) => nomeCompleto(
+    profili[altroDi(c)],
+    nomi?.get(altroDi(c)) || c.controparte || (c.sonoCoach ? t('Allievo') : t('Allenatore')),
+  )
   // Quale filo è aperto. Null = l'elenco.
   const [apertaId, setApertaId] = useState<string | null>(null)
   // Ritmo svelto solo con un filo aperto: l'elenco si accontenta del giro di
@@ -52,110 +65,122 @@ export function CoachMessaggi({ userId, userName, nomi }: {
   // conversazione e non un elenco di richieste da evadere.
   if (aperta?.diretta) {
     return (
-      <>
-        <div className="flex items-center gap-3" style={{ marginBottom: 14 }}>
-          <button onClick={() => setApertaId(null)} className="j-btn-back" style={{ width: 34, height: 34 }}>
-            <Icons.chevL size={15}/>
-          </button>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {nomeDi(aperta)}
-            </div>
-            <div className="j-eyebrow" style={{ marginTop: 2 }}>{t('Chat')}</div>
-          </div>
-        </div>
+      <Pagina titolo={nomeDi(aperta)} onBack={() => setApertaId(null)} isDesktop={isDesktop} fisso>
         <ChatDiretta coachId={aperta.coachId} athleteId={aperta.athleteId} io={userId} mioNome={userName}/>
-      </>
+      </Pagina>
     )
   }
-  if (aperta) return <FiloAperto conv={aperta} userId={userId} userName={userName} onBack={() => setApertaId(null)}/>
-
-  // Tre stati, non due, ed è la differenza fra "aspetta" e "aspetta per sempre".
-  // "Caricamento…" dura finché il primo giro non è FINITO — riuscito o fallito
-  // (vedi `primoGiroFatto` in messaggiLive): se la tabella sul server non c'è
-  // ancora, il giro fallisce sempre, e una scritta che aspetta il successo resta
-  // lì a vita. Finito il giro si dice una cosa o l'altra: cosa è andato storto,
-  // oppure che di richieste non ce n'è.
-  if (!primoGiroFatto && fili.length === 0) {
-    return <div className="j-empty">{t('Caricamento…')}</div>
-  }
-
-  if (fili.length === 0) {
+  if (aperta) {
     return (
-      <>
-        <NucEyebrow>{t('Conversazioni')}</NucEyebrow>
-        {errore ? (
-          <>
-            <div style={{
-              padding: '10px 12px', marginBottom: 12, borderRadius: 'var(--radius)',
-              background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.24)',
-              fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.5, color: 'var(--danger)',
-            }}>{errore}</div>
-            <div className="j-empty">{t('Le richieste non si possono leggere adesso. Riprova più tardi.')}</div>
-          </>
-        ) : (
-          <div className="j-empty">
-            {t('Nessuna conversazione. Per scrivere a qualcuno tocca il suo nome in “Seguiti” o in “Coach”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.')}
-          </div>
-        )}
-      </>
+      <Pagina titolo={nomeDi(aperta)} onBack={() => setApertaId(null)} isDesktop={isDesktop} fisso>
+        <FiloAperto conv={aperta} userId={userId} userName={userName}/>
+      </Pagina>
     )
   }
 
   return (
-    <>
-      <NucEyebrow>{t('Conversazioni')}</NucEyebrow>
-      {/* `overflow: hidden` perché le righe si accendono al passaggio (j-riga-gruppo):
-          senza, il fondo della prima e dell'ultima esce dagli angoli smussati della
-          card e disegna due spigoli vivi dove non ce ne sono. */}
-      <NucCard pad={0} style={{ overflow: 'hidden' }}>
-        {fili.map((c, i) => (
-          <button
-            key={c.schedaId}
-            onClick={() => setApertaId(c.schedaId)}
-            className="j-riga-gruppo"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-              padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
-              background: 'transparent', border: 'none',
-              borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
-                <span style={{ fontFamily: NUC.font, fontSize: 15, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {nomeDi(c)}
-                </span>
-                <BadgeNonLetti n={c.daLeggere}/>
-              </div>
-              <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: 'var(--tertiary-ink)', marginTop: 2, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {c.diretta ? t('Chat') : c.schedaTitolo || t('Scheda')}
-              </div>
-              {/* L'ultima riga scritta, su una riga sola: è quello che dice se
-                  vale la pena entrare adesso o dopo. */}
-              <div style={{ fontFamily: NUC.font, fontSize: 12, color: 'var(--fg-mute)', marginTop: 3, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {c.ultimo.autore === userId ? `${t('tu')}: ` : ''}{c.ultimo.testo}
-              </div>
-            </div>
-            <div style={{ flexShrink: 0, textAlign: 'right' }}>
-              <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.04em', color: 'var(--fg-mute)' }}>
-                {fmtQuando(c.ultimo.created_at)}
-              </div>
-              <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', marginTop: 4, display: 'inline-block' }}/>
-            </div>
-          </button>
-        ))}
-      </NucCard>
-    </>
+    <Pagina titolo={t('Chat')} onBack={onBack} isDesktop={isDesktop}>
+      {elenco()}
+    </Pagina>
   )
+
+  // Una funzione e non un componente: dichiarato qui dentro, React lo vedrebbe
+  // nuovo a ogni giro dei messaggi e ricostruirebbe l'elenco da capo.
+  function elenco() {
+    // Tre stati, non due, ed è la differenza fra "aspetta" e "aspetta per sempre".
+    // "Caricamento…" dura finché il primo giro non è FINITO — riuscito o fallito
+    // (vedi `primoGiroFatto` in messaggiLive): se la tabella sul server non c'è
+    // ancora, il giro fallisce sempre, e una scritta che aspetta il successo resta
+    // lì a vita. Finito il giro si dice una cosa o l'altra: cosa è andato storto,
+    // oppure che di richieste non ce n'è.
+    if (!primoGiroFatto && fili.length === 0) {
+      return <div className="j-empty">{t('Caricamento…')}</div>
+    }
+
+    if (fili.length === 0) {
+      return (
+        <>
+          <NucEyebrow>{t('Conversazioni')}</NucEyebrow>
+          {errore ? (
+            <>
+              <div style={{
+                padding: '10px 12px', marginBottom: 12, borderRadius: 'var(--radius)',
+                background: 'rgba(var(--danger-rgb),0.06)', border: '1px solid rgba(var(--danger-rgb),0.24)',
+                fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.5, color: 'var(--danger)',
+              }}>{errore}</div>
+              <div className="j-empty">{t('Le richieste non si possono leggere adesso. Riprova più tardi.')}</div>
+            </>
+          ) : (
+            <div className="j-empty">
+              {t('Nessuna conversazione. Per scrivere a qualcuno aprilo da “Coaching” o da “Seguiti”; chi riceve una tua scheda può anche chiederti info o una sostituzione dal punto interrogativo in cima alla scheda.')}
+            </div>
+          )}
+        </>
+      )
+    }
+
+    return (
+      <>
+        <NucEyebrow>{t('Conversazioni')}</NucEyebrow>
+        {/* `overflow: hidden` perché le righe si accendono al passaggio (j-riga-gruppo):
+            senza, il fondo della prima e dell'ultima esce dagli angoli smussati della
+            card e disegna due spigoli vivi dove non ce ne sono. */}
+        <NucCard pad={0} style={{ overflow: 'hidden' }}>
+          {fili.map((c, i) => {
+            const nome = nomeDi(c)
+            return (
+              <button
+                key={c.schedaId}
+                onClick={() => setApertaId(c.schedaId)}
+                className="j-riga-gruppo"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                  padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
+                  background: 'transparent', border: 'none',
+                  borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
+                }}
+              >
+                <Avatar foto={profili[altroDi(c)]?.foto} nome={nome} size={40}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                    <span style={{ fontFamily: NUC.font, fontSize: 14.5, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {nome}
+                    </span>
+                    <BadgeNonLetti n={c.daLeggere}/>
+                  </div>
+                  {/* Di cosa si parla: solo per i fili su una scheda. La chat è
+                      la chat, e dirlo su ogni riga era una parola ripetuta. */}
+                  {!c.diretta && (
+                    <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.06em', color: 'var(--tertiary-ink)', marginTop: 1, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.schedaTitolo || t('Scheda')}
+                    </div>
+                  )}
+                  {/* L'ultima riga scritta, su una riga sola: è quello che dice se
+                      vale la pena entrare adesso o dopo. */}
+                  <div style={{ fontFamily: NUC.font, fontSize: 12, color: 'var(--fg-mute)', marginTop: 2, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.ultimo.autore === userId ? `${t('tu')}: ` : ''}{c.ultimo.testo}
+                  </div>
+                </div>
+                <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                  <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.04em', color: 'var(--fg-mute)' }}>
+                    {fmtQuando(c.ultimo.created_at)}
+                  </div>
+                  <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', marginTop: 4, display: 'inline-block' }}/>
+                </div>
+              </button>
+            )
+          })}
+        </NucCard>
+      </>
+    )
+  }
 }
 
 // ── Un filo aperto ─────────────────────────────────────────────
-function FiloAperto({ conv, userId, userName, onBack }: {
+function FiloAperto({ conv, userId, userName }: {
   conv: Conversazione
   userId: string
   userName: string
-  onBack: () => void
 }) {
   const t = useT()
 
@@ -202,21 +227,11 @@ function FiloAperto({ conv, userId, userName, onBack }: {
 
   return (
     <>
-      <div className="flex items-center gap-3" style={{ marginBottom: 14 }}>
-        <button onClick={onBack} className="j-btn-back" style={{ width: 34, height: 34 }}>
-          <Icons.chevL size={15}/>
-        </button>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {conv.controparte || (conv.sonoCoach ? t('Allievo') : t('Allenatore'))}
-          </div>
-          <div className="j-eyebrow" style={{ marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {conv.schedaTitolo || t('Scheda')}
-          </div>
+      <ListaMessaggi conteggio={conv.messaggi.length}>
+        {/* La scheda di cui si parla: in testata c'è il nome della persona. */}
+        <div className="j-eyebrow" style={{ textAlign: 'center', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {conv.schedaTitolo || t('Scheda')}
         </div>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         {conv.messaggi.map(m => {
           const titolo = m.esercizio_nome ?? null
           const mostraTitolo = titolo !== ultimoTitolo
@@ -228,24 +243,29 @@ function FiloAperto({ conv, userId, userName, onBack }: {
             </div>
           )
         })}
-      </div>
+      </ListaMessaggi>
 
-      <NucCard pad={13}>
-        {bersagli.length > 0 && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 6 }}>
-              {t('Rispondi su')}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
+      <BarraScrittura>
+        <Composer
+          compatto
+          placeholder={t('Scrivi la risposta…')}
+          etichetta={t('Rispondi')}
+          onInvia={rispondi}
+          intestazione={bersagli.length > 0 && (
+            // Su una riga che scorre di lato: tre esercizi a capo erano tre righe
+            // tolte ai messaggi, in una fascia che non si sposta mai.
+            <div className="flex items-center gap-1.5" style={{ overflowX: 'auto', scrollbarWidth: 'none' }}>
+              <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginRight: 2 }}>
+                {t('Rispondi su')}
+              </span>
               <ChipBersaglio nome={t('la scheda')} scelto={bersaglio === null} onClick={() => setBersaglio(null)}/>
               {bersagli.map(b => (
                 <ChipBersaglio key={b.id} nome={b.nome} scelto={bersaglio === b.id} onClick={() => setBersaglio(b.id)}/>
               ))}
             </div>
-          </div>
-        )}
-        <Composer placeholder={t('Scrivi la risposta…')} etichetta={t('Rispondi')} onInvia={rispondi}/>
-      </NucCard>
+          )}
+        />
+      </BarraScrittura>
     </>
   )
 }
@@ -270,7 +290,7 @@ function ChipBersaglio({ nome, scelto, onClick }: { nome: string; scelto: boolea
       onClick={onClick}
       aria-pressed={scelto}
       style={{
-        padding: '4px 9px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+        flexShrink: 0, padding: '4px 9px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
         background: scelto ? 'var(--j-accent)' : 'var(--surface-2)',
         border: `1px solid ${scelto ? 'var(--j-accent)' : 'var(--hairline)'}`,
         color: scelto ? 'var(--j-accent-fg)' : 'var(--fg-mute)',

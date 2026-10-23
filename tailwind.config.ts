@@ -40,7 +40,8 @@ export default {
         },
       },
       fontFamily: {
-        sans:    ["'Inter'", 'system-ui', 'sans-serif'],
+        sans:    ["'Barlow'", 'system-ui', 'sans-serif'],
+        display: ["'Barlow Condensed'", 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg:       'var(--radius)',

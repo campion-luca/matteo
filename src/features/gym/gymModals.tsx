@@ -1288,7 +1288,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: activeColor, flexShrink: 0 }}/>
+          <div style={{ width: 10, height: 10, borderRadius: 0, background: activeColor, flexShrink: 0 }}/>
           <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>
             {color ? t('{gruppo} — personalizzato', { gruppo: tData(muscle) }) : t('{gruppo} — default', { gruppo: tData(muscle) })}
           </span>

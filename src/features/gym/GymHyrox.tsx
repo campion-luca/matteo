@@ -367,7 +367,7 @@ export function RaceSummary({ raceStations, runStation, gare, oggi, onRegistra, 
                 { l: t('Roxzone'), v: s.parti.roxzone, c: 'var(--track)' },
               ].map(p => (
                 <span key={p.l} className="flex items-center gap-1.5" style={{ fontFamily: NUC.label, fontSize: 11.5, color: NUC.dim }}>
-                  <span aria-hidden style={{ width: 9, height: 9, borderRadius: 2, background: p.c, display: 'inline-block' }}/>
+                  <span aria-hidden style={{ width: 9, height: 9, borderRadius: 0, background: p.c, display: 'inline-block' }}/>
                   {p.l} <span style={{ fontFamily: NUC.tempo, color: NUC.ink }}>{fmtTempoGara(p.v)}</span>
                 </span>
               ))}

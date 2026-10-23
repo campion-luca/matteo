@@ -226,7 +226,11 @@ Lo schema della tabella `user_data` e le policy RLS sono in
 primo. Quel file è rieseguibile: dopo un aggiornamento che vi aggiunge oggetti
 — come la tabella `coach_schede`, le schede che un allenatore assegna a un
 allievo — va ridato in pasto all'SQL Editor, altrimenti la funzione nuova resta
-spenta nell'app (che se ne accorge e non si rompe: la sezione resta vuota). Per gli allegati su Storage vedi
+spenta nell'app (che se ne accorge e non si rompe: la sezione resta vuota). I
+profili — nome, cognome, foto e percorso, visibili solo a chi è collegato — sono
+in [supabase/profili_schema.sql](supabase/profili_schema.sql), da eseguire dopo
+`coach_schema.sql`: finché manca, il Coaching mostra i nomi copiati nel
+collegamento e nessuna foto. Per gli allegati su Storage vedi
 [docs/SETUP-STORAGE.md](docs/SETUP-STORAGE.md).
 
 ### Immagini degli esercizi

@@ -5,43 +5,20 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#F1F1EF" />
     <meta name="description" content="Matteo — Personal OS: allenamenti (palestra e Hyrox) e strumenti personali, offline e installabile." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Matteo" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..600&family=Inter:wght@400..700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <title>Matteo</title>
   </head>
   <body>
-    <!-- Il tema prima di React: senza, la prima pittura usa la carta chiara e poi
-         scatta sul nero quando App monta. Legge lo stesso blob dello store; se non
-         c'è (primo avvio) vale il default, Standard scuro. -->
-    <script>
-      (function () {
-        var layout = 'standard', dark = true
-        try {
-          var s = JSON.parse(localStorage.getItem('jarvis-store-v4') || '{}').state || {}
-          // La scelta salvata vale solo da un blob già passato dal cambio di
-          // tema (temaVersione 3, vedi TEMA_VERSIONE nello store): quelli di
-          // prima lo store li porta sul default, e qui si fa lo stesso.
-          if ((s.temaVersione || 0) >= 3) {
-            if (s.layout === 'premium' || s.layout === 'neon' || s.layout === 'logbook') layout = s.layout
-            dark = !!s.darkMode
-          }
-        } catch (e) {}
-        var c = document.documentElement.classList
-        if (layout === 'premium') c.add('premium')
-        // Neon e Logbook sono temi scuri costruiti sopra `.dark` (vedi App.tsx).
-        if (layout === 'neon' || layout === 'logbook') { c.add(layout); dark = true }
-        if (dark) c.add('dark')
-      })()
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

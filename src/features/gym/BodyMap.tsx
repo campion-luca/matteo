@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NUC, cursore } from '@/lib/jarvis-tokens'
 import { LEVEL_LABELS, type DistrictStrength, type StrengthLevel } from './gymStrength'
 import { useT, useTData } from '@/lib/i18n'
+import { NucEyebrow } from '@/components/ui/NucComponents'
 import {
   VIEWBOX_CORPO, neutri, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, GAMBE_RETRO, type Forma,
 } from './bodyBlocks'
@@ -109,7 +110,10 @@ export function BodyMap({ districts, side, onPick, picked }: {
   )
 }
 
-// ── Il modulo completo: sagoma, interruttore fronte/retro, legenda ──
+// ── Il modulo completo: titolo con fronte/retro, sagoma, legenda ──
+// La sagoma qui sopra resta com'è (realistica, coi distretti accesi); attorno,
+// la forma del rebranding: il titolo di sezione con l'interruttore a destra,
+// e accanto alla figura una barra per distretto col suo punteggio.
 export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
   districts: DistrictStrength[]
   /** Senza peso corporeo il rapporto non esiste e la mappa resta tutta vuota. */
@@ -124,110 +128,99 @@ export function BodyMapPanel({ districts, noWeight, onOpenProfile }: {
   const [side, setSide] = useState<'front' | 'back'>('front')
   const [picked, setPicked] = useState<string | null>(null)
 
+  // Dal più forte: si legge come una classifica. Quelli senza dati in fondo.
   const visibili = (side === 'front' ? FRONT : BACK)
     .map(m => districts.find(d => d.muscle === m))
     .filter((d): d is DistrictStrength => !!d)
+    .sort((a, b) => (b.level > 0 ? b.score : -1) - (a.level > 0 ? a.score : -1))
 
-  if (noWeight) {
-    return (
-      <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: 'var(--fg-mute)', padding: '8px 0', lineHeight: 1.5 }}>
-        {t('La forza si misura sul tuo peso corporeo.')}{' '}
-        <button onClick={onOpenProfile} className="j-focus" style={{
-          padding: 0, background: 'none', border: 'none', cursor: 'pointer',
-          fontFamily: 'inherit', fontSize: 'inherit', color: 'var(--j-accent-ink)', textDecoration: 'underline',
-        }}>{t('Inseriscilo nel profilo')}</button>.
-      </div>
-    )
-  }
+  const interruttore = (
+    <div className="j-switch" style={{ ...cursore(side === 'front' ? 0 : 1, 2), width: 'fit-content' }}>
+      {(['front', 'back'] as const).map(v => (
+        <button key={v} type="button" onClick={() => { setSide(v); setPicked(null) }} aria-pressed={side === v}
+          // `minWidth` e non `width`: le celle sono `flex: 1`, e il cursore
+          // ne vale esattamente una.
+          className="j-switch-cell" style={{ minWidth: 64, height: 34, padding: '0 12px' }}>
+          {v === 'front' ? t('Fronte') : t('Retro')}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
-    <>
-      {/* Interruttore fronte/retro: lo stesso `.j-switch` di tutti gli altri
-          (vedi globals.css), col cursore pieno d'accent com'era il suo. Prima
-          era un pezzo a sé, con un contorno a spigoli vivi attorno a una
-          pillola arrotondata — l'ultimo rimasto squadrato da quando l'app ha
-          gli angoli smussati. */}
-      <div className="j-switch j-switch-accent" style={{
-        ...cursore(side === 'front' ? 0 : 1, 2),
-        width: 'fit-content', marginBottom: 'clamp(8px, 1.3dvh, 12px)',
-      }}>
-        {(['front', 'back'] as const).map(v => (
-          <button key={v} type="button" onClick={() => { setSide(v); setPicked(null) }} aria-pressed={side === v}
-            className="j-switch-cell" style={{
-              // `minWidth` e non `width`: le celle sono `flex: 1`, e il cursore
-              // ne vale esattamente una.
-              minWidth: 70, padding: '6px 12px',
-              fontFamily: NUC.label, fontSize: 9.5, fontWeight: side === v ? 600 : 500,
-              letterSpacing: '.14em', textTransform: 'uppercase',
-            }}>
-            {v === 'front' ? t('Fronte') : t('Retro')}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flexShrink: 0, maxWidth: '40%' }}>
-          <BodyMap districts={districts} side={side} onPick={m => setPicked(p => p === m ? null : m)} picked={picked}/>
-        </div>
-
-        {/* Legenda: il nome del distretto e il suo PUNTEGGIO su 100, dove 100 è la
-            soglia "Forte" di quel distretto. È il numero che rende la mappa
-            leggibile a colpo d'occhio: prima l'unico numero era "8 kg · 0.11×",
-            che chiede due conti a chi legge — i chili non si confrontano fra
-            distretti, e il moltiplicatore va confrontato con una soglia che non è
-            scritta da nessuna parte. Qui la soglia è già dentro il numero.
-            I chili veri restano, ma solo per il distretto toccato: sono il
-            dettaglio che si va a cercare, non il colpo d'occhio. */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {visibili.map(d => {
-            const on = picked === d.muscle
-            return (
-              <button key={d.muscle} onClick={() => setPicked(p => p === d.muscle ? null : d.muscle)} className="j-focus" style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-              }}>
-                <span style={{
-                  width: 9, height: 9, flexShrink: 0, borderRadius: 'var(--radius-sm)',
-                  background: d.level === 0 ? 'var(--surface-2)' : 'var(--j-accent)',
-                  opacity: d.level === 0 ? 1 : LEVEL_OPACITY[d.level],
-                  border: '1px solid var(--hairline)',
-                }}/>
-                <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  <span style={{
-                    fontFamily: NUC.font, fontSize: 12.5,
-                    color: d.level === 0 ? 'var(--fg-mute)' : 'var(--fg)',
-                    fontWeight: on ? 500 : 400,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{tData(d.muscle)}</span>
-                  {on && d.best > 0 && (
-                    <span style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.06em', color: 'var(--fg-mute)', marginTop: 1 }}>
-                      {livello(d.level)} · {Math.round(d.best)} kg · {t('{r}× peso', { r: d.ratio?.toFixed(2) ?? '' })}
-                    </span>
-                  )}
-                </span>
-                {/* Il punteggio è il numero grosso della riga: sta in tabulare
-                    perché incolonnato si legge come una classifica. */}
-                <span style={{
-                  flexShrink: 0, minWidth: 26, textAlign: 'right',
-                  fontFamily: NUC.label, fontSize: 14, fontWeight: 500,
-                  fontVariantNumeric: 'tabular-nums',
-                  color: d.level === 0 ? 'var(--fg-mute)' : 'var(--j-accent-ink)',
-                }}>{d.level === 0 ? '—' : d.score}</span>
-              </button>
-            )
-          })}
-
-          {/* Senza questa riga il "72" resta un numero senza unità: l'utente
-              deve poter sapere dove finisce la scala senza aprire una ⓘ. */}
-          <div style={{
-            marginTop: 2, paddingTop: 6, borderTop: '1px solid var(--divider)',
-            fontFamily: NUC.label, fontSize: 9, letterSpacing: '.08em',
-            textTransform: 'uppercase', color: 'var(--fg-mute)',
-          }}>
-            {t('100 = forte per questo distretto')}
+    <section style={{ marginBottom: 26 }}>
+      <NucEyebrow right={noWeight ? undefined : interruttore}>{t('Mappa della forza')}</NucEyebrow>
+      <div style={{ background: 'var(--surface)', border: 'var(--bordo)', padding: 14 }}>
+        {noWeight ? (
+          <div style={{ fontFamily: NUC.font, fontSize: 14, color: 'var(--fg-mute)', lineHeight: 1.5 }}>
+            {t('La forza si misura sul tuo peso corporeo.')}{' '}
+            <button onClick={onOpenProfile} className="j-focus" style={{
+              padding: 0, background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 'inherit', color: 'var(--j-accent-ink)', textDecoration: 'underline',
+            }}>{t('Inseriscilo nel profilo')}</button>.
           </div>
-        </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            <div style={{ flexShrink: 0, maxWidth: '40%' }}>
+              <BodyMap districts={districts} side={side} onPick={m => setPicked(p => p === m ? null : m)} picked={picked}/>
+            </div>
+
+            {/* Legenda: il nome del distretto e il suo PUNTEGGIO su 100, dove 100
+                è la soglia "Forte" di quel distretto, e sotto la barra che lo
+                disegna — piena d'accento quanto il distretto sulla sagoma, con
+                una tacca d'inchiostro dove arriva. I chili veri restano, ma solo
+                per il distretto toccato: sono il dettaglio che si va a cercare. */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {visibili.map(d => {
+                const on = picked === d.muscle
+                const fino = Math.min(100, Math.max(0, d.score))
+                return (
+                  <button key={d.muscle} onClick={() => setPicked(p => p === d.muscle ? null : d.muscle)} className="j-focus" style={{
+                    display: 'block', width: '100%', padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{
+                        fontFamily: NUC.font, fontSize: 14, fontWeight: on ? 600 : 400,
+                        color: d.level === 0 ? 'var(--fg-mute)' : 'var(--fg)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{tData(d.muscle)}</span>
+                      {/* Il punteggio è il numero grosso della riga: in tabulare,
+                          perché incolonnato si legge come una classifica. */}
+                      <span style={{
+                        flexShrink: 0, fontFamily: NUC.display, fontSize: 22, fontWeight: 800, lineHeight: 1,
+                        fontVariantNumeric: 'tabular-nums', color: d.level === 0 ? 'var(--fg-mute)' : 'var(--fg)',
+                      }}>{d.level === 0 ? '—' : d.score}</span>
+                    </span>
+                    <span aria-hidden style={{ position: 'relative', display: 'block', height: 4, marginTop: 6, background: 'var(--line)' }}>
+                      {d.level > 0 && (
+                        <>
+                          <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${fino}%`, background: 'var(--j-accent)', opacity: Math.max(0.35, LEVEL_OPACITY[d.level]) }}/>
+                          <span style={{ position: 'absolute', left: `calc(${fino}% - 2px)`, top: -3, width: 2, height: 10, background: 'var(--ink)' }}/>
+                        </>
+                      )}
+                    </span>
+                    {on && d.best > 0 && (
+                      <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginTop: 5 }}>
+                        {livello(d.level)} · {Math.round(d.best)} kg · {t('{r}× peso', { r: d.ratio?.toFixed(2) ?? '' })}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+
+              {/* Senza questa riga il "72" resta un numero senza unità: l'utente
+                  deve poter sapere dove finisce la scala senza aprire una ⓘ. */}
+              <div style={{
+                marginTop: 2, paddingTop: 8, borderTop: '1px solid var(--line)',
+                fontFamily: NUC.display, fontSize: 12, fontWeight: 600, letterSpacing: '.08em',
+                textTransform: 'uppercase', color: 'var(--fg-mute)',
+              }}>
+                {t('100 = forte per questo distretto')}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </>
+    </section>
   )
 }

@@ -173,6 +173,9 @@ export interface Achievement {
   goalVars?: Record<string, string | number>
   /** Data della prima alzata che l'ha centrata, o null se ancora chiusa. */
   unlockedAt: string | null
+  /** A che punto si è, per i traguardi che si raggiungono contando ("20 su
+   *  100"). Assente per quelli che si centrano in un colpo solo. */
+  progress?: { fatte: number; totale: number }
 }
 
 const HUNDRED_KG = 100
@@ -225,9 +228,11 @@ export function achievements(exercises: PalestraExercise[], bodyWeightKg: number
       id: 'lightWeightBaby',
       title: 'Light weight baby',
       phrase: 'Cento alzate di schiena. Light weight, baby!',
-      goal: 'Registra {target} alzate di dorso (ne hai {fatte}).',
-      goalVars: { target: DORSO_TARGET, fatte: dorsoFatte },
+      goal: 'Registra {target} alzate di dorso.',
+      goalVars: { target: DORSO_TARGET },
       unlockedAt: dorsoFatte >= DORSO_TARGET ? dorso[DORSO_TARGET - 1] : null,
+      // Quante ne mancano lo dice la barra, non più la frase.
+      progress: { fatte: Math.min(dorsoFatte, DORSO_TARGET), totale: DORSO_TARGET },
     },
   ]
 }

@@ -22,8 +22,8 @@ export default defineConfig({
         // splash dell'app installata prima del primo frame.
         // Nero come il tema di default (Premium): è il colore della schermata di
         // avvio dell'app installata, prima che la pagina carichi.
-        theme_color: '#000000',
-        background_color: '#000000',
+        theme_color: '#F1F1EF',
+        background_color: '#F1F1EF',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

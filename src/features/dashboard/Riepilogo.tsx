@@ -1,21 +1,14 @@
-// Il riepilogo complessivo: la settimana, la mappa della forza, i massimali.
+// Il riepilogo complessivo, in cima alle Statistiche: la settimana, la mappa
+// della forza, i massimali. Tre sezioni una sotto l'altra, ognuna col suo
+// titolo (rebranding, ott 2026: erano tre righe dentro un riquadro solo).
 //
-// Era la home dell'app — data, saluto, "Alleniamoci" e sotto questo riquadro. La
-// pagina d'ingresso adesso è l'allenamento (vedi JarvisGym), e di quella schermata
-// qui resta solo il riquadro: sta in cima a Stats, aperto. Non è una pagina e non
-// è una tendina — nessuna intestazione, nessuna freccia, nessuno scroll proprio:
-// è una SEZIONE, e chi la ospita decide dove e quanto spazio le tocca.
-// Il saluto e i comandi sono andati in `SalutoHeader`, in cima all'allenamento.
-//
-// Ogni modulo (settimana, forza, massimali) è una sezione del riepilogo, in un
-// ordine fisso. Si potevano spegnere e riordinare da "Cambio widget", nelle
-// impostazioni: tolto quel pannello, restano tutti e tre accesi — un modulo
-// spento senza più un posto da cui riaccenderlo sarebbe sparito per sempre.
+// Era la home dell'app; di quella schermata qui resta il riepilogo. Non è una
+// pagina — nessuna intestazione, nessuno scroll proprio: chi lo ospita decide
+// dove e quanto spazio gli tocca.
 // Qui non si calcola nulla di proprio: volumi e settimane arrivano da gymModel.
-// La dashboard è una vista, e deve restare tale.
 import { useState, useMemo } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
-import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
+import { NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
@@ -24,6 +17,7 @@ import { localISO } from '@/lib/isoDate'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { maxLifts, maxTotal, SOURCE_LABELS } from '@/features/gym/gymMaxLifts'
 import { BodyMapPanel } from '@/features/gym/BodyMap'
+import { fmtNum } from '@/features/gym/gymModel'
 import { CalendarioAllenamenti } from './CalendarioAllenamenti'
 import { settimaneDiFila } from './allenamenti'
 import { useT, useTData } from '@/lib/i18n'
@@ -34,17 +28,12 @@ interface RiepilogoProps {
   onOpenProfile: () => void
 }
 
-// Il respiro sopra e sotto ogni sezione del riepilogo: 12px su un iPhone di
-// misura normale, meno su uno schermo basso.
-const SEZ = 'clamp(8px, 1.4dvh, 12px)'
-
 export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   const t = useT()
   // I nomi dei massimali arrivano dal catalogo, cioè dai dati: passano da `tData`,
   // che traduce quelli noti e lascia intatto tutto il resto.
   const tData = useTData()
-  // Selettori granulari: la home si ri-renderizza solo quando cambiano i campi
-  // che mostra, non a ogni modifica dello store.
+  // Selettori granulari: si ridisegna solo quando cambiano i campi che mostra.
   const s = useJarvisStore(useShallow(st => ({
     userWeight: st.userWeight,
     userSex: st.userSex,
@@ -56,11 +45,9 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
 
   // ── La settimana corrente, lunedì→domenica ───────────────────
   // NON gli ultimi 7 giorni: "la mia settimana" è quella del calendario.
-  // Qui servono solo due numeri — le settimane di fila e in quanti giorni di
-  // questa ci si è allenati: i sette giorni uno per uno li disegna la striscia
-  // in testata (vedi SettimanaStrip).
   const settimana = useMemo(() => {
     const oggi = new Date()
+    const oggiISO = localISO(oggi)
     // getDay(): 0 = domenica. Riportato a lunedì = 0, come le settimane ISO.
     const lunedì = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - ((oggi.getDay() + 6) % 7))
 
@@ -68,10 +55,14 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
     s.palestra.forEach(ex => ex.history.forEach(h => { if (h.date) allenati.add(h.date) }))
     s.hyrox.forEach(ex => ex.history.forEach(h => { if (h.date) allenati.add(h.date) }))
 
-    const giorni = Array.from({ length: 7 }, (_, i) => localISO(new Date(lunedì.getFullYear(), lunedì.getMonth(), lunedì.getDate() + i)))
+    const giorni = Array.from({ length: 7 }, (_, i) => {
+      const iso = localISO(new Date(lunedì.getFullYear(), lunedì.getMonth(), lunedì.getDate() + i))
+      return { iso, fatto: allenati.has(iso), oggi: iso === oggiISO }
+    })
     return {
-      serie: settimaneDiFila(allenati, localISO(oggi)),
-      fatti: giorni.filter(iso => allenati.has(iso)).length,
+      serie: settimaneDiFila(allenati, oggiISO),
+      fatti: giorni.filter(g => g.fatto).length,
+      giorni,
     }
   }, [s.palestra, s.hyrox])
 
@@ -90,169 +81,150 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
   )
   const total = maxTotal(massimali)
   const totalRatio = total !== null && s.userWeight ? total / s.userWeight : null
+  const qualcosa = massimali.some(l => l.kg !== null)
 
-  // Ogni modulo è una SEZIONE del riepilogo, non più una card sua: stanno tutti
-  // nello stesso riquadro, divisi da un filo.
-  const renderModule = (id: string) => {
-    switch (id) {
-      case 'weekDots': return (
-        // Una riga sola: le settimane di fila e i giorni fatti su sette. I sette
-        // giorni disegnati uno per uno non ci sono più — stanno già nella
-        // striscia in testata, a due dita da qui, e ripeterli era dire la stessa
-        // cosa due volte nella stessa schermata.
-        // Tutta la riga è il tasto che apre il calendario: il bersaglio è la
-        // sezione intera, non una scritta "vedi tutto" da cercare.
-        <button
-          onClick={() => setShowCalendario(true)}
-          aria-label={t('Apri il calendario degli allenamenti')}
-          className="j-focus j-riga-gruppo"
-          style={{
-            display: 'block', width: 'calc(100% + 16px)', margin: '0 -8px', padding: `${SEZ} 8px`,
-            background: 'transparent', border: 'none',
-            borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'left', color: 'inherit',
-          }}
-        >
-          <NucEyebrow style={{ marginBottom: 0 }} right={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: settimana.serie > 0 ? 'var(--j-accent-ink)' : 'var(--fg-mute)' }}>
-                <Icons.flame size={13} stroke={1.8}/>
-                <span style={{ fontWeight: 600 }}>{settimana.serie}</span>
-              </span>
-              <span>{settimana.fatti}/7</span>
-              <Icons.chev size={13} stroke={1.8}/>
-            </span>
-          }>{t('La tua settimana')}</NucEyebrow>
-        </button>
-      )
-
-      case 'bodyMap': return (
-        <div style={{ padding: `${SEZ} 0` }}>
-          <NucEyebrow>{t('Mappa della forza')}</NucEyebrow>
-          <BodyMapPanel districts={distretti} noWeight={!s.userWeight} onOpenProfile={onOpenProfile}/>
-        </div>
-      )
-
-      case 'maxLifts': {
-        const qualcosa = massimali.some(l => l.kg !== null)
-        return (
-          <div style={{ padding: `${SEZ} 0` }}>
-            {/* Una tendina: chiusa dice il total, aperta le tre alzate che lo
-                compongono. "Ipotetici" perché quasi sempre sono stime da serie a
-                ripetizioni, non singole provate. */}
-            <button
-              onClick={() => qualcosa && setMaxAperti(v => !v)}
-              aria-expanded={qualcosa ? maxAperti : undefined}
-              className="j-focus"
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                padding: 0, background: 'transparent', border: 'none', borderRadius: 'var(--radius)',
-                cursor: qualcosa ? 'pointer' : 'default', textAlign: 'left', color: 'inherit',
-              }}
-            >
-              <NucEyebrow style={{ marginBottom: 0 }}>{t('Massimali ipotetici')}</NucEyebrow>
-              {qualcosa && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <span style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: total !== null ? 'var(--fg)' : 'var(--fg-mute)' }}>
-                    {total !== null ? `${total} kg` : '—'}
-                  </span>
-                  <span style={{ display: 'flex', color: 'var(--fg-mute)', transform: maxAperti ? 'rotate(90deg)' : 'none', transition: 'transform var(--motion-fast) var(--ease)' }}>
-                    <Icons.chev size={15} stroke={1.8}/>
-                  </span>
-                </span>
-              )}
-            </button>
-
-            {!qualcosa ? (
-              <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: 'var(--fg-mute)', padding: '10px 0 0', lineHeight: 1.5 }}>
-                {t('Registra un’alzata: qui vedrai squat, panca piana e stacco da terra.')}
-              </div>
-            ) : (
-              <>
-                {/* Il total esce solo con tutte tre (vedi `maxTotal`): due terzi di un
-                    total somigliano troppo a un total per poterli mostrare. */}
-                <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-mute)', marginTop: 4, padding: '0 2px' }}>
-                  {total !== null
-                    ? `${t('Total')}${totalRatio ? ` · ${t('{r}× il tuo peso', { r: totalRatio.toFixed(1) })}` : ''}`
-                    : t('Il total compare con tutte e tre le alzate')}
-                </div>
-
-                {maxAperti && (
-                  <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
-                    {massimali.map(l => {
-                      // Da dove viene il numero sta SEMPRE scritto: "dichiarato" è una
-                      // singola provata davvero, "stimato" viene da una serie a
-                      // ripetizioni, e "dal distretto" non è il massimale di quell'alzata
-                      // — sono i chili che sposti su quei muscoli.
-                      const provato = l.source === 'dichiarato'
-                      const daAltro = l.source !== 'distretto' && l.exercise && l.exercise !== l.name
-                      return (
-                        <div key={l.id} style={{
-                          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
-                          padding: '9px 0', borderTop: '1px solid var(--hairline-soft)',
-                        }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontFamily: NUC.font, fontSize: 13.5, color: l.kg === null ? 'var(--fg-mute)' : 'var(--fg)' }}>{tData(l.name)}</div>
-                            <div style={{
-                              fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase',
-                              color: provato ? 'var(--j-accent-ink)' : 'var(--fg-mute)', marginTop: 3,
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>
-                              {l.source ? `${t(SOURCE_LABELS[l.source])}${daAltro ? ` · ${tData(l.exercise as string)}` : ''}` : t('Mai allenato')}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontFamily: NUC.font, fontSize: 17, fontWeight: 500, letterSpacing: -0.4, lineHeight: 1.1, color: l.kg === null ? 'var(--fg-mute)' : 'var(--fg)' }}>
-                              {l.kg !== null ? `${l.kg} kg` : '—'}
-                            </div>
-                            {l.ratio !== null && (
-                              <div style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.08em', color: 'var(--fg-mute)', marginTop: 2 }}>
-                                {t('{r}× peso', { r: l.ratio.toFixed(2) })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-
-                    {/* Senza il peso corporeo mancano i rapporti, e a corpo libero manca
-                        dentro i chili: il numero c'è ma è più basso del vero. */}
-                    {!s.userWeight && (
-                      <button onClick={onOpenProfile} className="j-focus" style={{
-                        marginTop: 10, padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                        fontFamily: NUC.label, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase',
-                        color: 'var(--j-accent-ink)',
-                      }}>
-                        {t('Inserisci il peso nel profilo →')}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )
-      }
-
-      default: return null
-    }
-  }
-
-  const MODULI = ['weekDots', 'bodyMap', 'maxLifts']
+  const etichetta = { fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' } as const
 
   return (
     <>
-      <NucCard pad={14} style={{ marginBottom: 16 }}>
-        <div style={{
-          fontFamily: NUC.label, fontSize: 12, fontWeight: 700, letterSpacing: '.18em',
-          textTransform: 'uppercase', color: 'var(--fg)', paddingBottom: 4,
-        }}>{t('Riepilogo complessivo')}</div>
-
-        {MODULI.map((id, i) => (
-          <div key={id} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--divider)' }}>
-            {renderModule(id)}
+      {/* ── Questa settimana: le settimane di fila, e i giorni fatti su sette ── */}
+      <section style={{ marginBottom: 26 }}>
+        <NucEyebrow right={
+          <button onClick={() => setShowCalendario(true)} aria-label={t('Apri il calendario degli allenamenti')} className="j-focus" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 44, padding: 0,
+            background: 'none', border: 'none', cursor: 'pointer',
+            font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', color: 'inherit',
+          }}>
+            {t('Dettagli')} <Icons.arrow size={16} stroke={2.2}/>
+          </button>
+        }>{t('Questa settimana')}</NucEyebrow>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: 'var(--surface)', border: 'var(--bordo)' }}>
+          <div style={{ padding: 14 }}>
+            <div style={{ fontFamily: NUC.display, fontSize: 56, fontWeight: 800, lineHeight: .9, color: settimana.serie > 0 ? 'var(--fg)' : 'var(--fg-mute)' }}>
+              {settimana.serie}
+            </div>
+            <div style={{ ...etichetta, color: 'var(--fg-mute)', marginTop: 6 }}>
+              {settimana.serie === 1 ? t('Settimana di fila') : t('Settimane di fila')}
+            </div>
           </div>
-        ))}
-      </NucCard>
+          <div style={{ padding: 14, borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ ...etichetta, color: 'var(--fg-mute)' }}>{t('Sessioni {n}/7', { n: settimana.fatti })}</div>
+            {/* I sette giorni da lunedì: pieno d'accento un giorno fatto, col
+                bordo d'inchiostro oggi, grigio il resto. */}
+            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+              {settimana.giorni.map(g => (
+                <span key={g.iso} style={{
+                  height: 22, boxSizing: 'border-box',
+                  background: g.fatto ? 'var(--j-accent)' : g.oggi ? 'var(--surface)' : 'var(--line)',
+                  border: g.oggi ? '2px solid var(--ink)' : 'none',
+                }}/>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── La mappa della forza: titolo, fronte/retro, sagoma e barre ── */}
+      <BodyMapPanel districts={distretti} noWeight={!s.userWeight} onOpenProfile={onOpenProfile}/>
+
+      {/* ── I massimali: la card nera. Chiusa dice il total; toccandola si
+          aprono le tre alzate che lo compongono. "Ipotetici" perché quasi
+          sempre sono stime da serie a ripetizioni, non singole provate. */}
+      <section style={{ marginBottom: 26, background: 'var(--ink)', border: 'var(--bordo)', color: 'var(--surface)' }}>
+        <button
+          onClick={() => qualcosa && setMaxAperti(v => !v)}
+          aria-expanded={qualcosa ? maxAperti : undefined}
+          className="j-focus"
+          style={{
+            width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10,
+            padding: '16px 16px 18px', background: 'transparent', border: 'none',
+            cursor: qualcosa ? 'pointer' : 'default', textAlign: 'left', color: 'inherit',
+          }}
+        >
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: 'var(--j-accent)' }}>
+              {t('Massimali ipotetici')}
+            </span>
+            {qualcosa ? (
+              <>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
+                  <span style={{ fontFamily: NUC.display, fontSize: 64, fontWeight: 800, lineHeight: .85, color: total !== null ? 'var(--surface)' : 'var(--muted-dark)' }}>
+                    {total !== null ? total : '—'}
+                  </span>
+                  {total !== null && <span style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 700, color: 'var(--muted-dark)' }}>KG</span>}
+                </span>
+                {/* Il total esce solo con tutte tre (vedi `maxTotal`): due terzi di
+                    un total somigliano troppo a un total per poterli mostrare. */}
+                <span style={{ display: 'block', ...etichetta, fontSize: 13, color: 'var(--muted-dark)', marginTop: 8 }}>
+                  {total !== null
+                    ? `${t('Totale')}${totalRatio ? ` · ${t('{r}× il tuo peso', { r: fmtNum(Number(totalRatio.toFixed(1))) })}` : ''}`
+                    : t('Il total compare con tutte e tre le alzate')}
+                </span>
+              </>
+            ) : (
+              <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 14, lineHeight: 1.5, color: 'var(--muted-dark)', marginTop: 8 }}>
+                {t('Registra un’alzata: qui vedrai squat, panca piana e stacco da terra.')}
+              </span>
+            )}
+          </span>
+          {qualcosa && (
+            <span style={{ display: 'flex', color: 'var(--surface)', flexShrink: 0, transform: maxAperti ? 'rotate(90deg)' : 'none', transition: 'transform var(--motion-fast) var(--ease)' }}>
+              <Icons.chev size={20} stroke={2.2}/>
+            </span>
+          )}
+        </button>
+
+        {qualcosa && maxAperti && (
+          <div style={{ padding: '0 16px 12px' }}>
+            {massimali.map(l => {
+              // Da dove viene il numero sta SEMPRE scritto: "dichiarato" è una
+              // singola provata davvero, "stimato" viene da una serie a
+              // ripetizioni, e "dal distretto" non è il massimale di quell'alzata
+              // — sono i chili che sposti su quei muscoli.
+              const provato = l.source === 'dichiarato'
+              const daAltro = l.source !== 'distretto' && l.exercise && l.exercise !== l.name
+              return (
+                <div key={l.id} style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+                  padding: '10px 0', borderTop: '1px solid var(--line-dark)',
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: NUC.font, fontSize: 15, color: l.kg === null ? 'var(--muted-dark)' : 'var(--surface)' }}>{tData(l.name)}</div>
+                    <div style={{
+                      ...etichetta, marginTop: 3,
+                      color: provato ? 'var(--j-accent)' : 'var(--muted-dark)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {l.source ? `${t(SOURCE_LABELS[l.source])}${daAltro ? ` · ${tData(l.exercise as string)}` : ''}` : t('Mai allenato')}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 800, lineHeight: 1, color: l.kg === null ? 'var(--muted-dark)' : 'var(--surface)' }}>
+                      {l.kg !== null ? `${l.kg} kg` : '—'}
+                    </div>
+                    {l.ratio !== null && (
+                      <div style={{ ...etichetta, color: 'var(--muted-dark)', marginTop: 3 }}>
+                        {t('{r}× peso', { r: l.ratio.toFixed(2) })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Senza il peso corporeo mancano i rapporti, e a corpo libero manca
+                dentro i chili: il numero c'è ma è più basso del vero. */}
+            {!s.userWeight && (
+              <button onClick={onOpenProfile} className="j-focus" style={{
+                marginTop: 6, minHeight: 44, padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                ...etichetta, color: 'var(--j-accent)',
+              }}>
+                {t('Inserisci il peso nel profilo →')}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
 
       <CalendarioAllenamenti open={showCalendario} onClose={() => setShowCalendario(false)}/>
     </>

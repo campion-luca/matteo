@@ -29,10 +29,10 @@ const monta = () => render(
 )
 
 describe('menù dell’allenamento', () => {
-  it('nei pesi: Coaching, Schede e Statistiche', () => {
+  it('nei pesi: Coaching, Esercizi e Statistiche', () => {
     monta()
     expect(screen.getByRole('button', { name: 'Coaching' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Schede' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Esercizi' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Statistiche' })).toBeInTheDocument()
   })
 
@@ -60,7 +60,7 @@ describe('menù dell’allenamento', () => {
     const user = userEvent.setup()
     monta()
     await user.click(screen.getByRole('button', { name: 'Statistiche' }))
-    expect(screen.getByText('Riepilogo complessivo')).toBeInTheDocument()
+    expect(screen.getByText('Questa settimana')).toBeInTheDocument()
     expect(screen.queryByText('Tempi per esercizio')).not.toBeInTheDocument()
     // Nessun "Hyrox" dentro le statistiche: lo switch sta in home, che è coperta.
     expect(screen.queryByRole('button', { name: 'Hyrox' })).not.toBeInTheDocument()

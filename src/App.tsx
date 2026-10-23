@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, memo, lazy, Suspense } from '
 import type React from 'react'
 import type { Session } from '@supabase/auth-js'
 
-import { NUC, paletteFor, adjustPaletteForDark, accentInkFor, accentFgFor, ACCENT_FISSI, temaFisso } from '@/lib/jarvis-tokens'
+import { NUC } from '@/lib/jarvis-tokens'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { UpdateToast } from '@/components/UpdateToast'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
@@ -40,7 +40,7 @@ const JarvisCoach     = lazy(() => import('@/features/coach/JarvisCoach').then(m
 function TabFallback() {
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--j-accent)', opacity: 0.5 }}/>
+      <div style={{ width: 6, height: 6, borderRadius: 0, background: 'var(--j-accent)', opacity: 0.5 }}/>
     </div>
   )
 }
@@ -408,7 +408,7 @@ const PILL_STYLE: React.CSSProperties = {
   boxShadow: 'var(--shadow-card)',
 }
 
-const PILL_DOT = <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--j-accent)' }}/>
+const PILL_DOT = <span style={{ width: 6, height: 6, borderRadius: 0, background: 'var(--j-accent)' }}/>
 
 // Una pill alla volta, per priorità: il load fallito è la condizione più grave
 // (nessun dato dal cloud), l'errore di save viene dopo, l'avviso è solo cronaca.
@@ -470,8 +470,7 @@ export default function App() {
   // scrittura — una serie registrata, una scheda spostata — ridisegnava l'app
   // da cima a fondo, compresa la pagina che si stava toccando.
   const s = useJarvisStore(useShallow(st => ({
-    darkMode: st.darkMode, lang: st.lang, layout: st.layout, bgFuso: st.bgFuso,
-    accentColor: st.accentColor, customAccentHex: st.customAccentHex,
+    lang: st.lang,
     userName: st.userName, userSex: st.userSex, userWeight: st.userWeight,
     userHeight: st.userHeight, userDob: st.userDob,
   })))
@@ -530,20 +529,6 @@ export default function App() {
   const apriProfilo = useCallback(() => setProfilo('utente'), [])
   const apriCoach = useCallback(() => { setProfilo(null); setShowCoach(true) }, [])
 
-  // Neon e Logbook sono temi scuri fatti SOPRA `.dark`: ne prendono superfici
-  // piene, tasti a pressione e campi, e ci cambiano sopra i colori (vedi i blocchi
-  // `:root.neon` / `:root.logbook` in globals.css). Perciò accendono `.dark` anche
-  // con l'interruttore spento. Premium no: ha le sue regole e lo scavalca.
-  const neon = s.layout === 'neon'
-  const logbook = s.layout === 'logbook'
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', !!s.darkMode || neon || logbook)
-  }, [s.darkMode, neon, logbook])
-  useEffect(() => {
-    document.documentElement.classList.toggle('neon', neon)
-    document.documentElement.classList.toggle('logbook', logbook)
-  }, [neon, logbook])
-
   // `<html lang>` non è cosmesi: è quello che dice al lettore di schermo con che
   // pronuncia leggere la pagina, e al browser con che regole sillabare e proporre
   // la traduzione. Sbagliato, un testo inglese viene letto ad alta voce con
@@ -551,25 +536,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.lang = LANG_TAGS[s.lang ?? 'it']
   }, [s.lang])
-
-  // Layout "Premium": nero pieno, vetro, dettagli bianchi. NON si combina con `.dark` —
-  // lo scavalca. In globals.css `.premium` sta dopo `.dark` e a parità di specificità
-  // vince l'ultimo, quindi il tema è lo stesso con l'interruttore acceso o spento.
-  const premium = s.layout === 'premium'
-  useEffect(() => {
-    document.documentElement.classList.toggle('premium', premium)
-  }, [premium])
-
-  // Lo "Sfondo fuso" (vedi globals.css). Assente dallo stato = acceso: è il fondo
-  // con cui l'app si presenta ora, e chi non lo vuole lo spegne da Impostazioni.
-  // Lo "Sfondo in movimento" che gli stava accanto non c'è più: due livelli
-  // grandi una volta e mezza lo schermo, ruotati di continuo, costringevano il
-  // telefono a ricomporre tutta la pagina a ogni fotogramma — ed è lì che i tocchi
-  // arrivavano in ritardo.
-  const bgFuso  = s.bgFuso  ?? true
-  useEffect(() => {
-    document.documentElement.classList.toggle('bg-fusione', bgFuso)
-  }, [bgFuso])
 
   useEffect(() => {
     // ── Chi è entrato su questo telefono ─────────────────────────
@@ -797,14 +763,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id, loadAttempt])
 
-  // Nei layout a tema fisso l'accent è il loro (terracotta in Premium, lime in
-  // Neon, verde in Logbook) e `adjustPaletteForDark` va scavalcata.
-  // `accentColor` resta intatto nello store e torna in vigore con il layout standard.
-  const basePalette = paletteFor(s.accentColor, s.customAccentHex)
-  const palette = temaFisso(s.layout)
-    ? ACCENT_FISSI[s.layout]
-    : (s.darkMode ? adjustPaletteForDark(basePalette) : basePalette)
-
   const handleBoot = () => {
     writeStorage('session', 'jarvis-booted', '1')
     setBooted(true)
@@ -814,11 +772,6 @@ export default function App() {
     setLoadFailed(false)
     setCloudPronto(true)
   }, [])
-
-  // I layout a tema fisso hanno il fondo scuro anche con l'interruttore
-  // chiaro/scuro spento: chi calcola la leggibilità deve saperlo, o spingerebbe
-  // l'accent verso la carta chiara mentre sta su nero pieno.
-  const fondoScuro = temaFisso(s.layout) || !!s.darkMode
 
   // Account appena creato: nessun dato anagrafico, da nessuna parte. Non basta
   // che manchi UN campo — chi ha già usato l'app e non ha mai messo l'altezza non
@@ -830,20 +783,9 @@ export default function App() {
   const profiloVuoto =
     !s.userName.trim() && !s.userSex && !s.userWeight && !s.userHeight && !s.userDob
 
+  // I colori stanno tutti in `:root` (globals.css): il tema è uno solo, e non
+  // c'è più una palette da iniettare qui.
   const cssVars = {
-    '--j-accent': palette.accent,
-    // Accent come TESTO: spinto lontano dalla superficie corrente fino ad AA (≥4.5:1).
-    '--j-accent-ink': accentInkFor(palette.accent, fondoScuro),
-    // Inchiostro SOPRA l'accent: crema sugli accent scuri, scuro su quelli chiari.
-    // Premium non è più un caso a parte: qui c'era un `#0a0a0a` forzato perché
-    // l'accent era BIANCO, e su un fondo bianco `accentFgFor` restituiva un
-    // inchiostro appena bruno invece che nero. Con la terracotta la funzione fa
-    // il suo mestiere e sceglie la crema, che è quello che serve.
-    '--j-accent-fg': accentFgFor(palette.accent),
-    '--j-accent-soft': palette.accentSoft,
-    '--j-accent-deep': palette.accentDeep,
-    '--j-rgb': palette.rgb,
-    '--j-deep-rgb': palette.deepRgb,
     // Quanto spazio deve lasciare libero una pagina in fondo. Il tasto di
     // navigazione in basso non c'è più: resta solo la barra di sistema del telefono.
     // Le pagine ci sommano il proprio respiro di fine lista.
@@ -908,7 +850,7 @@ export default function App() {
               </div>
               {/* Pulse loader */}
               <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-                <div className="j-loader-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--j-accent)' }}/>
+                <div className="j-loader-dot" style={{ width: 7, height: 7, borderRadius: 0, background: 'var(--j-accent)' }}/>
               </div>
             </div>
           )}

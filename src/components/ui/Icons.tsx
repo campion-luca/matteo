@@ -29,6 +29,8 @@ export const Icons = {
   user:     (p: IconProps = {}) => ic(<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>, p),
   plus:     (p: IconProps = {}) => ic(<><path d="M12 5v14M5 12h14"/></>, p),
   arrow:    (p: IconProps = {}) => ic(<><path d="M5 12h14M13 6l6 6-6 6"/></>, p),
+  // Una linea che sale: la direzione, dove compare il grafico delle pesate.
+  trend:    (p: IconProps = {}) => ic(<><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></>, p),
   chev:     (p: IconProps = {}) => ic(<><path d="M9 6l6 6-6 6"/></>, p),
   chevL:    (p: IconProps = {}) => ic(<><path d="M15 6l-6 6 6 6"/></>, p),
   back:     (p: IconProps = {}) => ic(<><path d="M15 6l-6 6 6 6"/></>, p),
@@ -45,8 +47,6 @@ export const Icons = {
   // quadrati sono quattro: a 13px è quella differenza a distinguerle, non il
   // dettaglio.
   list:      (p: IconProps = {}) => ic(<><path d="M4 6h16M4 12h16M4 18h11"/></>, p),
-  // Una card piena al centro e le due vicine che spuntano ai lati: il carosello.
-  carosello: (p: IconProps = {}) => ic(<><rect x="7" y="4" width="10" height="16" rx="2"/><path d="M3.5 7v10M20.5 7v10"/></>, p),
   grid:      (p: IconProps = {}) => ic(<><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></>, p),
   book:      (p: IconProps = {}) => ic(<><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></>, p),
   bookOpen:  (p: IconProps = {}) => ic(<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>, p),
@@ -71,4 +71,18 @@ export const Icons = {
   help:      (p: IconProps = {}) => ic(<><circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 1 1 3.4 2.8c-.6.2-1 .8-1 1.5v.3"/><path d="M11.9 16.8h.01"/></>, p),
   // Fiamma con la lingua interna: la serie di settimane di allenamento di fila.
   flame:     (p: IconProps = {}) => ic(<><path d="M12 22c4 0 7-2.9 7-7 0-3.2-2-5.6-3.6-7.4-.3 1.8-1.2 3-2.4 3.4C13.4 7.6 12 4.6 9.5 2c.2 3.1-1.3 5.3-3 7.3C5.1 11 5 12.6 5 15c0 4.1 3 7 7 7z"/><path d="M12 22c-1.9 0-3.2-1.4-3.2-3.3 0-1.8 1.3-3 2.1-4.2.3 1 .9 1.6 1.6 1.8.3-1.2 1-2.3 2-3.1.3 2 1 2.9 1 4.9 0 2.4-1.5 3.9-3.5 3.9z"/></>, p),
+  // La chiave: i codici con cui ci si collega a un coach o a un allievo.
+  chiave:    (p: IconProps = {}) => ic(<><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 20.5 2.5M17 6l3 3M14.5 8.5l2 2"/></>, p),
+  // Due riquadri alti affiancati: i gruppi muscolari a card grandi, due per riga.
+  colonne:   (p: IconProps = {}) => ic(<><rect x="4" y="4" width="7" height="16"/><rect x="13" y="4" width="7" height="16"/></>, p),
+  // Lucchetto: la password.
+  lucchetto: (p: IconProps = {}) => ic(<><rect x="5" y="11" width="14" height="10"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></>, p),
+  // Freccia in giù su una base: scaricare un file.
+  scarica:   (p: IconProps = {}) => ic(<><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></>, p),
+  // Una porta e la freccia che esce: uscire dall'account.
+  esci:      (p: IconProps = {}) => ic(<><path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M18 12H9"/></>, p),
+  // Fotocamera: cambiare la foto del profilo.
+  camera:    (p: IconProps = {}) => ic(<><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></>, p),
+  // Freccia in su: il tasto che manda un messaggio, come su ogni telefono.
+  invia:     (p: IconProps = {}) => ic(<><path d="M12 19V5M6 11l6-6 6 6"/></>, p),
 }

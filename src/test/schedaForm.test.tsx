@@ -7,8 +7,13 @@ import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import type { GymScheda } from '@/store/useJarvisStore'
 
 // Nel form della scheda gli esercizi stanno compressi: una riga col nome e
-// «serie × colpi», e toccandola si apre com'era prima. Tutti aperti, otto
-// esercizi erano otto schermate di campi da scorrere per rileggere la scheda.
+// «serie×colpi», e toccandola si apre. Tutti aperti, otto esercizi erano otto
+// schermate di campi da scorrere per rileggere la scheda.
+//
+// Dal rebranding (ott 2026) la riga aperta mostra l'esercizio scelto in un
+// riquadro con la foto e «Cambia»: il campo del nome torna solo per cambiarlo.
+// Serie e ripetizioni hanno il meno e il più, "max" è l'interruttore «Fino a
+// cedimento».
 
 const scheda: GymScheda = {
   id: 'sc1', title: 'Upper A', createdAt: '2026-09-01', updatedAt: '2026-09-01',
@@ -38,16 +43,18 @@ describe('il form della scheda — esercizi compressi', () => {
   it('una scheda che esiste già si apre tutta compressa: nomi e «serie × colpi», nessun campo', () => {
     monta(scheda)
     expect(screen.queryByLabelText('Nome esercizio')).not.toBeInTheDocument()
-    expect(riga('Panca piana')).toHaveTextContent('3 × 10 · Petto · con nota')
-    expect(riga('Rematore')).toHaveTextContent('4 × 8 · Dorso')
-    expect(riga('Curl')).toHaveTextContent('3 × 12 · Bicipiti')
+    expect(riga('Panca piana')).toHaveTextContent('Petto · con nota3×10')
+    expect(riga('Rematore')).toHaveTextContent('Dorso4×8')
+    expect(riga('Curl')).toHaveTextContent('Bicipiti3×12')
   })
 
   it('toccata, una riga si apre com’era — una per volta — e «Fatto» la richiude', async () => {
     const user = userEvent.setup()
     monta(scheda)
     await user.click(riga('Rematore'))
-    expect(screen.getByLabelText('Nome esercizio')).toHaveValue('Rematore')
+    // L'esercizio scelto, col tasto per cambiarlo; il campo del nome non c'è.
+    expect(screen.getByRole('button', { name: 'Cambia' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Nome esercizio')).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('3')).toHaveValue('4')
     // Le altre due restano righe.
     expect(riga('Panca piana')).toBeInTheDocument()
@@ -55,11 +62,16 @@ describe('il form della scheda — esercizi compressi', () => {
 
     // Aprirne un'altra chiude questa.
     await user.click(riga('Curl'))
-    expect(screen.getAllByLabelText('Nome esercizio')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Cambia' })).toHaveLength(1)
+    expect(screen.getByPlaceholderText('3')).toHaveValue('3')
+
+    // «Cambia» rimette il campo del nome, col nome dentro e il cursore.
+    await user.click(screen.getByRole('button', { name: 'Cambia' }))
     expect(screen.getByLabelText('Nome esercizio')).toHaveValue('Curl')
+    expect(screen.getByLabelText('Nome esercizio')).toHaveFocus()
 
     await user.click(screen.getByRole('button', { name: 'Fatto' }))
-    expect(screen.queryByLabelText('Nome esercizio')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cambia' })).not.toBeInTheDocument()
   })
 
   it('quello che si scrive in una riga resta quando la si richiude', async () => {
@@ -70,7 +82,7 @@ describe('il form della scheda — esercizi compressi', () => {
     await user.clear(serie)
     await user.type(serie, '5')
     await user.click(screen.getByRole('button', { name: 'Fatto' }))
-    expect(riga('Rematore')).toHaveTextContent('5 × 8')
+    expect(riga('Rematore')).toHaveTextContent('5×8')
 
     await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
     expect(onSave).toHaveBeenCalledOnce()
@@ -87,7 +99,7 @@ describe('il form della scheda — esercizi compressi', () => {
 
     await user.click(screen.getByRole('button', { name: /Aggiungi esercizio/ }))
     // La prima si è richiusa sul suo nome; la nuova è aperta, vuota, col cursore dentro.
-    expect(riga('Squat')).toHaveTextContent('3 × 8')
+    expect(riga('Squat')).toHaveTextContent('3×8')
     expect(screen.getAllByLabelText('Nome esercizio')).toHaveLength(1)
     expect(screen.getByLabelText('Nome esercizio')).toHaveValue('')
     expect(screen.getByLabelText('Nome esercizio')).toHaveFocus()
@@ -109,5 +121,36 @@ describe('il form della scheda — esercizi compressi', () => {
     await user.click(within(card).getByRole('button', { name: 'Sposta su' }))
     await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
     expect(onSave.mock.calls[0][0].exercises.map((e: { name: string }) => e.name)).toEqual(['Panca piana', 'Curl', 'Rematore'])
+  })
+
+  it('il meno e il più cambiano serie e ripetizioni, anche una forbice', async () => {
+    const user = userEvent.setup()
+    const onSave = monta({ ...scheda, exercises: [{ id: 'r1', name: 'Panca piana', sets: 3, reps: '8-10', muscle: 'Petto' }] })
+    await user.click(riga('Panca piana'))
+    await user.click(screen.getByRole('button', { name: 'Serie: uno in più' }))
+    await user.click(screen.getByRole('button', { name: 'Ripetizioni: uno in meno' }))
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[0][0].exercises[0]).toMatchObject({ sets: 4, reps: '7-9' })
+  })
+
+  it('«Fino a cedimento» scrive max, e spento ridà le ripetizioni di prima', async () => {
+    const user = userEvent.setup()
+    monta(scheda)
+    await user.click(riga('Curl'))
+    const cedimento = screen.getByRole('switch', { name: 'Fino a cedimento' })
+    await user.click(cedimento)
+    expect(screen.getByLabelText('Ripetizioni')).toHaveValue('max')
+    expect(screen.getByRole('button', { name: 'Ripetizioni: uno in più' })).toBeDisabled()
+    await user.click(cedimento)
+    expect(screen.getByLabelText('Ripetizioni')).toHaveValue('12')
+  })
+
+  it('«Superset col successivo» lega l’esercizio al prossimo', async () => {
+    const user = userEvent.setup()
+    const onSave = monta(scheda)
+    await user.click(riga('Panca piana'))
+    await user.click(screen.getByRole('switch', { name: 'Superset col successivo' }))
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[0][0].exercises[0].supersetWithNext).toBe(true)
   })
 })

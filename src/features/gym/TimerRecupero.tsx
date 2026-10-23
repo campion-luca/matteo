@@ -68,6 +68,8 @@ const ROSSO = 'var(--segnale-giu)'
 const RAGGIO = 46
 const GIRO = 2 * Math.PI * RAGGIO
 
+// Tondo anche dopo il rebranding, che ha squadrato tutto il resto: è un
+// quadrante, e l'anello che si consuma gira attorno al suo bordo.
 const QUADRANTE: CSSProperties = {
   position: 'relative', width: DIAMETRO, height: DIAMETRO, borderRadius: '50%', flexShrink: 0,
   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

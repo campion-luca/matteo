@@ -38,7 +38,7 @@ describe('Hyrox spento', () => {
     monta()
     expect(screen.queryByRole('button', { name: 'Hyrox' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pesi' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Schede' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Esercizi' })).toBeInTheDocument()
   })
 
   it('una sessione Hyrox di oggi non conta come giorno allenato', () => {

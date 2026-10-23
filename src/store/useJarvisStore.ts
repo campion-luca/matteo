@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
-import { temaFisso, type AccentColor, type LayoutFisso } from '@/lib/jarvis-tokens'
 // Solo il tipo: `import type` sparisce alla compilazione, quindi il fatto che
 // `i18n` importi a sua volta lo store non crea un ciclo a runtime.
 import type { Lang } from '@/lib/i18n'
@@ -166,19 +165,16 @@ export interface WeightLogEntry {
   kg: number
 }
 
-// Layout dell'app. Trasversale al "tema colore": 'premium' spegne il colore ovunque
-// (accent, gruppi muscolari) e resta sempre nero — vetro, contorni bianchi, niente
-// ombre — ignorando l'interruttore chiaro/scuro.
-// Perciò non è un AccentColor: convive con `accentColor`, che resta memorizzato e
-// torna buono appena si rimette 'standard'.
-//
-// Prima c'erano 'notte' (bianco/nero che seguiva chiaro/scuro) e 'nero', che è
-// diventato 'premium'. Il valore salvato si converte in `migrateNested`.
-//
-// 'neon' e 'logbook' (ott 2026) sono fatti come 'premium': scuri sempre, con un
-// accent proprio. L'elenco di quelli a tema fisso sta in jarvis-tokens
-// (`ACCENT_FISSI`), accanto ai loro colori.
-export type LayoutMode = 'standard' | LayoutFisso
+// ── I campi del tema, che l'app non legge più ──────────────────
+// Layout, palette, chiaro/scuro e sfondo fuso erano scelte dell'utente; dal
+// rebranding di ottobre 2026 il tema è uno solo e nessuno li legge. Restano nei
+// dati salvati e nel filtro delle chiavi (`STATE_KEYS`) per un motivo solo: le
+// versioni dell'app ancora aperte su altri telefoni li conoscono, e toglierli da
+// qui li farebbe sparire e ricomparire dal cloud a ogni salvataggio dell'una e
+// dell'altra. Si potranno togliere quando quelle versioni non ci saranno più.
+export type LayoutMode = 'standard' | 'premium' | 'neon' | 'logbook'
+export type AccentColor = 'green' | 'pink' | 'rose' | 'cipria' | 'malva' | 'notte' | 'custom'
+const LAYOUT_NOTI: readonly string[] = ['standard', 'premium', 'neon', 'logbook']
 
 /** Quanto può essere lungo il nome, ovunque lo si scriva (questionario del
  *  primo accesso, profilo). Quattordici lettere: ci stanno Massimiliano e
@@ -306,7 +302,7 @@ function migrateNested(data: Partial<JarvisState>): Partial<JarvisState> {
   // come standard, ma il blob in cloud se lo porterebbe dietro per sempre.
   const layout = out.layout as string | undefined
   if (layout === 'nero') out.layout = 'premium'
-  else if (layout !== undefined && layout !== 'standard' && !temaFisso(layout)) out.layout = 'standard'
+  else if (layout !== undefined && !LAYOUT_NOTI.includes(layout)) out.layout = 'standard'
 
   // Il tedesco non c'è più (ott 2026), al suo posto l'inglese. Chi l'aveva scelto
   // passa all'inglese e non all'italiano: aveva scelto di NON leggere l'italiano,

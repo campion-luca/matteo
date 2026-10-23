@@ -190,10 +190,22 @@ describe('la chat a schermo', () => {
   })
 
   it('un avviso dell’app porta la sua etichetta, un messaggio scritto no', () => {
-    const { unmount } = render(<Bolla io={COACH} m={msg({ autore: ANNA, athlete_id: ANNA, tipo: 'allenamento', testo: 'Allenamento finito' }, '2026-10-01T10:00:00Z')}/>)
-    expect(screen.getByText('allenamento')).toBeInTheDocument()
+    const { unmount } = render(<Bolla io={COACH} m={msg({ autore: COACH, athlete_id: ANNA, tipo: 'scheda', testo: 'Ti ho assegnato una scheda' }, '2026-10-01T10:00:00Z')}/>)
+    expect(screen.getByText('scheda')).toBeInTheDocument()
     unmount()
     render(<Bolla io={COACH} m={msg({ autore: ANNA, athlete_id: ANNA, testo: 'ciao' }, '2026-10-01T10:00:00Z')}/>)
+    expect(screen.queryByText('scheda')).not.toBeInTheDocument()
+  })
+
+  it('la fine di un allenamento non è un messaggio di nessuno dei due: sta al centro, a parte', () => {
+    const { unmount } = render(<Bolla io={COACH} m={msg({ autore: ANNA, athlete_id: ANNA, tipo: 'allenamento', testo: 'Allenamento finito' }, '2026-10-01T10:00:00Z')}/>)
+    const nota = screen.getByRole('note')
+    expect(nota).toHaveTextContent('Allenamento finito')
+    // Niente etichetta né bolla: la frase dice già cos'è.
     expect(screen.queryByText('allenamento')).not.toBeInTheDocument()
+    unmount()
+    // Anche quando l'allenamento è il MIO: resta un fatto, non una mia frase.
+    render(<Bolla io={ANNA} m={msg({ autore: ANNA, athlete_id: ANNA, tipo: 'allenamento', testo: 'Allenamento finito' }, '2026-10-01T10:00:00Z')}/>)
+    expect(screen.getByRole('note')).toHaveTextContent('Allenamento finito')
   })
 })

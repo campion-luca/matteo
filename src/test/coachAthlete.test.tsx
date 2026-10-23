@@ -52,8 +52,9 @@ describe('CoachAthlete — il riepilogo dell’allievo', () => {
     // Né la tabella del confronto né la tendina delle sessioni sono qui.
     expect(screen.queryByText(/di solito/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Scegli la sessione')).not.toBeInTheDocument()
-    expect(screen.getByText('2 scritte')).toBeInTheDocument()
-    expect(screen.getByText('2 giornate')).toBeInTheDocument()
+    // Ogni porta dice col suo numero cosa c'è dietro: due giornate, due note.
+    expect(screen.getByRole('button', { name: 'Sessioni: 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Note: 2' })).toBeInTheDocument()
 
     await user.click(screen.getByText('Sessioni'))
     expect(onSessioni).toHaveBeenCalledOnce()
@@ -70,9 +71,8 @@ describe('CoachAthlete — il riepilogo dell’allievo', () => {
         onApriSessioni={vi.fn()} onApriGrafici={onGrafici} onApriNote={vi.fn()}
       />,
     )
-    const porte = screen.getAllByRole('button').map(b => b.textContent).filter(x => /Sessioni|Grafici|Note/.test(x ?? ''))
-    expect(porte.map(x => x!.match(/Sessioni|Grafici|Note/)![0])).toEqual(['Sessioni', 'Grafici', 'Note'])
-    expect(screen.getByText('2 esercizi')).toBeInTheDocument()
+    const porte = screen.getAllByRole('button').map(b => b.getAttribute('aria-label') ?? '').filter(x => /^(Sessioni|Grafici|Note):/.test(x))
+    expect(porte).toEqual(['Sessioni: 1', 'Grafici: 2', 'Note: 0'])
     await user.click(screen.getByText('Grafici'))
     expect(onGrafici).toHaveBeenCalledOnce()
   })
@@ -322,6 +322,7 @@ describe('NoteEsercizi — raggruppate per muscolo', () => {
 
 // Fra due allievi, a corpo libero vince la bilancia e non la forza.
 describe('Migliori alzate — senza il corpo libero', () => {
+  const classifica = () => screen.getByText('Migliori alzate').closest('section')!
   it('trazioni e addominali non entrano in classifica, la panca sì', () => {
     render(<CoachAthlete data={dati([
       ex('Panca piana', [h({ date: '2026-08-20' })]),
@@ -337,7 +338,8 @@ describe('Migliori alzate — senza il corpo libero', () => {
 
   it('si vedono i chili e serie × colpi alzati, non un massimale stimato', () => {
     render(<CoachAthlete data={dati([ex('Panca piana', [h({ date: '2026-08-20', kg: 60, reps: 10, sets_n: 3 })])])}/>)
-    expect(screen.getByText('60 kg')).toBeInTheDocument()
+    // Il numero è grande e l'unità piccola, ma il testo della riga resta "60 kg".
+    expect(classifica()).toHaveTextContent('60 kg')
     expect(screen.getByText('3 × 10')).toBeInTheDocument()
     // Epley su 60 × 10 darebbe 80: non deve comparire da nessuna parte.
     expect(screen.queryByText('80')).not.toBeInTheDocument()
@@ -355,8 +357,20 @@ describe('Migliori alzate — senza il corpo libero', () => {
     ])}/>)
     const nomi = screen.getAllByText(/^(Stacco|Panca piana|Lat machine)$/).map(e => e.textContent)
     expect(nomi).toEqual(['Panca piana', 'Lat machine', 'Stacco'])
-    expect(screen.getByText('60 kg')).toBeInTheDocument()
-    expect(screen.queryByText('40 kg')).not.toBeInTheDocument()
+    expect(classifica()).toHaveTextContent('60 kg')
+    expect(classifica()).not.toHaveTextContent('40 kg')
+  })
+
+  it('se ne vedono tre, e «Tutte» porta ai grafici dove ci sono le altre', async () => {
+    const user = userEvent.setup()
+    const onGrafici = vi.fn()
+    render(<CoachAthlete
+      data={dati(['Panca piana', 'Squat', 'Curl', 'Lat machine'].map((n, i) => ex(n, [h({ date: '2026-08-20', kg: 20 * (i + 1) })])))}
+      onApriGrafici={onGrafici}
+    />)
+    expect(screen.getAllByText(/^(Panca piana|Squat|Curl|Lat machine)$/)).toHaveLength(3)
+    await user.click(screen.getByRole('button', { name: /Tutte/ }))
+    expect(onGrafici).toHaveBeenCalledOnce()
   })
 })
 
