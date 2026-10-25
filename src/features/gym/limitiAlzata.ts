@@ -76,11 +76,13 @@ export function caricoAlto(h: PalestraHistoryEntry): number {
  *  si sta scrivendo — la più recente per data, esclusa `tranne` (l'alzata che
  *  si sta modificando: confrontarla con sé stessa non direbbe niente). `null`
  *  se non c'è, o se era a corpo libero: lì il carico è il corpo, e la zavorra
- *  raddoppia senza che ci sia niente da chiedere. */
+ *  raddoppia senza che ci sia niente da chiedere.
+ *  I massimali dichiarati non contano: dopo un 1×140, un 4×8 a 65 è la metà e
+ *  chiedeva conferma di un "salto" che non c'era. */
 export function caricoDiRiferimento(storico: PalestraHistoryEntry[], tranne?: PalestraHistoryEntry): number | null {
   let ultima: PalestraHistoryEntry | undefined
   for (const h of storico) {
-    if (h === tranne) continue
+    if (h === tranne || h.maxLift) continue
     if (!ultima || (h.date ?? '') >= (ultima.date ?? '')) ultima = h
   }
   if (!ultima || ultima.bodyweight) return null

@@ -133,13 +133,27 @@ describe('la home', () => {
     expect(screen.getByText('Oggi · Lunedì')).toBeInTheDocument()
   })
 
-  it('aperto su un’altra scheda, la barra resta', () => {
+  // Il giro proponeva Giovedì, ma ci si sta allenando con Lunedì: la scheda di
+  // oggi è quella cominciata.
+  it('cominciato su un’altra scheda, la card diventa quella', () => {
     const ieri = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return localISO(d) })()
     useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì'), scheda('b', 'Giovedì')], palestraExercises: [fatta('a', ieri)] })
     apertaSu('a', 'a-1')
     monta()
+    expect(screen.getByText('In corso · Lunedì')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Riprendi allenamento/ })).toBeInTheDocument()
+    expect(screen.queryByText('Allenamento in corso')).not.toBeInTheDocument()
+  })
+
+  it('solo aperto su un’altra scheda, senza serie spuntate: la card resta quella del giro, e la barra c’è', () => {
+    const ieri = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return localISO(d) })()
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì'), scheda('b', 'Giovedì')], palestraExercises: [fatta('a', ieri)] })
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'a', salvataA: Date.now(), avviataA: Date.now(),
+      progress: { 'a-1': { checks: [false, false, false, false], weights: ['', '', '', ''], reps: ['8', '8', '8', '8'] } },
+    }))
+    monta()
     expect(screen.getByText('Oggi · Giovedì')).toBeInTheDocument()
     expect(screen.getByText('Allenamento in corso')).toBeInTheDocument()
-    expect(screen.getByText(/2\/7 serie fatte · tocca per riprendere/)).toBeInTheDocument()
   })
 })

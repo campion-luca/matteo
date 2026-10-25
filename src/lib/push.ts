@@ -99,20 +99,46 @@ export async function statoPush(): Promise<StatoPush> {
 }
 
 /** Scrive l'iscrizione di questo dispositivo a nome dell'utente. La chiave è
- *  l'indirizzo del dispositivo: se sullo stesso telefono entra un altro account,
- *  la riga passa a lui invece di raddoppiare. */
-async function registra(userId: string, iscrizione: PushSubscription): Promise<void> {
-  const j = iscrizione.toJSON()
-  const { error } = await supabase.from('push_iscrizioni').upsert({
-    endpoint: iscrizione.endpoint,
-    user_id: userId,
-    p256dh: j.keys?.p256dh ?? '',
-    auth: j.keys?.auth ?? '',
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'endpoint' })
+ *  l'indirizzo del dispositivo.
+ *
+ *  Se quell'indirizzo è ancora scritto a nome di un ALTRO account — uscito
+ *  senza passare da "Esci": accesso scaduto, sessione cambiata da un link — la
+ *  riga non è di chi è entrato adesso, la RLS la rifiuta, e prima l'errore si
+ *  perdeva: il telefono continuava a ricevere i messaggi dell'altro, e quelli
+ *  di chi c'era non arrivavano. Allora si butta via l'indirizzo e se ne prende
+ *  uno nuovo. Quello vecchio, morto, la funzione `notifica` lo toglie da sé al
+ *  primo invio (risponde 410). */
+async function registra(userId: string, iscrizione: PushSubscription, reg: ServiceWorkerRegistration): Promise<void> {
+  const scrivi = (i: PushSubscription) => {
+    const j = i.toJSON()
+    return supabase.from('push_iscrizioni').upsert({
+      endpoint: i.endpoint,
+      user_id: userId,
+      p256dh: j.keys?.p256dh ?? '',
+      auth: j.keys?.auth ?? '',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'endpoint' })
+  }
+  let { error } = await scrivi(iscrizione)
+  if (error && (error.code === '42501' || /row-level security/i.test(error.message))) {
+    await iscrizione.unsubscribe()
+    const nuova = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveInBytes(CHIAVE_PUBBLICA) })
+    ;({ error } = await scrivi(nuova))
+  }
   // Tabella non ancora creata sul server: lo si dice in parole, non col
   // messaggio grezzo del database.
   if (error) throw new Error(translateCoachError(error.message))
+}
+
+/** L'account è uscito senza passare da `disattivaPush` (lo ha chiuso la
+ *  libreria dell'accesso, o la sessione è cambiata): la riga sul server non si
+ *  può più togliere, ma l'iscrizione del browser sì, e senza di lei i messaggi
+ *  di chi è uscito smettono di arrivare su questo telefono. */
+export async function staccaPushLocale(): Promise<void> {
+  if (!haPush()) return
+  const reg = await registrazione(1500)
+  const iscrizione = await reg?.pushManager.getSubscription()
+  await iscrizione?.unsubscribe()
 }
 
 /** Chiede il permesso e iscrive il dispositivo. Va chiamata da un tocco: i
@@ -126,7 +152,7 @@ export async function attivaPush(userId: string): Promise<StatoPush> {
   if (!reg) return 'non-supportato'
   const iscrizione = await reg.pushManager.getSubscription()
     ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveInBytes(CHIAVE_PUBBLICA) })
-  await registra(userId, iscrizione)
+  await registra(userId, iscrizione, reg)
   // Riaccese a mano: da qui in poi tornano ad accendersi anche da sole.
   removeStorage('local', SPENTE_DA_QUI)
   return 'attivo'
@@ -166,7 +192,7 @@ export async function riallineaPush(userId: string): Promise<void> {
   if (!iscrizione && !spenteDaQui()) {
     iscrizione = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveInBytes(CHIAVE_PUBBLICA) })
   }
-  if (iscrizione) await registra(userId, iscrizione)
+  if (iscrizione) await registra(userId, iscrizione, reg)
 }
 
 /** C'è da chiedere il permesso? Solo a chi può darlo con un tocco e non è mai

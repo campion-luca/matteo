@@ -12,6 +12,7 @@
 import type { PalestraExercise } from '@/store/useJarvisStore'
 import { displayMuscle, effectiveLoad, entry1RM } from './gymModel'
 import { quotaCorpo } from './catalogo'
+import { BIG_LIFTS, eAlzata } from './gymMaxLifts'
 
 // ── Soglie ─────────────────────────────────────────────────────
 // Multipli del peso corporeo, sull'alzata rappresentativa del distretto (panca
@@ -24,7 +25,7 @@ import { quotaCorpo } from './catalogo'
 // loro — non a dire una verità sul singolo esercizio.
 //
 // Il core è il più incerto: non esiste uno standard per gli addominali sotto
-// carico, e queste soglie sono una stima. La ⓘ del widget lo dice.
+// carico, e queste soglie sono una stima.
 export type StrengthLevel = 0 | 1 | 2 | 3 | 4
 
 // Chiavi del dizionario: le traduce chi le mostra (vedi BodyMap).
@@ -138,7 +139,19 @@ export function districtStrength(
     if (!ex.history.length) continue
     const corpo = bodyWeightKg * quotaCorpo(ex)
     const top = Math.max(...ex.history.map(h => entry1RM(h, corpo)))
-    consider(ex.muscle, top)
+    // Un'alzata di riferimento conta per intero sul distretto su cui sono
+    // tarate le sue soglie (vedi BIG_LIFTS), e il gruppo scritto sull'esercizio
+    // diventa quello che assiste. Serve allo stacco: nel catalogo — e per chi lo
+    // registra — è un esercizio di Dorso, ma le soglie del Dorso sono quelle del
+    // rematore: diceva "Dorso: forte" a chiunque staccasse, e i Glutei, tarati
+    // proprio sullo stacco, restavano vuoti.
+    const rif = BIG_LIFTS.find(l => eAlzata(ex.n, l))
+    if (rif && displayMuscle(ex.muscle) !== rif.district) {
+      consider(rif.district, top)
+      consider(ex.muscle, top * SECONDARY_SHARE)
+    } else {
+      consider(ex.muscle, top)
+    }
     consider(ex.muscle2, top * SECONDARY_SHARE)
   }
   return MAPPED_MUSCLES.map(muscle => {

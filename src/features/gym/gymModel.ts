@@ -47,10 +47,8 @@ export function gruppiMuscolari(custom?: { name: string }[]): string[] {
 const MUSCLE_ALIASES: Record<string, string> = { 'Schiena': 'Dorso' }
 export function displayMuscle(m: string): string { return MUSCLE_ALIASES[m] ?? m }
 
-// `muscleColors` arriva risolto da `useMuscleColors()`: contiene già ogni gruppo noto,
-// desaturato se il layout è "Notte". 'Altro' fa da fallback per i gruppi legacy o
-// sconosciuti, così seguono il tema anche loro (prima era un '#8a7440' fisso, ripetuto
-// in sei punti, che in monocromatico sarebbe rimasto oro).
+// `muscleColors` arriva risolto da `useMuscleColors()`: contiene già ogni gruppo
+// noto. 'Altro' fa da fallback per i gruppi legacy o sconosciuti.
 export function exColor(ex: PalestraExercise, muscleColors: Record<string, string>): string {
   const m = displayMuscle(ex.muscle)
   return muscleColors[m] ?? muscleColors[ex.muscle] ?? muscleColors.Altro ?? MUSCLE_COLORS.Altro
@@ -204,6 +202,23 @@ export function ultimaVoce<T extends { date?: string }>(hist: T[]): T | undefine
   return ultima
 }
 
+/** L'ultima alzata di LAVORO: la più recente che non sia un massimale
+ *  dichiarato. È da lei che riparte la volta dopo — il precompilato, il
+ *  confronto col salto. Un 1×140 provato sabato non è il punto da cui
+ *  ripartire lunedì con un 4×8: prima la scheda si precompilava a 140 su tutte
+ *  le serie, e "Nuova alzata" si apriva su 1 serie da 1 colpo. */
+export function ultimaDiLavoro(hist: PalestraHistoryEntry[]): PalestraHistoryEntry | undefined {
+  return ultimaVoce(hist.filter(h => !h.maxLift))
+}
+
+/** Il `current` di un esercizio (il precompilato della prossima alzata) dopo
+ *  che il suo storico è cambiato. Con solo massimali, o senza storico, resta
+ *  quello che c'era. */
+export function correnteDa(hist: PalestraHistoryEntry[], prima: PalestraExercise['current']): PalestraExercise['current'] {
+  const u = ultimaDiLavoro(hist)
+  return u ? { kg: u.kg, reps: u.reps, sets_n: u.sets_n } : prima
+}
+
 // Carico effettivamente spostato in una serie. Per un esercizio a corpo libero
 // `kg` è la sola ZAVORRA: senza sommare il peso corporeo, una serie di trazioni
 // senza zavorra valeva 0 kg → volume 0, massimale 0, esercizio escluso da tutti i
@@ -304,8 +319,8 @@ export function entryVolume(h: PalestraHistoryEntry, bodyWeightKg = 0): number {
 // alzerei per una singola", che è forza, non fatica.
 //
 // Oltre le ~12 ripetizioni Epley sovrastima: da lì in poi entrano in gioco
-// resistenza e respiro più della forza massimale. Il numero resta indicativo e
-// l'app lo dice nella ⓘ invece di fingere una precisione che non ha.
+// resistenza e respiro più della forza massimale. Il numero resta indicativo, e
+// l'app lo chiama "stimato" invece di fingere una precisione che non ha.
 export function estimate1RM(weightKg: number, reps: number): number {
   if (weightKg <= 0 || reps <= 0) return 0
   return weightKg * (1 + reps / 30)

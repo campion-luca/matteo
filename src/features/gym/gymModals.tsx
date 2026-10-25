@@ -19,14 +19,14 @@ import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, Pal
 import {
   MUSCLE_COLORS, COLOR_PALETTE,
   displayMuscle, fmtKg, fmtNum, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
-  effectiveLoad, sortedHistory, fmtTime, colpiMigliori, RACE_STATIONS,
+  effectiveLoad, sortedHistory, fmtTime, colpiMigliori, RACE_STATIONS, ultimaDiLavoro,
   } from './gymModel'
 import { chiliScritti } from './riassuntoAllenamento'
 import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX, type CampoAlzata } from './limitiAlzata'
 import { LineChart } from './gymShared'
 import { MuscleIcon, FIGURE_DISPONIBILI as FIGURE } from './MuscleIcons'
 import { FormatoSwitch } from './FormatoSwitch'
-import { type FormatoHyrox, unitaFormato, distanzaLeggibile, registraPasso, unitaDelTempo, fmtTempoGara, cifreInTempo, cifreInSec, secInCifre } from './hyroxStima'
+import { type FormatoHyrox, unitaFormato, distanzaLeggibile, registraPasso, unitaDelTempo, tempoConfrontabile, fmtTempoGara, cifreInTempo, cifreInSec, secInCifre } from './hyroxStima'
 import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { todayISO } from '@/lib/isoDate'
@@ -39,8 +39,10 @@ import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
 
 // La micro-label sopra un campo. Era ricopiata inline a ogni campo del file, con
 // la stessa mezza dozzina di proprietà: un posto solo, così restano allineate.
+// Le scritte di queste finestre stanno a 12px, non sotto (rebranding, ott 2026):
+// erano rimaste a 9-11, del tema di prima.
 const ETICHETTA: React.CSSProperties = {
-  fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em',
+  fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em',
   color: NUC.faint, textTransform: 'uppercase', marginTop: 2,
 }
 
@@ -94,8 +96,11 @@ export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }:
 
   const save = () => {
     if (!totalSec || !u) return
+    // Un campo data svuotato si salvava come `date: ''` e `d: 'WNaN'`: una
+    // sessione senza giorno, fuori da ogni grafico e settimana. Vuoto vale oggi.
+    const giorno = date || todayISO()
     onSave({
-      d: weekLabel(date), date,
+      d: weekLabel(giorno), date: giorno,
       sec: totalSec, units: u,
       ...(kg ? { kg: parseNum(kg) } : {}),
       ...(sets ? { sets_n: parseInt(sets) } : {}),
@@ -136,7 +141,7 @@ export function LogHyroxModal({ open, onClose, ex, onSave, formato, onFormato }:
         {totalSec > 0 && (
           <div className="flex justify-between items-center px-3.5 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)' }}>
             <span className="j-eyebrow">{t('Pace')}</span>
-            <span style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentSoft }}>{paceStr}</span>
+            <span style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentInk }}>{paceStr}</span>
           </div>
         )}
 
@@ -225,7 +230,7 @@ export function RegistraGaraModal({ open, onClose, gara, categoriaPredefinita, o
     <div key={nome} className="flex items-center justify-between gap-3" style={{ padding: '5px 0' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome}</div>
-        <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint }}>{sotto}</div>
+        <div style={{ fontFamily: NUC.label, fontSize: 12.5, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint }}>{sotto}</div>
       </div>
       {campo}
     </div>
@@ -249,7 +254,7 @@ export function RegistraGaraModal({ open, onClose, gara, categoriaPredefinita, o
         <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
 
         <div className="j-eyebrow mt-2">{t('Tempi')}</div>
-        <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: NUC.faint, lineHeight: 1.5, marginTop: -4 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 12.5, color: NUC.faint, lineHeight: 1.5, marginTop: -4 }}>
           {t('Solo le cifre: 425 diventa 4:25, 4040 diventa 40:40. Un tempo lasciato vuoto non conta.')}
         </div>
         <div>
@@ -271,7 +276,7 @@ export function RegistraGaraModal({ open, onClose, gara, categoriaPredefinita, o
               {totale > 0 ? fmtTempoGara(totale) : '—'}
             </span>
             {totale > 0 && mancanti > 0 && (
-              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: 'var(--tertiary-ink)', marginTop: 2 }}>
+              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 12, color: 'var(--tertiary-ink)', marginTop: 2 }}>
                 {mancanti === 1 ? t('1 tempo mancante: totale parziale') : t('{n} tempi mancanti: totale parziale', { n: mancanti })}
               </span>
             )}
@@ -337,7 +342,7 @@ export function EditHyroxHistModal({ entry, id, unit, onClose, onSave }: {
 function CampoEtichettato({ etichetta, children }: { etichetta: string; children: React.ReactNode }) {
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span aria-hidden="true" style={{ fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: NUC.faint }}>
+      <span aria-hidden="true" style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: NUC.faint }}>
         {etichetta}
       </span>
       {children}
@@ -364,7 +369,7 @@ function AvvisiSalvataggio({ problema, salto }: {
   return (
     <>
       {problema && (
-        <div role="alert" style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--danger)' }}>
+        <div role="alert" style={{ fontFamily: NUC.label, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)' }}>
           {problema.testo}
         </div>
       )}
@@ -372,7 +377,7 @@ function AvvisiSalvataggio({ problema, salto }: {
         <div role="alert" style={{
           padding: '8px 10px', borderRadius: 'var(--radius-sm)',
           background: 'rgba(var(--warn-rgb),0.10)', border: '1px solid rgba(var(--warn-rgb),0.35)',
-          fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--warn)',
+          fontFamily: NUC.label, fontSize: 12, lineHeight: 1.5, color: 'var(--warn)',
         }}>
           {t('Hai scritto {nuovo} kg: l’ultima volta erano {ultimo}. Se è giusto, conferma.', { nuovo: fmtNum(salto.nuovo), ultimo: fmtNum(salto.ultimo) })}
         </div>
@@ -396,7 +401,7 @@ function CampoAttrezzo({ valore, onChange, errore }: { valore: string; onChange:
     return (
       <button type="button" onClick={() => setAperto(true)} style={{
         alignSelf: 'flex-start', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer',
-        fontFamily: NUC.label, fontSize: 10.5, letterSpacing: '.04em', color: NUC.faint,
+        fontFamily: NUC.label, fontSize: 12.5, letterSpacing: '.04em', color: NUC.faint,
         textDecoration: 'underline', textUnderlineOffset: 3,
       }}>
         {t('+ Peso dell’attrezzo a vuoto')}
@@ -415,7 +420,7 @@ function CampoAttrezzo({ valore, onChange, errore }: { valore: string; onChange:
         />
       </CampoEtichettato>
       {n > 0 && (
-        <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.faint }}>
+        <div role="note" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: NUC.faint }}>
           {t('Nei chili scrivi solo i dischi: i {kg} kg dell’attrezzo si sommano da sé.', { kg: fmtNum(n) })}
         </div>
       )}
@@ -457,7 +462,7 @@ function DataModificabile({ valore, onChange, aperta, onApri, etichetta }: {
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontFamily: NUC.label, fontSize: 11, letterSpacing: '.04em', color: NUC.faint }}>
+      <span style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: NUC.faint }}>
         {oggi ? `${t('Oggi')} · ${fmtShortDate(valore)}` : fmtShortDate(valore)}
       </span>
       <button type="button" onClick={() => onApri(true)} aria-label={t('Modifica la data')}
@@ -479,7 +484,7 @@ function ColonnaScelta({ titolo, opzioni, spenta }: {
 }) {
   return (
     <div style={{ minWidth: 0, opacity: spenta ? 0.4 : 1, transition: 'opacity 180ms' }}>
-      <div className="j-eyebrow" style={{ fontSize: 8.5, letterSpacing: '.1em', marginBottom: 6 }}>{titolo}</div>
+      <div className="j-eyebrow" style={{ fontSize: 12, letterSpacing: '.1em', marginBottom: 6 }}>{titolo}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {opzioni.map(o => (
           <button key={o.label} type="button" disabled={spenta} onClick={o.onClick} aria-pressed={o.on} style={{
@@ -487,7 +492,7 @@ function ColonnaScelta({ titolo, opzioni, spenta }: {
             background: o.on ? 'var(--surface-2)' : 'var(--surface)',
             border: `1px solid ${o.on ? 'var(--j-accent)' : NUC.hairline}`,
             color: o.on ? 'var(--j-accent-ink)' : NUC.dim,
-            fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.04em',
+            fontFamily: NUC.label, fontSize: 12.5, letterSpacing: '.04em',
             cursor: spenta ? 'default' : 'pointer', transition: 'all 180ms',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{o.label}</button>
@@ -506,7 +511,7 @@ function SceltaCarico({ corpo, onChange }: { corpo: boolean; onChange: (corpo: b
   const t = useT()
   return (
     <>
-      <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
+      <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
         {t('Tipo di carico')}
       </div>
       <div className="flex gap-2">
@@ -516,7 +521,7 @@ function SceltaCarico({ corpo, onChange }: { corpo: boolean; onChange: (corpo: b
             background: corpo === bw ? 'var(--surface-2)' : 'var(--surface)',
             border: `1px solid ${corpo === bw ? 'var(--j-accent)' : NUC.hairline}`,
             color: corpo === bw ? 'var(--j-accent-ink)' : NUC.dim,
-            fontFamily: NUC.label, fontSize: 11, letterSpacing: '.08em', cursor: 'pointer',
+            fontFamily: NUC.label, fontSize: 12, letterSpacing: '.08em', cursor: 'pointer',
             transition: 'all 180ms',
           }}>
             {bw ? t('Corpo libero') : t('Con attrezzo')}
@@ -537,6 +542,7 @@ export interface LogPalestraModalProps {
 export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModalProps) {
   const t = useT()
   const tData = useTData()
+  const bodyWeight = useBodyWeight()
   const today = todayISO()
   const [date, setDate] = useState(today)
   const [kg, setKg] = useState(String(ex?.current.kg ?? ''))
@@ -565,9 +571,16 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   useEffect(() => {
     if (!open || !ex) return
     setDate(todayISO())
-    setKg(preCompila(ex.current.kg))
-    setReps(preCompila(ex.current.reps))
-    setSets(preCompila(ex.current.sets_n))
+    // Dall'ultima alzata di lavoro, come la scheda (vedi `ultimaDiLavoro`): dopo
+    // un massimale dichiarato il modale si apriva su 1 serie da 1 colpo al
+    // carico del massimale. I chili sono i soli dischi quando l'esercizio ha
+    // l'attrezzo: un'alzata di prima che l'attrezzo ci fosse ha scritto il
+    // totale, e riproposta tale e quale si sarebbe salvata col bilanciere in più.
+    const ultima = ultimaDiLavoro(ex.history)
+    const attrezzoOggi = corpoLibero(ex) ? 0 : (ex.attrezzoKg ?? 0)
+    setKg(preCompila(ultima ? Math.max(0, ultima.kg + (ultima.attrezzo ?? 0) - attrezzoOggi) : ex.current.kg))
+    setReps(preCompila(ultima?.reps ?? ex.current.reps))
+    setSets(preCompila(ultima?.sets_n ?? ex.current.sets_n))
     // Parte da come è fatto l'esercizio: le trazioni si aprono già a corpo libero.
     setIsBodyweight(corpoLibero(ex)); setZavorra(''); setModificaData(false)
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
@@ -621,7 +634,11 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   // fatica; ora l'unico numero mostrato è quello con cui l'alzata verrà giudicata.
   // Due moltiplicazioni: niente useMemo, che su `perSetNums` (array nuovo a ogni
   // render) non avrebbe comunque mai fatto centro.
-  const topLoad = (perSet ? Math.max(0, ...perSetNums) : effectiveKg) + attrezzoN
+  // A corpo libero il carico è anche il corpo — la parte che l'esercizio fa
+  // sollevare (vedi `quotaCorpo`) — come per i record: senza, delle trazioni
+  // con 10 kg di zavorra davano "massimale 13 kg" e salvate ne valevano 114.
+  const caricoCorpo = isBodyweight && ex ? bodyWeight * quotaCorpo(ex) : 0
+  const topLoad = Math.round(((perSet ? Math.max(0, ...perSetNums) : effectiveKg) + attrezzoN + caricoCorpo) * 10) / 10
   const preview = (ex && hasValues && topLoad > 0)
     // Su un massimale non c'è niente da stimare: il carico È il massimale.
     ? { top: topLoad, oneRM: Math.round(isMax ? topLoad : estimate1RM(topLoad, repsN)) }
@@ -712,7 +729,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
 
         {/* 1. Serie × Colpi */}
         {isMax ? (
-          <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em', lineHeight: 1.5, marginTop: 4 }}>
+          <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: '.04em', lineHeight: 1.5, marginTop: 4 }}>
             {t('Una singola al carico massimo. Serie e colpi valgono 1 × 1.')}
           </div>
         ) : (
@@ -741,7 +758,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
             <div className="flex flex-col gap-1.5">
               {Array.from({ length: nSets }).map((_, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span style={{ width: 26, flexShrink: 0, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>S{i + 1}</span>
+                  <span style={{ width: 26, flexShrink: 0, fontFamily: NUC.label, fontSize: 12, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>S{i + 1}</span>
                   <input
                     value={setWeightsStr[i] ?? ''}
                     onChange={e => updateSetWeight(i, e.target.value)}
@@ -769,7 +786,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
             {/* Con un attrezzo le righe senza chili non si salvano (vedi `save`):
                 lo si dice qui, mentre le si può ancora riempire. */}
             {!isBodyweight && righe.some(Boolean) && righe.some(r => !r) && (
-              <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--warn)' }}>
+              <div role="note" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: 'var(--warn)' }}>
                 {t('Le serie senza chili non vengono salvate.')}
               </div>
             )}
@@ -795,7 +812,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
             record). Non si può sapere da qui se nei chili di prima c'era già:
             lo si dice, e si dice dove rimediare. */}
         {attrezzoN > 0 && !ex.attrezzoKg && ex.history.some(h => !h.bodyweight) && (
-          <div role="note" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--warn)' }}>
+          <div role="note" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: 'var(--warn)' }}>
             {t('Le alzate già registrate restano com’erano. Se anche lì scrivevi solo i dischi, sommalo da «Modifica esercizio».')}
           </div>
         )}
@@ -826,10 +843,10 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
         {preview && (
           <div className="p-3.5 mt-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)' }}>
             <div className="flex justify-between items-baseline">
-              <span style={{ fontFamily: NUC.label, fontSize: 11, letterSpacing: 1, color: NUC.faint, textTransform: 'uppercase' }}>{isMax ? t('Massimale') : t('Massimale stimato')}</span>
+              <span style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: 1, color: NUC.faint, textTransform: 'uppercase' }}>{isMax ? t('Massimale') : t('Massimale stimato')}</span>
               <span style={{ fontFamily: NUC.label, fontSize: 18, color: 'var(--j-accent-ink)', letterSpacing: -0.5 }}>{preview.oneRM} kg</span>
             </div>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 5 }}>
+            <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, marginTop: 5 }}>
               {isMax ? t('una singola a {kg} kg', { kg: preview.top }) : t('da {kg} kg × {n} colpi', { kg: preview.top, n: repsN })}
             </div>
           </div>
@@ -892,7 +909,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
       <div className="flex flex-col gap-2.5">
         {/* Le label ci sono anche qui, come per il secondo gruppo muscolare: il
             placeholder da solo sparisce appena si scrive, e il campo resta muto. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
           {t('Nome')}
         </div>
         <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field" aria-label={t('Nome esercizio')} aria-invalid={manca === 'nome' || undefined} style={manca === 'nome' ? ROSSO : undefined}/>
@@ -907,7 +924,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
           </>
         ) : (
           <>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
+            <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
               {t('Gruppo muscolare')}
             </div>
             <select value={muscle} onChange={e => { setMuscle(e.target.value); setMuscle2('') }} className="j-field" aria-label={t('Gruppo muscolare')} aria-invalid={manca === 'gruppo' || undefined} style={manca === 'gruppo' ? ROSSO : undefined}>
@@ -930,7 +947,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
             )}
             {muscle && (
               <>
-                <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
+                <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
                   {t('Secondo gruppo muscolare (opzionale)')}
                 </div>
                 <select value={muscle2} onChange={e => setMuscle2(e.target.value)} className="j-field">
@@ -943,7 +960,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
               </>
             )}
             <SceltaCarico corpo={corpo} onChange={setCorpo}/>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
+            <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
               {t('Note (opzionale)')}
             </div>
             <textarea
@@ -957,7 +974,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
           </>
         )}
         {manca && (
-          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--danger)' }}>
+          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)' }}>
             {manca === 'nome' ? t('Scrivi il nome dell’esercizio.') : t('Scegli il gruppo muscolare.')}
           </div>
         )}
@@ -1000,7 +1017,7 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
             { label: t('Ultima'),         value: colpi.length ? `${colpi[colpi.length - 1]} ${t('colpi')}` : '—' },
             { label: t('Sessioni'),       value: String(hist.length) },
           ] : [
-            { label: t('Miglior Kg'),    value: `${bestKg} kg` },
+            { label: t('Miglior Kg'),    value: `${fmtNum(bestKg)} kg` },
             { label: t('Miglior stima'), value: best1RM > 0 ? `${best1RM} kg` : '—' },
             { label: t('Sessioni'),      value: String(hist.length) },
           ]).map(s => (
@@ -1045,13 +1062,13 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
                       <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>
                         {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
                       </div>
-                      <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
-                      {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
+                      <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
+                      {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
                       <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
                       {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
-                      <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
+                      <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
                     </div>
                   </div>
                 )
@@ -1080,7 +1097,7 @@ export function HyroxStatsModal({ ex, hist, onClose }: {
   const ord = useMemo(() => sortedHistory(hist), [hist])
 
   const { times, paces, labels } = useMemo(() => ({
-    times:  ord.map(h => h.sec),
+    times:  ord.map(h => tempoConfrontabile(ex.id, h)),
     // Lo stesso passo della pagina della stazione: al km, ai 500 m o rep/min.
     paces:  ord.map(h => ex.unit === 'km' ? Math.round(h.sec / unitaDelTempo(ex.id, h.units))
       : ex.unit === 'm' ? Math.round((h.sec / h.units) * 500)
@@ -1145,7 +1162,7 @@ export function HyroxStatsModal({ ex, hist, onClose }: {
                 <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
                   <div>
                     <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>{fmtTime(h.sec)} · {distanzaLeggibile(h.units, ex.unit)}</div>
-                    <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{h.date ? fmtShortDate(h.date) : h.d}</div>
+                    <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{h.date ? fmtShortDate(h.date) : h.d}</div>
                   </div>
                   <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--j-accent-ink)', flexShrink: 0 }}>{pace(h.sec, unitaDelTempo(ex.id, h.units), ex.unit)}</div>
                 </div>
@@ -1175,8 +1192,8 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   const t = useT()
   const tData = useTData()
   // Colori RAW dallo store, NON la mappa risolta di `useMuscleColors()`: questo è il
-  // picker e `color` finisce dritto in `onSaveMuscleColor`. Con la mappa desaturata,
-  // aprire e salvare in layout "Notte" persisterebbe il grigio come colore scelto.
+  // picker e `color` finisce dritto in `onSaveMuscleColor`, che deve salvare la
+  // scelta dell'utente e non un valore ricavato.
   const muscleColors = useJarvisStore(st => st.muscleColors) ?? {}
   const gruppi = useGruppiMuscolari()
   const [name, setName] = useState(ex.n)
@@ -1227,7 +1244,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
     // prendeva dal catalogo per nome ("Trazioni") lo perderebbe rinominando
     // l'esercizio, con il selettore ancora acceso su "Corpo libero".
     onSave(
-      { n: name.trim(), muscle, muscle2: muscle2 || undefined, note: note.trim() || undefined, bodyweight: corpo, attrezzoKg: attrezzoN > 0 ? attrezzoN : undefined },
+      { n: name.trim(), muscle, muscle2: muscle2 && muscle2 !== muscle ? muscle2 : undefined, note: note.trim() || undefined, bodyweight: corpo, attrezzoKg: attrezzoN > 0 ? attrezzoN : undefined },
       { attrezzoAncheAlleVecchie: attrezzoCambiato && ancheVecchie },
     )
     onClose()
@@ -1238,12 +1255,14 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
       <div className="flex flex-col gap-2.5">
         {/* Le label ci sono anche qui, come per il secondo gruppo muscolare: il
             placeholder da solo sparisce appena si scrive, e il campo resta muto. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
           {t('Nome')}
         </div>
         <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field"/>
 
-        <select value={muscle} onChange={e => { setMuscle(e.target.value); setColor('') }} className="j-field">
+        {/* Il secondario che diventa principale smette di essere secondario: prima
+            restava salvato, e la testata diceva «Petto · Petto». */}
+        <select value={muscle} onChange={e => { setMuscle(e.target.value); setColor(''); if (e.target.value === muscle2) setMuscle2('') }} className="j-field">
           {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
         </select>
         {!gruppi.includes(muscle) && (
@@ -1262,20 +1281,20 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
             non può sapere se in quei chili l'attrezzo c'era già. Lo sa chi le ha
             scritte, e lo dice qui. */}
         {!corpo && attrezzoCambiato && alzateConAttrezzo > 0 && (
-          <label className="flex items-start gap-2" style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: NUC.dim, cursor: 'pointer' }}>
+          <label className="flex items-start gap-2" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: NUC.dim, cursor: 'pointer' }}>
             <input type="checkbox" checked={ancheVecchie} onChange={e => setAncheVecchie(e.target.checked)} style={{ marginTop: 2 }}/>
             <span>{t('Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.', { n: alzateConAttrezzo })}</span>
           </label>
         )}
 
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
           {t('Colore gruppo muscolare — si applica a tutti gli esercizi')}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
           <button onClick={() => setColor('')} style={{
             width: 28, height: 28, borderRadius: 'var(--radius-sm)', cursor: 'pointer', padding: 0,
             background: 'var(--surface-2)', border: `2px solid ${!color ? 'var(--fg)' : 'var(--hairline)'}`,
-            fontFamily: NUC.label, fontSize: 10, color: NUC.faint,
+            fontFamily: NUC.label, fontSize: 12, color: NUC.faint,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>A</button>
           {COLOR_PALETTE.map(c => (
@@ -1289,12 +1308,12 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
           <div style={{ width: 10, height: 10, borderRadius: 0, background: activeColor, flexShrink: 0 }}/>
-          <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>
+          <span style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint }}>
             {color ? t('{gruppo} — personalizzato', { gruppo: tData(muscle) }) : t('{gruppo} — default', { gruppo: tData(muscle) })}
           </span>
         </div>
 
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
           {t('Note (opzionale)')}
         </div>
         <textarea
@@ -1307,7 +1326,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
         />
 
         {manca && (
-          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 11, lineHeight: 1.5, color: 'var(--danger)' }}>
+          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)' }}>
             {manca === 'nome' ? t('Scrivi il nome dell’esercizio.') : t('Scegli il gruppo muscolare.')}
           </div>
         )}
@@ -1449,7 +1468,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
               background: isBodyweight === bw ? 'var(--surface-2)' : 'var(--surface)',
               border: `1px solid ${isBodyweight === bw ? 'var(--j-accent)' : NUC.hairline}`,
               color: isBodyweight === bw ? 'var(--j-accent-ink)' : NUC.dim,
-              fontFamily: NUC.label, fontSize: 11, letterSpacing: '.08em', cursor: 'pointer',
+              fontFamily: NUC.label, fontSize: 12, letterSpacing: '.08em', cursor: 'pointer',
               transition: 'all 180ms',
             }}>
               {bw ? t('Corpo libero') : t('Con attrezzo')}
@@ -1465,7 +1484,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
               background: isMax === v ? 'var(--surface-2)' : 'var(--surface)',
               border: `1px solid ${isMax === v ? 'var(--j-accent)' : NUC.hairline}`,
               color: isMax === v ? 'var(--j-accent-ink)' : NUC.dim,
-              fontFamily: NUC.label, fontSize: 11, letterSpacing: '.08em', cursor: 'pointer',
+              fontFamily: NUC.label, fontSize: 12, letterSpacing: '.08em', cursor: 'pointer',
               transition: 'all 180ms',
             }}>
               {v ? t('Massimale') : t('Allenamento')}
@@ -1473,7 +1492,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
           ))}
         </div>
         {isMax && (
-          <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em', lineHeight: 1.5 }}>
+          <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: '.04em', lineHeight: 1.5 }}>
             {t('Una singola al carico massimo: serie e colpi diventano 1 × 1.')}
           </div>
         )}
@@ -1495,7 +1514,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
             <span className="j-eyebrow">
               {isBodyweight ? t('Zavorra') : t('Kg')}{perSet && <span style={{ color: 'var(--j-accent-ink)' }}> · {t('colpi per serie')}</span>}
             </span>
-            <span style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: perSet ? 'var(--j-accent-ink)' : NUC.faint }}>
+            <span style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: perSet ? 'var(--j-accent-ink)' : NUC.faint }}>
               {perSet ? t('valori uguali') : t('valori per serie')}
             </span>
           </button>
@@ -1505,7 +1524,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
           <div className="flex flex-col gap-1.5">
             {Array.from({ length: nSets }).map((_, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span style={{ width: 30, flexShrink: 0, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>S{i + 1}</span>
+                <span style={{ width: 30, flexShrink: 0, fontFamily: NUC.label, fontSize: 12, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>S{i + 1}</span>
                 <input value={setWeightsStr[i] ?? ''} onChange={e => updateSetWeight(i, e.target.value)} inputMode="decimal" aria-label={t('Serie {n} · kg', { n: i + 1 })} placeholder={isBodyweight ? t('kg agg.') : 'kg'} className="j-field" style={{ flex: 1, minWidth: 0 }}/>
                 <input value={setRepsStr[i] ?? ''} onChange={e => updateSetReps(i, e.target.value)} inputMode="numeric" aria-label={t('Serie {n} · colpi', { n: i + 1 })} placeholder={t('colpi')} className="j-field" style={{ flex: 1, minWidth: 0 }}/>
               </div>
@@ -1574,7 +1593,7 @@ export function RecordModal({ records, onClose }: { records: RecordItem[]; onClo
             <div style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink, marginBottom: 6 }}>{tData(r.name)}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontFamily: NUC.label, fontSize: 24, color: 'var(--j-accent-ink)', letterSpacing: -0.8 }}>{r.next} kg</span>
-              <span style={{ fontFamily: NUC.label, fontSize: 11, color: NUC.faint }}>
+              <span style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint }}>
                 {t('era {kg} kg', { kg: r.prev })} · +{r.next - r.prev}
               </span>
             </div>
@@ -1583,7 +1602,7 @@ export function RecordModal({ records, onClose }: { records: RecordItem[]; onClo
 
         {/* Il numero è una stima, e dirlo qui evita che la medaglia prometta una
             singola che non hai mai provato davvero. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.04em', color: NUC.faint, lineHeight: 1.5 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: NUC.faint, lineHeight: 1.5 }}>
           {t('Massimale stimato dai chili e dai colpi della serie.')}
         </div>
 
@@ -1621,7 +1640,10 @@ export function NuovoGruppoModal({ open, onClose, onCrea, esistenti }: {
   }, [open])
 
   const pulito = name.trim()
-  const doppio = esistenti.some(m => m.trim().toLowerCase() === pulito.toLowerCase())
+  // Col nome com'è mostrato: «Schiena» è il vecchio nome del Dorso (vedi
+  // `displayMuscle`), e un gruppo chiamato così restava sempre vuoto — ogni
+  // esercizio messo dentro finiva in Dorso.
+  const doppio = esistenti.some(m => m.trim().toLowerCase() === displayMuscle(pulito).toLowerCase())
   const valido = !!pulito && !doppio
 
   return (
@@ -1635,7 +1657,7 @@ export function NuovoGruppoModal({ open, onClose, onCrea, esistenti }: {
         {/* Detto subito e non al salvataggio: il nome è la chiave del gruppo, e
             scoprire che è occupato dopo aver scelto colore e figura è tardi. */}
         {doppio && (
-          <div style={{ fontFamily: NUC.label, fontSize: 10, color: 'var(--danger)', letterSpacing: '.04em' }}>
+          <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--danger)', letterSpacing: '.04em' }}>
             {t('Esiste già un gruppo con questo nome')}
           </div>
         )}

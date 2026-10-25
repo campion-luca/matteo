@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { JarvisProfile } from '@/features/profile/JarvisProfile'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
+import { ConfirmModal } from '@/components/ConfirmModal'
+import { storageKey } from '@/lib/supabase'
+import { useProfiliStore } from '@/lib/profili'
 
 // Il Profilo dopo il rebranding (ott 2026): il nome in un riquadro con la foto,
 // i dati generali in griglia, la pesata di oggi col campo e «Registra» sulla
@@ -69,5 +72,29 @@ describe('il profilo', () => {
     await user.click(screen.getByRole('button', { name: 'Chiudi il profilo' }))
     expect(useJarvisStore.getState().userName).toBe('Matteo')
     expect(onClose).toHaveBeenCalled()
+  })
+
+  // Dal profilo pubblico la freccia tornava indietro e basta: bio, percorso e
+  // infortuni scritti e non salvati sparivano senza una parola.
+  it('dal profilo pubblico, con qualcosa di non salvato, la freccia chiede prima di uscire', async () => {
+    localStorage.setItem(storageKey, JSON.stringify({ access_token: 'x', user: { id: 'u1' } }))
+    useProfiliStore.setState({ owner: 'u1', profili: {} })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    const user = userEvent.setup()
+    render(
+      <ConfirmDeleteProvider>
+        <JarvisProfile open onClose={vi.fn()} sezione="utente"/>
+        <ConfirmModal/>
+      </ConfirmDeleteProvider>,
+    )
+    await user.click(screen.getByRole('button', { name: /Profilo pubblico/ }))
+    await user.type(await screen.findByPlaceholderText('Il tuo cognome'), 'Rossi')
+    await user.click(screen.getByRole('button', { name: 'Torna al profilo' }))
+    expect(screen.getByText('Uscire senza salvare?')).toBeInTheDocument()
+    // E restando, quello che si è scritto è ancora lì.
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'No' }))
+    expect(screen.getByPlaceholderText('Il tuo cognome')).toHaveValue('Rossi')
+    vi.restoreAllMocks()
+    localStorage.removeItem(storageKey)
   })
 })

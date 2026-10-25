@@ -24,7 +24,8 @@ import { esci } from '@/lib/uscita'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
 import { AvatarProfilo, ProfiloPubblico } from './ProfiloPubblico'
-import { etaDi } from '@/lib/profili'
+import { etaDi, salvaProfilo, useProfilo } from '@/lib/profili'
+import { leggiScorta } from '@/features/gym/resetCatalogo'
 
 interface JarvisProfileProps {
   open: boolean
@@ -83,9 +84,15 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // pannelli grandi come questi è anche la forma giusta.
   // È il profilo che vedono il coach e chi segui (vedi ProfiloPubblico).
   const [pannello, setPannello] = useState<null | 'pubblico'>(null)
-  // Letto una volta: è chi è entrato su questo telefono, e non cambia con la
-  // pagina aperta.
-  const [userId] = useState(idUtenteSuDisco)
+  // Chi è entrato su questo telefono, riletto a ogni apertura. Letto una volta
+  // sola al montaggio restava quello di prima se la sessione passava a un altro
+  // account senza uscire (un link di conferma aperto qui): foto e profilo
+  // pubblico del nuovo si leggevano e salvavano con l'id del vecchio.
+  const [userId, setUserId] = useState(idUtenteSuDisco)
+  useEffect(() => { if (open) setUserId(idUtenteSuDisco()) }, [open])
+  // Il profilo pubblico ha cose scritte e non salvate (vedi la freccia).
+  const [pubblicoSporco, setPubblicoSporco] = useState(false)
+  const profiloPubblico = useProfilo(userId)
   const [erroreFoto, setErroreFoto] = useState<string | null>(null)
   const mieiDati = sezione === 'utente'
   const [age, setAge]       = useState(s.userAge ? String(s.userAge) : '')
@@ -140,6 +147,19 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   const etaCalcolata = dob ? etaDi({ nascita: dob, eta: null }) : null
   const etaDaSalvare = etaCalcolata ?? (age ? parseInt(age) : undefined)
 
+  // Data di nascita ed età arrivano a chi mi segue dal profilo PUBBLICO, che le
+  // copiava solo quando si premeva il suo «Salva»: corretta qui la data, il
+  // coach continuava a leggere l'età di prima. Se il profilo pubblico c'è, le
+  // si porta anche lì. L'età fuori da 5-120 il database la rifiuta: non la si
+  // manda, invece di far fallire tutto.
+  const allineaPubblico = () => {
+    if (!userId || !profiloPubblico) return
+    const nascita = dob || null
+    const eta = etaDaSalvare !== undefined && etaDaSalvare >= 5 && etaDaSalvare <= 120 ? etaDaSalvare : null
+    if (profiloPubblico.nascita === nascita && profiloPubblico.eta === eta) return
+    void salvaProfilo(userId, { nascita, eta }).catch(() => { /* senza rete: ci riprova il prossimo salvataggio */ })
+  }
+
   const saveBody = () => {
     set({
       userAge:    etaDaSalvare,
@@ -148,6 +168,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
       userHeight: height ? parseFloat(height) : undefined,
       userDob:    dob    ? dob                : undefined,
     })
+    allineaPubblico()
     setEditingBody(false)
   }
 
@@ -160,6 +181,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
       userHeight: height ? parseFloat(height) : undefined,
       userDob:    dob    ? dob                : undefined,
     })
+    allineaPubblico()
     onClose()
   }
 
@@ -192,6 +214,36 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     cta: t('Esci'),
   })
 
+  // La freccia in alto, e Esc da tastiera. Dal profilo pubblico con qualcosa
+  // di scritto e non salvato si chiede: prima si tornava indietro e bio,
+  // percorso e infortuni sparivano senza una parola. Nel resto del profilo la
+  // freccia salva.
+  const indietro = () => {
+    if (pannello) {
+      if (!pubblicoSporco) { setPannello(null); return }
+      chiedi(() => { setPubblicoSporco(false); setPannello(null) }, t('le modifiche'), {
+        eyebrow: t('Profilo pubblico'),
+        title: t('Uscire senza salvare?'),
+        body: t('Quello che hai scritto nel profilo pubblico dall’ultimo salvataggio va perso.'),
+        cta: t('Esci senza salvare'),
+      })
+      return
+    }
+    if (mieiDati) handleSave()
+    else onClose()
+  }
+  // Esc chiude come la freccia: da desktop, dove la si cerca. Non se c'è un
+  // dialogo aperto sopra (lì Esc chiude il dialogo, vedi useFocusTrap).
+  useEffect(() => {
+    if (!open) return
+    const tasto = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"]')) return
+      indietro()
+    }
+    window.addEventListener('keydown', tasto)
+    return () => window.removeEventListener('keydown', tasto)
+  })
+
   // ── Una copia dei propri dati ────────────────────────────────
   // Tutto lo stato dell'account in un file, sul dispositivo. Nel cloud c'è una
   // riga sola per utente, riscritta a ogni salvataggio: senza una copia, quello
@@ -200,7 +252,11 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // rileggerlo: è una copia da tenere, non un ripristino a un tocco.)
   const esporta = () => {
     const stato = useJarvisStore.getState()
-    const file = new Blob([JSON.stringify({ app: 'matteo', esportato: new Date().toISOString(), dati: stato }, null, 2)], { type: 'application/json' })
+    // Con dentro la copia di scorta dell'azzeramento del catalogo, se su questo
+    // telefono c'è stato (vedi resetCatalogo): è il modo di riavere gli
+    // esercizi e le schede di prima.
+    const scorta = userId ? leggiScorta(userId) : null
+    const file = new Blob([JSON.stringify({ app: 'matteo', esportato: new Date().toISOString(), dati: stato, ...(scorta ? { primaDelCatalogoNuovo: scorta } : {}) }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(file)
     const a = document.createElement('a')
     a.href = url
@@ -241,7 +297,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               tasto "Salva" in testata non c'è più (rebranding, ott 2026). Il nome
               si salvava già uscendo dal campo; i dati generali col loro tasto. */}
           <button
-            onClick={() => pannello ? setPannello(null) : mieiDati ? handleSave() : onClose()}
+            onClick={indietro}
             aria-label={pannello ? (mieiDati ? t('Torna al profilo') : t('Torna alle impostazioni')) : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
             className="j-btn-back"
           >
@@ -274,9 +330,9 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
       </div>
 
       {/* Content */}
-      <div className="j-profile-body j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 40px', display: 'flex', flexDirection: 'column', gap: mieiDati && !pannello ? 26 : 20 }}>
+      <div className="j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 40px', display: 'flex', flexDirection: 'column', gap: mieiDati && !pannello ? 26 : 20 }}>
       {pannello === 'pubblico' ? (
-        <ProfiloPubblico userId={userId}/>
+        <ProfiloPubblico userId={userId} onSporco={setPubblicoSporco}/>
       ) : (
         <>
 

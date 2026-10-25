@@ -45,9 +45,13 @@ function niceScale(min: number, max: number): { lo: number; hi: number; ticks: n
   if (!(max > min)) {
     // Un solo valore distinto: gli si costruisce attorno un intervallo, altrimenti
     // la linea sarebbe piatta sul bordo e la scala direbbe tre volte lo stesso numero.
-    const v = max || 1
-    const pad = Math.abs(v) * 0.1 || 1
-    return { lo: v - pad, hi: v + pad, ticks: [v - pad, v, v + pad] }
+    // Tutti a zero (trazioni senza zavorra, e il peso corporeo non scritto nel
+    // profilo): la linea sta sullo zero, in fondo. Prima l'intervallo si faceva
+    // attorno a 1 — scala "1 · 1 · 1" — e lo zero cadeva fuori dal disegno: il
+    // grafico restava una griglia vuota.
+    if (max === 0) return { lo: 0, hi: 2, ticks: [0, 1, 2] }
+    const pad = Math.abs(max) * 0.1 || 1
+    return { lo: max - pad, hi: max + pad, ticks: [max - pad, max, max + pad] }
   }
   const raw = (max - min) / 2
   const mag = Math.pow(10, Math.floor(Math.log10(raw)))
@@ -79,7 +83,7 @@ function labelIndexes(n: number, spacing: number, labelW: number): Set<number> {
   return out
 }
 
-export function LineChart({ data, labels, height = 64, color = NUC.accentSoft, labelSize = 8, yAxis = false, yFormat, pointLabels }: LineChartProps) {
+export function LineChart({ data, labels, height = 64, color = 'var(--j-accent)', labelSize = 8, yAxis = false, yFormat, pointLabels }: LineChartProps) {
   const t = useT()
 
   if (data.length < 2) return (
@@ -308,10 +312,10 @@ export function DataPunto({ iso, ripiego }: {
   )
 }
 
-// Quanto è cambiato il carico dalla volta prima: verde se è salito, rosso se è
-// sceso, grigio se è rimasto dov'era. Il colore è quello dei segnali (vero
-// anche in Premium, che --ok e --danger li scolora), e la freccia lo ripete per
-// chi i due colori non li distingue.
+// Quanto è cambiato il carico dalla volta prima: d'inchiostro se è salito,
+// rosso se è sceso, grigio se è rimasto dov'era. Il colore è quello dei segnali
+// (`--segnale-su`, `--segnale-giu`), e la freccia lo ripete per chi i colori non
+// li distingue.
 export function SegnaleCarico({ variazione, record, primo, massimale }: {
   variazione: VariazioneCarico | null
   /** Quel giorno è stato battuto il proprio meglio. */

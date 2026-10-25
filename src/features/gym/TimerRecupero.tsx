@@ -49,7 +49,7 @@ function mmss(sec: number): string {
 
 // Lo schermo acceso mentre il tempo scorre: un timer che si guarda dopo aver
 // sbloccato il telefono è arrivato tardi. Dove l'API non c'è non succede niente.
-type Blocco = { release: () => Promise<void> }
+type Blocco = { release: () => Promise<void>; addEventListener?: (tipo: 'release', fn: () => void) => void }
 async function tieniAcceso(): Promise<Blocco | null> {
   try {
     const wl = (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<Blocco> } }).wakeLock
@@ -62,10 +62,8 @@ async function tieniAcceso(): Promise<Blocco | null> {
 // L'anello: una circonferenza di raggio 46 in un riquadro da 100. La lunghezza
 // serve a consumarlo — il tratto è lungo quanto il cerchio, e lo si fa scorrere
 // via di quanto è già passato.
-// Il rosso di "oltre il recupero". È quello dei segnali (lo stesso del "scendi"
-// nel carico consigliato) e non `--danger`: in Premium i colori d'avviso sono
-// spenti di proposito — `--danger` lì è bianco — mentre un timer scaduto deve
-// diventare rosso in qualunque tema.
+// Il rosso di "oltre il recupero": quello dei segnali, lo stesso del "scendi"
+// nel carico consigliato.
 const ROSSO = 'var(--segnale-giu)'
 
 const RAGGIO = 46
@@ -136,7 +134,16 @@ function useRecupero(schedaId: string) {
   const accesoFinQui = stato !== 'esecuzione' && oltre < ACCESO_OLTRE_SEC
   useEffect(() => {
     if (!accesoFinQui) { rilascia(); return }
-    const prendi = () => { if (!blocco.current && document.visibilityState === 'visible') void tieniAcceso().then(b => { blocco.current = b }) }
+    // Quando il sistema toglie il blocco (pagina sotto, schermo spento a mano)
+    // lo dice con `release`: il riferimento va svuotato, o al ritorno `prendi`
+    // lo crederebbe ancora in mano e lo schermo si spegnerebbe a metà recupero.
+    const prendi = () => {
+      if (blocco.current || document.visibilityState !== 'visible') return
+      void tieniAcceso().then(b => {
+        blocco.current = b
+        b?.addEventListener?.('release', () => { if (blocco.current === b) blocco.current = null })
+      })
+    }
     prendi()
     // Il sistema toglie il blocco quando la pagina va sotto: al ritorno si riprende.
     document.addEventListener('visibilitychange', prendi)
@@ -191,14 +198,16 @@ export function TimerRecupero({ schedaId, onChiudi }: {
         <button
           onClick={avvia}
           aria-label={t('Timer')}
-          className="j-hard j-accent-key j-focus"
+          className="j-hard j-focus"
           style={{
             ...QUADRANTE, cursor: 'pointer',
             backgroundColor: 'var(--j-accent)', border: '1px solid var(--accent-edge)', color: 'var(--j-accent-fg)',
           }}
         >
           <span style={{ ...SOPRA, opacity: 0.8 }}>{t('Esecuzione')}</span>
-          <span style={{ fontFamily: NUC.font, fontSize: 34, fontWeight: 700, lineHeight: 1, letterSpacing: '.06em', textTransform: 'uppercase', margin: '7px 0 8px' }}>
+          {/* Condensed 800 come gli altri tasti principali (rebranding): era il
+              solo rimasto in Barlow normale. */}
+          <span style={{ fontFamily: NUC.display, fontSize: 40, fontWeight: 800, lineHeight: 1, letterSpacing: '.04em', textTransform: 'uppercase', margin: '7px 0 8px' }}>
             {t('Timer')}
           </span>
           <span style={{ ...SOTTO, opacity: 0.8 }}>{t('Serie finita')}</span>
@@ -239,8 +248,8 @@ export function TimerRecupero({ schedaId, onChiudi }: {
       {/* Il posto di una riga, non di due: tutte e tre le frasi, anche in
           inglese, stanno su una riga già a 320px di larghezza. */}
       <div style={{
-        marginTop: 'clamp(4px, 1dvh, 9px)', minHeight: 16, maxWidth: 300, textAlign: 'center',
-        fontFamily: NUC.label, fontSize: 11, lineHeight: 1.4,
+        marginTop: 'clamp(4px, 1dvh, 9px)', minHeight: 17, maxWidth: 300, textAlign: 'center',
+        fontFamily: NUC.label, fontSize: 12, lineHeight: 1.4,
         color: stato === 'oltre' ? ROSSO : NUC.dim, fontWeight: stato === 'oltre' ? 600 : 400,
       }}>
         {stato === 'esecuzione' ? t('Finita la serie, tocca il timer per il recupero.')

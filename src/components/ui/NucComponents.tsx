@@ -13,7 +13,7 @@ interface NucCardProps {
    *
    *  Combinato con `onPress` significa: il click su tutta la card funziona, ma il
    *  controllo ACCESSIBILE è un figlio. Serve alle card che ospitano già altri
-   *  bottoni (la ⓘ del riepilogo settimanale): dare un `role="button"` al
+   *  bottoni: dare un `role="button"` al
    *  contenitore ci anniderebbe dentro un secondo controllo, che è peggio del
    *  problema che risolve. */
   pressable?: boolean
@@ -57,7 +57,7 @@ export function NucCard({ children, style = {}, strong = false, pad = 18, onPres
       style={{
         position: 'relative',
         borderRadius: 'var(--radius-lg)', padding: pad,
-        background: strong ? NUC.cardStrong : NUC.card,
+        background: strong ? NUC.surface2 : NUC.surface,
         // Contorno pieno d'inchiostro, e niente ombra: le card sono piatte
         // (rebranding, ott 2026 — l'ombra è solo del CTA).
         border: 'var(--bordo)',
@@ -75,7 +75,7 @@ export function NucCard({ children, style = {}, strong = false, pad = 18, onPres
   )
 }
 
-// ── Segmented toggle ───────────────────────────────────────────
+// ── Le voci di un interruttore a schede (vedi NucSubTabs) ──────
 interface SegOption {
   id: string
   label: string
@@ -85,42 +85,6 @@ interface SegOption {
    *  una figurina della voce e non un avviso. */
   badge?: ReactNode
 }
-interface NucSegmentedProps { options: SegOption[]; value: string; onChange: (id: string) => void; fontSize?: number }
-
-export function NucSegmented({ options, value, onChange, fontSize = 10 }: NucSegmentedProps) {
-  const idx = Math.max(0, options.findIndex(o => o.id === value))
-  return (
-    <div style={{ position: 'relative', display: 'flex', background: 'var(--surface)', border: `1px solid var(--hairline)`, borderRadius: 'var(--radius)', padding: 3, height: 44 }}>
-      <div className="nuc-seg-pill" style={{
-        position: 'absolute', top: 3, bottom: 3,
-        width: `calc((100% - 6px) / ${options.length})`,
-        left: 3,
-        transform: `translateX(calc(${idx} * 100%))`,
-        // Un gradino sotto al guscio: a raggio uguale, con i 3px di padding in
-        // mezzo, gli angoli della pillola uscirebbero da quelli del contenitore.
-        borderRadius: 'var(--radius-sm)',
-        // Più CHIARA del guscio, non più scura: vedi `.j-switch` in globals.css.
-        background: 'var(--surface-2)',
-        border: 'none',
-        boxShadow: 'var(--shadow-card)',
-      }}/>
-      {options.map(o => (
-        <button key={o.id} onClick={() => onChange(o.id)} style={{
-          flex: 1, position: 'relative', zIndex: 1, background: 'transparent', border: 'none',
-          color: o.id === value ? NUC.ink : NUC.faint,
-          fontFamily: NUC.label, fontSize: Math.max(fontSize, 15), fontWeight: 700,
-          letterSpacing: '.04em', textTransform: 'uppercase',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-          transition: 'color 220ms',
-        }}>
-          {o.icon}{o.label}{o.badge}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // ── Sub-tab segmented (accent variant, sliding pill) ───────────
 interface NucSubTabsProps { options: SegOption[]; value: string; onChange: (id: string) => void; style?: CSSProperties }
 

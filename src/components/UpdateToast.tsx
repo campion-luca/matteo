@@ -39,27 +39,33 @@ export function UpdateToast() {
 
   if (!needRefresh) return null
 
+  // Un riquadro bianco col bordo d'inchiostro, come le card: niente ombra sua,
+  // l'ombra è del tasto. Centrato con i margini automatici e non con
+  // `left: 50%` + `translateX`: così la larghezza disponibile è tutto lo
+  // schermo, e non la metà a destra del centro — sul telefono la scritta andava
+  // a capo già a metà frase.
   return (
     <div style={{
-      position: 'fixed', left: '50%', transform: 'translateX(-50%)',
+      position: 'fixed', left: 0, right: 0, margin: '0 auto',
+      width: 'fit-content', maxWidth: 'calc(100% - 32px)', boxSizing: 'border-box',
       bottom: 'calc(env(safe-area-inset-bottom) + 84px)', zIndex: 300,
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '10px 12px 10px 16px', borderRadius: 'var(--radius)',
-      background: 'var(--surface-pop)', border: '1px solid var(--hairline)',
-      boxShadow: 'var(--shadow-pop)',
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: '10px 14px 10px 16px',
+      background: 'var(--surface-pop)', border: 'var(--bordo)',
       fontFamily: NUC.font, color: NUC.ink,
     }}>
-      <span style={{ fontSize: 12.5, letterSpacing: '.01em' }}>
+      <span style={{
+        fontFamily: NUC.display, fontSize: 16, fontWeight: 700, lineHeight: 1.15,
+        letterSpacing: '.04em', textTransform: 'uppercase',
+      }}>
         {t('Nuova versione disponibile')}
       </span>
+      {/* Il gesto dell'avviso: il tasto pieno piccolo (`.j-btn-accent-sm`),
+          largo quanto la sua parola. */}
       <button
         onClick={() => updateSW.current?.(true)}
-        style={{
-          height: 30, padding: '0 14px', borderRadius: 'var(--radius-sm)', border: 'none',
-          background: 'var(--j-accent)', color: 'var(--j-accent-fg)',
-          fontFamily: NUC.font, fontSize: 11, fontWeight: 500,
-          letterSpacing: '.06em', textTransform: 'uppercase', cursor: 'pointer',
-        }}
+        className="j-btn-accent-sm"
+        style={{ width: 'auto', padding: '0 16px', flexShrink: 0 }}
       >
         {t('Aggiorna')}
       </button>

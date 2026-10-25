@@ -41,6 +41,20 @@ export interface SerieInCorso {
   reps: string[]
   /** L'appunto sull'esercizio scritto durante la sessione. */
   note?: string
+  /** Com'era la riga della scheda quando la si è aperta: esercizio e colpi
+   *  previsti (vedi `firmaRiga`). Riprendendo, dice se nel frattempo la riga è
+   *  diventata un'altra. Assente nelle sessioni salvate prima che ci fosse. */
+  firma?: string
+  /** Chi si allena ha detto, durante la sessione, che l'esercizio è a corpo
+   *  libero. Sta qui e non solo nella pagina: ricaricata la pagina, l'esercizio
+   *  tornava con l'attrezzo e le sue serie senza chili non contavano più. */
+  corpo?: true
+}
+
+/** La firma di una riga: l'esercizio (per nome, come lo collega la scheda) e i
+ *  colpi previsti. Stesso id, firma diversa: la riga è stata cambiata. */
+export function firmaRiga(e: { name: string; reps: string }): string {
+  return `${e.name.trim().toLowerCase()}|${e.reps.trim()}`
 }
 
 interface Salvata {
@@ -72,6 +86,8 @@ function ridimensiona(p: SerieInCorso, n: number): SerieInCorso {
     weights: lungo(p.weights, ''),
     reps: lungo(p.reps, ''),
     ...(p.note ? { note: p.note } : {}),
+    ...(p.firma ? { firma: p.firma } : {}),
+    ...(p.corpo ? { corpo: true as const } : {}),
   }
 }
 

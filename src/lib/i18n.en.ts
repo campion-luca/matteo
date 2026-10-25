@@ -213,8 +213,9 @@ export const EN_UI: Record<string, string> = {
   'È la misura su cui si calcola la forza. Senza, la mappa del corpo resta vuota.':
     'It’s what strength is calculated against. Without it, the body map stays empty.',
   'Quanto sei alto?': 'How tall are you?',
-  'Serve al fabbisogno calorico del Personal Coach.':
-    'Used for your calorie needs in Personal Coach.',
+  // L'altezza è facoltativa: la spiegazione dice perché, e che si può saltare.
+  'Non entra in nessun calcolo: resta nel tuo profilo e arriva a chi ti allena, con gli altri dati. Se preferisci, lascia vuoto.':
+    'It isn’t used in any calculation: it stays on your profile and goes to whoever trains you, along with your other details. Leave it blank if you prefer.',
   'Il tuo nome': 'Your name',
   'Uomo': 'Male',
   'Donna': 'Female',
@@ -335,6 +336,7 @@ export const EN_UI: Record<string, string> = {
   'su 100': 'out of 100',
   'Peso': 'Weight',
   '{kg} kg oggi': '{kg} kg today',
+  '{kg} kg il {giorno}': '{kg} kg on {giorno}',
   'Forza per distretto': 'Strength by body area',
   'Sessioni': 'Sessions',
   // L'elenco degli esercizi Hyrox: sessioni di allenamento da una parte, tempi
@@ -848,6 +850,7 @@ export const EN_UI: Record<string, string> = {
     'You entered {nuovo} kg: last time it was {ultimo}. If that’s right, confirm.',
   'Scrivi quante serie hai fatto.': 'Enter how many sets you did.',
   'Scrivi quanti colpi hai fatto.': 'Enter how many reps you did.',
+  'Scrivi quanti colpi hai fatto nelle serie fino a cedimento.': 'Enter how many reps you did in the sets to failure.',
   'Scrivi i chili.': 'Enter the weight.',
   'Conferma e salva': 'Confirm and save',
   'Da correggere prima di salvare: chiudi questa finestra e sistema i numeri.':
@@ -883,6 +886,8 @@ export const EN_UI: Record<string, string> = {
   'Togliere la scheda?': 'Remove the plan?',
   '«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app. Glielo facciamo sapere.':
     '“{scheda}” was sent to you by {chi}, and there is only one copy: removing it here removes it from their app too. We’ll let them know.',
+  '«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app.':
+    '“{scheda}” was sent to you by {chi}, and there is only one copy: removing it here removes it from their app too.',
   // ── Eliminare un esercizio ──
   'Eliminare l’esercizio?': 'Delete the exercise?',
   'Cancelli “{nome}”. L’azione è definitiva.': 'You are deleting “{nome}”. This cannot be undone.',
@@ -1169,7 +1174,7 @@ export const EN_UI: Record<string, string> = {
   'Il tuo cognome': 'Your surname',
   'Ti alleni dal': 'Training since',
   'Separati da virgole.': 'Comma separated.',
-  'es. ipertrofia, forza, Hyrox': 'e.g. hypertrophy, strength, Hyrox',
+  'es. ipertrofia, forza, ricomposizione': 'e.g. hypertrophy, strength, recomposition',
   'Chi sei': 'About you',
   'Due righe su di te.': 'A couple of lines about you.',
   'Alleni altre persone?': 'Do you coach other people?',
@@ -1192,6 +1197,8 @@ export const EN_UI: Record<string, string> = {
   'Crea una scheda': 'Create a plan',
   'Oggi · {scheda} · fatta': 'Today · {scheda} · done',
   'Oggi · {scheda}': 'Today · {scheda}',
+  'I tuoi esercizi': 'Your exercises',
+  'Quello che hai scritto nel profilo pubblico dall’ultimo salvataggio va perso.': 'What you wrote in your public profile since the last save will be lost.',
   'In corso · {scheda}': 'In progress · {scheda}',
   '{fatte}/{totali} serie fatte': '{fatte}/{totali} sets done',
   'mai fatta': 'never done',

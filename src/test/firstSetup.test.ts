@@ -28,7 +28,7 @@ describe('ageFromDob', () => {
 
   it('date impossibili non passano per età plausibili', () => {
     // Il campo `date` del browser accetta anni a quattro cifre qualsiasi: un
-    // 3097 salvato come "1071 anni" avrebbe inquinato il fabbisogno calorico.
+    // 3097 salvato come "1071 anni" sarebbe arrivato così al profilo e all'allenatore.
     expect(ageFromDob('2030-01-01', oggi)).toBeUndefined()
     expect(ageFromDob('1850-01-01', oggi)).toBeUndefined()
   })

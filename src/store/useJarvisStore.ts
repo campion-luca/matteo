@@ -197,8 +197,8 @@ export interface JarvisState {
   userDob?: string     // YYYY-MM-DD
   darkMode?: boolean
   layout?: LayoutMode
-  /** Sfondo "fuso": nero, arancione e grigio-azzurro sovrapposti invece dei due
-   *  soli aloni caldi di serie. In prova — assente = acceso, vedi globals.css. */
+  /** Sfondo "fuso" dei temi di prima del rebranding: l'app non lo legge più
+   *  (vedi il commento sui campi del tema, più su). */
   bgFuso?: boolean
   accentColor: AccentColor
   customAccentHex?: string
@@ -252,11 +252,10 @@ export const TEMA_VERSIONE = 3
 
 export const EMPTY_STATE: JarvisState = {
   userName: '',
-  // Standard SCURO è il tema con cui l'app si presenta (ott 2026; da metà
-  // settembre era Premium). Scuro e non solo Standard: da solo vorrebbe dire la
-  // carta chiara, e l'app è scura da quando è nata Premium — fondo, superfici,
-  // schermata d'avvio. Un account nuovo parte già alla versione di tema
-  // corrente: il passaggio forzato è per chi c'era prima.
+  // I campi del tema (layout, scuro, accento, versione) l'app non li legge più
+  // dal rebranding di ottobre 2026: il tema è uno solo. Restano nello stato, coi
+  // valori di allora, per le versioni dell'app ancora aperte su altri telefoni,
+  // che li leggono e li riscrivono (vedi `VERSIONE_DATI`).
   layout: 'standard',
   darkMode: true,
   temaVersione: TEMA_VERSIONE,
@@ -472,10 +471,18 @@ export function useStore(): [JarvisState, (updater: StoreUpdater) => void] {
 
 export { useJarvisStoreBase as useJarvisStore }
 
+// I dati del profilo che si possono SVUOTARE. Svuotato, il campo vale
+// `undefined`, e nel blob non c'è proprio: `JSON.stringify` lo toglie. Lasciato
+// alla fusione di `setState`, sull'altro dispositivo restava il valore di prima
+// — e al suo primo salvataggio tornava su, anche sul telefono dove lo si era
+// tolto. Sono chiavi che il blob porta da sempre: se mancano, è perché sono vuote.
+const SVUOTABILI = ['userAge', 'userSex', 'userWeight', 'userHeight', 'userDob'] as const
+
 // Applica uno stato parziale proveniente dal cloud, passato dal filtro delle chiavi.
 export function applyRemoteState(data: Partial<JarvisState>): void {
   const known = pickKnown(data)
   useJarvisStoreBase.setState({
+    ...Object.fromEntries(SVUOTABILI.map(k => [k, undefined])),
     ...known,
     // `setState` fonde: una chiave che il blob remoto non ha si terrebbe il
     // valore locale. Per quasi tutto va bene — è quello che salva un campo

@@ -32,7 +32,7 @@ import {
   noteAllievo, salvaNotaCoach, type NotaCoach,
   type CoachLink, type CoachInvite, type AthleteData,
 } from '@/lib/coach'
-import { leggiProfili, useProfiliStore, useProfilo, nomeCompleto, type Profilo } from '@/lib/profili'
+import { leggiProfili, tieniSoloProfili, useProfiliStore, useProfilo, nomeCompleto, type Profilo } from '@/lib/profili'
 import { CoachAthlete, NoteEsercizi } from './CoachAthlete'
 import { CoachConfronto } from './CoachConfronto'
 import { CoachMessaggi } from './CoachMessaggi'
@@ -62,12 +62,16 @@ type Vista =
   | 'codici'
   | { profilo: string; nome: string; sotto: string }
 
-export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
+export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi = 0 }: {
   userId: string
   onBack: () => void
   /** Dove aprirsi. Chi arriva toccando una notifica vuole i messaggi, non il
    *  proprio codice: con 'messaggi' si apre direttamente la chat. */
   iniziale?: Ruolo | 'messaggi'
+  /** Cresce di uno a ogni notifica toccata (vedi App). `iniziale` vale solo
+   *  all'apertura: con il Coaching già aperto — su un allievo, su un codice —
+   *  la notifica riportava l'app davanti ma la lasciava dov'era. */
+  apriMessaggi?: number
 }) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -92,6 +96,14 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
   // L'allievo aperto: id + nome dal collegamento (il nome vero arriva col dato,
   // ma serve un titolo anche mentre il dato sta ancora arrivando).
   const [aperto, setAperto] = useState<CoachLink | null>(null)
+  // Una notifica toccata col Coaching già aperto: si va ai messaggi, da
+  // qualunque pagina ci si trovi (vedi `apriMessaggi`).
+  useEffect(() => {
+    if (!apriMessaggi) return
+    setAperto(null)
+    setChatCon(null)
+    setVista('chat')
+  }, [apriMessaggi])
 
   // `piano` = senza la scritta "Caricamento…": per gli aggiornamenti che
   // arrivano mentre si sta guardando la pagina. Con la scritta, tutta la
@@ -117,10 +129,13 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito' }: {
       }
       setAllenatori(cs)
       setAtleti(as)
+      // Prima si tolgono quelle di chi non è più collegato (vedi `tieniSoloProfili`).
+      const collegati = [...cs.map(l => l.coach_id), ...as.map(l => l.athlete_id)]
+      tieniSoloProfili(collegati, userId)
       // Le facce: dopo gli elenchi e senza aspettarle. Quelle già viste sono
       // sul telefono e compaiono subito; se la tabella dei profili non c'è
       // ancora, restano i nomi copiati nel collegamento.
-      void leggiProfili([...cs.map(l => l.coach_id), ...as.map(l => l.athlete_id)])
+      void leggiProfili(collegati)
         .catch(() => { /* niente profili: si va avanti coi nomi */ })
     } catch (e) {
       if (!piano) setErrore(messaggio(e))

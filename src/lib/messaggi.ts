@@ -39,9 +39,6 @@ export type TipoMessaggio =
   // l'allievo, che deve saperlo (e sapere chi è) senza andarselo a cercare.
   | 'allenamento' | 'scheda' | 'nota' | 'correzione' | 'collegamento'
 
-/** I tipi che l'app scrive da sé. Si mostrano come avvisi, non come frasi dette. */
-export const TIPI_AVVISO: readonly TipoMessaggio[] = ['allenamento', 'scheda', 'nota', 'correzione', 'collegamento']
-
 // ── Il filo diretto ────────────────────────────────────────────
 const PREFISSO_CHAT = 'chat~'
 

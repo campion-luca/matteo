@@ -203,3 +203,14 @@ describe('esercizi che non vanno a chili', () => {
     expect(Math.round(gambe?.best ?? 0)).toBe(30)
   })
 })
+
+// Le soglie dei Glutei sono tarate sullo stacco, quelle del Dorso sul rematore.
+describe('districtStrength — lo stacco', () => {
+  it('conta sui Glutei, e sul Dorso solo come gruppo che assiste', () => {
+    const d = districtStrength([ex({ n: 'Stacco', muscle: 'Dorso', history: [h({ kg: 100, reps: 5, sets_n: 3 })] })], 80, 'M')
+    const glutei = d.find(x => x.muscle === 'Glutei')!
+    const dorso = d.find(x => x.muscle === 'Dorso')!
+    expect(glutei.best).toBeGreaterThan(110)
+    expect(dorso.best).toBeCloseTo(glutei.best / 2, 5)
+  })
+})

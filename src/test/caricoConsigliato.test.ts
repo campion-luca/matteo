@@ -359,4 +359,23 @@ describe('scendere', () => {
     const c = consiglia([alz('2026-09-10', 'W37', 60, 3, 10, { setWeights: [60, 60, 55] })])
     expect(c).toMatchObject({ verso: 'giu', kg: 57.5, da: 60, motivo: 'pesoCalato' })
   })
+
+  // Un passo giù, serie per serie: portare tutte al peso della seconda alzava
+  // la prima di 5 kg.
+  it('una piramide andata male scende di un passo su ogni serie', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 60, 3, 10, { setWeights: [50, 55, 60], setReps: [10, 10, 6] })])
+    expect(c).toMatchObject({ verso: 'giu', motivo: 'colpiCorti', pesi: [47.5, 52.5, 57.5] })
+  })
+
+  // Si torna al peso basso solo se a cedere è stata la serie alzata.
+  it('se a cedere è stata una serie al peso basso, si scende lo stesso', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 62.5, 3, 10, { setWeights: [60, 60, 62.5], setReps: [6, 10, 10] })])
+    expect(c).toMatchObject({ verso: 'giu', motivo: 'colpiCorti', pesi: [57.5, 57.5, 60] })
+  })
+
+  it('dice con che attrezzo erano scritti i chili da cui parte', () => {
+    const c = consiglia([alz('2026-09-10', 'W37', 40, 3, 10, { attrezzo: 20 })])
+    expect(c).toMatchObject({ attrezzo: 20, da: 40 })
+    expect(consiglia([alz('2026-09-10', 'W37', 60, 3, 10)])?.attrezzo).toBeUndefined()
+  })
 })

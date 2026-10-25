@@ -23,7 +23,7 @@ import { quotaCorpo, corpoLibero } from '@/features/gym/catalogo'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { localISO } from '@/lib/isoDate'
-import { fmtDayMonth, daysAbbr } from '@/lib/dateFormat'
+import { fmtDayMonth, fmtDayMon, daysAbbr } from '@/lib/dateFormat'
 import { useT, useTData, useLang } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { NotaCoach } from '@/lib/coach'
@@ -265,7 +265,11 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
       {/* ── Peso ───────────────────────────────────────────── */}
       {pesate.length >= 2 && (
         <section>
-          <NucEyebrow right={<span style={UNITA}>{t('{kg} kg oggi', { kg: pesate[pesate.length - 1].kg })}</span>}>{t('Peso')}</NucEyebrow>
+          {/* "Oggi" solo se la pesata è di oggi: l'ultima può essere di tre
+              settimane fa, e "82 kg oggi" diceva una cosa che non si sa. */}
+          <NucEyebrow right={<span style={UNITA}>{pesate[pesate.length - 1].date === localISO(new Date())
+            ? t('{kg} kg oggi', { kg: pesate[pesate.length - 1].kg })
+            : t('{kg} kg il {giorno}', { kg: pesate[pesate.length - 1].kg, giorno: fmtDayMon(pesate[pesate.length - 1].date) })}</span>}>{t('Peso')}</NucEyebrow>
           <div style={{ ...RIQUADRO, padding: 12 }}>
             <LineChart
               data={pesate.map(p => p.kg)}

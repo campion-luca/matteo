@@ -129,7 +129,10 @@ export function SezioneSchede({ onTutte, onAvvia }: {
           <Icons.check size={16} stroke={2.4}/> {t('Fatta oggi · apri la scheda')}
         </button>
       ) : (
-        <button onClick={() => onAvvia(scheda.id, !altraAperta)} className="j-btn-accent" style={{ marginTop: STACCO, height: 'clamp(50px, 7.6dvh, 60px)', flexShrink: 0 }}>
+        // Un allenamento di un ALTRO giorno rimasto aperto non si riprende alla
+        // cieca: quello che si fa oggi finirebbe sotto quel giorno. Si passa dal
+        // dettaglio, che chiede se chiuderlo o scartarlo e ricominciare.
+        <button onClick={() => onAvvia(scheda.id, !altraAperta && !aperta?.vecchia)} className="j-btn-accent" style={{ marginTop: STACCO, height: 'clamp(50px, 7.6dvh, 60px)', flexShrink: 0 }}>
           {inCorso ? t('Riprendi allenamento') : t('Inizia allenamento')} <Icons.arrow size={22} stroke={2.4}/>
         </button>
       )}

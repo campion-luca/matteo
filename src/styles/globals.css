@@ -34,38 +34,24 @@
   --line:       #DCDCD8;   /* divisori dentro un blocco chiaro */
   --line-dark:  #3A3A38;   /* divisori dentro la card nera */
 
-  /* Ottone e kraft erano la seconda voce del tema Journal; restano come nomi,
-     in inchiostro e grigio. */
-  --brass:      #141414;
-  --brass-ink:  #141414;
-  --kraft:      #A8A8A4;
   /* Seconda serie dei grafici: grigio, accanto all'accento della prima. */
   --chart-2:    #5E5E5E;
 
   /* Stati. L'accento dice tutto ciò che chiede attenzione: il gesto principale,
      un giorno fatto, un calo, un errore, un "elimina". Il resto è inchiostro. */
-  --ok:            #E4472B;
   --segnale-su:      #141414;
   --segnale-giu:     #C03A20;
   --segnale-giu-rgb: 192,58,32;
-  --ok-soft:       #E4472B;
   --warn:          #C03A20;
   --danger:        #C03A20;
-  --danger-strong: #9E2C16;
   --danger-rgb:    192,58,32;
   --warn-rgb:      192,58,32;
-
-  /* Pomello dei toggle. */
-  --knob: #FFFFFF;
 
   --track:      #DCDCD8;
   --scrim:      rgba(20,20,20,0.45);
 
-  /* Palette categorica (muscoli, picker colore): sono dati, non stati. */
-  --cat-1:  #3f7357; --cat-2:  #2f7a6b; --cat-3:  #6e7a38; --cat-4:  #557a3a;
-  --cat-5:  #b0873f; --cat-6:  #c08a2e; --cat-7:  #b0562f; --cat-8:  #9e4a2c;
-  --cat-9:  #a2687a; --cat-10: #8a5a6e; --cat-11: #b07a5e; --cat-12: #5f7e86;
-  --cat-13: #8a7440; --cat-14: #a5442a;
+  /* I colori dei gruppi muscolari non stanno qui: sono dati dell'utente, hex
+     salvati nel suo blob (vedi MUSCLE_COLORS e COLOR_PALETTE in gymModel). */
 
   /* Bordi. `--hairline` è il contorno dei controlli (chip, tasti): inchiostro.
      `--hairline-soft` e `--divider` le righe DENTRO un blocco: grigio chiaro. */
@@ -79,17 +65,7 @@
 
   /* Il terziario (titoli di sezione, la data) era rame: adesso i titoli sono
      inchiostro e le date grigie. */
-  --tertiary:      #5E5E5E;
   --tertiary-ink:  #5E5E5E;
-
-  /* Le card dei comandi in home e nel Coaching: una tinta sola, l'inchiostro. */
-  --azione-coach:  #141414;
-  --azione-schede: #141414;
-  --azione-stats:  #141414;
-
-  /* Un giorno fatto: la barra d'accento sotto la cella (vedi SettimanaStrip). */
-  --fatto-bg:    color-mix(in srgb, var(--j-accent) 14%, transparent);
-  --fatto-bordo: var(--j-accent);
 
   /* ── Raggi ─────────────────────────────────────────────────────
      Zero ovunque (rebranding, ott 2026): l'app torna squadrata come era nata.
@@ -116,25 +92,10 @@
   --shadow-card: none;
   --shadow-pop:  none;
 
-  --nav-lift: rgba(20,20,20,.30);
-
-  /* Ombra offsettata (vedi .j-hard). Netta: nessuna sfocatura e tinta densa, che è
-     ciò che le dà il carattere da stampa a caratteri mobili. Una versione
-     precedente l'aveva velata e sfocata per non farla leggere come "un blocco nero
-     incollato dietro il tasto": il prezzo era che a metà degli elementi non si
-     vedeva più se fossero premibili. Senza sfocatura il rilievo si legge, e a
-     tenerla lontana dal blocco nero è la tinta — il bruno dell'inchiostro, non il
-     nero — e la profondità corta.
-     Deve comunque stare più scura del fondo su cui cade: in `.dark` un nero puro
-     sulla copertina verde non si vedrebbe, quindi lì diventa un verde-nero, e con
-     l'alpha più alta perché su fondo scuro una velatura sparisce. */
-  --shadow-hard-col: #141414;
-
   /* ── Bordi (rebranding) ────────────────────────────────────────
-     Card e righe hanno un contorno pieno d'inchiostro da 2px; i chip da 1px; le
-     divisioni DENTRO un blocco una riga sottile (`--hairline-soft`). */
+     Card e righe hanno un contorno pieno d'inchiostro da 2px; le divisioni
+     DENTRO un blocco una riga sottile (`--hairline-soft`). */
   --bordo:       2px solid var(--ink);
-  --bordo-chip:  1px solid var(--ink);
 
   /* Motion — ritmo unico in tutta l'app: una curva, due durate.
      fast = tap/hover · smooth = cambi di vista, pill scorrevoli, reveal */
@@ -153,20 +114,15 @@
   --font-label:   var(--font-display);
   --font-saluto:  var(--font-display);
 
-  /* Tailwind/shadcn compatibility tokens (HSL) — solo quelli referenziati in tailwind.config.ts. */
+  /* I tre colori di Tailwind (HSL), quelli che `@apply` usa qui sotto: vedi
+     tailwind.config.ts. */
   --background:         60 6% 94%;
   --foreground:         0 0% 8%;
-  --card:               0 0% 100%;
-  --card-foreground:    0 0% 8%;
-  --primary:            9 77% 53%;
-  --primary-foreground: 0 0% 8%;
   --border:             0 0% 8%;
 
   /* L'accento: rosso-arancio. Uno solo, per tutta l'app (non c'è più una palette
      da scegliere). */
   --j-accent:      #E4472B;
-  --j-accent-soft: #EC6A52;
-  --j-accent-deep: #C03A20;
   /* La scritta SOPRA l'accento: bianca, su ogni tasto arancione (scelta di
      design). Fa 4.0:1 — sopra la soglia delle scritte grandi (3:1), sotto quella
      del testo piccolo (4.5:1): per questo i tasti pieni scrivono in grande e in
@@ -176,7 +132,6 @@
      pieno si ferma a 3.6). Sull'inchiostro l'accento pieno regge da solo. */
   --j-accent-ink:  #C03A20;
   --j-rgb:         228,71,43;
-  --j-deep-rgb:    192,58,32;
 }
 
 @layer base {
@@ -224,8 +179,8 @@
   select option { background: var(--surface); color: var(--fg); }
 
   /* iOS Safari zooma la pagina al focus di un campo con font effettivo < 16px.
-     Su touch forziamo 16px su tutti i campi di testo — vincendo anche sugli stili
-     inline più piccoli (12–14px in login, profilo, schede) — così
+     Su touch forziamo 16px su tutti i campi di testo — vincendo anche su uno stile
+     inline più piccolo, se un giorno qualcuno lo scrive — così
      il focus non fa più "saltare" il layout. Su desktop (pointer: fine) nulla cambia:
      resta la densità compatta di progetto. Esclusi i controlli che non zoomano. */
   /* I campi delle serie in allenamento ne restano fuori: sono a 28px, già
@@ -391,21 +346,6 @@
   /* Il riquadro del peso: il fuoco si vede sul bordo intero. */
   .j-campo-riquadro:focus-within { border-color: var(--j-accent) !important; }
 
-  .j-field-lg {
-    height: 52px; box-sizing: border-box;
-    background: var(--input-bg);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius); padding: 0 16px;
-    color: var(--fg);
-    font-family: var(--font-body);
-    font-size: 16px; width: 100%; outline: none;
-  }
-  .j-field-lg:focus {
-    border-color: var(--j-accent);
-    box-shadow: 0 0 0 2px rgba(var(--j-rgb), .12);
-  }
-  .j-field-lg::placeholder { color: var(--fg-mute); }
-
   /* ── Una serie, in allenamento ────────────────────────────────
      Una riga della tabella delle serie (vedi CardAllenamento): il numero
      grande, e l'unità piccola subito dopo ("75 kg"). Il campo non ha un bordo
@@ -448,25 +388,10 @@
 
   /* ── Focus da tastiera ─────────────────────────────────────────
      `:focus-visible`, non `:focus`: il contorno deve comparire per chi naviga da
-     tastiera e restare invisibile a chi tocca o clicca.
-     `.j-focus-in` è la variante per gli elementi a filo (le celle del calendario,
-     che non hanno margine attorno): lì l'outline va disegnato DENTRO, altrimenti
-     lo tagliano le celle vicine. */
+     tastiera e restare invisibile a chi tocca o clicca. */
   .j-focus:focus-visible {
     outline: 2px solid var(--j-accent);
     outline-offset: 2px;
-  }
-  .j-focus-in:focus-visible {
-    outline: 2px solid var(--j-accent);
-    outline-offset: -3px;
-  }
-
-  /* Sezioni del profilo: il separatore è un border-top sul fratello, non un <div>
-     piazzato a mano. Così le sezioni condizionali (la nav, solo su mobile) non
-     lasciano più divider orfani o doppi, e lo spazio fra i blocchi è uno solo. */
-  .j-profile-sec + .j-profile-sec {
-    border-top: 1px solid var(--divider);
-    padding-top: 20px;
   }
 
   /* ── Ombra "hard" ──────────────────────────────────────────────
@@ -551,14 +476,15 @@
     width: 100%; margin-top: 4px;
   }
 
-  /* Smaller CTA (44px) */
+  /* Smaller CTA (44px). La scritta a 19px e non a 16: bianco sull'accento fa
+     4.0:1, che regge solo per il testo GRANDE (dai 18,7px in grassetto). */
   .j-btn-accent-sm {
     height: 44px; border-radius: var(--radius);
     background: var(--j-accent);
     border: none;
     color: var(--j-accent-fg);
     font-family: var(--font-display); text-transform: uppercase;
-    font-size: 16px; font-weight: 700; letter-spacing: .06em; line-height: 1.1; cursor: pointer;
+    font-size: 19px; font-weight: 700; letter-spacing: .06em; line-height: 1.1; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
     width: 100%;
   }
@@ -616,28 +542,12 @@
   }
   .j-btn-log:hover, .j-btn-log:active { background: var(--surface-2); }
 
-  /* Delete button — rosso con cestino */
-  .j-btn-del {
-    position: relative;
-    width: 34px; height: 34px; border-radius: var(--radius);
-    background: rgba(var(--danger-rgb),0.06);
-    border: 1px solid rgba(var(--danger-rgb),0.25);
-    color: var(--danger); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease);
-  }
   /* Area di tocco invisibile estesa oltre la grafica: porta il bersaglio verso i 44px
-     senza cambiare l'aspetto del bottone. Vale anche per gli icon-button minori inline. */
-  .j-btn-del::after, .j-hit::after {
+     senza cambiare l'aspetto del bottone, per gli icon-button minori inline. */
+  .j-hit::after {
     content: ''; position: absolute; inset: -7px -3px;
   }
   .j-hit { position: relative; }
-  .j-btn-del:hover { background: rgba(var(--danger-rgb),0.12); }
-  .j-btn-del:active {
-    transform: scale(0.84);
-    background: rgba(var(--danger-rgb),0.16);
-    transition: transform 55ms ease-out, background 55ms;
-  }
 
   /* Page title */
   /* Titolo pagina: Condensed 800, 44px, maiuscolo. Scende fino a 30px sugli
@@ -657,11 +567,6 @@
     font-size: clamp(14px, 1.9vw, 15px); font-weight: 400;
     line-height: 1.5; letter-spacing: 0; text-transform: none;
   }
-  /* Lo stesso vuoto, ma dentro una sezione: i 40px di respiro servono a una
-     PAGINA vuota, dove la frase è l'unica cosa che c'è. Sotto un campo appena
-     compilato sono ottanta pixel di niente per sei parole, e allontanano dal
-     form la riga che ne commenta il risultato. */
-  .j-empty-sm { padding: 10px 0 2px; font-size: 13px; }
 
   /* Stat tile */
   .j-stat-tile {
@@ -678,13 +583,6 @@
     border: var(--bordo);
     border-radius: var(--radius-lg); padding: 10px;
     box-shadow: var(--shadow-card);
-  }
-
-  /* Progress track (5px, paper style) */
-  .j-progress-track {
-    height: 5px; border-radius: var(--radius-pill);
-    background: var(--track);
-    overflow: hidden;
   }
 
   /* Page scroll container — il padding in fondo scansa la barra di sistema del

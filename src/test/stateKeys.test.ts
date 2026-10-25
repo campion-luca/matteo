@@ -218,6 +218,20 @@ describe('filtro delle chiavi di stato', () => {
     expect(get().darkMode).toBe(true)
   })
 
+  // Un campo svuotato sul telefono A non c'è nel suo blob: `JSON.stringify`
+  // toglie gli `undefined`. Il telefono B lo teneva, e al suo primo salvataggio
+  // lo rimandava su — e A se lo ritrovava.
+  it('un campo del profilo svuotato altrove si svuota anche qui', () => {
+    useJarvisStore.setState({ userName: 'Anna', userDob: '1990-05-01', userHeight: 170, userWeight: 60 })
+    const daA = JSON.parse(JSON.stringify({ ...get(), userDob: undefined, userHeight: undefined }))
+    applyRemoteState(daA)
+    expect(get().userDob).toBeUndefined()
+    expect(get().userHeight).toBeUndefined()
+    // Quello che c'è resta.
+    expect(get().userWeight).toBe(60)
+    expect(get().userName).toBe('Anna')
+  })
+
   it('la chiave di persistenza è quella attesa', () => {
     // Il seed dei test in browser e la migrazione dei dati vecchi ci si appoggiano.
     expect(JARVIS_STORE_KEY).toBe('jarvis-store-v4')

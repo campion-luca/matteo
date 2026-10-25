@@ -93,6 +93,16 @@ function ricorda(nuovi: Profilo[], tolti: string[] = []): void {
   if (io) writeStorage('local', CHIAVE, JSON.stringify({ owner: io, profili }))
 }
 
+/** Tiene sul telefono solo i profili di queste persone (e il mio): le altre
+ *  sono collegamenti sciolti. `leggiProfili` dimentica chi le si chiede e non
+ *  torna, ma a chi si è scollegato nessuno la chiede più — e foto, nome,
+ *  data di nascita e infortuni dell'ex restavano qui, e nella Chat. */
+export function tieniSoloProfili(ids: string[], io: string): void {
+  const vivi = new Set([...ids, io])
+  const tolti = Object.keys(useProfiliStore.getState().profili).filter(id => !vivi.has(id))
+  if (tolti.length) ricorda([], tolti)
+}
+
 /** Al logout e al cambio d'account: sono dell'account, non del telefono. */
 export function dimenticaProfili(): void {
   removeStorage('local', CHIAVE)

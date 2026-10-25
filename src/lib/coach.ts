@@ -206,9 +206,29 @@ export async function schedeRicevute(userId: string): Promise<CoachScheda[]> {
 // È una copia di sola lettura: quello che conta resta la tabella. Porta l'id di
 // chi l'ha letta, e vale solo per lui.
 const CHIAVE_RICEVUTE = 'jarvis-schede-ricevute-v1'
+/** Detto a chi legge la copia (la home): è cambiata, va riletta. */
+const EVENTO_RICEVUTE = 'jarvis-schede-ricevute'
 
 export function ricordaSchedeRicevute(userId: string, righe: CoachScheda[]): void {
   writeStorage('local', CHIAVE_RICEVUTE, JSON.stringify({ userId, righe }))
+  window.dispatchEvent(new Event(EVENTO_RICEVUTE))
+}
+
+/** Chiama `fn` ogni volta che la copia delle schede ricevute cambia. La home la
+ *  legge una volta e poi resta montata sotto le altre pagine: senza questo, una
+ *  scheda appena arrivata dall'allenatore non la vedeva finché non si
+ *  riavviava l'app. Restituisce la funzione che smette di ascoltare. */
+export function suSchedeRicevute(fn: () => void): () => void {
+  window.addEventListener(EVENTO_RICEVUTE, fn)
+  return () => window.removeEventListener(EVENTO_RICEVUTE, fn)
+}
+
+/** Rilegge le schede ricevute dalla rete e ne aggiorna la copia. Non fallisce:
+ *  senza rete, o senza la tabella, resta la copia che c'era. */
+export async function aggiornaSchedeRicevute(userId: string): Promise<void> {
+  try {
+    ricordaSchedeRicevute(userId, await schedeRicevute(userId))
+  } catch { /* senza rete o senza tabella: resta quella di prima */ }
 }
 
 /** Le schede ricevute all'ultima lettura riuscita, se sono di questo utente. */

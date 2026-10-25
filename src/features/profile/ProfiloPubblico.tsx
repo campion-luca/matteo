@@ -118,7 +118,12 @@ export function AvatarProfilo({ userId, nome, size, fondoIniziale, coloreInizial
 }
 
 /** Il pannello: foto, nome e cognome, e quello che racconti di te. */
-export function ProfiloPubblico({ userId }: { userId: string | null }) {
+export function ProfiloPubblico({ userId, onSporco }: {
+  userId: string | null
+  /** Dice a chi la contiene se c'è qualcosa di scritto e non salvato: la
+   *  freccia del profilo lo chiede prima di uscire. */
+  onSporco?: (sporco: boolean) => void
+}) {
   const t = useT()
   const [s] = useStore()
   const profilo = useProfilo(userId)
@@ -161,6 +166,8 @@ export function ProfiloPubblico({ userId }: { userId: string | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profilo, toccato])
 
+  useEffect(() => { onSporco?.(toccato) }, [toccato, onSporco])
+
   const cambia = (patch: Partial<DettagliProfilo>) => { setToccato(true); setEsito(null); setD(v => ({ ...v, ...patch })) }
 
   // L'età viene dai dati generali, dove c'è già: chiederla due volte vorrebbe
@@ -201,7 +208,8 @@ export function ProfiloPubblico({ userId }: { userId: string | null }) {
         nome: nome.trim() || null,
         cognome: cognome.trim() || null,
         nascita: s.userDob || null,
-        eta: s.userAge ?? null,
+        // Fuori da 5-120 il database rifiuta l'intero salvataggio (`eta_sensata`).
+        eta: s.userAge !== undefined && s.userAge >= 5 && s.userAge <= 120 ? s.userAge : null,
         dettagli: pulito(),
       })
       setToccato(false)
@@ -292,7 +300,7 @@ export function ProfiloPubblico({ userId }: { userId: string | null }) {
       </div>
 
       <Campo etichetta={t('Focus principali')} nota={t('Separati da virgole.')}>
-        <input className="j-field" value={d.focus ?? ''} maxLength={160} placeholder={t('es. ipertrofia, forza, Hyrox')}
+        <input className="j-field" value={d.focus ?? ''} maxLength={160} placeholder={t('es. ipertrofia, forza, ricomposizione')}
           onChange={e => cambia({ focus: e.target.value })}/>
       </Campo>
 

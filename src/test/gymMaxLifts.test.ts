@@ -98,4 +98,14 @@ describe('maxTotal', () => {
   it('con una riga vuota non esce: due terzi di total sembrano un total', () => {
     expect(maxTotal(maxLifts(tutti.slice(0, 2), 80, VUOTI))).toBeNull()
   })
+
+  it('non somma un numero ricavato dal distretto: non è un massimale', () => {
+    const senzaSquat = [
+      ex({ n: 'Panca piana', history: [h({ kg: 100, reps: 1, sets_n: 1, maxLift: true })] }),
+      ex({ n: 'Stacco', muscle: 'Dorso', history: [h({ kg: 140, reps: 1, sets_n: 1, maxLift: true })] }),
+    ]
+    const lifts = maxLifts(senzaSquat, 80, [distretto('Gambe', 67)])
+    expect(lift(lifts, 'squat').source).toBe('distretto')
+    expect(maxTotal(lifts)).toBeNull()
+  })
 })

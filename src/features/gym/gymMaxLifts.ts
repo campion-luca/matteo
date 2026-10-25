@@ -76,7 +76,8 @@ export interface MaxLift {
   ratio: number | null
 }
 
-function matches(name: string, lift: BigLift): boolean {
+/** L'esercizio è quell'alzata? Per nome, varianti escluse. */
+export function eAlzata(name: string, lift: BigLift): boolean {
   const n = name.toLowerCase()
   return lift.include.test(n) && !(lift.exclude?.test(n) ?? false)
 }
@@ -92,7 +93,7 @@ export function maxLifts(
   districts: DistrictStrength[],
 ): MaxLift[] {
   return BIG_LIFTS.map(lift => {
-    const own = exercises.filter(ex => matches(ex.n, lift))
+    const own = exercises.filter(ex => eAlzata(ex.n, lift))
 
     let kg = 0
     let source: MaxSource | null = null
@@ -134,9 +135,12 @@ export function maxLifts(
 
 // Il total ha senso solo con tutte tre: sommarne due darebbe un numero più basso
 // che sembra un total vero, e chi lo confronta con quello di qualcun altro non
-// avrebbe modo di accorgersene.
+// avrebbe modo di accorgersene. Tutte e tre VERE, cioè dichiarate o stimate
+// sull'alzata: un numero "dal distretto" è un ordine di grandezza (vedi in
+// cima), e sommato agli altri dava un total che sembrava vero — uno squat da 67
+// kg ricavato dal leg curl dentro un "273 KG · Totale".
 export function maxTotal(lifts: MaxLift[]): number | null {
-  return lifts.every(l => l.kg !== null)
+  return lifts.every(l => l.kg !== null && l.source !== 'distretto')
     ? lifts.reduce((s, l) => s + (l.kg ?? 0), 0)
     : null
 }

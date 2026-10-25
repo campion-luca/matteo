@@ -11,10 +11,9 @@ import { useT } from '@/lib/i18n'
 import { fmtQuando } from '@/lib/dateFormat'
 import type { Messaggio, TipoMessaggio } from '@/lib/messaggi'
 
-/** Il pallino rosso con il numero. Rosso e non accent: l'accent in tema premium è
- *  bianco, e un badge bianco su fondo nero non è una notifica, è una decorazione.
- *  `--segnale-giu` è l'unico rosso che resta rosso in ogni tema (in premium
- *  `--danger` diventa bianco). */
+/** Il pallino rosso con il numero. Il rosso dei segnali (`--segnale-giu`) e non
+ *  l'accento: l'accento è l'arancio dei tasti, e un badge dello stesso colore di
+ *  un tasto si leggerebbe come un tasto. */
 export function BadgeNonLetti({ n, style }: { n: number; style?: CSSProperties }) {
   if (n <= 0) return null
   return (

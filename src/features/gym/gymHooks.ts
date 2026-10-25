@@ -1,14 +1,14 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT } from '@/lib/i18n'
-import { todayISO } from '@/lib/isoDate'
 import { idUtenteSuDisco } from '@/lib/supabase'
-import { schedeRicevuteInCache } from '@/lib/coach'
+import { schedeRicevuteInCache, suSchedeRicevute } from '@/lib/coach'
+import { useOggi } from '@/hooks/useOggi'
 import { gruppiMuscolari } from './gymModel'
 import { schedaDiOggi } from './anteprimaScheda'
-import { scartaSessione } from './sessioneInCorso'
+import { scartaSessione, sessioneAperta } from './sessioneInCorso'
 
 // Lettura dallo store che serve a più pezzi della scheda Allenamento. Sta in un
 // file senza JSX perché mescolare hook e componenti nello stesso modulo rompe il
@@ -33,16 +33,37 @@ export function useGruppiMuscolari(): string[] {
 // per la scheda che la card mostra già.
 // Quelle del coach dall'ultima lettura salvata sul telefono, come fa la barra
 // dell'allenamento in corso: la home non aspetta la rete per dire cosa fare.
+// Ma si rilegge quando quella copia cambia (`suSchedeRicevute`: la scrive chi
+// le scarica) e quando cambia il giorno (`useOggi`).
+//
+// Un allenamento cominciato oggi — almeno una serie spuntata — È la scheda di
+// oggi, qualunque cosa dica il giro: chi ha aperto Pull invece della Push
+// proposta si allena con Pull. Prima la card continuava a proporre Push e la
+// barra in cima annunciava Pull: due cose, una delle quali sbagliata, e sui
+// telefoni bassi il tasto finiva di nuovo sotto il bordo.
 export function useSchedaDiOggi() {
   const { gymSchede, palestraExercises } = useJarvisStore(useShallow(st => ({
     gymSchede: st.gymSchede,
     palestraExercises: st.palestraExercises,
   })))
+  const oggi = useOggi()
+  const [versioneRicevute, setVersioneRicevute] = useState(0)
+  useEffect(() => suSchedeRicevute(() => setVersioneRicevute(v => v + 1)), [])
+  // Dal disco a ogni giro, come la barra: aprire o chiudere un allenamento non
+  // passa dallo store.
+  const aperta = sessioneAperta()
+  const inCorsoId = aperta && !aperta.vuota && !aperta.vecchia ? aperta.schedaId : null
   return useMemo(() => {
     const io = idUtenteSuDisco()
     const ricevute = io ? schedeRicevuteInCache(io).map(r => r.scheda) : []
-    return schedaDiOggi([...ricevute, ...(gymSchede ?? [])], palestraExercises, todayISO())
-  }, [gymSchede, palestraExercises])
+    const tutte = [...ricevute, ...(gymSchede ?? [])]
+    const inCorso = inCorsoId ? tutte.find(sc => sc.id === inCorsoId) : undefined
+    const suaCard = inCorso ? schedaDiOggi([inCorso], palestraExercises, oggi) : null
+    if (suaCard) return { ...suaCard, fattaOggi: false }
+    return schedaDiOggi(tutte, palestraExercises, oggi)
+    // `versioneRicevute` non si legge: c'è per far rileggere la copia sul disco.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gymSchede, palestraExercises, oggi, versioneRicevute, inCorsoId])
 }
 
 // Gruppo → quale figura accendere. Contiene SOLO i gruppi creati dall'utente: gli

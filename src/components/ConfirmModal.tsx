@@ -19,10 +19,9 @@ function ConfirmDialog({ label, copy, onCancel, onConfirm }: { label: string; co
   // Il tono decide solo il colore del tasto di conferma e dell'occhiello: la
   // struttura, il focus trap e lo scrim sono gli stessi per tutti e due.
   const danger = (copy?.tone ?? 'danger') === 'danger'
-  // Non esiste un `--j-accent-rgb`: l'accent è un hex calcolato a runtime dalla
-  // palette (vedi App.tsx). Il tono neutro quindi non prova a imitare il rosso
-  // trasparente — usa il tasto primario pieno, che è già la forma dell'"ok, fallo"
-  // in tutto il resto dell'app.
+  // Il tono neutro non imita il rosso trasparente del pericolo: usa il tasto
+  // primario pieno, che è già la forma dell'"ok, fallo" in tutto il resto
+  // dell'app.
   const okStyle = danger
     ? { background: 'rgba(var(--danger-rgb),0.1)', border: '1px solid rgba(var(--danger-rgb),0.3)', color: 'var(--danger)' }
     : { background: 'var(--j-accent)', border: '1px solid var(--j-accent)', color: 'var(--j-accent-fg)' }

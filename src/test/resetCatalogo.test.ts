@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { RESET_ID, CHIAVE_SCORTA, serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
+import { RESET_ID, chiaveScorta, serveAzzerare, serveSegnare, segnatura, azzeramento, salvaScorta, leggiScorta } from '@/features/gym/resetCatalogo'
 import { CATALOGO } from '@/features/gym/catalogo'
 import { EMPTY_STATE, useJarvisStore, applyRemoteState, type JarvisState, type PalestraExercise } from '@/store/useJarvisStore'
 
@@ -22,20 +22,56 @@ const esercizio = (n: string, alzate = 0): PalestraExercise => ({
 describe('azzeramento del catalogo', () => {
   beforeEach(() => localStorage.clear())
 
-  it('serve a chi non l’ha mai avuto', () => {
-    expect(serveAzzerare(statoCon({}))).toBe(true)
+  // Un account coi dati del catalogo vecchio: alzate senza `date`, il formato
+  // di prima.
+  const vecchio = () => statoCon({ palestraExercises: [esercizio('Panca piana', 3)] })
+
+  it('serve a chi ha dati del catalogo vecchio e non l’ha mai avuto', () => {
+    expect(serveAzzerare(vecchio())).toBe(true)
   })
 
   it('non si ripete su chi l’ha già ricevuto', () => {
     // È ciò che impedisce all'app di azzerare di nuovo a ogni avvio, e al secondo
     // dispositivo di rifarlo sopra i dati appena rifatti sul primo.
-    expect(serveAzzerare(statoCon({ catalogoReset: RESET_ID }))).toBe(false)
+    expect(serveAzzerare({ ...vecchio(), catalogoReset: RESET_ID })).toBe(false)
   })
 
   it('si ripete se l’azzeramento è un altro', () => {
     // Il marcatore è l'id dell'operazione, non un booleano "fatto": il giorno che
     // servisse un secondo azzeramento, cambiare la stringa deve bastare.
-    expect(serveAzzerare(statoCon({ catalogoReset: '2025-01-qualcosa-di-prima' }))).toBe(true)
+    expect(serveAzzerare({ ...vecchio(), catalogoReset: '2025-01-qualcosa-di-prima' })).toBe(true)
+  })
+
+  it('anche una scheda creata prima del catalogo nuovo conta come vecchia', () => {
+    const s = statoCon({ gymSchede: [{ id: 'sc1', title: 'Lunedì', exercises: [], createdAt: '2026-08-30T10:00:00Z', updatedAt: 'x' }] })
+    expect(serveAzzerare(s)).toBe(true)
+  })
+
+  // ── Chi non ha niente di vecchio ──────────────────────────────
+  // Il caso che ha cancellato i dati di un account nuovo: primo caricamento
+  // fallito, niente marcatore, schede e alzate create dopo — e al riavvio
+  // l'azzeramento le toglieva. Chi è nato col catalogo nuovo si segna e basta.
+  it('non azzera chi ha solo dati nati col catalogo nuovo', () => {
+    const nuovo = statoCon({
+      palestraExercises: [{ ...esercizio('Panca', 0), history: [{ d: 'W43', date: '2026-10-20', kg: 80, reps: 8, sets_n: 3 }] }],
+      gymSchede: [{ id: 'sc1', title: 'Push A', exercises: [], createdAt: '2026-10-20', updatedAt: '2026-10-20' }],
+    })
+    expect(serveAzzerare(nuovo)).toBe(false)
+    expect(serveSegnare(nuovo)).toBe(true)
+    // Il marcatore, e la palestra com'è.
+    const dopo = segnatura(nuovo)
+    expect(dopo.catalogoReset).toBe(RESET_ID)
+    expect(dopo.palestraExercises).toBe(nuovo.palestraExercises)
+  })
+
+  it('un account vuoto riceve il catalogo, senza azzeramento', () => {
+    expect(serveAzzerare(statoCon({}))).toBe(false)
+    expect(serveSegnare(statoCon({}))).toBe(true)
+    expect(segnatura(statoCon({})).palestraExercises).toHaveLength(CATALOGO.length)
+  })
+
+  it('chi ha già il marcatore non si segna di nuovo', () => {
+    expect(serveSegnare(statoCon({ catalogoReset: RESET_ID }))).toBe(false)
   })
 
   it('rimette il catalogo intero, pulito', () => {
@@ -58,13 +94,20 @@ describe('azzeramento del catalogo', () => {
       palestraExercises: [esercizio('Panca piana', 12), esercizio('Squat', 30)],
       gymSchede: [{ id: 'sc1', title: 'Lunedì', exercises: [], createdAt: 'x', updatedAt: 'x' }],
     })
-    expect(salvaScorta(prima)).toBe(true)
+    expect(salvaScorta(prima, 'u1')).toBe(true)
 
-    const scorta = JSON.parse(localStorage.getItem(CHIAVE_SCORTA)!)
+    const scorta = JSON.parse(localStorage.getItem(chiaveScorta('u1'))!)
     expect(scorta.palestraExercises).toHaveLength(2)
     expect(scorta.palestraExercises[1].history).toHaveLength(30)
     expect(scorta.gymSchede).toHaveLength(1)
     expect(scorta.quando).toBeTruthy()
+  })
+
+  it('la scorta è di un account: un altro sullo stesso telefono non la sovrascrive', () => {
+    salvaScorta(statoCon({ palestraExercises: [esercizio('Panca piana', 12)] }), 'anna')
+    salvaScorta(statoCon({}), 'bruno')
+    expect((leggiScorta('anna') as { palestraExercises: unknown[] }).palestraExercises).toHaveLength(1)
+    expect(leggiScorta('carla')).toBeNull()
   })
 
   it('non impedisce l’azzeramento se la scorta non si può scrivere', () => {
@@ -74,7 +117,7 @@ describe('azzeramento del catalogo', () => {
     const vero = Storage.prototype.setItem
     Storage.prototype.setItem = () => { throw new Error('QuotaExceededError') }
     try {
-      expect(salvaScorta(statoCon({}))).toBe(false)
+      expect(salvaScorta(statoCon({}), 'u1')).toBe(false)
     } finally {
       Storage.prototype.setItem = vero
     }

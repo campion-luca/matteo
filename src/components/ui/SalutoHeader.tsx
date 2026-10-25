@@ -14,8 +14,9 @@ import { useT, useLang } from '@/lib/i18n'
 // "Allenamento · 38 esercizi in palestra". Vive qui e non dentro JarvisGym perché
 // non parla di palestra: parla di chi sta usando l'app.
 //
-// Il saluto è l'unica cosa in Fraunces di tutta l'app (`--font-saluto`): è la voce
-// dell'app, non un titolo fra i tanti.
+// Il saluto è il titolo della home: Barlow Condensed 800, maiuscolo (`--font-saluto`,
+// vedi `.j-saluto` in globals.css). Fino al rebranding era l'unica cosa in
+// Fraunces di tutta l'app.
 //
 // Su telefono sta su DUE righe, sempre: la formula sopra («Buon pomeriggio,»),
 // il nome sotto. Lasciato andare a capo da sé ne prendeva due la mattina e tre

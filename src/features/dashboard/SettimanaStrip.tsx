@@ -14,7 +14,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
-import { localISO, giorniTra, todayISO } from '@/lib/isoDate'
+import { localISO, giorniTra } from '@/lib/isoDate'
+import { useOggi } from '@/hooks/useOggi'
 import { ultimoAllenamento, quantoFa } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
 import { daysAbbr } from '@/lib/dateFormat'
@@ -72,9 +73,11 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
   // la costruzione di un mese di celle che quasi mai si guarda.
   const [calendarioVisto, setCalendarioVisto] = useState(false)
 
+  // Il giorno, che cambia anche ad app aperta (vedi useOggi): senza, tornando
+  // in primo piano il mattino dopo la striscia evidenziava ancora ieri.
+  const oggiISO = useOggi()
   const giorni = useMemo<GiornoSettimana[]>(() => {
     const oggi = new Date()
-    const oggiISO = localISO(oggi)
     const DOW = daysAbbr(lang)
     const lunedi = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - ((oggi.getDay() + 6) % 7))
     const allenati = new Set<string>()
@@ -85,15 +88,15 @@ export const SettimanaStrip = memo(function SettimanaStrip() {
       const iso = localISO(d)
       return { iso, dow: DOW[i], num: d.getDate(), fatto: allenati.has(iso), oggi: iso === oggiISO, futuro: iso > oggiISO }
     })
-  }, [s.palestra, s.hyrox, lang])
+  }, [s.palestra, s.hyrox, lang, oggiISO])
 
   // Da quanto non ci si allena. Fino a ieri non si dice niente: lo dicono già
   // i giorni pieni della settimana. Da due giorni in su sì, e oltre i dieci cambia
   // colore — è la soglia da cui le schede avvisano che i carichi peseranno.
   const fermoDa = useMemo(() => {
     const ultimo = ultimoAllenamento(s.palestra, s.hyrox)
-    return ultimo ? giorniTra(ultimo, todayISO()) : null
-  }, [s.palestra, s.hyrox])
+    return ultimo ? giorniTra(ultimo, oggiISO) : null
+  }, [s.palestra, s.hyrox, oggiISO])
 
   return (
     <>

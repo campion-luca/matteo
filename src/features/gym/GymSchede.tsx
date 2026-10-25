@@ -17,12 +17,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, ultimaDiLavoro, correnteDa, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti } from './gymModel'
 import { fmtDayMonthFull, fmtDayMon, fmtMeseAnno } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons, useScartaAllenamento } from './gymHooks'
-import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso, type AllenamentoInCorso } from './sessioneInCorso'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso, firmaRiga, type AllenamentoInCorso } from './sessioneInCorso'
 import { BarraInCorso } from './InCorso'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
@@ -44,8 +44,7 @@ import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO }
 import { Filo, Composer, BadgeNonLetti } from '@/features/coach/messaggiUI'
 
 // Colore del gruppo muscolare. `muscleColors` arriva risolto da `useMuscleColors()`
-// (default + override utente, desaturato in layout "Notte"): 'Altro' fa da fallback,
-// così anche i gruppi mancanti o legacy seguono il tema.
+// (default + override utente): 'Altro' fa da fallback per i gruppi mancanti o legacy.
 function muscleColor(muscle: string | undefined, muscleColors: Record<string, string>): string {
   const m = muscle ? displayMuscle(muscle) : ''
   return muscleColors[m] ?? muscleColors.Altro ?? MUSCLE_COLORS.Altro
@@ -89,6 +88,7 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, piede, children
   piede?: ReactNode
   children: ReactNode
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="j-page-header">
@@ -102,7 +102,7 @@ function SchedaPage({ onBack, title, sub, tronca, azioni, extra, piede, children
             cosa giusta da spostare: si legge prima dove si è e poi cosa si può
             fare. Sulle pagine con uno o due comandi resta tutto su una riga. */}
         <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
-          <button onClick={onBack} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
+          <button onClick={onBack} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
           <div style={{ flex: '1 1 auto', minWidth: 190 }}>
             <div className="j-page-title" style={tronca ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : undefined}>{title}</div>
             <div className="j-eyebrow mt-0.5">{sub}</div>
@@ -164,6 +164,9 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
   const [assegnate, setAssegnate] = useState<CoachScheda[]>([])
   const [allievi, setAllievi] = useState<CoachLink[]>([])
   const [allenatori, setAllenatori] = useState<CoachLink[]>([])
+  // La lista di chi mi segue è arrivata: da qui in poi un allenatore che non
+  // c'è è uno da cui mi sono scollegato, non uno che la rete non ha ancora detto.
+  const [allenatoriNoti, setAllenatoriNoti] = useState(false)
   const [ioId, setIoId] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
@@ -197,7 +200,7 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
         .catch(() => { /* non allena nessuno, o la tabella non c'è: nessun tasto */ })
       // Chi mi segue: a fine allenamento va avvisato (vedi `finishTraining`).
       myCoaches(io)
-        .then(righe => { if (vivo) setAllenatori(righe) })
+        .then(righe => { if (vivo) { setAllenatori(righe); setAllenatoriNoti(true) } })
         .catch(() => { /* nessuno mi segue: nessuno da avvisare */ })
     }
     return () => { vivo = false }
@@ -384,6 +387,16 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
     setView('detail')
   }
 
+  // Un allenatore da cui mi sono scollegato: le sue schede restano (sono mie
+  // da allenare), ma scrivergli non si può più — il database lo rifiuta.
+  const scollegato = (coachId: string | undefined) =>
+    allenatoriNoti && !!coachId && !allenatori.some(l => l.coach_id === coachId)
+
+  // Con la scheda se ne va anche il suo allenamento lasciato aperto: restava
+  // in giro fino a una settimana, senza una barra da cui scartarlo, e il primo
+  // «Inizia allenamento» passava dal dettaglio invece di entrare.
+  const scartaSuoAllenamento = (id: string) => { if (sessioneAperta()?.schedaId === id) scartaSessione() }
+
   // `dopo` parte solo a eliminazione confermata: chi chiama ci mette il cambio
   // di pagina. Farlo subito, mentre il dialogo chiede ancora "sei sicuro?",
   // chiudeva il form anche a chi rispondeva no — con le modifiche non salvate.
@@ -394,17 +407,20 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
     if (daCoach.has(id)) {
       const riga = assegnate.find(r => r.scheda.id === id)
       const chi = daCoach.get(id) ?? ''
+      // Scollegati, l'avviso non può partire: non lo si promette.
+      const avvisabile = !scollegato(riga?.coach_id)
       // Non è una copia: la riga è una sola, e toglierla qui la toglie anche a
       // chi l'ha scritta. Va detto prima, e a lui va detto dopo — prima spariva
       // e basta, e l'allenatore si ritrovava senza la scheda senza sapere perché.
       confirmDelete(() => {
+        scartaSuoAllenamento(id)
         eliminaSchedaAssegnata(id)
           .then(() => {
             setAssegnate(a => a.filter(r => r.scheda.id !== id))
             // Anche dalla copia sul telefono, o al prossimo ingresso senza rete
             // la scheda tolta sarebbe di nuovo lì.
             if (ioId) ricordaSchedeRicevute(ioId, schedeRicevuteInCache(ioId).filter(r => r.scheda.id !== id))
-            if (ioId && riga) {
+            if (ioId && riga && avvisabile) {
               avvisa(bozzaChat({
                 coachId: riga.coach_id, athleteId: ioId, autore: ioId, autoreNome: userName ?? '', tipo: 'scheda',
                 testo: t('Ho tolto la scheda «{scheda}».', { scheda: riga.scheda.title }),
@@ -416,12 +432,15 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
       }, target?.title ?? t('Scheda'), {
         eyebrow: t('Elimina'),
         title: t('Togliere la scheda?'),
-        body: t('«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app. Glielo facciamo sapere.', { scheda: target?.title ?? '', chi }),
+        body: avvisabile
+          ? t('«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app. Glielo facciamo sapere.', { scheda: target?.title ?? '', chi })
+          : t('«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app.', { scheda: target?.title ?? '', chi }),
         cta: t('Elimina'),
       })
       return
     }
     confirmDelete(() => {
+      scartaSuoAllenamento(id)
       set(st => ({ gymSchede: (st.gymSchede ?? []).filter(s => s.id !== id) }))
       dopo?.()
     }, target?.title ?? t('Scheda'))
@@ -431,7 +450,7 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
   // collegandolo (o creandolo) tra gli esercizi dei gruppi muscolari.
   const finishTraining = (
     scheda: GymScheda,
-    results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string; corpo?: boolean }[],
+    results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string; corpo?: boolean; detto?: boolean }[],
     // Il giorno in cui l'allenamento è stato FATTO (quello della prima serie),
     // e quanto è durato. Non il giorno in cui lo si chiude: chi finisce dopo
     // mezzanotte, o ritrova aperto l'allenamento di ieri, lo salva dov'è stato.
@@ -516,15 +535,17 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
         // `current` (il precompilato della prossima volta) è l'alzata più
         // RECENTE, non quella appena aggiunta: un allenamento di tre giorni fa
         // chiuso oggi non deve riportare indietro i carichi.
-        // E se qui si è detto che l'esercizio è a corpo libero, da adesso lo sa
-        // anche lui: la prossima volta non lo si richiede.
+        // E se qui si è DETTO che l'esercizio è a corpo libero (il tasto sulla
+        // card), da adesso lo sa anche lui: la prossima volta non lo si
+        // richiede. Solo detto, non dedotto dall'ultima alzata a 0 kg (vedi
+        // `aCorpoLibero`): quella deduzione vale per la sessione, e scritta
+        // sull'esercizio ribaltava per sempre un "con attrezzo" scelto a mano.
         exs = exs.map(e => {
           if (e.id !== tid) return e
           const history = sortedHistory([...e.history, entry])
-          const last = history[history.length - 1]
           return {
-            ...e, history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n },
-            ...(corpo && !corpoLibero(e) ? { bodyweight: true } : {}),
+            ...e, history, current: correnteDa(history, e.current),
+            ...(r.detto && !corpoLibero(e) ? { bodyweight: true } : {}),
           }
         })
         linkMap[se.id] = tid
@@ -580,10 +601,7 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
       palestraExercises: (st.palestraExercises ?? []).map(e => {
         if (e.id !== vecchia.exerciseId) return e
         const history = sortedHistory(e.history.map(h => (h === vecchia.entry ? nuova : h)))
-        const last = history[history.length - 1]
-        return last
-          ? { ...e, history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
-          : { ...e, history }
+        return { ...e, history, current: correnteDa(history, e.current) }
       }),
     }))
     // La striscia deve puntare alla riga NUOVA, o la correzione dopo cercherebbe
@@ -604,8 +622,7 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
         palestraExercises: (st.palestraExercises ?? []).map(e => {
           if (e.id !== a.exerciseId) return e
           const history = e.history.filter(h => h !== a.entry)
-          const last = sortedHistory(history)[history.length - 1]
-          return { ...e, history, current: last ? { kg: last.kg, reps: last.reps, sets_n: last.sets_n } : e.current }
+          return { ...e, history, current: correnteDa(history, e.current) }
         }),
       }))
       setAppenaSalvate(list => list.filter(x => x.entry !== a.entry))
@@ -669,6 +686,7 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
         // La riga intera e non il solo nome dell'allenatore: per scrivergli
         // servono i due id, e sono lì dentro.
         assegnata={assegnate.find(r => r.scheda.id === current.id)}
+        scollegato={scollegato(assegnate.find(r => r.scheda.id === current.id)?.coach_id)}
         ioId={ioId}
         mioNome={userName}
         allievi={allievi}
@@ -1709,29 +1727,29 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
 // ── Superset ───────────────────────────────────────────────────
 // Due esercizi in superset si fanno uno dopo l'altro senza recupero, e in
 // allenamento è l'informazione che cambia cosa fai dopo aver chiuso una serie.
-// Era una riga piccola nel colore accent, che nel tema premium è bianco come
-// tutto il resto: si perdeva. Adesso è arancione e sta AL CENTRO fra le due
-// card, e i due bordi che si guardano — il fondo di quella sopra, la cima di
-// quella sotto — sono arancioni anche loro: le due card si leggono come un
-// blocco solo.
-const ARANCIO_SUPERSET = 'var(--tertiary-ink)'
+// Era una riga piccola, in fondo alla card di sopra, e si perdeva. Adesso sta AL
+// CENTRO fra le due card, e i due bordi che si guardano — il fondo di quella
+// sopra, la cima di quella sotto — sono del suo colore: le due card si leggono
+// come un blocco solo. Il colore è il grigio delle date (`--tertiary-ink`) e non
+// l'accento: un superset è un modo di fare gli esercizi, non un gesto da fare.
+const COLORE_SUPERSET = 'var(--tertiary-ink)'
 
 function bordiSuperset(legatoAlPrecedente: boolean | undefined, legatoAlSuccessivo: boolean): CSSProperties {
   return {
-    ...(legatoAlPrecedente ? { borderTop: `2px solid ${ARANCIO_SUPERSET}` } : {}),
-    ...(legatoAlSuccessivo ? { borderBottom: `2px solid ${ARANCIO_SUPERSET}` } : {}),
+    ...(legatoAlPrecedente ? { borderTop: `2px solid ${COLORE_SUPERSET}` } : {}),
+    ...(legatoAlSuccessivo ? { borderBottom: `2px solid ${COLORE_SUPERSET}` } : {}),
   }
 }
 
 function PonteSuperset() {
   const t = useT()
-  const filo = <span aria-hidden="true" style={{ flex: 1, height: 1, background: ARANCIO_SUPERSET, opacity: 0.45 }}/>
+  const filo = <span aria-hidden="true" style={{ flex: 1, height: 1, background: COLORE_SUPERSET, opacity: 0.45 }}/>
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', color: ARANCIO_SUPERSET }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', color: COLORE_SUPERSET }}>
       {filo}
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px',
-        border: `1px solid ${ARANCIO_SUPERSET}`, borderRadius: 'var(--radius-pill)',
+        border: `1px solid ${COLORE_SUPERSET}`, borderRadius: 'var(--radius-pill)',
         fontFamily: NUC.label, fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
       }}>
         <Icons.repeat size={12} stroke={2}/>
@@ -1907,7 +1925,7 @@ function GiornoStorico({ s, apertoAllInizio, andamento, onCorreggi, onElimina }:
   )
 }
 
-function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNome, allievi, appenaSalvate = [], palestraExercises = [], inCorso, onCorreggi, onElimina, onCondividi, onBack, onEdit, onDelete, onStart, onRicomincia }: {
+function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, scollegato = false, ioId, mioNome, allievi, appenaSalvate = [], palestraExercises = [], inCorso, onCorreggi, onElimina, onCondividi, onBack, onEdit, onDelete, onStart, onRicomincia }: {
   scheda: GymScheda
   muscleColors: Record<string, string>
   /** Il giorno da cui la scheda esiste ("YYYY-MM-DD"): creata, o ricevuta dal
@@ -1917,6 +1935,8 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
    *  Non è solo il nome dell'allenatore: porta le due identità (chi l'ha scritta,
    *  a chi) senza le quali non si può scrivergli. */
   assegnata?: CoachScheda
+  /** Chi l'ha mandata non mi segue più: la scheda resta, scrivergli no. */
+  scollegato?: boolean
   /** Chi sono io. Manca finché la sessione non ha risposto, e senza non si
    *  scrive niente a nessuno. */
   ioId?: string | null
@@ -1987,7 +2007,9 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
   const daCoach = assegnata ? (assegnata.coach_name?.trim() || t('Allenatore')) : undefined
   // Si chiede solo su una scheda che qualcuno ti ha mandato, e solo sapendo chi
   // sei: una richiesta senza mittente non ha un posto dove ricevere la risposta.
-  const puoiChiedere = !!assegnata && !!ioId
+  // E solo a chi ti segue ancora: a un allenatore scollegato il database
+  // rifiuta il messaggio, e il tasto prometteva una risposta che non arriva.
+  const puoiChiedere = !!assegnata && !!ioId && !scollegato
 
   // Ritmo svelto solo con la conversazione davanti agli occhi (vedi messaggiLive):
   // chiusa, questa pagina si accontenta del giro di fondo che tiene il badge.
@@ -2285,7 +2307,7 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, ioId, mioNo
               {t('Tocca un’alzata per correggere i chili o i colpi.')}
             </div>
             {appenaSalvate.map((a, i) => (
-              <RigaAlzata key={a.exerciseId} a={a} primo={i === 0} onCorreggi={onCorreggi}/>
+              <RigaAlzata key={`${a.exerciseId}-${i}`} a={a} primo={i === 0} onCorreggi={onCorreggi}/>
             ))}
           </NucCard>
         )}
@@ -2578,10 +2600,10 @@ const ETICHETTA_NOTA: CSSProperties = {
 }
 
 // ── Il carico consigliato, dentro la card di un esercizio ──────
-// Una riga sola: verso, peso, perché. Il colore dice il verso (verde si sale,
-// rosso si scende) e il perché sta scritto, perché un consiglio senza motivo
-// si ignora — o peggio si segue senza sapere che la volta prima si era saltata
-// una serie. "Usa" scrive il peso sulle serie ancora da fare.
+// Una riga sola: verso, peso, perché. Il verso lo dice la freccia (↑ ↓ =) e il
+// perché sta scritto, perché un consiglio senza motivo si ignora — o peggio si
+// segue senza sapere che la volta prima si era saltata una serie. "Usa" scrive
+// il peso sulle serie ancora da fare.
 function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
   consiglio: Consiglio
   serie: number
@@ -2651,7 +2673,7 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
 // verbale. Le ultime serie calano quasi sempre, e prima l'allenamento veniva
 // salvato con i colpi PREVISTI su tutte — tre serie da 10 anche quando erano
 // state 10, 8, 6, con il volume gonfiato di conseguenza.
-interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; note?: string }
+interface TrainProgress { checks: boolean[]; weights: string[]; reps: string[]; note?: string; firma?: string; corpo?: true }
 
 // Una card dell'allenamento in corso. A parte e memorizzata: prima stava dentro
 // la `map` della pagina, e ogni cifra battuta in un campo ridisegnava TUTTE le
@@ -2944,7 +2966,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
    *  butta la sessione e porta via da qui. */
   onScarta: () => void
   onFinish: (
-    results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string; corpo?: boolean }[],
+    results: { id: string; checks: boolean[]; weights: string[]; reps: string[]; note?: string; corpo?: boolean; detto?: boolean }[],
     fine: { giorno: string; durataSec?: number },
   ) => void
   /** Qualcuno segue chi si allena: il resoconto di fine allenamento arriva a lui. */
@@ -2983,36 +3005,68 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
     // che c'erano riprendono le loro spunte e solo i nuovi partono da zero.
     const ripresa = leggiSessione(scheda) ?? {}
 
-    const init: Record<string, TrainProgress> = {}
-    for (const e of scheda.exercises) {
-      if (ripresa[e.id]) { init[e.id] = ripresa[e.id]; continue }
+    // Una riga com'è partita da zero, col precompilato di oggi.
+    const fresca = (e: GymSchedaExercise): TrainProgress => {
       // resolveLinked: fallback per nome, così l'ultimo peso si precompila anche
       // per schede vecchie / esercizi digitati senza scegliere il suggerimento.
       const linked = resolveLinked(e)
-      const lastKg = linked?.current.kg
-      // Serie per serie, se l'ultima volta i pesi erano diversi: `current.kg` è
-      // il più pesante, e scriverlo su tutte farebbe salvare 62,5 anche sulle
-      // serie che erano state fatte a 60 a chi spunta senza toccare i campi.
-      const perSerie = linked?.history.length ? sortedHistory(linked.history)[linked.history.length - 1].setWeights : undefined
+      // Dall'ultima alzata di LAVORO: un massimale dichiarato (1×140) scritto su
+      // tutte le serie di un 4×8 si salvava a 140 a chi spuntava senza guardare.
+      const ultima = linked ? ultimaDiLavoro(linked.history) : undefined
+      // I chili scritti sono i soli dischi se l'esercizio ha l'attrezzo
+      // dichiarato (vedi `attrezzoKg`). L'ultima alzata li ha scritti col SUO
+      // attrezzo, o col totale se è di prima che l'attrezzo ci fosse: si
+      // riporta al totale e si toglie l'attrezzo di oggi. Senza, chi dichiarava
+      // il bilanciere da 20 dopo uno storico a 60 ritrovava "60" come dischi, e
+      // spuntando salvava 80.
+      const attrezzoOggi = aCorpoLibero(linked, e) ? 0 : (linked?.attrezzoKg ?? 0)
+      const aDischi = (kg: number) => Math.max(0, kg + (ultima?.attrezzo ?? 0) - attrezzoOggi)
       const n = Math.max(1, e.sets)
       // I colpi si precompilano sull'obiettivo, non sull'ultima volta: la scheda
       // dice cosa fare oggi, e partire dal numero previsto significa che chi
       // rispetta il programma non tocca nulla — tocca solo chi è rimasto sotto.
       const bersagli = colpiPrevisti(e.reps, n)
-      init[e.id] = {
+      return {
         checks: Array(n).fill(false),
         // Anche il precompilato passa dal formattatore: un 62.5 riletto dallo
         // storico comparirebbe col punto in un campo che accetta la virgola.
+        // Serie per serie, se l'ultima volta i pesi erano diversi: scrivere il
+        // più pesante su tutte farebbe salvare 62,5 anche sulle serie che erano
+        // state fatte a 60 a chi spunta senza toccare i campi.
         weights: Array.from({ length: n }, (_, i) => {
-          const kg = perSerie?.[i] ?? lastKg
+          const scritto = ultima ? (ultima.setWeights?.[i] ?? ultima.kg) : undefined
+          if (scritto === undefined) return ''
+          const kg = aDischi(scritto)
           // Con l'attrezzo dichiarato lo zero è un valore: chi l'ultima volta
           // ha lavorato col solo bilanciere ritrova "0", non un campo vuoto
           // che al momento di spuntare direbbe "senza chili non conta".
-          if (kg === 0 && linked?.attrezzoKg && linked.history.length > 0) return '0'
+          if (kg === 0 && attrezzoOggi > 0) return '0'
           return kg ? fmtNum(kg) : ''
         }),
         reps: bersagli.map(c => (c ? String(c) : '')),
+        firma: firmaRiga(e),
       }
+    }
+
+    const init: Record<string, TrainProgress> = {}
+    for (const e of scheda.exercises) {
+      const r = ripresa[e.id]
+      if (!r) { init[e.id] = fresca(e); continue }
+      // La riga è cambiata da quando la si è aperta (vedi `firmaRiga`).
+      // Un altro esercizio al suo posto — «Cambia», o l'allenatore che l'ha
+      // sostituito — è un esercizio nuovo: riparte da zero, col suo
+      // precompilato. Prima teneva i chili e i colpi del vecchio, e spuntando li
+      // salvava sul nuovo. Stesso esercizio con un altro obiettivo: le serie
+      // fatte restano, le altre prendono i colpi di adesso.
+      const [nome, colpi] = (r.firma ?? '').split('|')
+      const [nomeOra, colpiOra] = firmaRiga(e).split('|')
+      if (r.firma && nome !== nomeOra) { init[e.id] = fresca(e); continue }
+      if (r.firma && colpi !== colpiOra) {
+        const f = fresca(e)
+        init[e.id] = { ...r, reps: r.reps.map((x, i) => (r.checks[i] ? x : f.reps[i])), firma: f.firma }
+        continue
+      }
+      init[e.id] = { ...r, firma: firmaRiga(e) }
     }
     return init
   })
@@ -3072,12 +3126,20 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
   // Tranne quando è la scheda a volerle diverse ("10-8-6"): lì il tasto serve
   // a non riscrivere tre volte i chili, e copiando anche i colpi della prima
   // l'allenamento fatto alla lettera si salvava come 10-10-10.
+  // Come il consiglio, scrive solo sulle serie non ancora spuntate: quelle fatte
+  // sono andate col loro peso e i loro colpi, e una seconda serie a 65×8 diventava
+  // 60×10 nello storico solo perché si voleva riempire la terza.
   const applyFirstToAll = useCallback((exId: string, soloChili: boolean) =>
     setProgress(p => {
       const cur = p[exId]
       const kg = cur.weights[0] ?? ''
       const rp = cur.reps[0] ?? ''
-      return { ...p, [exId]: { ...cur, weights: cur.weights.map(() => kg), reps: soloChili ? cur.reps : cur.reps.map(() => rp) } }
+      const daFare = (i: number) => !cur.checks[i]
+      return { ...p, [exId]: {
+        ...cur,
+        weights: cur.weights.map((w, i) => (daFare(i) ? kg : w)),
+        reps: soloChili ? cur.reps : cur.reps.map((r, i) => (daFare(i) ? rp : r)),
+      } }
     }), [])
 
   // L'esercizio collegato, la nota dell'ultima volta e se è a corpo libero, una
@@ -3088,9 +3150,15 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
   // il corpo libero lo dice la riga della scheda, o il nome.
   // Gli esercizi che chi si allena ha detto a corpo libero durante QUESTA
   // sessione (vedi il tasto sulla card): valgono subito, e a fine allenamento
-  // il segno resta sull'esercizio.
-  const [dettiCorpoLibero, setDettiCorpoLibero] = useState<Set<string>>(() => new Set())
-  const diventaCorpoLibero = useCallback((exId: string) => setDettiCorpoLibero(s => new Set(s).add(exId)), [])
+  // il segno resta sull'esercizio. Il segno viaggia anche con la sessione
+  // salvata (`corpo` nell'avanzamento): riprendendola, si ritrova.
+  const [dettiCorpoLibero, setDettiCorpoLibero] = useState<Set<string>>(
+    () => new Set(Object.keys(progress).filter(id => progress[id].corpo)),
+  )
+  const diventaCorpoLibero = useCallback((exId: string) => {
+    setDettiCorpoLibero(s => new Set(s).add(exId))
+    setProgress(p => (p[exId] ? { ...p, [exId]: { ...p[exId], corpo: true } } : p))
+  }, [])
 
   const collegati = useMemo(() => {
     const out: Record<string, { last?: PalestraExercise; notaPrima?: string; corpo: boolean; attrezzo: number }> = {}
@@ -3114,9 +3182,16 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
     const out: Record<string, Consiglio | null> = {}
     const giaFatti = contaPerMuscolo()
     for (const e of scheda.exercises) {
-      const { last, corpo } = collegati[e.id]
+      const { last, corpo, attrezzo } = collegati[e.id]
       const riga = { sets: e.sets, reps: e.reps, giaFatti: giaFatti(last?.muscle ?? e.muscle) }
-      out[e.id] = corpo ? null : caricoConsigliato(last?.history ?? [], riga, scheda.id)
+      const c = corpo ? null : caricoConsigliato(last?.history ?? [], riga, scheda.id)
+      // Nei campi si scrivono i dischi dell'attrezzo di OGGI: il consiglio è
+      // scritto come l'alzata da cui parte (il suo attrezzo, o il totale se è di
+      // prima che l'attrezzo ci fosse), e va riportato. "Usa" scriveva un totale
+      // nel campo dei dischi, e l'alzata si salvava col bilanciere in più.
+      const scarto = (c?.attrezzo ?? 0) - attrezzo
+      const aDischi = (kg: number) => Math.max(0, Math.round((kg + scarto) * 100) / 100)
+      out[e.id] = c && scarto !== 0 ? { ...c, kg: aDischi(c.kg), da: aDischi(c.da), pesi: c.pesi.map(aDischi), attrezzo } : c
     }
     return out
   }, [scheda, collegati])
@@ -3186,6 +3261,7 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
       reps: progress[e.id].reps,
       note: progress[e.id].note,
       corpo: collegati[e.id].corpo,
+      detto: dettiCorpoLibero.has(e.id),
     })), { giorno: localISO(new Date(inizio)), durataSec })
   }
 
@@ -3200,19 +3276,28 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
     // attrezzo, con i chili scritti. Le altre si contano a parte, per dirlo.
     const idx = serieValide(p.checks, p.weights, collegati[e.id].corpo, collegati[e.id].attrezzo)
     const bersagli = colpiPrevisti(e.reps, e.sets)
-    const colpi = idx.map(i => parseInt(p.reps[i]) || 0)
+    // Gli stessi colpi che finiranno nello storico (vedi `finishTraining`): un
+    // campo lasciato vuoto vale l'obiettivo della sua serie. Prima qui si
+    // leggeva 0, e si salvava l'obiettivo.
+    const colpi = idx.map(i => parseInt(p.reps[i]) || bersagli[i] || 0)
     // I numeri che non si salvano, e quelli da guardare due volte perché
     // lontani dall'ultima alzata dell'esercizio (vedi limitiAlzata).
     const { corpo, attrezzo, last } = collegati[e.id]
     const scritti = idx.map(i => parseNum(p.weights[i]))
-    const impossibile = numeroImpossibile({ kg: scritti, colpi })
+    const fuoriScala = numeroImpossibile({ kg: scritti, colpi })
+    // "Fino a cedimento" non ha un obiettivo da cui ripiegare: una serie
+    // spuntata senza i colpi scritti si salvava a 0 colpi, cioè volume e
+    // massimale zero. Come un numero impossibile, va scritta prima di salvare.
+    const impossibile = fuoriScala ? testoImpossibile(t, fuoriScala)
+      : colpi.some(c => c === 0) ? t('Scrivi quanti colpi hai fatto nelle serie fino a cedimento.')
+      : null
     const nuovoKg = scritti.length ? Math.max(...scritti) + attrezzo : 0
     const ultimoKg = corpo ? null : caricoDiRiferimento(last?.history ?? [])
     return {
       id: e.id,
       name: e.name,
       muscle: e.muscle,
-      impossibile: impossibile ? testoImpossibile(t, impossibile) : null,
+      impossibile,
       salto: !corpo && saltoDaConfermare(nuovoKg, ultimoKg) ? { nuovo: nuovoKg, ultimo: ultimoKg ?? 0 } : null,
       nota: p.note?.trim() ?? '',
       senzaChili: spuntate - idx.length,
@@ -3503,7 +3588,7 @@ function SchedaReportPage({ schede, muscleColors, onBack }: {
                         <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em' }}>
                           {r.count === 1 ? t('1 volta') : t('{n} volte', { n: r.count })}
                         </span>
-                        <span style={{ fontFamily: NUC.label, fontSize: 18, color: NUC.accentSoft, letterSpacing: -0.5 }}>
+                        <span style={{ fontFamily: NUC.label, fontSize: 18, color: NUC.accentInk, letterSpacing: -0.5 }}>
                           {Math.round(r.pct)}<span style={{ fontSize: 11, opacity: 0.6 }}>%</span>
                         </span>
                       </div>

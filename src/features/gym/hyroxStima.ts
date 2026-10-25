@@ -111,6 +111,15 @@ export function unitaDelTempo(id: string, units: number): number {
   return registraPasso(id, units) ? 1 : units
 }
 
+/** Il tempo di una sessione da mettere accanto alle altre. Per la corsa è il
+ *  passo al km: una sessione si registra col passo (1 km a 5:00) e una lunga col
+ *  tempo totale (8 km in 42:40), e affiancati così com'erano davano "▲ 2260s"
+ *  nella card, una media di 23:50 e un grafico che saltava. Per le stazioni la
+ *  distanza la separa già il formato (vedi `formatoSessione`). */
+export function tempoConfrontabile(id: string, h: { sec: number; units: number }): number {
+  return id === CORSA_ID ? Math.round(h.sec / unitaDelTempo(id, h.units)) : h.sec
+}
+
 // ── Il profilo, per i segmenti che mancano ──────────────────────
 /** Un'amatore di riferimento, da solo e fresco, sulla distanza di gara (la
  *  corsa è al km). Non conta il valore assoluto: conta la PROPORZIONE fra i

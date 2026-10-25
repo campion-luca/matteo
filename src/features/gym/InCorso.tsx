@@ -33,7 +33,7 @@ export function BarraInCorso({ inCorso, onRiprendi, onScarta, style }: {
       }}>
         <span style={{ display: 'flex', flexShrink: 0, color: 'var(--j-accent-ink)' }}><Icons.play size={18}/></span>
         <span style={{ minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 9, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
+          <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 12, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
             {/* Di ieri o di prima: lo si dice, col giorno. Riprendendolo e
                 chiudendolo finisce in QUEL giorno, non in quello di oggi. */}
             {inCorso.vecchia
@@ -43,7 +43,7 @@ export function BarraInCorso({ inCorso, onRiprendi, onScarta, style }: {
           <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 15, fontWeight: 500, color: NUC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
             {inCorso.scheda.title}
           </span>
-          <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, marginTop: 2 }}>
+          <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 12, color: NUC.faint, marginTop: 2 }}>
             {t('{fatte}/{totali} serie fatte · tocca per riprendere', { fatte: inCorso.fatte, totali: inCorso.totali })}
           </span>
         </span>

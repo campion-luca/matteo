@@ -14,6 +14,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
 import { localISO } from '@/lib/isoDate'
+import { useOggi } from '@/hooks/useOggi'
 import { districtStrength } from '@/features/gym/gymStrength'
 import { maxLifts, maxTotal, SOURCE_LABELS } from '@/features/gym/gymMaxLifts'
 import { BodyMapPanel } from '@/features/gym/BodyMap'
@@ -45,6 +46,8 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
 
   // ── La settimana corrente, lunedì→domenica ───────────────────
   // NON gli ultimi 7 giorni: "la mia settimana" è quella del calendario.
+  // Ricalcolata anche quando cambia il giorno ad app aperta (vedi useOggi).
+  const giorno = useOggi()
   const settimana = useMemo(() => {
     const oggi = new Date()
     const oggiISO = localISO(oggi)
@@ -64,7 +67,9 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
       fatti: giorni.filter(g => g.fatto).length,
       giorni,
     }
-  }, [s.palestra, s.hyrox])
+    // `giorno` non si legge: il giorno lo rifà `new Date()` qui dentro.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.palestra, s.hyrox, giorno])
 
   // ── Mappa della forza per distretto ──────────────────────────
   const distretti = useMemo(

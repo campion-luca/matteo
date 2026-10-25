@@ -16,27 +16,26 @@ import type { AthleteData } from '@/lib/coach'
 import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { giornateAllievo, perSettimana, haProblemi, esitoCarichi, giorniDellaSettimana, type EsitoCarichi, type EsitoEsercizio, type Giornata, type SettimanaSessioni } from './analisiSessioni'
 
-// Rosso e verde veri anche nel tema premium, che --danger e --ok li scolora.
-const ROSSO = 'var(--segnale-giu)'
-const VERDE = 'var(--segnale-su)'
+// I colori dei segnali: il carico salito è d'inchiostro, quello sceso del rosso
+// dei segnali (vedi `--segnale-su` e `--segnale-giu` in globals.css).
+const GIU = 'var(--segnale-giu)'
+const SU = 'var(--segnale-su)'
 
-// I colori dei quadratini, uno per giorno della settimana: del marrone dell'app
-// se ci si è allenati, grigio se no; verde se i carichi sono saliti, rosso se
-// sono scesi, metà e metà se è successo l'uno e l'altro. Lo stesso colore fa da
-// filo alla riga della giornata, così il quadratino e la riga si ritrovano.
+// I colori dei quadratini, uno per giorno della settimana: grigio scuro se ci si
+// è allenati coi carichi di sempre, grigio chiaro se non ci si è allenati,
+// d'inchiostro se i carichi sono saliti, rosso se sono scesi, metà e metà se è
+// successo l'uno e l'altro. Lo stesso colore fa da filo alla riga della
+// giornata, così il quadratino e la riga si ritrovano.
 //
-// Il marrone è `--tertiary-ink` (quello dei titoli di sezione) e NON l'accent:
-// l'accent cambia col tema, e nel tema chiaro è verde, in Neon è il lime, in
-// Logbook il verde delle serie fatte — cioè proprio il colore di «carico
-// salito». Un giorno allenato e un giorno coi carichi saliti sarebbero stati
-// lo stesso quadratino. Il terziario è marrone in Standard e in Premium e
-// grigio chiaro negli altri due: mai verde, mai rosso.
+// Il "pari" è `--tertiary-ink` (quello delle date) e NON l'accento: l'accento è
+// l'arancio dei tasti, e un giorno allenato colorato come un gesto da fare si
+// leggerebbe come un avviso.
 const GRIGIO = 'color-mix(in srgb, var(--fg-mute) 34%, transparent)'
 const FONDO_ESITO: Record<EsitoCarichi, string> = {
   pari: 'var(--tertiary-ink)',
-  su: VERDE,
-  giu: ROSSO,
-  misto: `linear-gradient(90deg, ${VERDE} 50%, ${ROSSO} 50%)`,
+  su: SU,
+  giu: GIU,
+  misto: `linear-gradient(90deg, ${SU} 50%, ${GIU} 50%)`,
 }
 
 /** Chiede di correggere un'alzata: l'esercizio dell'allievo e l'alzata com'è. */
@@ -164,7 +163,7 @@ function TestataSettimana({ s, aperta, onToggle }: { s: SettimanaSessioni; apert
         {/* Su una riga sua: in coda alle date, con i sette quadratini accanto,
             andava a capo a metà ("1 da / guardare") solo in certe settimane. */}
         {daGuardare > 0 && (
-          <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10.5, color: ROSSO, fontWeight: 600 }}>
+          <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10.5, color: GIU, fontWeight: 600 }}>
             {daGuardare === 1 ? t('1 da guardare') : t('{n} da guardare', { n: daGuardare })}
           </span>
         )}
@@ -241,7 +240,7 @@ function RigaGiornata({ g, aperta, onToggle, onCorreggi }: { g: Giornata; aperta
             dice la riga sotto la data, in rosso. */}
         <span aria-hidden="true" style={{
           alignSelf: 'stretch', width: 3, flexShrink: 0, borderRadius: 'var(--radius-pill)',
-          background: esitoCarichi(g) === 'misto' ? `linear-gradient(180deg, ${VERDE} 50%, ${ROSSO} 50%)` : FONDO_ESITO[esitoCarichi(g)],
+          background: esitoCarichi(g) === 'misto' ? `linear-gradient(180deg, ${SU} 50%, ${GIU} 50%)` : FONDO_ESITO[esitoCarichi(g)],
         }}/>
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -256,13 +255,13 @@ function RigaGiornata({ g, aperta, onToggle, onCorreggi }: { g: Giornata; aperta
               </span>
             )}
           </span>
-          <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.03em', color: problemi ? ROSSO : 'var(--fg-mute)' }}>
+          <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10, letterSpacing: '.03em', color: problemi ? GIU : 'var(--fg-mute)' }}>
             {testo || (g.soloHyrox ? '—' : confrontabile ? t('scheda rispettata') : `${fmtVol(g.volume)} kg`)}
             {/* Anche quello che è andato BENE, già da chiusa: i carichi saliti.
                 Prima l'anteprima diceva solo cosa non tornava, e una giornata
                 con tre aumenti si leggeva uguale a una senza. */}
             {g.caricoSalito > 0 && (
-              <span style={{ color: VERDE, fontWeight: 600 }}>
+              <span style={{ color: SU, fontWeight: 600 }}>
                 {' · '}▲ {g.caricoSalito === 1 ? t('1 carico salito') : t('{n} carichi saliti', { n: g.caricoSalito })}
               </span>
             )}
@@ -304,14 +303,14 @@ function RigaEsercizio({ e, primo, onCorreggi }: { e: EsitoEsercizio; primo: boo
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{
           flex: 1, minWidth: 0, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          color: e.saltato ? ROSSO : 'var(--fg)', textDecoration: e.saltato ? 'line-through' : 'none',
+          color: e.saltato ? GIU : 'var(--fg)', textDecoration: e.saltato ? 'line-through' : 'none',
         }}>{tData(e.nome)}</span>
-        {e.saltato && <Etichetta colore={ROSSO}>{t('Saltato')}</Etichetta>}
+        {e.saltato && <Etichetta colore={GIU}>{t('Saltato')}</Etichetta>}
         {e.fuoriScheda && <Etichetta colore="var(--fg-mute)">{t('Fuori scheda')}</Etichetta>}
         {/* Il carico rispetto all'ultima volta: la freccia dice il verso, il
             numero di quanto. */}
         {delta !== null && delta !== 0 && (
-          <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 11, fontWeight: 600, color: delta > 0 ? VERDE : ROSSO }}>
+          <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 11, fontWeight: 600, color: delta > 0 ? SU : GIU }}>
             {delta > 0 ? '▲' : '▼'} {delta > 0 ? '+' : '−'}{fmtNum(Math.abs(delta))} kg
           </span>
         )}
@@ -340,7 +339,7 @@ function RigaEsercizio({ e, primo, onCorreggi }: { e: EsitoEsercizio; primo: boo
         {e.fatto && (
           <span>
             {t('fatto')}{' '}
-            <span style={{ color: e.serieMancanti > 0 ? ROSSO : 'var(--fg-soft)', fontWeight: e.serieMancanti > 0 ? 600 : 400 }}>
+            <span style={{ color: e.serieMancanti > 0 ? GIU : 'var(--fg-soft)', fontWeight: e.serieMancanti > 0 ? 600 : 400 }}>
               {e.fatto.sets_n}
             </span>
             {' × '}
@@ -348,7 +347,7 @@ function RigaEsercizio({ e, primo, onCorreggi }: { e: EsitoEsercizio; primo: boo
             {colpi.map((c, i) => (
               <span key={i}>
                 {i > 0 && '/'}
-                <span style={{ color: e.serieCorte.includes(i) ? ROSSO : 'var(--fg-soft)', fontWeight: e.serieCorte.includes(i) ? 600 : 400 }}>{c}</span>
+                <span style={{ color: e.serieCorte.includes(i) ? GIU : 'var(--fg-soft)', fontWeight: e.serieCorte.includes(i) ? 600 : 400 }}>{c}</span>
               </span>
             ))}
             {' — '}{fmtKg(e.fatto)}

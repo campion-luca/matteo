@@ -78,6 +78,11 @@ export interface Consiglio {
   /** Il carico più pesante della settimana scorsa, da cui si parte. */
   da: number
   motivo: Motivo
+  /** L'attrezzo a vuoto dell'alzata da cui si parte, se i suoi chili erano i
+   *  soli dischi: `kg`, `pesi` e `da` sono scritti come lei. Chi li mostra li
+   *  riporta all'attrezzo di oggi (vedi la pagina dell'allenamento): senza, un
+   *  totale di prima che l'attrezzo ci fosse finiva nel campo dei dischi. */
+  attrezzo?: number
   /** Per i motivi che lo citano: quante serie fatte, il bersaglio di colpi,
    *  quante serie col peso alto, da quanti giorni non si faceva. */
   fatte?: number
@@ -192,7 +197,7 @@ export function caricoConsigliato(
   const comePrima = Array.from({ length: serie }, (_, i) => pesi[i] ?? da)
   const tutte = (kg: number) => Array(serie).fill(arrotonda(kg)) as number[]
   const consiglio = (verso: Verso, motivo: Motivo, perSerie: number[], extra: Partial<Consiglio> = {}): Consiglio =>
-    ({ verso, kg: Math.max(...perSerie), pesi: perSerie, da, motivo, ...extra })
+    ({ verso, kg: Math.max(...perSerie), pesi: perSerie, da, motivo, ...(ultima.attrezzo ? { attrezzo: ultima.attrezzo } : {}), ...extra })
 
   // Dopo uno stop non si sale e non si scende: si riparte da dov'era rimasto,
   // sapendo che peserà di più. Viene prima di tutto il resto perché vale
@@ -214,17 +219,29 @@ export function caricoConsigliato(
   const piuStanco = allora !== undefined && riga.giaFatti !== undefined && riga.giaFatti > allora
 
   // Prima quello che è andato storto: basta una cosa sola per non salire.
-  // Se l'ultima serie era salita di peso ed è lì che non si è retto, si torna al
-  // peso di prima, che era già il proprio; altrimenti si scende di un passo.
+  // Si scende di un passo, serie per serie. Il caso particolare: le ultime serie
+  // erano state alzate (60 - 60 - 62,5) ed è lì, solo lì, che non si è retto —
+  // si torna al peso delle altre, che era già il proprio. Prima il ritorno
+  // scattava con qualunque serie corta e qualunque forma dei pesi: su una
+  // piramide (50 - 55 - 60) portava tutte a 55, cioè la prima SALIVA di 5 kg; e
+  // con la prima serie corta di un 60 - 60 - 62,5 non scendeva affatto.
+  // Col peso calato a metà si scende di un passo dal più pesante, su tutte.
   // Ma se allora il muscolo era già stanco e oggi arriva più fresco, quello che
   // non ha retto può essere stato l'ordine e non il peso: si riprova con gli
   // stessi carichi, senza i cali fatti a metà allenamento.
   const calato = haCalato(pesi)
-  const sotto = pesi.filter(k => k < da)
-  const giu = (motivo: Motivo, extra: Partial<Consiglio> = {}) =>
-    piuFresco
-      ? consiglio('uguale', 'fresco', comePrima.map((_, i) => Math.max(...comePrima.slice(0, i + 1))))
-      : consiglio('giu', motivo, tutte(!calato && sotto.length ? Math.max(...sotto) : Math.max(p, da - p)), extra)
+  const gradini = new Set(pesi).size
+  const basso = Math.min(...pesi)
+  const corte = reps.map((c, i) => (c < (minimi[Math.min(i, minimi.length - 1)] ?? 0) ? i : -1)).filter(i => i >= 0)
+  const giu = (motivo: Motivo, extra: Partial<Consiglio> = {}) => {
+    if (piuFresco) return consiglio('uguale', 'fresco', comePrima.map((_, i) => Math.max(...comePrima.slice(0, i + 1))))
+    if (calato || gradini === 1) return consiglio('giu', motivo, tutte(Math.max(p, da - p)), extra)
+    // Due pesi soli, saliti verso la fine, e a cedere è stata la parte alta: una
+    // serie saltata è sempre l'ultima, una serie corta va guardata.
+    const inAlto = motivo === 'serieMancanti' || (motivo === 'colpiCorti' && corte.every(i => pesi[i] === da))
+    if (gradini === 2 && inAlto) return consiglio('giu', motivo, tutte(basso), extra)
+    return consiglio('giu', motivo, comePrima.map(k => arrotonda(Math.max(passo(k), k - passo(k)))), extra)
+  }
   if (ultima.sets_n < serie) return giu('serieMancanti', { fatte: ultima.sets_n })
   const corta = serieCorta(reps, minimi)
   if (corta >= 0) return giu('colpiCorti', { cima: minimi[Math.min(corta, minimi.length - 1)] })
@@ -242,7 +259,7 @@ export function caricoConsigliato(
 
   // Tutto fatto, stesso peso su ogni serie. Due settimane così allo stesso peso
   // e il corpo ci si è abituato: si sale. Una settimana sola: si può provare.
-  if (sotto.length === 0) {
+  if (gradini === 1) {
     // "Di fila": la volta prima dev'essere la settimana prima, non un mese fa.
     // Tredici giorni sono il massimo fra due settimane attaccate (lunedì → la
     // domenica dopo).

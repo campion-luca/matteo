@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { displayMuscle } from './gymModel'
+import { useMuscleIcons } from './gymHooks'
 import {
   BOUNDS, figura, SPALLE, PETTO, CORE, DORSO, GLUTEI, BRACCIA, GAMBE, AVAMBRACCI, type Forma,
 } from './bodyBlocks'
@@ -27,15 +28,13 @@ import {
 // I colori sono DUE, e le due metà dell'icona dicono due cose diverse.
 //
 //  • Il CORPO (`color`, al 20%) segue chi la usa: prende il colore del gruppo
-//    muscolare, e nei temi monocromatici si spegne con lui. È ciò che una PNG non
-//    potrebbe fare.
+//    muscolare. È ciò che una PNG non potrebbe fare.
 //  • Il DISTRETTO ACCESO (`acceso`) è il colore secondario dell'app
 //    (`--tertiary-ink`, lo stesso dei titoli di sezione), uguale per tutti i
 //    gruppi. Non è una rinuncia alla distinzione: a distinguere un gruppo
 //    dall'altro è DOVE sta la macchia, non di che colore è — è tutto il senso di
 //    questa icona — mentre il colore del gruppo continua a dirlo il filetto
-//    accanto. In Premium, dove i colori dei gruppi collassano in grigi vicini, il
-//    distretto era l'unica parte che valeva la pena accendere e restava spenta.
+//    accanto.
 //
 // L'eccezione è il picker della figura, che passa `acceso="currentColor"`: lì si
 // sta scegliendo un colore e bisogna vederlo.
@@ -102,7 +101,13 @@ function paths(fs: Forma[], key: string) {
 // non corrisponde a nessuna sagoma, quindi chi lo disegna dice quale figura
 // accendere. Per gli otto di serie non si passa: la sagoma la trova il nome.
 export function MuscleIcon({ muscle, icon, size = 28, color = 'currentColor', acceso = 'var(--tertiary-ink)', style }: { muscle: string; icon?: string } & MuscleIconProps) {
-  const g = GRUPPI[displayMuscle(muscle)] ?? (icon ? GRUPPI[displayMuscle(icon)] : undefined)
+  // La figura di un gruppo creato dall'utente la si cerca qui, se chi disegna
+  // non la passa: la card del gruppo la passava, gli esercizi dentro no, e
+  // nella griglia, nell'elenco e nella testata di un esercizio di "Lombari"
+  // (figura Dorso) compariva il manubrio.
+  const icone = useMuscleIcons()
+  const figura = icon ?? icone[muscle]
+  const g = GRUPPI[displayMuscle(muscle)] ?? (figura ? GRUPPI[displayMuscle(figura)] : undefined)
 
   // Fallback dei gruppi legacy o sconosciuti: il manubrio. Non è un distretto, e
   // accendere mezzo corpo per dire "altro" direbbe una cosa falsa.

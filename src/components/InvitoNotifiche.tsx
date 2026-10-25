@@ -39,22 +39,27 @@ export function InvitoNotifiche({ userId }: { userId: string }) {
 
   return (
     <JModal open={aperto} onClose={chiudi} title={t('Notifiche')}>
-      <div style={{ fontFamily: NUC.font, fontSize: 13.5, lineHeight: 1.55, color: 'var(--fg-soft)' }}>
+      {/* La domanda e la nota sotto sono frasi da leggere: Barlow, mai sotto i
+          14px. La nota era in Condensed a 10,5. */}
+      <div style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.5, color: 'var(--fg-soft)' }}>
         {t('Vuoi sapere subito quando il coach ti scrive, ti assegna una scheda o corregge un’alzata — e, se alleni qualcuno, quando finisce un allenamento?')}
       </div>
-      <div style={{ fontFamily: NUC.label, fontSize: 10.5, lineHeight: 1.5, color: 'var(--fg-mute)', marginTop: 8 }}>
+      <div style={{ fontFamily: NUC.font, fontSize: 14, lineHeight: 1.45, color: 'var(--fg-mute)', marginTop: 8 }}>
         {t('Si cambia quando vuoi da Impostazioni.')}
       </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-        <button onClick={chiudi} disabled={lavoro} style={{
-          flex: 1, height: 44, borderRadius: 'var(--radius)', cursor: 'pointer',
-          background: 'var(--surface-2)', border: '1px solid var(--hairline)',
-          fontFamily: NUC.font, fontSize: 13, color: NUC.dim,
+      {/* Due tasti con la stessa forma e lo stesso corpo: "Non ora" piatto, col
+          bordo d'inchiostro; "Attiva" pieno e con l'ombra, perché è il gesto
+          che l'invito propone (vedi `Bottone` in PezziCoach). */}
+      <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
+        <button onClick={chiudi} disabled={lavoro} className="j-hard j-focus" style={{
+          flex: 1, height: 44, cursor: 'pointer',
+          background: 'var(--surface-2)', border: 'var(--bordo)', color: 'var(--fg)',
+          fontFamily: NUC.display, fontSize: 16, fontWeight: 700,
+          letterSpacing: '.06em', textTransform: 'uppercase',
         }}>{t('Non ora')}</button>
-        <button onClick={attiva} disabled={lavoro} className="j-hard" style={{
-          flex: 1, height: 44, borderRadius: 'var(--radius)', cursor: lavoro ? 'default' : 'pointer',
-          background: 'var(--j-accent)', border: '1px solid var(--j-accent)', color: 'var(--j-accent-fg)',
-          fontFamily: NUC.font, fontSize: 13, fontWeight: 500, opacity: lavoro ? 0.6 : 1,
+        <button onClick={attiva} disabled={lavoro} className="j-btn-accent-sm j-focus" style={{
+          flex: 1, width: 'auto', cursor: lavoro ? 'default' : 'pointer',
+          opacity: lavoro ? 0.6 : 1,
         }}>{lavoro ? t('Attendi…') : t('Attiva')}</button>
       </div>
     </JModal>

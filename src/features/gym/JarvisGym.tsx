@@ -23,7 +23,7 @@ import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, Pal
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
   displayMuscle, exColor, MUSCLE_OPTIONS, fmtKg, fmtKgVerso, fmtNum, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
-  effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico,
+  effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico, correnteDa,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
 import { useMuscleColors } from './useMuscleColors'
@@ -39,8 +39,8 @@ import { esercizidaCatalogo, quotaCorpo, aColpi, corpoLibero } from './catalogo'
 import { fotoEsercizio, precaricaFoto } from './eserciziFoto'
 import { vistaIniziale, vistaGruppiIniziale, VISTA_KEY, VISTA_GRUPPI_KEY, type VistaEsercizi, type VistaGruppi } from './vistaEsercizi'
 import { SchieraGruppi } from './SchieraGruppi'
-import { supabase } from '@/lib/supabase'
-import { noteRicevute, type NotaCoach } from '@/lib/coach'
+import { supabase, idUtenteSuDisco } from '@/lib/supabase'
+import { noteRicevute, aggiornaSchedeRicevute, type NotaCoach } from '@/lib/coach'
 import { useNonLetti } from '@/lib/messaggiLive'
 import { BadgeNonLetti } from '@/features/coach/messaggiUI'
 import { TendinaGruppo } from '@/features/coach/TendinaGruppo'
@@ -55,7 +55,7 @@ import type { RecordItem } from './gymModals'
 import { HyroxCard, HyroxDetail, RaceSummary, StazioniInGara } from './GymHyrox'
 import { HYROX_ATTIVO } from './hyroxAttivo'
 import { FormatoSwitch } from './FormatoSwitch'
-import { type FormatoHyrox, sessioniDel, formatoSessione, aDistanzaIntera, categoriaStima } from './hyroxStima'
+import { type FormatoHyrox, sessioniDel, formatoSessione, aDistanzaIntera, categoriaStima, tempoConfrontabile } from './hyroxStima'
 import { todayISO } from '@/lib/isoDate'
 import { GlobalSearch, type Trovato } from '@/features/search/GlobalSearch'
 
@@ -313,8 +313,10 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
       ...hyroxExercises.filter(e => !RACE_IDS.has(e.id)),
     ].map(rs => {
       const hist = sessioniDel(hyroxExercises.find(e => e.id === rs.id)?.history ?? [], rs.target, formatoHyrox)
-      const bestSec = hist.length ? Math.min(...hist.map(h => h.sec)) : null
-      const avgSec  = hist.length ? Math.round(hist.reduce((s, h) => s + h.sec, 0) / hist.length) : null
+      // Al km per la corsa, che mescola passo e tempi totali (vedi `tempoConfrontabile`).
+      const tempi = hist.map(h => tempoConfrontabile(rs.id, h))
+      const bestSec = tempi.length ? Math.min(...tempi) : null
+      const avgSec  = tempi.length ? Math.round(tempi.reduce((s, x) => s + x, 0) / tempi.length) : null
       return { ...rs, hist, bestSec, avgSec }
     })
     return allStations
@@ -363,9 +365,11 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
                   }}
                 >
                   {muscleView === 'vol' ? t('Volume per muscolo') : t('Allenamenti per muscolo')}
-                  {/* La freccia dice che si apre; aperta guarda in giù. */}
+                  {/* Lo stesso segno dei record e dei massimali, qui sotto: una
+                      sezione che si apre ha un chevron, che aperto guarda in giù.
+                      La freccia → è dei tasti che portano a un'altra pagina. */}
                   <span style={{ display: 'flex', transform: volumeOpen ? 'rotate(90deg)' : 'none', transition: 'transform var(--motion-fast) var(--ease)' }}>
-                    <Icons.arrow size={20} stroke={2.4}/>
+                    <Icons.chev size={18} stroke={2.4}/>
                   </span>
                 </button>
               </NucEyebrow>
@@ -473,7 +477,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   {bestSec !== null ? (
                     <>
-                      <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentSoft, letterSpacing: -0.5 }}>{fmtTime(bestSec)}</div>
+                      <div style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentInk, letterSpacing: -0.5 }}>{fmtTime(bestSec)}</div>
                       {avgSec !== null && avgSec !== bestSec && (
                         <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint }}>{t('media {v}', { v: fmtTime(avgSec) })}</div>
                       )}
@@ -618,12 +622,15 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-5 pt-6 pb-4 flex-shrink-0" style={{ position: 'relative' }}>
+      {/* La testata delle altre pagine (rebranding, ott 2026): qui era rimasta
+          quella di prima — il nome in Barlow minuscolo, una freccia più piccola
+          e senza nome per chi usa un lettore di schermo. */}
+      <div className="j-page-header">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="j-btn-back"><Icons.chevL size={16} stroke={2}/></button>
+          <button onClick={onBack} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, color: NUC.ink }}>{tData(ex.n)}</div>
-            <div className="j-eyebrow mt-0.5" style={{ color: accentInkFor(color) }}>{t('Andamento')} · {t('{n} sessioni', { n: hist.length })}</div>
+            <div className="j-eyebrow" style={{ color: accentInkFor(color) }}>{t('Andamento')} · {t('{n} sessioni', { n: hist.length })}</div>
+            <div className="j-page-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
           </div>
         </div>
       </div>
@@ -637,7 +644,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
           <NucEyebrow style={{ marginBottom: 7 }}>{t('Miglior alzata')}</NucEyebrow>
           {best ? (
             <>
-              <div style={{ fontFamily: NUC.label, fontSize: 22, color: NUC.accentSoft, letterSpacing: -0.5, lineHeight: 1 }}>
+              <div style={{ fontFamily: NUC.display, fontSize: 26, fontWeight: 800, color: NUC.accentInk, lineHeight: 1 }}>
                 {best.sets_n}×{fmtReps(best)} – {fmtKg(best)}
               </div>
               <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.4, marginTop: 7 }}>
@@ -658,7 +665,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
             <NucEyebrow>{c.label}</NucEyebrow>
             <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.3, marginTop: -4, marginBottom: 8, paddingLeft: 2 }}>{c.sub}</div>
             <NucCard pad={14}>
-              <LineChart data={c.data} labels={dates} pointLabels={c.data.map(String)} height={180} color={c.c} labelSize={11} yAxis/>
+              <LineChart data={c.data} labels={dates} pointLabels={c.data.map(fmtNum)} height={180} color={c.c} labelSize={11} yAxis/>
             </NucCard>
           </div>
         ))}
@@ -693,12 +700,8 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
 
   // `current` è il prefill dei prossimi log: dopo aver cancellato o modificato
   // l'ultima sessione restava sui valori vecchi (o su quelli appena eliminati).
-  const withCurrent = (history: PalestraHistoryEntry[]) => {
-    const last = history[history.length - 1]
-    return last
-      ? { history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
-      : { history }
-  }
+  // Dall'ultima alzata di lavoro, non da un massimale dichiarato (vedi `correnteDa`).
+  const withCurrent = (history: PalestraHistoryEntry[]) => ({ history, current: correnteDa(history, ex.current) })
 
   const deleteHistEntry = (idx: number) => {
     onUpdate(withCurrent(hist.filter((_, i) => i !== idx)))
@@ -1660,6 +1663,18 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const bodyWeight = useBodyWeight()
   // Quella che la home propone, col suo tasto: vedi la barra "in corso" qui sotto.
   const oggi = useSchedaDiOggi()
+  // Le schede che l'allenatore mi ha mandato si scaricavano solo aprendo
+  // l'elenco: su un telefono nuovo la home diceva "Nessuna scheda" a chi si
+  // allena solo con quelle. Si rileggono qui, all'apertura e tornando in primo
+  // piano, e la copia aggiornata la home la vede da sé (vedi `useSchedaDiOggi`).
+  useEffect(() => {
+    const io = idUtenteSuDisco()
+    if (!io) return
+    void aggiornaSchedeRicevute(io)
+    const alRitorno = () => { if (document.visibilityState === 'visible') void aggiornaSchedeRicevute(io) }
+    document.addEventListener('visibilitychange', alRitorno)
+    return () => document.removeEventListener('visibilitychange', alRitorno)
+  }, [])
   // Le foto degli esercizi, chieste in anticipo: vedi `precaricaFoto`.
   useEffect(() => { precaricaFoto() }, [])
   // `tab` è il mondo in cui si sta (pesi o hyrox); `stats` è la pagina delle
@@ -1823,17 +1838,16 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     // Storico ordinato per data e `current` preso dalla sessione più RECENTE, non
     // da quella appena inserita: registrando una serie arretrata, il prefill dei
     // prossimi log non deve tornare indietro.
-    const merge = (history: PalestraHistoryEntry[]) => {
+    const merge = (history: PalestraHistoryEntry[], prima: PalestraExercise['current']) => {
       const sorted = sortedHistory([...history, entry])
-      const last = sorted[sorted.length - 1]
-      return { history: sorted, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
+      return { history: sorted, current: correnteDa(sorted, prima) }
     }
     // L'attrezzo scritto nell'alzata diventa quello dell'esercizio: lo si dice
     // una volta, e le alzate dopo — anche quelle fatte da una scheda — se lo
     // ritrovano. Svuotarlo lo toglie. Un'alzata a corpo libero non dice niente.
     const attrezzo = entry.bodyweight ? {} : { attrezzoKg: entry.attrezzo || undefined }
     set(st => ({ palestraExercises: st.palestraExercises.map(e =>
-      e.id === ex.id ? { ...e, ...merge(e.history), ...attrezzo } : e
+      e.id === ex.id ? { ...e, ...merge(e.history, e.current), ...attrezzo } : e
     )}))
   }
 
@@ -1934,6 +1948,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     })),
     [s.hyroxExercises]
   )
+  const mieiHyrox = useMemo(() => s.hyroxExercises.filter(e => !RACE_IDS.has(e.id)), [s.hyroxExercises])
   const runStationData = useMemo<HyroxExercise>(() => ({
     ...RUNNING_STATION,
     history: s.hyroxExercises.find(e => e.id === RUNNING_STATION.id)?.history ?? [],
@@ -2173,6 +2188,22 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
                         <HyroxCard ex={ex} onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}/>
                       </div>
                     ))}
+
+                    {/* Gli esercizi propri — un wall ball più leggero, un remo
+                        da 2 km. La finestra per crearli c'era (`AddExModal` in
+                        modo hyrox), mancava il tasto per aprirla; e quelli creati
+                        prima si vedevano solo nelle statistiche e nella ricerca. */}
+                    <div style={{ marginTop: 8 }}><NucEyebrow>{t('I tuoi esercizi')}</NucEyebrow></div>
+                    {mieiHyrox.map(ex => (
+                      <div key={ex.id} onClick={() => apriStazione(ex)} style={{ cursor: 'pointer' }}>
+                        <HyroxCard
+                          ex={ex}
+                          onLog={e => { e?.stopPropagation?.(); setLogHyrox(ex) }}
+                          onDelete={e => { e?.stopPropagation?.(); confirmDelete(() => deleteHyroxExercise(ex), ex.n) }}
+                        />
+                      </div>
+                    ))}
+                    <RigaNuovo label={t('Nuovo esercizio')} onClick={() => setShowAdd(true)} inFondo={mieiHyrox.length > 0}/>
                   </>
                 )}
               </>

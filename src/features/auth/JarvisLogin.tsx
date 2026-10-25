@@ -88,60 +88,48 @@ export function JarvisLogin({ onAuth, recovery = false, onRecoveryDone }: Jarvis
     setLoading(false)
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: 'transparent',
-    border: 'none',
-    borderBottom: '1px solid var(--fg-mute)',
-    outline: 'none',
-    padding: '6px 0',
-    fontFamily: 'var(--font-body)',
-    fontSize: 12,
-    color: 'var(--fg)',
-    letterSpacing: '.04em',
-  }
-
-  const eyebrowStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-body)',
-    fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase',
-    color: 'var(--fg-mute)', marginBottom: 24,
-    textAlign: 'center',
-  }
-
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 100,
       background: 'var(--bg)', backgroundImage: 'var(--paper-grain)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '0 40px',
+      padding: '0 24px',
     }}>
-      {/* Logo */}
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <div style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 10, letterSpacing: '.22em', textTransform: 'uppercase',
-          color: 'var(--fg-mute)', marginBottom: 12,
-        }}>
+      {/* Il marchio: lo stesso Condensed 800 maiuscolo dei titoli dell'app, con
+          l'occhiello sopra e il tratto d'accento sotto. Era in Barlow 500 con
+          l'occhiello a 10px, l'ultima cosa rimasta del tema Journal — ed era la
+          prima che si vedeva aprendo l'app. */}
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <div className="j-eyebrow" style={{ fontSize: 13, letterSpacing: '.16em', marginBottom: 10 }}>
           {tr('Fatto in Italia')}
         </div>
         <div style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 44, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1,
+          fontFamily: 'var(--font-display)', textTransform: 'uppercase',
+          fontSize: 60, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: .9,
           color: 'var(--fg)',
         }}>
           Matteo
         </div>
-        <div style={{ width: 28, height: 1, background: 'var(--j-accent)', margin: '12px auto 0' }}/>
+        <div style={{ width: 40, height: 4, background: 'var(--j-accent)', margin: '14px auto 0' }}/>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 280 }}>
-        <div style={eyebrowStyle}>
+      {/* Il form. Più largo di prima (320 e non 280): i campi adesso sono
+          riquadri col bordo, e il tasto scrive in grande. */}
+      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 320 }}>
+        {/* Cosa si sta facendo: un titolo di sezione, come quelli della home. */}
+        <div style={{
+          fontFamily: 'var(--font-display)', textTransform: 'uppercase',
+          fontSize: 24, fontWeight: 800, letterSpacing: '.02em', lineHeight: 1,
+          color: 'var(--fg)', marginBottom: 16, textAlign: 'center',
+        }}>
           {mode === 'login' ? tr('Accedi') : mode === 'register' ? tr('Crea account') : mode === 'forgot' ? tr('Recupera password') : tr('Nuova password')}
         </div>
 
+        {/* I campi sono quelli del resto dell'app (`.j-field`): un riquadro col
+            bordo d'inchiostro, il testo a 16px. Erano una riga sottile sotto un
+            testo da 12px, lo stile del tema di prima. */}
         {mode !== 'reset' && (
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 12 }}>
             <input
               type="email"
               placeholder={tr('email')}
@@ -149,87 +137,98 @@ export function JarvisLogin({ onAuth, recovery = false, onRecoveryDone }: Jarvis
               onChange={e => setEmail(e.target.value)}
               required
               autoCapitalize="off"
-              style={inputStyle}
+              className="j-field"
             />
           </div>
         )}
 
         {mode !== 'forgot' && (
-          <div style={{ marginBottom: mode === 'reset' ? 16 : 32, position: 'relative' }}>
+          <div style={{ marginBottom: mode === 'reset' ? 12 : 20, position: 'relative' }}>
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder={mode === 'reset' ? tr('nuova password') : tr('password')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              style={{ ...inputStyle, paddingRight: 28 }}
+              className="j-field"
+              style={{ paddingRight: 44 }}
             />
+            {/* Quadrato da 44 sul bordo destro del campo: è il bersaglio minimo
+                per un dito, e l'icona da sola ne era un terzo. */}
             <button
               type="button"
               onClick={() => setShowPassword(v => !v)}
+              className="j-focus"
               style={{
-                position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+                position: 'absolute', right: 0, top: 0, width: 44, height: 44,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: 'none', border: 'none', padding: 0,
-                cursor: 'pointer', color: 'var(--fg-mute)',
-                fontSize: 14, lineHeight: 1,
+                cursor: 'pointer', color: 'var(--fg-soft)',
               }}
               aria-label={showPassword ? tr('Nascondi password') : tr('Mostra password')}
             >
-              {showPassword ? <Icons.bookOpen size={15} stroke={1.6}/> : <Icons.book size={15} stroke={1.6}/>}
+              {showPassword ? <Icons.occhioNo size={18} stroke={1.8}/> : <Icons.occhio size={18} stroke={1.8}/>}
             </button>
           </div>
         )}
 
         {mode === 'reset' && (
-          <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 20 }}>
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder={tr('conferma password')}
               value={password2}
               onChange={e => setPassword2(e.target.value)}
               required
-              style={inputStyle}
+              className="j-field"
             />
           </div>
         )}
 
-        {mode === 'forgot' && <div style={{ marginBottom: 32 }}/>}
+        {mode === 'forgot' && <div style={{ marginBottom: 8 }}/>}
 
         {mode === 'login' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            {/* La casella è un quadrato col bordo d'inchiostro, e spuntata si
+                riempie d'inchiostro: la stessa regola degli interruttori e delle
+                scelte a segmenti. L'accento resta al tasto che fa entrare. */}
             <button
               type="button"
+              role="checkbox"
+              aria-checked={rememberMe}
               onClick={() => setRememberMe(v => !v)}
+              className="j-focus"
               style={{
-                width: 16, height: 16, borderRadius: 'var(--radius-sm)', padding: 0, flexShrink: 0,
-                background: rememberMe ? 'var(--j-accent)' : 'transparent',
-                border: `1px solid ${rememberMe ? 'var(--j-accent)' : 'var(--fg-mute)'}`,
+                width: 22, height: 22, padding: 0, flexShrink: 0,
+                background: rememberMe ? 'var(--ink)' : 'var(--surface)',
+                border: 'var(--bordo)',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 180ms',
+                transition: 'background var(--motion-fast) var(--ease)',
               }}
               aria-label={tr('Ricordami')}
             >
               {rememberMe && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--j-accent-fg)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--surface)" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
               )}
             </button>
             <span style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase',
-              color: 'var(--fg-mute)', cursor: 'pointer',
+              fontFamily: 'var(--font-display)',
+              fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+              color: 'var(--fg)', cursor: 'pointer',
             }} onClick={() => setRememberMe(v => !v)}>
               {tr('Ricordami')}
             </span>
           </div>
         )}
 
+        {/* Errori e conferme sono frasi da leggere: Barlow a 14px. A 10px,
+            "Email o password non corretti" si perdeva sotto i campi. */}
         {error && (
           <div style={{
             fontFamily: 'var(--font-body)',
-            fontSize: 10, color: 'var(--danger)', marginBottom: 16,
-            letterSpacing: '.02em',
+            fontSize: 14, lineHeight: 1.45, color: 'var(--danger)', marginBottom: 16,
           }}>
             {error}
           </div>
@@ -238,38 +237,34 @@ export function JarvisLogin({ onAuth, recovery = false, onRecoveryDone }: Jarvis
         {info && (
           <div style={{
             fontFamily: 'var(--font-body)',
-            fontSize: 10, color: 'var(--j-accent-ink)', marginBottom: 16,
-            letterSpacing: '.02em',
+            fontSize: 14, lineHeight: 1.45, color: 'var(--j-accent-ink)', marginBottom: 16,
           }}>
             {info}
           </div>
         )}
 
+        {/* Il tasto è il CTA dell'app (`.j-btn-accent`): bianco, grande e in
+            grassetto sull'arancio, con l'ombra piena. Scriveva nel colore del
+            fondo a 10px — 3.55:1, sotto la soglia del testo piccolo, e a 10px
+            piccolo lo era. */}
         {!info && (
           <button
             type="submit"
             disabled={loading}
+            className="j-btn-accent"
             style={{
-              width: '100%',
-              minHeight: 44,
-              padding: '12px 0',
-              background: 'var(--j-accent)',
-              border: 'none',
-              borderRadius: 'var(--radius)',
-              fontFamily: 'var(--font-body)',
-              fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase',
-              color: 'var(--bg)',
+              marginTop: 0,
               cursor: loading ? 'default' : 'pointer',
               opacity: loading ? 0.6 : 1,
-              transition: 'opacity 200ms',
             }}
           >
             {loading ? '...' : mode === 'login' ? tr('Entra') : mode === 'register' ? tr('Registrati') : mode === 'forgot' ? tr('Invia email') : tr('Aggiorna password')}
           </button>
         )}
 
-        {/* Bottom links */}
-        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* I link sotto il tasto: alti 40 perché si toccano, e grigi perché
+            non sono il gesto principale. */}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {mode === 'login' && (
             <>
               <button type="button" onClick={() => switchMode('register')} style={linkStyle}>
@@ -311,10 +306,10 @@ function translateAuthError(message: string): string {
 }
 
 const linkStyle: React.CSSProperties = {
-  width: '100%',
+  width: '100%', minHeight: 40, padding: 0,
   background: 'none', border: 'none',
-  fontFamily: 'var(--font-body)',
-  fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase',
-  color: 'var(--fg-mute)',
+  fontFamily: 'var(--font-display)',
+  fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+  color: 'var(--fg-soft)',
   cursor: 'pointer',
 }

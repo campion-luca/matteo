@@ -1,5 +1,10 @@
 import type { Config } from 'tailwindcss'
 
+// Tailwind serve per le utility di layout (flex, gap, spaziature) e per i tre
+// colori di base che globals.css applica con `@apply`. I colori, i raggi e le
+// ombre dell'app sono variabili CSS in `:root` (globals.css) e si scrivono
+// inline: qui c'era un tema intero — alias "legacy", ombre, raggi, i colori
+// Jarvis — che dopo il rebranding non generava più nessuna utility usata.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -7,51 +12,10 @@ export default {
       colors: {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
         border: 'hsl(var(--border))',
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        // Jarvis Office/Paper design tokens
-        j: {
-          bg:           'var(--bg)',
-          surface:      'var(--surface)',
-          'surface-2':  'var(--surface-2)',
-          'input-bg':   'var(--input-bg)',
-          fg:           'var(--fg)',
-          'fg-soft':    'var(--fg-soft)',
-          'fg-mute':    'var(--fg-mute)',
-          hairline:     'var(--hairline)',
-          accent:       'var(--j-accent)',
-          'accent-fg':  'var(--j-accent-fg)',
-          'accent-ink': 'var(--j-accent-ink)',
-          // legacy aliases kept for gradual migration
-          ink:          'var(--fg)',
-          dim:          'var(--fg-soft)',
-          faint:        'var(--fg-mute)',
-          card:         'var(--surface)',
-          'card-strong':'var(--surface-2)',
-          'accent-soft':'var(--j-accent-soft)',
-          'accent-deep':'var(--j-accent-deep)',
-        },
       },
       fontFamily: {
-        sans:    ["'Barlow'", 'system-ui', 'sans-serif'],
-        display: ["'Barlow Condensed'", 'system-ui', 'sans-serif'],
-      },
-      borderRadius: {
-        lg:       'var(--radius)',
-        md:       'var(--radius)',
-        sm:       'var(--radius)',
-        'j-card': '0',
-      },
-      boxShadow: {
-        card: 'var(--shadow-card)',
-        pop:  'var(--shadow-pop)',
+        sans: ["'Barlow'", 'system-ui', 'sans-serif'],
       },
     },
   },

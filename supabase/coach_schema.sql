@@ -162,10 +162,10 @@ GRANT EXECUTE ON FUNCTION public.redeem_coach_code(text, text) TO authenticated;
 -- ── Cosa vede l'allenatore ─────────────────────────────────────
 -- NON si dà all'allenatore una policy di SELECT su `user_data`.
 --
--- Quella riga contiene TUTTO lo stato dell'utente in un unico blob, stipendio,
--- spese fisse e obiettivo di risparmio compresi. Una policy per riga avrebbe
--- concesso al personal trainer di leggere le finanze del suo allievo, il che non
--- è ciò che si intende con "vedere gli allenamenti".
+-- Quella riga contiene TUTTO lo stato dell'utente in un unico blob (quando è
+-- nata conteneva anche stipendio e spese, dell'app di allora). Una policy per
+-- riga avrebbe concesso al personal trainer di leggere tutto ciò che c'è, il che
+-- non è ciò che si intende con "vedere gli allenamenti".
 --
 -- Questa funzione ricompone un blob RIDOTTO ai campi dell'allenamento. Il filtro
 -- sta nel database e non nel client: un filtro fatto nell'app sarebbe una

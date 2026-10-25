@@ -19,10 +19,10 @@ import type { AthleteData } from '@/lib/coach'
 import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { giornateAllievo, confrontaGiornate, type Giornata, type RigaConfronto } from './analisiSessioni'
 
-// Rosso e verde veri anche nel tema premium, che --danger e --ok li scolora.
-const ROSSO = 'var(--segnale-giu)'
-const VERDE = 'var(--segnale-su)'
-const colore = (delta: number | null) => (!delta ? 'var(--fg)' : delta > 0 ? VERDE : ROSSO)
+// I colori dei segnali: salito d'inchiostro, sceso rosso (vedi globals.css).
+const GIU = 'var(--segnale-giu)'
+const SU = 'var(--segnale-su)'
+const colore = (delta: number | null) => (!delta ? 'var(--fg)' : delta > 0 ? SU : GIU)
 
 const esercizi = (g: Giornata) => g.gruppi.flatMap(gr => gr.esercizi).filter(e => !!e.fatto)
 const schedeDi = (g: Giornata) => g.gruppi.map(x => x.scheda).filter((x): x is { id: string; nome: string } => !!x)
@@ -230,7 +230,7 @@ function Tessera({ etichetta, g }: { etichetta: string; g: Giornata }) {
 function Bilancio({ titolo, su, giu }: { titolo: string; su: number; giu: number }) {
   const t = useT()
   const voce = (n: number, verso: boolean): ReactNode => (
-    <span style={{ color: n === 0 ? 'var(--fg-mute)' : verso ? VERDE : ROSSO, fontWeight: n === 0 ? 400 : 600 }}>
+    <span style={{ color: n === 0 ? 'var(--fg-mute)' : verso ? SU : GIU, fontWeight: n === 0 ? 400 : 600 }}>
       {verso ? '▲' : '▼'} {verso ? t('{n} in salita', { n }) : t('{n} in calo', { n })}
     </span>
   )

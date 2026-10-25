@@ -9,11 +9,10 @@ export const NUC = {
   dim:        'var(--fg-soft)',
   faint:      'var(--fg-mute)',
   hairline:   'var(--hairline)',
-  card:       'var(--surface)',
-  cardStrong: 'var(--surface-2)',
-  accent:     'var(--j-accent)',
-  accentSoft: 'var(--j-accent-soft)',
-  accentDeep: 'var(--j-accent-deep)',
+  // L'accento COME TESTO su chiaro (4.8:1). Al suo posto c'era `accentSoft`, il
+  // tono chiaro dei vecchi temi scuri: sul bianco faceva 3.1:1, e il numero
+  // della miglior alzata e le percentuali del report si leggevano a fatica.
+  accentInk:  'var(--j-accent-ink)',
   // Typography roles (vedi `--font-display` e `--font-body` in globals.css):
   //  font    → Barlow: il testo corrente — nomi degli esercizi, righe di dettaglio
   //  label   → Barlow Condensed: titoli, numeri, etichette, tasti, chip, date

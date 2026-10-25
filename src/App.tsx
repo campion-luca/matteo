@@ -11,7 +11,7 @@ import { InstallBanner } from '@/components/InstallBanner'
 import { InvitoNotifiche } from '@/components/InvitoNotifiche'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore, applyRemoteState, VERSIONE_DATI } from '@/store/useJarvisStore'
-import { serveAzzerare, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
+import { serveAzzerare, serveSegnare, segnatura, azzeramento, salvaScorta } from '@/features/gym/resetCatalogo'
 import { supabase, sessioneSuDisco, erroreDiRete } from '@/lib/supabase'
 import { loadUserData, saveUserData, fetchRemoto, senzaRete } from '@/lib/cloudSync'
 import { useSyncStatus } from '@/lib/syncStatus'
@@ -20,7 +20,7 @@ import { myCoaches } from '@/lib/coach'
 import { correzioniPer, eliminaCorrezioni, applicaCorrezioni } from '@/lib/correzioni'
 import { proprietario, segnaProprietario, parcheggia, riprendi, svuotaDatiLocali, pulisciParcheggi } from '@/lib/proprietario'
 import { cercaAggiornamento } from '@/lib/aggiornamento'
-import { riallineaPush } from '@/lib/push'
+import { riallineaPush, staccaPushLocale } from '@/lib/push'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
@@ -507,8 +507,11 @@ export default function App() {
   // Si apre sui messaggi quando si arriva toccando una notifica: nell'indirizzo
   // (`?apri=messaggi`, app chiusa) o detto dal service worker (app già aperta).
   const [coachSuMessaggi, setCoachSuMessaggi] = useState(false)
+  // Quante notifiche sono state toccate: col Coaching già aperto è questo a
+  // portarlo sui messaggi (vedi `apriMessaggi` in JarvisCoach).
+  const [notificheToccate, setNotificheToccate] = useState(0)
   useEffect(() => {
-    const apri = () => { setCoachSuMessaggi(true); setShowCoach(true) }
+    const apri = () => { setCoachSuMessaggi(true); setShowCoach(true); setNotificheToccate(n => n + 1) }
     if (new URLSearchParams(window.location.search).get('apri') === 'messaggi') {
       apri()
       // L'indirizzo si ripulisce: ricaricando la pagina non deve riaprirsi il
@@ -576,6 +579,11 @@ export default function App() {
         if (chi) parcheggia(chi)
         svuotaDatiLocali()
         segnaProprietario(null)
+        // Chi esce da "Esci" ha già tolto la sua iscrizione alle notifiche (vedi
+        // lib/uscita). Chi esce in un altro modo — l'accesso non rinnovato, una
+        // sessione chiusa altrove — no, e il telefono continuava a ricevere i
+        // suoi messaggi, testo compreso, anche col prossimo account dentro.
+        void staccaPushLocale().catch(() => { /* niente da staccare */ })
         // Tutto quello che valeva per la sessione appena finita torna a zero:
         // restando, il prossimo ingresso — anche dello stesso utente — partiva
         // con l'orario del cloud, lo stato "non sincronizzato" e il "già
@@ -606,10 +614,19 @@ export default function App() {
   // Restituisce `true` se ha fatto qualcosa, e allora chi chiama deve spingere:
   // un azzeramento che resta sul telefono e non sale è un account che si azzera
   // di nuovo domani, sull'altro dispositivo.
+  //
+  // Azzera solo chi ha dati di prima del catalogo nuovo (vedi `serveAzzerare`).
+  // A tutti gli altri — un account nuovo, uno nato dopo — mette il marcatore e
+  // basta, in silenzio: non c'è niente da sostituire e niente da annunciare.
   const azzeraSeServe = (): boolean => {
     const st = useJarvisStore.getState()
+    if (serveSegnare(st)) {
+      useJarvisStore.setState(segnatura(st))
+      return true
+    }
     if (!serveAzzerare(st)) return false
-    const scorta = salvaScorta(st)
+    const io = proprietario()
+    const scorta = !!io && salvaScorta(st, io)
     useJarvisStore.setState(azzeramento())
     // Detto, non fatto di nascosto: chi apre l'app e non trova più le sue schede
     // ha diritto di sapere che è successo adesso e non per un guasto.
@@ -711,7 +728,7 @@ export default function App() {
             setPushOnMount(true)
           } else {
             if (decision === 'applyRemoteConflict') {
-              useSyncStatus.getState().setNotice('Aggiornato da un altro dispositivo')
+              useSyncStatus.getState().setNotice(t('Aggiornato da un altro dispositivo'))
             }
             const locale = useJarvisStore.getState()
             applyRemoteState(res.data)
@@ -768,9 +785,17 @@ export default function App() {
     setBooted(true)
   }
 
+  // Il cloud ha risposto e lo store è quello che dice lui. È anche il momento
+  // giusto per l'azzeramento che il caricamento fallito aveva rimandato (vedi il
+  // suo `.catch`): senza, un account nuovo partito senza rete restava senza
+  // marcatore, e il marcatore mancante era quello che al riavvio successivo gli
+  // cancellava schede e alzate. Il bridge qui è montato e ascolta lo store:
+  // quello che cambia parte da sé.
   const alAllineamento = useCallback(() => {
     setLoadFailed(false)
     setCloudPronto(true)
+    // `azzeraSeServe` legge e scrive solo lo store: non dipende da niente di qui.
+    azzeraSeServe()
   }, [])
 
   // Account appena creato: nessun dato anagrafico, da nessuna parte. Non basta
@@ -886,7 +911,7 @@ export default function App() {
 
           {/* Personal Coach — overlay su mobile e desktop, aperto dall'allenamento */}
           <Suspense fallback={null}>
-            {showCoach  && <JarvisCoach  userId={session.user.id} iniziale={coachSuMessaggi ? 'messaggi' : 'seguito'} onBack={() => { setShowCoach(false); setCoachSuMessaggi(false) }}/>}
+            {showCoach  && <JarvisCoach  userId={session.user.id} iniziale={coachSuMessaggi ? 'messaggi' : 'seguito'} apriMessaggi={notificheToccate} onBack={() => { setShowCoach(false); setCoachSuMessaggi(false) }}/>}
           </Suspense>
         </>
       )}

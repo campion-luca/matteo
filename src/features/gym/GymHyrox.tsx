@@ -18,7 +18,7 @@ import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { fmtTime, pace, sortedHistory } from './gymModel'
 import {
   type FormatoHyrox, type Fonte, type PB,
-  formatoSessione, distanzaLeggibile, unitaDelTempo, stimaPB, giornateAMeta, totaleGara, fmtTempoGara, fmtDelta,
+  formatoSessione, distanzaLeggibile, unitaDelTempo, tempoConfrontabile, stimaPB, giornateAMeta, totaleGara, fmtTempoGara, fmtDelta,
   ROXZONE_PASSAGGI, ROXZONE_SEC, MIN_PER_PROFILO,
 } from './hyroxStima'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
@@ -59,7 +59,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
   const distMezza  = distanzaLeggibile(ex.target / 2, ex.unit)
 
   const { times, paces, labels } = useMemo(() => ({
-    times:  visibili.map(({ h }) => h.sec),
+    times:  visibili.map(({ h }) => tempoConfrontabile(ex.id, h)),
     paces:  visibili.map(({ h }) => {
       if (ex.unit === 'km') return Math.round(h.sec / unitaDelTempo(ex.id, h.units))
       if (ex.unit === 'm')  return Math.round((h.sec / h.units) * 500)
@@ -72,7 +72,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
   const lastSec  = times[times.length - 1]
   const prevSec  = times[times.length - 2]
   const trend    = lastSec !== undefined && prevSec !== undefined ? lastSec - prevSec : 0
-  const trendCol = trend < 0 ? NUC.accentSoft : trend > 0 ? 'var(--danger)' : NUC.faint
+  const trendCol = trend < 0 ? NUC.accentInk : trend > 0 ? 'var(--danger)' : NUC.faint
 
   const deleteHistEntry = (idx: number) => {
     onUpdate?.({ history: hist.filter((_, i) => i !== idx) })
@@ -83,8 +83,8 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
     <div className="flex flex-col h-full overflow-hidden">
       <div className="px-5 pt-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
-                    <button onClick={onBack} className="j-btn-back">
-            <Icons.chevL size={16} stroke={2}/>
+          <button onClick={onBack} aria-label={t('Indietro')} className="j-btn-back">
+            <Icons.back size={20} stroke={1.8}/>
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: NUC.font, fontSize: 22, fontWeight: 500, lineHeight: 1.15, letterSpacing: 0, color: NUC.ink }}>{tData(ex.n)}</div>
@@ -112,7 +112,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
           ].map(st => (
             <NucCard key={st.label} pad={12} style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: 1.5, color: NUC.faint, textTransform: 'uppercase', marginBottom: 6 }}>{st.label}</div>
-              <div style={{ fontFamily: NUC.label, fontSize: 13, color: st.color ?? NUC.accentSoft, letterSpacing: -0.4 }}>{st.value}</div>
+              <div style={{ fontFamily: NUC.label, fontSize: 13, color: st.color ?? NUC.accentInk, letterSpacing: -0.4 }}>{st.value}</div>
             </NucCard>
           ))}
         </div>
@@ -126,7 +126,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
               {t('il grafico che scende = miglioramento')}
             </div>
             <NucCard pad={12} style={{ marginBottom: 12 }}>
-              <LineChart data={times} labels={labels} height={64} color={NUC.accentSoft}/>
+              <LineChart data={times} labels={labels} height={64} color="var(--chart-2)"/>
             </NucCard>
           </>
         )}
@@ -168,7 +168,7 @@ export function HyroxDetail({ ex, onBack, onLog, onDelete, onUpdate, isRace = fa
                     </div>
                     <div style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
                   </div>
-                  <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.accentSoft, letterSpacing: -0.3, flexShrink: 0 }}>
+                  <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.accentInk, letterSpacing: -0.3, flexShrink: 0 }}>
                     {pace(h.sec, unitaDelTempo(ex.id, h.units), ex.unit)}
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
@@ -337,7 +337,7 @@ export function RaceSummary({ raceStations, runStation, gare, oggi, onRegistra, 
           <button
             onClick={onRegistra}
             aria-label={t('Registra una gara o una simulazione')}
-            className="j-hard j-accent-key j-focus"
+            className="j-hard j-focus"
             style={{
               width: 46, height: 46, flexShrink: 0, borderRadius: 'var(--radius)', cursor: 'pointer',
               backgroundColor: 'var(--j-accent)', color: 'var(--j-accent-fg)', border: '1px solid var(--accent-edge)',
@@ -633,8 +633,8 @@ export function HyroxCard({ ex, onLog, onDelete }: {
   const prev = last
     ? hist.slice(0, -1).reverse().find(h => formatoSessione(h, ex.target) === formatoSessione(last, ex.target))
     : undefined
-  const trend = last && prev ? last.sec - prev.sec : 0
-  const trendColor = trend < 0 ? NUC.accentSoft : trend > 0 ? 'var(--danger)' : NUC.faint
+  const trend = last && prev ? tempoConfrontabile(ex.id, last) - tempoConfrontabile(ex.id, prev) : 0
+  const trendColor = trend < 0 ? 'var(--j-accent-ink)' : trend > 0 ? 'var(--danger)' : NUC.faint
   const dist = distanzaLeggibile(last ? last.units : ex.target, ex.unit)
   const piccolo: React.CSSProperties = { fontFamily: NUC.label, fontSize: 10, letterSpacing: 1, color: NUC.faint, whiteSpace: 'nowrap' }
 
@@ -661,7 +661,7 @@ export function HyroxCard({ ex, onLog, onDelete }: {
         <span className="j-eyebrow" style={{ whiteSpace: 'nowrap' }}>{dist}</span>
         {last ? (
           <>
-            <span style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentSoft, letterSpacing: -0.4, marginLeft: 'auto' }}>{fmtTime(last.sec)}</span>
+            <span style={{ fontFamily: NUC.label, fontSize: 14, color: NUC.accentInk, letterSpacing: -0.4, marginLeft: 'auto' }}>{fmtTime(last.sec)}</span>
             <span style={piccolo}>{pace(last.sec, unitaDelTempo(ex.id, last.units), ex.unit)}</span>
             {/* `trend` è zero anche quando non c'è una sessione precedente
                 della stessa distanza con cui confrontare. */}
