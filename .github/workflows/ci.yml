@@ -8,6 +8,14 @@ on:
 jobs:
   verifica:
     runs-on: ubuntu-latest
+    # Il client Supabase fallisce l'import senza queste due (vedi
+    # src/lib/supabase.ts). In CI non si parla col server: sono segnaposto, non
+    # credenziali. Valgono per tutto il job e non solo per la build: anche i test
+    # importano il client, e senza fallivano all'avvio una ventina di file —
+    # in locale non si vedeva, perché le prende dal file .env.
+    env:
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
     steps:
       - uses: actions/checkout@v4
 
@@ -28,9 +36,3 @@ jobs:
       # produzione non è un passo a parte.
       - name: Build
         run: npm run build
-        env:
-          # Il client Supabase fallisce l'import senza queste due (vedi
-          # src/lib/supabase.ts). In CI si compila soltanto: sono segnaposto,
-          # non credenziali.
-          VITE_SUPABASE_URL: https://example.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
