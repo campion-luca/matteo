@@ -114,9 +114,10 @@ la migrazione avviene quando si apre la scheda, in background e best-effort — 
 fallisce si tiene il base64 e non si blocca niente. Sostituire un allegato
 cancella il precedente; cancellare una scheda cancella il suo file.
 
-Le istruzioni per creare il bucket e le sue policy stanno in
-[SETUP-STORAGE.md](SETUP-STORAGE.md): sono un passaggio da fare una volta dalla
-dashboard, e nessun codice può farlo al posto tuo.
+Le istruzioni per creare il bucket e le sue policy stavano in `SETUP-STORAGE.md`:
+erano un passaggio da fare una volta dalla dashboard, e nessun codice poteva
+farlo al posto tuo. (Il file è stato tolto quando gli allegati sono usciti
+dall'app: oggi le schede non hanno allegati e l'app non usa Supabase Storage.)
 
 ## 8. Task ricorrenti
 

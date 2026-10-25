@@ -12,16 +12,16 @@ export default defineConfig({
       manifest: {
         name: 'Matteo',
         short_name: 'Matteo',
-        description: 'Allenamenti e strumenti personali in una sola PWA.',
+        description: 'Allenamenti in palestra: schede, alzate, carichi consigliati e un allenatore che ti segue.',
+        lang: 'it',
         start_url: '/',
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
-        // Stessi valori della <meta name="theme-color"> in index.html: il tema
-        // di default è la carta avorio, e un nero qui faceva lampeggiare la
-        // splash dell'app installata prima del primo frame.
-        // Nero come il tema di default (Premium): è il colore della schermata di
-        // avvio dell'app installata, prima che la pagina carichi.
+        // Il fondo dell'app, il cemento di `--bg` in globals.css: il tema è uno
+        // solo. Stesso valore della <meta name="theme-color"> in index.html. È
+        // anche il colore della schermata d'avvio dell'app installata, prima del
+        // primo frame: diverso dal fondo, la si vedrebbe lampeggiare.
         theme_color: '#F1F1EF',
         background_color: '#F1F1EF',
         icons: [

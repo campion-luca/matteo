@@ -1,9 +1,19 @@
 # Bonifica colori → palette "Journal"
 
-> **Documento storico.** Censimento colori del passaggio alla palette "Journal".
-> Diversi token elencati qui — quelli del ciclo, delle priorità dei lavori, delle
-> streak — sono stati rimossi insieme alle feature che li usavano. Per i token
-> vivi fa fede [src/styles/globals.css](src/styles/globals.css).
+> **Documento storico.** Censimento colori del passaggio alla palette "Journal",
+> quando l'app aveva un tema chiaro e uno scuro e più palette da scegliere.
+> Niente di questo è lo stato attuale: dal rebranding di ottobre 2026 il tema è
+> uno solo — fondo cemento, card bianche, inchiostro e un solo accento
+> rosso-arancio — e la palette Journal, il tema scuro e i valori "Light / Dark"
+> della tabella qui sotto non ci sono più. I token del ciclo, delle priorità dei
+> lavori e delle streak erano già usciti insieme alle feature che li usavano.
+> Dei nomi elencati resta solo `--danger-rgb`, con un valore nuovo: `--knob` e
+> i quattordici `--cat-N` sono stati tolti a fine ottobre 2026, quando nessuno
+> li leggeva più (i colori dei gruppi muscolari sono hex nei dati dell'utente,
+> vedi `MUSCLE_COLORS` in gymModel).
+> Per i colori vivi fa fede [src/styles/globals.css](../src/styles/globals.css);
+> che le coppie usate dall'app reggano il contrasto AA lo verifica
+> [src/test/contrast.test.ts](../src/test/contrast.test.ts).
 
 Obiettivo: nessun colore renderizzato fuori dai token Journal. Nessuna modifica a
 layout, spaziature, logica o testi. Censimento del working tree e mappa di

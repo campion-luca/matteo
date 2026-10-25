@@ -1,7 +1,7 @@
 {
   "name": "matteo",
   "private": true,
-  "description": "Matteo — Personal OS: PWA per allenamenti (palestra e Hyrox) e strumenti personali.",
+  "description": "Matteo: PWA per gli allenamenti in palestra, con schede, carichi consigliati e coaching fra allenatore e allievo.",
   "license": "MIT",
   "version": "0.1.0",
   "type": "module",

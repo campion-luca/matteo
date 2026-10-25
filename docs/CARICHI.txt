@@ -209,14 +209,23 @@ Se è andata male si scende lo stesso, nuovo o no.
 
 9. COME SI LEGGE LA CARD
 ------------------------
-  - Titolo: Puoi salire / Devi salire / Dopo lo stop / Esercizio nuovo /
+Sta dentro la card dell'esercizio, sotto il nome e l'obiettivo e prima
+delle note e delle serie. È un riquadro grigio con un filo d'inchiostro,
+senza colori (dal rebranding di ottobre 2026: prima la freccia era
+verde, rossa o grigia, e stop e muscolo stanco avevano il colore degli
+avvisi).
+  - In alto a sinistra il titolo, piccolo, grigio e maiuscolo: Puoi
+    salire / Devi salire / Dopo lo stop · N gg / Esercizio nuovo /
     Muscolo già stanco / Carico consigliato.
-  - Freccia e colore: su in verde, giù in rosso, uguale in grigio.
-    Lo stop e il muscolo stanco sono avvisi e hanno il colore degli
-    avvisi.
-  - Se le serie hanno pesi diversi li scrive tutti (60 - 62,5 - 62,5).
-  - Sotto c'è sempre il motivo.
-  - "Usa" compare solo se c'è qualcosa da cambiare nei campi.
+  - In alto a destra il peso, grande e d'inchiostro, con davanti la
+    freccia: ↑ si sale, ↓ si scende, = si resta. Il verso lo dice solo
+    la freccia; che sia un avviso (lo stop, il muscolo stanco) lo
+    dicono il titolo e il motivo.
+  - Se le serie hanno pesi diversi li scrive tutti (60 · 62,5 · 62,5).
+  - Sotto c'è sempre il motivo, per esteso.
+  - "Usa", accanto al motivo, compare solo se c'è qualcosa da cambiare:
+    una serie non ancora spuntata con un peso diverso da quello
+    consigliato.
 
 
 10. CHI HA DECISO COSA
