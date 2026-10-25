@@ -107,4 +107,39 @@ describe('la home', () => {
     // Dritti nell'allenamento della scheda, non nel suo dettaglio.
     expect(await screen.findByRole('button', { name: /termina allenamento/i })).toBeInTheDocument()
   })
+
+  // La barra "Allenamento in corso" e il tasto "Riprendi" della card dicevano la
+  // stessa cosa, e insieme su un telefono basso spingevano il tasto sotto il bordo.
+  const apertaSu = (schedaId: string, rigaId: string, da = Date.now()) => localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+    schedaId, salvataA: da, iniziataA: da,
+    progress: { [rigaId]: { checks: [true, true, false, false], weights: ['60', '60', '', ''], reps: ['8', '8', '', ''] } },
+  }))
+
+  it('con l’allenamento della scheda di oggi aperto lo dice la card, senza la barra in cima', () => {
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì')] })
+    apertaSu('a', 'a-1')
+    monta()
+    expect(screen.getByText('In corso · Lunedì')).toBeInTheDocument()
+    expect(screen.getByText('2/7 serie fatte', { exact: false })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Riprendi allenamento/ })).toBeInTheDocument()
+    expect(screen.queryByText('Allenamento in corso')).not.toBeInTheDocument()
+  })
+
+  it('rimasto aperto da un altro giorno, la barra resta: è lei a dirlo', () => {
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì')] })
+    apertaSu('a', 'a-1', Date.now() - 14 * 60 * 60 * 1000)
+    monta()
+    expect(screen.getByText(/Allenamento non chiuso/)).toBeInTheDocument()
+    expect(screen.getByText('Oggi · Lunedì')).toBeInTheDocument()
+  })
+
+  it('aperto su un’altra scheda, la barra resta', () => {
+    const ieri = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return localISO(d) })()
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì'), scheda('b', 'Giovedì')], palestraExercises: [fatta('a', ieri)] })
+    apertaSu('a', 'a-1')
+    monta()
+    expect(screen.getByText('Oggi · Giovedì')).toBeInTheDocument()
+    expect(screen.getByText('Allenamento in corso')).toBeInTheDocument()
+    expect(screen.getByText(/2\/7 serie fatte · tocca per riprendere/)).toBeInTheDocument()
+  })
 })

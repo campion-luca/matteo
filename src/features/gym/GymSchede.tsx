@@ -2914,6 +2914,9 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, p, last,
 /** Oltre questo l'orologio non misura più un allenamento: vedi `finish`. */
 const DURATA_MAX_SEC = 3 * 60 * 60
 
+/** I due tasti in fondo all'allenamento: 60px, fino a 50 sui telefoni bassi. */
+const ALTEZZA_TASTI_FONDO = 'clamp(50px, 7.6dvh, 60px)'
+
 // Da quanto ci si sta allenando, sotto la barra degli esercizi. Si ridisegna
 // da solo ogni mezzo minuto — segna i minuti, non i secondi: è un'informazione
 // da un'occhiata, e un contatore che corre in testata ruberebbe lo sguardo al
@@ -3300,21 +3303,24 @@ function SchedaTrainingPage({ scheda, palestraExercises, onExit, onScarta, onFin
             anche chi è entrato solo per leggere deve poterne uscire del tutto.
             "Allenamento" e non "alzate": quello che finisce qui è la sessione,
             e le alzate sono solo ciò che se ne salva. */}
+        {/* Alti 60 come ogni CTA, meno sui telefoni bassi: questo fondo non
+            scorre, e ogni pixel suo è tolto alle serie qui sopra. */}
         <div className="flex gap-2.5">
           <button onClick={onExit} className="j-hard j-focus" style={{
-            flex: '0 0 auto', height: 60, padding: '0 14px', borderRadius: 'var(--radius)', cursor: 'pointer',
+            flex: '0 0 auto', height: ALTEZZA_TASTI_FONDO, padding: '0 clamp(10px, 3.4vw, 14px)', borderRadius: 'var(--radius)', cursor: 'pointer',
             background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
-            fontFamily: NUC.display, fontSize: 16, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+            fontFamily: NUC.display, fontSize: 'clamp(13px, 4.2vw, 16px)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
           }}>
             {t('Lascia aperto')}
           </button>
           {/* Accanto a un altro tasto il CTA ha mezza riga: a 24px «Termina
-              allenamento» andava a capo. Qui scende quanto basta a starci. */}
-          <button onClick={() => setRiepilogo(true)} className="j-btn-accent" style={{ flex: 1, width: 'auto', marginTop: 0, fontSize: 'clamp(17px, 5vw, 24px)', whiteSpace: 'nowrap' }}>
+              allenamento» andava a capo. Qui scende quanto basta a starci —
+              fino a 16px, perché a 320 di larghezza a 17 usciva dallo schermo. */}
+          <button onClick={() => setRiepilogo(true)} className="j-btn-accent" style={{ flex: 1, minWidth: 0, width: 'auto', height: ALTEZZA_TASTI_FONDO, marginTop: 0, fontSize: 'clamp(16px, 5vw, 24px)', whiteSpace: 'nowrap' }}>
             {t('Termina Allenamento')}
           </button>
         </div>
-        <div style={{ fontFamily: NUC.label, fontSize: 9.5, color: NUC.faint, letterSpacing: '.04em', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontFamily: NUC.label, fontSize: 9.5, color: NUC.faint, letterSpacing: '.04em', textAlign: 'center', marginTop: 'clamp(4px, 1dvh, 8px)', lineHeight: 1.5 }}>
           {t('Aperto, lo riprendi dalla home. Terminando scegli se salvarlo.')}
         </div>
       </div>

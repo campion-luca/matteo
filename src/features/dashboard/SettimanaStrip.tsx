@@ -35,7 +35,9 @@ export function CelleSettimana({ giorni }: { giorni: GiornoSettimana[] }) {
       {giorni.map((g, i) => (
         <span key={g.iso} data-allenato={g.fatto || undefined} data-oggi={g.oggi || undefined} style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-          padding: '9px 0 6px', minWidth: 0,
+          // Il respiro della cella segue l'altezza dello schermo, come il resto
+          // della testata: su un telefono basso è spazio tolto alla scheda di oggi.
+          padding: 'clamp(6px, 1.1dvh, 9px) 0 clamp(4px, 0.8dvh, 6px)', minWidth: 0,
           borderLeft: i === 0 ? 'none' : '1px solid var(--line)',
           // La barra c'è sempre, trasparente dove non serve: un giorno che
           // diventa "fatto" non cambia misura di un pixel.

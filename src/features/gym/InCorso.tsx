@@ -59,9 +59,13 @@ export function BarraInCorso({ inCorso, onRiprendi, onScarta, style }: {
 }
 
 /** La barra in cima alla home: c'è solo con un allenamento aperto, e finché la
- *  sua scheda esiste. `onRiprendi` riceve l'id della scheda da riaprire. */
-export function InCorsoInHome({ onRiprendi, style }: {
+ *  sua scheda esiste. `onRiprendi` riceve l'id della scheda da riaprire.
+ *  `tranne` è la scheda che la home mostra già come quella di oggi, col suo
+ *  tasto "Riprendi allenamento": per lei la barra sarebbe un doppione, e su un
+ *  telefono basso spingeva quel tasto sotto il bordo. */
+export function InCorsoInHome({ onRiprendi, tranne, style }: {
   onRiprendi: (schedaId: string) => void
+  tranne?: string
   style?: CSSProperties
 }) {
   const gymSchede = useJarvisStore(st => st.gymSchede)
@@ -78,7 +82,9 @@ export function InCorsoInHome({ onRiprendi, style }: {
     const io = idUtenteSuDisco()
     return io ? schedaRicevutaInCache(io, id) : undefined
   })
-  if (!inCorso) return null
+  // Quello di un altro giorno rimasto aperto invece la barra la tiene: è un
+  // avviso («non chiuso · 24 ott»), e la card non lo dice.
+  if (!inCorso || (inCorso.scheda.id === tranne && !inCorso.vecchia)) return null
   return (
     <BarraInCorso
       inCorso={inCorso}

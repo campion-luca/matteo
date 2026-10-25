@@ -31,8 +31,11 @@ import { leggiRecupero, salvaRecupero, scartaRecupero, RECUPERO_SEC, OLTRE_MAX_S
 
 /** Il diametro del quadrante. Più del doppio della barra che c'era prima (84px),
  *  ma legato all'altezza dello schermo: su un telefono basso deve restare posto
- *  per gli esercizi sopra. */
-const DIAMETRO = 'clamp(150px, 22dvh, 184px)'
+ *  per gli esercizi sopra. Era al 22% fino a 150px: su un iPhone in Safari,
+ *  quadrante e tasti in fondo lasciavano alle serie una riga sola. 140 è il meno
+ *  in cui «Oltre il recupero» e «tocca per riprendere» stanno ancora dentro il
+ *  cerchio. */
+const DIAMETRO = 'clamp(140px, 20dvh, 184px)'
 
 /** Per quanto, oltre lo zero, lo schermo resta acceso. Il conto in su continua
  *  anche dopo; ma un telefono dimenticato sulla panca non deve restare acceso
@@ -233,8 +236,10 @@ export function TimerRecupero({ schedaId, onChiudi }: {
         </button>
       )}
 
+      {/* Il posto di una riga, non di due: tutte e tre le frasi, anche in
+          inglese, stanno su una riga già a 320px di larghezza. */}
       <div style={{
-        marginTop: 9, minHeight: 31, maxWidth: 300, textAlign: 'center',
+        marginTop: 'clamp(4px, 1dvh, 9px)', minHeight: 16, maxWidth: 300, textAlign: 'center',
         fontFamily: NUC.label, fontSize: 11, lineHeight: 1.4,
         color: stato === 'oltre' ? ROSSO : NUC.dim, fontWeight: stato === 'oltre' ? 600 : 400,
       }}>

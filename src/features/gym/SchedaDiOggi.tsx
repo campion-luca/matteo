@@ -3,21 +3,23 @@
 // card "Esercizi" (rebranding, ott 2026): aprendo l'app la domanda è "cosa
 // faccio oggi?", non "in che gruppo sta la panca".
 //
-// Quale scheda lo decide `schedaDiOggi` (anteprimaScheda.ts): la prossima del
-// giro, cioè quella che non si fa da più tempo.
-import { useMemo, type CSSProperties } from 'react'
-import { useShallow } from 'zustand/react/shallow'
+// Quale scheda lo decide `schedaDiOggi` (anteprimaScheda.ts, letta da
+// `useSchedaDiOggi` in gymHooks): la prossima del giro, cioè quella che non si fa
+// da più tempo.
+import type { CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { NucEyebrow } from '@/components/ui/NucComponents'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { useT, tData } from '@/lib/i18n'
-import { todayISO } from '@/lib/isoDate'
-import { idUtenteSuDisco } from '@/lib/supabase'
-import { schedeRicevuteInCache } from '@/lib/coach'
 import { quantoFa } from './gymModel'
-import { schedaDiOggi, muscoliDellaScheda, durataPrevista, durataArrotondata, serieDellaScheda } from './anteprimaScheda'
-import { sessioneAperta } from './sessioneInCorso'
+import { muscoliDellaScheda, durataPrevista, durataArrotondata, serieDellaScheda } from './anteprimaScheda'
+import { sessioneAperta, allenamentoInCorso } from './sessioneInCorso'
+import { useSchedaDiOggi } from './gymHooks'
+
+/** Lo stacco fra la card e il tasto, e fra il titolo e la card: segue l'altezza
+ *  dello schermo come gli altri respiri della home. */
+const STACCO = 'clamp(8px, 1.4dvh, 12px)'
 
 export function SezioneSchede({ onTutte, onAvvia }: {
   /** Apre l'elenco di tutte le schede. */
@@ -27,21 +29,11 @@ export function SezioneSchede({ onTutte, onAvvia }: {
   onAvvia: (schedaId: string, subito: boolean) => void
 }) {
   const t = useT()
-  const { gymSchede, palestraExercises } = useJarvisStore(useShallow(st => ({
-    gymSchede: st.gymSchede,
-    palestraExercises: st.palestraExercises,
-  })))
-
-  // Quelle del coach dall'ultima lettura salvata sul telefono, come fa la barra
-  // dell'allenamento in corso: la home non aspetta la rete per dire cosa fare.
-  const oggi = useMemo(() => {
-    const io = idUtenteSuDisco()
-    const ricevute = io ? schedeRicevuteInCache(io).map(r => r.scheda) : []
-    return schedaDiOggi([...ricevute, ...(gymSchede ?? [])], palestraExercises, todayISO())
-  }, [gymSchede, palestraExercises])
+  const palestraExercises = useJarvisStore(st => st.palestraExercises)
+  const oggi = useSchedaDiOggi()
 
   const titolo = (
-    <NucEyebrow right={
+    <NucEyebrow style={{ marginBottom: STACCO, flexShrink: 0 }} right={
       // Un tastino col bordo, come "+ Nuova" e "Modifica" altrove: scritto e
       // basta, accanto al titolo, si leggeva come parte del titolo.
       <button onClick={onTutte} className="j-hard j-focus" style={{
@@ -83,54 +75,61 @@ export function SezioneSchede({ onTutte, onAvvia }: {
   const aperta = sessioneAperta()
   const altraAperta = !!aperta && aperta.schedaId !== scheda.id && !aperta.vuota
   const inCorso = !!aperta && aperta.schedaId === scheda.id
+  // Le serie fatte: le diceva la barra "Allenamento in corso" in cima alla home,
+  // che per questa scheda non c'è più (vedi `tranne` in InCorsoInHome) — il tasto
+  // qui sotto dice già "Riprendi", e le due insieme non stavano su un telefono.
+  // Solo per quello di oggi: uno di un altro giorno rimasto aperto lo annuncia
+  // ancora la barra, col suo giorno.
+  const avanzamento = inCorso && !fattaOggi ? allenamentoInCorso(id => (id === scheda.id ? scheda : undefined)) : undefined
+  const inCorsoOggi = !!avanzamento && !avanzamento.vecchia
 
   const numero = (valore: string, etichetta: string) => (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontFamily: NUC.display, fontSize: 36, fontWeight: 700, lineHeight: 1, color: 'var(--surface)' }}>{valore}</div>
-      <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted-dark)', marginTop: 4 }}>{etichetta}</div>
+    <div className="j-oggi-cifra">
+      <div className="j-oggi-numero">{valore}</div>
+      <div className="j-oggi-etichetta">{etichetta}</div>
     </div>
   )
 
   return (
-    <section style={{ marginBottom: 26 }}>
+    // Prende tutto lo spazio che la home le lascia sotto le tre card (vedi la
+    // colonna in JarvisGym), e dentro se lo prende la card nera: è lei che si
+    // stringe sui telefoni bassi, non il tasto che finisce sotto il bordo.
+    <section style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
       {titolo}
-      {/* La card "Oggi": piena d'inchiostro, l'unica nera della home. */}
-      <div style={{ background: 'var(--ink)', border: 'var(--bordo)', padding: '16px 16px 18px', color: 'var(--surface)' }}>
-        <div style={{ fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: 'var(--j-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {fattaOggi ? t('Oggi · {scheda} · fatta', { scheda: scheda.title }) : t('Oggi · {scheda}', { scheda: scheda.title })}
-        </div>
-        {/* Il gruppo principale, grande quanto ci sta: 76px, meno se il nome è
-            lungo («Tricipiti» a 76px non entra in una card da telefono). */}
-        <div style={{ containerType: 'inline-size', marginTop: 8 } as CSSProperties}>
-          <div style={{
-            fontFamily: NUC.display, fontWeight: 800, lineHeight: .85, letterSpacing: '-0.01em', textTransform: 'uppercase',
-            fontSize: `min(76px, calc(100cqw / ${Math.max(principale.length, 4) * 0.5}))`,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {principale}
+      {/* La card "Oggi": misure e regole in `.j-oggi` (globals.css). */}
+      <div className="j-oggi">
+        <div className="j-oggi-corpo">
+          <div style={{ minWidth: 0 }}>
+            <div className="j-oggi-occhiello">
+              {fattaOggi ? t('Oggi · {scheda} · fatta', { scheda: scheda.title })
+                : inCorsoOggi ? t('In corso · {scheda}', { scheda: scheda.title })
+                : t('Oggi · {scheda}', { scheda: scheda.title })}
+            </div>
+            <div className="j-oggi-nome" style={{ '--oggi-em': Math.max(principale.length, 4) * 0.5 } as CSSProperties}>
+              {principale}
+            </div>
+            <div className="j-oggi-dettaglio">
+              {altri.length > 0 && <>+ {altri.join(' · ')} · </>}
+              {avanzamento && inCorsoOggi ? t('{fatte}/{totali} serie fatte', { fatte: avanzamento.fatte, totali: avanzamento.totali })
+                : giorniFa === null ? t('mai fatta') : t('ultima volta {quando}', { quando: quantoFa(giorniFa, t) })}
+            </div>
           </div>
-        </div>
-        <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.4, color: 'var(--muted-dark)', marginTop: 8 }}>
-          {altri.length > 0 && <>+ {altri.join(' · ')} · </>}
-          {giorniFa === null ? t('mai fatta') : t('ultima volta {quando}', { quando: quantoFa(giorniFa, t) })}
-        </div>
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10,
-          marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line-dark)',
-        }}>
-          {numero(String(esercizi), esercizi === 1 ? t('esercizio') : t('esercizi'))}
-          {numero(String(serie), t('serie'))}
-          {numero(minuti ? `${minuti}'` : '—', t('minuti'))}
+          <div className="j-oggi-numeri">
+            {numero(String(esercizi), esercizi === 1 ? t('esercizio') : t('esercizi'))}
+            {numero(String(serie), t('serie'))}
+            {numero(minuti ? `${minuti}'` : '—', t('minuti'))}
+          </div>
         </div>
       </div>
 
-      {/* Il CTA: l'unica ombra della home, sul fondo cemento sotto la card. */}
+      {/* Il CTA: l'unica ombra della home, sul fondo cemento sotto la card. Un
+          poco più basso sui telefoni bassi, mai sotto i 50px. */}
       {fattaOggi ? (
-        <button onClick={() => onAvvia(scheda.id, false)} className="j-btn-log" style={{ marginTop: 12 }}>
+        <button onClick={() => onAvvia(scheda.id, false)} className="j-btn-log" style={{ marginTop: STACCO, flexShrink: 0 }}>
           <Icons.check size={16} stroke={2.4}/> {t('Fatta oggi · apri la scheda')}
         </button>
       ) : (
-        <button onClick={() => onAvvia(scheda.id, !altraAperta)} className="j-btn-accent" style={{ marginTop: 12 }}>
+        <button onClick={() => onAvvia(scheda.id, !altraAperta)} className="j-btn-accent" style={{ marginTop: STACCO, height: 'clamp(50px, 7.6dvh, 60px)', flexShrink: 0 }}>
           {inCorso ? t('Riprendi allenamento') : t('Inizia allenamento')} <Icons.arrow size={22} stroke={2.4}/>
         </button>
       )}

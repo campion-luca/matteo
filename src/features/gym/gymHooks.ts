@@ -1,8 +1,13 @@
 import { useCallback, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT } from '@/lib/i18n'
+import { todayISO } from '@/lib/isoDate'
+import { idUtenteSuDisco } from '@/lib/supabase'
+import { schedeRicevuteInCache } from '@/lib/coach'
 import { gruppiMuscolari } from './gymModel'
+import { schedaDiOggi } from './anteprimaScheda'
 import { scartaSessione } from './sessioneInCorso'
 
 // Lettura dallo store che serve a più pezzi della scheda Allenamento. Sta in un
@@ -21,6 +26,23 @@ export function useBodyWeight(): number {
 export function useGruppiMuscolari(): string[] {
   const custom = useJarvisStore(st => st.customMuscles)
   return useMemo(() => gruppiMuscolari(custom), [custom])
+}
+
+// La scheda di oggi, quella della card in home (vedi SchedaDiOggi). Serve anche
+// alla home intorno (JarvisGym): la barra dell'allenamento in corso non si ripete
+// per la scheda che la card mostra già.
+// Quelle del coach dall'ultima lettura salvata sul telefono, come fa la barra
+// dell'allenamento in corso: la home non aspetta la rete per dire cosa fare.
+export function useSchedaDiOggi() {
+  const { gymSchede, palestraExercises } = useJarvisStore(useShallow(st => ({
+    gymSchede: st.gymSchede,
+    palestraExercises: st.palestraExercises,
+  })))
+  return useMemo(() => {
+    const io = idUtenteSuDisco()
+    const ricevute = io ? schedeRicevuteInCache(io).map(r => r.scheda) : []
+    return schedaDiOggi([...ricevute, ...(gymSchede ?? [])], palestraExercises, todayISO())
+  }, [gymSchede, palestraExercises])
 }
 
 // Gruppo → quale figura accendere. Contiene SOLO i gruppi creati dall'utente: gli

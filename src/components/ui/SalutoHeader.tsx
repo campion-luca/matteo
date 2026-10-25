@@ -26,9 +26,9 @@ import { useT, useLang } from '@/lib/i18n'
 // niente, con «Buon pomeriggio» o un nome lungo scende di qualche punto.
 
 /** Quanto è largo in media un carattere del saluto, in `em`. Misurato sul
- *  Fraunces alle misure a cui lo si usa: la formula più larga («Buon Anno
- *  Nuovo,») sta a 0,545, i nomi lunghi in corsivo poco sotto. Un filo di margine,
- *  perché se il conto sbaglia per difetto la riga finisce coi puntini. */
+ *  Barlow Condensed 800 maiuscolo: la riga più larga («Buonasera,») sta a 0,445,
+ *  «Buon pomeriggio,» a 0,41. Il margine c'è perché se il conto sbaglia per
+ *  difetto la riga finisce coi puntini. */
 const EM_A_CARATTERE = 0.5
 /** Oltre queste lettere la formula va a capo da sé («Buona Festa della
  *  Repubblica,» ne ha ventinove): stringerla fino a farla stare su una riga la
@@ -68,9 +68,11 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
 
   // I tre comandi: stessa forma, quadrati, sulla riga del saluto. La misura è
   // elastica ma non scende sotto i 34px — sotto non si centra più il pollice.
+  // Sotto i 393px di larghezza scendono fino a 38: a 320 (un iPhone con lo
+  // zoom dello schermo) tre tasti da 44 lasciavano al saluto meno di metà riga.
   const tasto = (label: string, onClick: () => void, icona: JSX.Element) => (
     <button onClick={onClick} aria-label={label} title={label} className="j-hard j-hard-sm j-focus" style={{
-      width: 44, aspectRatio: '1 / 1', borderRadius: 'var(--radius)', flexShrink: 0,
+      width: 'clamp(38px, 11.2vw, 44px)', aspectRatio: '1 / 1', borderRadius: 'var(--radius)', flexShrink: 0,
       background: 'var(--surface)', border: 'var(--bordo)',
       color: 'var(--fg-soft)', cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -90,7 +92,12 @@ export function SalutoHeader({ onSearch, onUser, onSettings }: {
       {/* `flex: 1` sul telefono: la colonna prende tutto lo spazio che i tre
           tasti lasciano, ed è su quella larghezza che il saluto si misura. */}
       <div className={suDueRighe ? 'j-saluto-colonna' : undefined} style={{ minWidth: 0, flex: suDueRighe ? 1 : undefined }}>
-        <div className="j-eyebrow" style={{ marginBottom: 6 }}>{fmtGiornoLungo(new Date(), lang)}</div>
+        {/* Su una riga sola: andando a capo («Mercoledì 30 / settembre») spingeva
+            giù tutta la home. Sui telefoni stretti si stringe un poco. */}
+        <div className="j-eyebrow" style={{
+          marginBottom: 6, fontSize: 'clamp(12px, 3.9vw, 15px)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{fmtGiornoLungo(new Date(), lang)}</div>
         {suDueRighe ? (
           <div className="j-saluto" style={{ '--saluto-em': (EM_A_CARATTERE * caratteri).toFixed(2) } as CSSProperties}>
             <div className={formula.length <= FORMULA_MAX ? 'j-saluto-riga' : undefined}>{formula}</div>

@@ -45,7 +45,7 @@ import { useNonLetti } from '@/lib/messaggiLive'
 import { BadgeNonLetti } from '@/features/coach/messaggiUI'
 import { TendinaGruppo } from '@/features/coach/TendinaGruppo'
 import { LineChart, FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni } from './gymShared'
-import { useBodyWeight, useGruppiMuscolari, useMuscleIcons } from './gymHooks'
+import { useBodyWeight, useGruppiMuscolari, useMuscleIcons, useSchedaDiOggi } from './gymHooks'
 import { caricoDiRiferimento } from './limitiAlzata'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { useT, useTData } from '@/lib/i18n'
@@ -169,10 +169,11 @@ function AzioniGym({ onCoach, onEsercizi, onStats }: {
       >
         <DisegnoAzione id={id} style={DISEGNO_AZIONE}/>
         {/* Titolo di riga: Condensed 700, 22px, maiuscolo. Scende un poco sui
-            telefoni stretti, dove «STATISTICHE» deve stare in un terzo di riga. */}
+            telefoni stretti, dove «STATISTICHE» deve stare in un terzo di riga:
+            fino a 13px, perché a 320 di larghezza a 16 finiva coi puntini. */}
         <span style={{
           position: 'relative', maxWidth: '100%',
-          fontFamily: NUC.display, fontSize: 'clamp(16px, 4.6vw, 22px)', fontWeight: 700,
+          fontFamily: NUC.display, fontSize: 'clamp(13px, 4.4vw, 22px)', fontWeight: 700,
           lineHeight: 1.1, textTransform: 'uppercase',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{label}</span>
@@ -184,8 +185,9 @@ function AzioniGym({ onCoach, onEsercizi, onStats }: {
   }
   return (
     // Il margine sopra non è solo respiro: il badge dei messaggi sporge di 7px
-    // dall'angolo della prima card, e l'area che scorre lo taglierebbe.
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 8, marginBottom: 26 }}>
+    // dall'angolo della prima card, e l'area che scorre lo taglierebbe. Quello
+    // sotto segue l'altezza dello schermo, come la card.
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(8px, 2.4vw, 12px)', marginTop: 8, marginBottom: 'clamp(12px, 2.6dvh, 26px)', flexShrink: 0 }}>
       {card('coach',    t('Coaching'),    onCoach)}
       {card('esercizi', t('Esercizi'),    onEsercizi)}
       {card('stats',    t('Statistiche'), onStats)}
@@ -1191,7 +1193,9 @@ const TESTO_CARD: React.CSSProperties = {
 // è in alto a destra e largo quanto la card lascia — ma mai tanto da scendere
 // sul nome, che sta in basso: su un telefono largo e basso a comandare è
 // l'altezza (58px è il posto del nome col suo respiro).
-const ALTEZZA_AZIONE = 'clamp(118px, 18.5dvh, 168px)'
+// Il minimo era 118px: su un SE, o su un iPhone in Safari con le sue barre, le
+// tre card si mangiavano lo spazio della scheda di oggi e del suo tasto.
+const ALTEZZA_AZIONE = 'clamp(92px, 17dvh, 168px)'
 const DISEGNO_AZIONE: React.CSSProperties = {
   position: 'absolute', top: 'clamp(8px, 2.6vw, 12px)', right: 'clamp(7px, 2.2vw, 11px)',
   width: `min(clamp(70px, 23vw, 96px), calc(${ALTEZZA_AZIONE} - 58px))`, height: 'auto',
@@ -1654,6 +1658,8 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const set = useJarvisStore.setState
   const t = useT()
   const bodyWeight = useBodyWeight()
+  // Quella che la home propone, col suo tasto: vedi la barra "in corso" qui sotto.
+  const oggi = useSchedaDiOggi()
   // Le foto degli esercizi, chieste in anticipo: vedi `precaricaFoto`.
   useEffect(() => { precaricaFoto() }, [])
   // `tab` è il mondo in cui si sta (pesi o hyrox); `stats` è la pagina delle
@@ -2064,11 +2070,14 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         <SettimanaStrip/>
         {/* L'allenamento lasciato aperto: resta qui finché non lo si termina,
             così chi è uscito a guardare altro lo ritrova senza cercarlo. Con
-            le schede aperte sopra non si rilegge: è coperta. */}
+            le schede aperte sopra non si rilegge: è coperta. Se è quello della
+            scheda di oggi la barra non c'è: lo dice già la sua card, col tasto
+            "Riprendi allenamento" (vedi SchedaDiOggi). */}
         {!showSchede && !stats && (
           <InCorsoInHome
             onRiprendi={id => { setSchedaDaAprire(id); setRiprendi(true); setShowSchede(true) }}
-            style={{ marginTop: 14, marginBottom: 8 }}
+            tranne={tab === 'palestra' && oggi && !oggi.fattaOggi ? oggi.scheda.id : undefined}
+            style={{ marginTop: 'clamp(8px, 1.4dvh, 14px)', marginBottom: 8 }}
           />
         )}
         {/* «Pesi | Hyrox» c'è solo con Hyrox acceso (vedi hyroxAttivo): spento,
@@ -2079,7 +2088,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
         )}
       </div>
 
-      <div className="j-scroll-area">
+      {/* Nei pesi è una colonna che riempie lo schermo: le tre card in cima, la
+          scheda di oggi sotto, e la card nera di quella scheda si prende quello
+          che avanza — più corta su un telefono basso, così il tasto "Inizia
+          allenamento" si vede intero senza scorrere. Scorre solo se nemmeno la
+          card al minimo ci sta. In Hyrox è un elenco, e scorre come sempre. */}
+      <div className="j-scroll-area" style={tab === 'palestra' ? { display: 'flex', flexDirection: 'column' } : undefined}>
         {/* Il menù è dei pesi: in Hyrox Coach e Schede non hanno niente da fare, e
             Statistiche scende sotto Esercizi e Gara (vedi TastoStatistiche).
             Tutte e tre aprono una pagina sopra questa.

@@ -538,13 +538,15 @@
   /* Primary CTA button (48px) — ombra, pressione e transizione arrivano dal blocco
      .j-hard: qui restano solo forma e colore. Niente `opacity` all'hover, era la
      vecchia risposta al passaggio del mouse e ora la dà la pressione. */
+  /* Il corpo scende fino a 20px sui telefoni stretti: a 320px «Riprendi
+     allenamento» con la freccia toccava i bordi del tasto. */
   .j-btn-accent {
     height: 60px; border-radius: var(--radius);
     background: var(--j-accent);
     border: none;
     color: var(--j-accent-fg);
     font-family: var(--font-display); text-transform: uppercase;
-    font-size: 24px; font-weight: 800; letter-spacing: .06em; line-height: 1; cursor: pointer;
+    font-size: clamp(20px, 6.4vw, 24px); font-weight: 800; letter-spacing: .06em; line-height: 1; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
     width: 100%; margin-top: 4px;
   }
@@ -702,10 +704,12 @@
   /* CTA ancorato in fondo a una pagina a colonna (il "Inizia allenamento" di una
      scheda, il "Termina Allenamento" di una sessione).
      Stessa clearance di .j-scroll-area: il blocco è ancorato in basso e deve
-     stare sopra la barra di sistema del telefono. */
+     stare sopra la barra di sistema del telefono. Il respiro sopra e sotto
+     invece segue l'altezza dello schermo, come quello della lista: il blocco
+     non scorre, e su un telefono basso è spazio tolto a quello che scorre. */
   .j-page-cta {
     flex-shrink: 0;
-    padding: 12px 20px calc(var(--nav-clear, env(safe-area-inset-bottom)) + 20px);
+    padding: clamp(8px, 1.4dvh, 12px) 20px calc(var(--nav-clear, env(safe-area-inset-bottom)) + clamp(10px, 2dvh, 20px));
   }
 
   /* Riga dell'elenco gruppi muscolari. Dentro una scheda già sollevata il tocco
@@ -783,8 +787,11 @@
      SalutoHeader). Il corpo è quello di sempre finché ci stanno; se una delle
      due è più larga della colonna si stringe quanto basta: la larghezza della
      colonna (`100cqw`) divisa per quanti `em` occupa la riga più lunga
-     (`--saluto-em`, lo scrive il componente). Non scende sotto i 17px: più in
-     là di così, quello che avanza finisce coi puntini.
+     (`--saluto-em`, lo scrive il componente). Non scende sotto i 20px: più in
+     là di così, quello che avanza finisce coi puntini. E non sale oltre il 5%
+     dell'altezza dello schermo: la sera «Buonasera,» è corta e il corpo saliva
+     verso i 44px, due righe che su un telefono basso spingevano sotto il bordo
+     il tasto della scheda di oggi.
      Dove le unità di contenitore non ci sono resta tutto com'era: corpo fisso,
      e il testo che va a capo da sé. */
   /* Il saluto è il titolo della home: Condensed 800, 44px, maiuscolo. */
@@ -797,7 +804,7 @@
   @supports (width: 1cqw) {
     .j-saluto-colonna { container-type: inline-size; }
     .j-saluto {
-      font-size: clamp(26px, calc(100cqw / var(--saluto-em, 9)), 44px);
+      font-size: clamp(20px, min(calc(100cqw / var(--saluto-em, 9)), 5dvh), 44px);
       /* Un filo d'aria in più: chi taglia in orizzontale taglia anche sotto. */
       line-height: 1;
     }
@@ -819,6 +826,92 @@
     background: var(--ink); color: var(--surface);
   }
 
+  /* ── La card "Oggi" in home (vedi SchedaDiOggi) ────────────────
+     Piena d'inchiostro, l'unica nera della home. Era alta quanto il suo
+     contenuto, ~240px: sommata a testata, settimana e tre card, su un iPhone 15
+     Pro il tasto "Inizia allenamento" finiva a metà sotto il bordo, e su un SE
+     del tutto. Adesso prende l'altezza che la home le lascia fra le tre card e
+     il tasto (`.j-oggi`, un elemento flessibile con un minimo e un tetto), e
+     quello che ha dentro si misura su quell'altezza (`cqh`): il gruppo grande
+     e i numeri si stringono, il tasto resta sullo schermo.
+     Senza le unità di contenitore resta com'era: alta quanto il contenuto. */
+  .j-oggi-corpo {
+    display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+    box-sizing: border-box; overflow: hidden;
+    padding: 16px 16px 18px;
+    background: var(--ink); border: var(--bordo); color: var(--surface);
+  }
+  .j-oggi-occhiello {
+    font-family: var(--font-display); font-size: 15px; font-weight: 700;
+    letter-spacing: .10em; text-transform: uppercase; color: var(--j-accent);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Il gruppo principale, grande quanto ci sta: 76px, meno se il nome è lungo
+     («Tricipiti» a 76px non entra in una card da telefono) o se la card è bassa.
+     `--oggi-em` quanti `em` occupa il nome, lo scrive il componente. */
+  .j-oggi-nome {
+    margin-top: 8px;
+    font-family: var(--font-display); font-size: 64px; font-weight: 800;
+    line-height: .85; letter-spacing: -0.01em; text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .j-oggi-dettaglio {
+    margin-top: 8px;
+    font-family: var(--font-body); font-size: 13px; line-height: 1.4; color: var(--muted-dark);
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  }
+  .j-oggi-numeri {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+    padding-top: 14px; border-top: 1px solid var(--line-dark);
+  }
+  .j-oggi-cifra { min-width: 0; }
+  .j-oggi-numero {
+    font-family: var(--font-display); font-size: 36px; font-weight: 700; line-height: 1;
+    color: var(--surface);
+  }
+  .j-oggi-etichetta {
+    margin-top: 4px;
+    font-family: var(--font-display); font-size: 13px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--muted-dark);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  @supports (container-type: size) {
+    /* 116px è il meno in cui si legge ancora cosa fare (sotto i 140 se ne va la
+       riga dei gruppi secondari); 250 il tetto, quanto era alta la card prima,
+       perché su un telefono alto non diventi un manifesto. Sotto il minimo la
+       home torna a scorrere invece di tagliare. */
+    .j-oggi { container-type: size; flex: 1 1 0; min-height: 116px; max-height: 250px; }
+    .j-oggi-corpo {
+      height: 100%;
+      gap: clamp(8px, 4cqh, 14px);
+      padding-block: clamp(10px, 6cqh, 16px) clamp(10px, 7cqh, 18px);
+    }
+    .j-oggi-occhiello { font-size: clamp(12px, 7cqh, 15px); }
+    .j-oggi-nome {
+      margin-top: clamp(2px, 3cqh, 8px);
+      font-size: min(76px, calc((100cqw - 36px) / var(--oggi-em, 4)), 28cqh);
+    }
+    /* Una riga sola, e due solo se la card ha l'altezza per tenerle: è la riga
+       che può allungarsi, e dove non c'è spazio spingerebbe giù i numeri. */
+    .j-oggi-dettaglio { margin-top: clamp(2px, 3cqh, 8px); -webkit-line-clamp: 1; }
+    .j-oggi-numeri { padding-top: clamp(8px, 5.5cqh, 14px); }
+    .j-oggi-numero { font-size: clamp(22px, 14cqh, 36px); }
+    .j-oggi-etichetta { margin-top: clamp(2px, 1.6cqh, 4px); font-size: clamp(11px, 5.4cqh, 13px); }
+    @container (min-height: 230px) {
+      .j-oggi-dettaglio { -webkit-line-clamp: 2; }
+    }
+    /* Card bassa: l'etichetta accanto al numero invece che sotto. È una riga in
+       meno, e «6 esercizi» si legge lo stesso. E un filo meno di respiro. */
+    @container (max-height: 175px) {
+      .j-oggi-corpo { padding-block: 8px 9px; gap: 6px; }
+      .j-oggi-cifra { display: flex; align-items: baseline; gap: 5px; }
+      .j-oggi-etichetta { margin-top: 0; }
+    }
+    @container (max-height: 138px) {
+      .j-oggi-dettaglio { display: none; }
+    }
+  }
+
   /* Card del carosello dei gruppi: la pressione è una stretta appena accennata.
      Niente ombra a spessore: è una superficie grande e piena di colore, e un
      rilievo sotto la farebbe sembrare un tasto gigante. */
@@ -828,9 +921,10 @@
 
   /* Page header — il respiro sopra e sotto segue l'altezza dello schermo. Su un
      telefono basso quaranta pixel di vuoto in cima sono quaranta pixel tolti alla
-     griglia, che è la ragione per cui si è aperta l'app. */
+     griglia, che è la ragione per cui si è aperta l'app. Sopra era fisso a 24:
+     sui telefoni alti lo è ancora, su un SE ne restano 15. */
   .j-page-header {
-    padding: 24px 20px clamp(8px, 1.8dvh, 16px);
+    padding: clamp(12px, 2.8dvh, 24px) 20px clamp(8px, 1.8dvh, 16px);
     flex-shrink: 0;
   }
 }

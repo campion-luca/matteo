@@ -1192,6 +1192,8 @@ export const EN_UI: Record<string, string> = {
   'Crea una scheda': 'Create a plan',
   'Oggi · {scheda} · fatta': 'Today · {scheda} · done',
   'Oggi · {scheda}': 'Today · {scheda}',
+  'In corso · {scheda}': 'In progress · {scheda}',
+  '{fatte}/{totali} serie fatte': '{fatte}/{totali} sets done',
   'mai fatta': 'never done',
   'ultima volta {quando}': 'last time {quando}',
   'esercizio': 'exercise',
