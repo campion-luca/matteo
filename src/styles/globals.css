@@ -186,7 +186,7 @@
   /* I campi delle serie in allenamento ne restano fuori: sono a 28px, già
      sopra la soglia, e qui sarebbero rimpiccioliti a 16. */
   @media (pointer: coarse) {
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not(.j-serie-campo):not(.j-campo-grande),
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not(.j-serie-campo):not(.j-campo-grande):not(.j-campo-numero),
     textarea,
     select {
       font-size: 16px !important;
@@ -367,6 +367,23 @@
     font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums;
   }
   .j-serie-campo::placeholder { color: var(--muted-dark); font-weight: 600; }
+
+  /* ── I numeri dei fogli dell'alzata ─────────────────────────────
+     Serie, colpi e chili in Condensed 800, grandi come si leggono nel resto
+     dell'app (vedi i fogli in gymModals): sono il contenuto del modulo. Il campo
+     non ha un bordo suo, ce l'ha la casella (`.j-casella`), dove si vede anche
+     il fuoco. Esclusi dalla regola dei 16px su touch: stanno già sopra. */
+  .j-campo-numero {
+    width: 100%; min-width: 0; height: 100%; box-sizing: border-box;
+    background: transparent; border: 0; outline: none; border-radius: 0;
+    padding: 0 12px; margin: 0; color: var(--fg);
+    font-family: var(--font-display); font-size: 26px; font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .j-campo-numero::placeholder { color: var(--muted-dark); font-weight: 600; }
+  .j-casella { position: relative; min-width: 0; display: flex; align-items: stretch; }
+  .j-casella:focus-within { box-shadow: inset 0 0 0 2px var(--j-accent); }
+  .j-casella[data-errore] { box-shadow: inset 0 0 0 2px var(--danger); }
 
   /* Il riquadro in cui si scrive la nota di un esercizio: squadrato, e col
      testo piccolo (vedi `CampoNota` in GymSchede per come ci arriva). */

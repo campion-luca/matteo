@@ -33,7 +33,7 @@ describe('nuova alzata: «Salva» dice cosa manca', () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<LogPalestraModal open onClose={vi.fn()} ex={ex} onSave={onSave}/>)
-    await screen.findByRole('button', { name: 'Salva' })
+    await screen.findByRole('button', { name: 'Salva alzata' })
     return { user, onSave }
   }
   const scrivi = async (user: ReturnType<typeof userEvent.setup>, etichetta: string, valore: string) => {
@@ -45,7 +45,7 @@ describe('nuova alzata: «Salva» dice cosa manca', () => {
   it('senza chili: il campo diventa rosso e sotto c’è scritto cosa serve', async () => {
     const { user, onSave } = await apri()
     await scrivi(user, 'Kg', '')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
 
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toHaveTextContent('Scrivi i chili.')
@@ -53,20 +53,20 @@ describe('nuova alzata: «Salva» dice cosa manca', () => {
     // Scrivendoli l'avviso se ne va, e si salva.
     await user.type(screen.getByLabelText('Kg'), '62,5')
     expect(screen.queryByRole('alert')).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kg: 62.5 }))
   })
 
   it('senza serie o senza colpi lo dice, ognuno col suo campo', async () => {
     const { user, onSave } = await apri()
     await scrivi(user, 'Serie', '')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Scrivi quante serie hai fatto.')
     expect(screen.getByLabelText('Serie')).toHaveAttribute('aria-invalid', 'true')
 
     await scrivi(user, 'Serie', '3')
     await scrivi(user, 'Colpi', '')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Scrivi quanti colpi hai fatto.')
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -74,17 +74,17 @@ describe('nuova alzata: «Salva» dice cosa manca', () => {
   it('i numeri impossibili non si salvano: troppi chili, troppi colpi, troppe serie', async () => {
     const { user, onSave } = await apri()
     await scrivi(user, 'Kg', '600')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Più di 500 kg non si possono registrare.')
 
     await scrivi(user, 'Kg', '60')
     await scrivi(user, 'Colpi', '101')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Più di 100 colpi in una serie non si possono registrare.')
 
     await scrivi(user, 'Colpi', '8')
     await scrivi(user, 'Serie', '21')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Più di 20 serie non si possono registrare.')
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -92,7 +92,7 @@ describe('nuova alzata: «Salva» dice cosa manca', () => {
   it('un carico più che doppio dell’ultima volta si conferma, e poi si salva', async () => {
     const { user, onSave } = await apri()
     await scrivi(user, 'Kg', '160')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
 
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toHaveTextContent('Hai scritto 160 kg: l’ultima volta erano 60.')
@@ -103,25 +103,25 @@ describe('nuova alzata: «Salva» dice cosa manca', () => {
   it('meno della metà pure — uno zero dimenticato', async () => {
     const { user, onSave } = await apri()
     await scrivi(user, 'Kg', '6')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Hai scritto 6 kg: l’ultima volta erano 60.')
     // Correggendo il numero la conferma non serve più.
     await scrivi(user, 'Kg', '62,5')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kg: 62.5 }))
   })
 
   it('una progressione normale, o la prima alzata di un esercizio, non chiedono niente', async () => {
     const primo = await apri(esercizio({ history: [] }))
     await scrivi(primo.user, 'Kg', '300')
-    await primo.user.click(screen.getByRole('button', { name: 'Salva' }))
+    await primo.user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(primo.onSave).toHaveBeenCalledTimes(1)
   })
 
   it('a corpo libero la zavorra può raddoppiare senza domande', async () => {
     const { user, onSave } = await apri(esercizio({ n: 'Trazioni', bodyweight: true, history: [alzata({ kg: 10, bodyweight: true })] }))
     await scrivi(user, 'Zavorra', '25')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kg: 25, bodyweight: true }))
   })
 })
@@ -135,7 +135,7 @@ describe('modifica di un’alzata', () => {
     const kg = await screen.findByLabelText('Kg')
     await user.clear(kg)
     await user.type(kg, '6')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toHaveTextContent('Hai scritto 6 kg: l’ultima volta erano 62,5.')
     await user.click(screen.getByRole('button', { name: 'Conferma e salva' }))
@@ -149,11 +149,11 @@ describe('modifica di un’alzata', () => {
 
     const kg = await screen.findByLabelText('Kg')
     await user.clear(kg)
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Scrivi i chili.')
 
     await user.type(kg, '5000')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Più di 500 kg non si possono registrare.')
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -162,7 +162,7 @@ describe('modifica di un’alzata', () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<EditHistoryModal entry={alzata()} riferimentoKg={60} onClose={vi.fn()} onSave={onSave}/>)
-    await user.click(await screen.findByRole('button', { name: 'Salva' }))
+    await user.click(await screen.findByRole('button', { name: 'Salva modifiche' }))
     expect(onSave).toHaveBeenCalledTimes(1)
   })
 })
@@ -181,7 +181,7 @@ describe('il gruppo muscolare è obbligatorio', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Scegli il gruppo muscolare.')
     expect(onAdd).not.toHaveBeenCalled()
 
-    await user.selectOptions(screen.getByLabelText('Gruppo muscolare'), 'Glutei')
+    await user.click(screen.getByRole('button', { name: 'Glutei' }))
     expect(screen.queryByRole('alert')).toBeNull()
     await user.click(screen.getByRole('button', { name: /aggiungi|salva|crea/i }))
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ n: 'Hip thrust', muscle: 'Glutei' }))
@@ -201,7 +201,7 @@ describe('il gruppo muscolare è obbligatorio', () => {
     const onSave = vi.fn()
     render(<EditExModal open onClose={vi.fn()} ex={esercizio()} onSave={onSave} onSaveMuscleColor={vi.fn()}/>)
     await user.clear(await screen.findByPlaceholderText('Nome esercizio'))
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Scrivi il nome dell’esercizio.')
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -268,5 +268,104 @@ describe('fine allenamento: i numeri da guardare prima di salvare', () => {
     expect(screen.queryByText(/da correggere/i)).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Salva e chiudi' }))
     expect(storico()[1].kg).toBe(62.5)
+  })
+})
+
+// ── I fogli nuovi (ott 2026) ───────────────────────────────────
+describe('i fogli dell’alzata', () => {
+  it('le serie si cambiano col − e il +, e serie per serie le righe si aggiungono e si tolgono', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(<LogPalestraModal open onClose={vi.fn()} ex={esercizio()} onSave={onSave}/>)
+    await screen.findByRole('button', { name: 'Salva alzata' })
+    await user.click(screen.getByRole('button', { name: 'Una serie in più' }))
+    expect(screen.getByLabelText('Serie')).toHaveValue('4')
+    await user.click(screen.getByRole('button', { name: 'Una serie in meno' }))
+    await user.click(screen.getByRole('button', { name: 'Una serie in meno' }))
+    expect(screen.getByLabelText('Serie')).toHaveValue('2')
+
+    await user.click(screen.getByRole('button', { name: 'Per serie' }))
+    expect(screen.getByLabelText('Serie 2 · kg')).toHaveValue('60')
+    // Una riga in più, uguale all'ultima, che si può cambiare da sola.
+    await user.click(screen.getByRole('button', { name: /aggiungi serie/i }))
+    const terza = screen.getByLabelText('Serie 3 · kg')
+    expect(terza).toHaveValue('60')
+    await user.clear(terza)
+    await user.type(terza, '55')
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ sets_n: 3, kg: 60, setWeights: [60, 60, 55] }))
+  })
+
+  it('la × toglie l’ultima serie, e con una serie sola non c’è', async () => {
+    const user = userEvent.setup()
+    render(<LogPalestraModal open onClose={vi.fn()} ex={esercizio()} onSave={vi.fn()}/>)
+    await user.click(await screen.findByRole('button', { name: 'Per serie' }))
+    await user.click(screen.getByRole('button', { name: 'Togli la serie 3' }))
+    await user.click(screen.getByRole('button', { name: 'Togli la serie 2' }))
+    expect(screen.queryByLabelText('Serie 2 · kg')).toBeNull()
+    expect(screen.queryByRole('button', { name: /togli la serie/i })).toBeNull()
+  })
+
+  it('modifica: il cestino c’è solo se l’alzata si può togliere', async () => {
+    const user = userEvent.setup()
+    const onElimina = vi.fn()
+    const { unmount } = render(<EditHistoryModal entry={alzata()} esercizio={{ nome: 'Rematore', muscolo: 'Dorso' }} onClose={vi.fn()} onSave={vi.fn()} onElimina={onElimina}/>)
+    expect(await screen.findByText('Dorso · Rematore')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Elimina alzata' }))
+    expect(onElimina).toHaveBeenCalledTimes(1)
+    unmount()
+    render(<EditHistoryModal entry={alzata()} onClose={vi.fn()} onSave={vi.fn()}/>)
+    await screen.findByRole('button', { name: 'Salva modifiche' })
+    expect(screen.queryByRole('button', { name: 'Elimina alzata' })).toBeNull()
+  })
+
+  it('nuovo esercizio: il primo gruppo toccato è il principale, il secondo il secondario', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(<AddExModal open onClose={vi.fn()} mode="palestra" onAdd={onAdd} presetMuscle="Dorso"/>)
+    expect(await screen.findByRole('button', { name: 'Dorso · principale' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Bicipiti' }))
+    expect(screen.getByRole('button', { name: 'Bicipiti · secondario' })).toBeInTheDocument()
+    // Tolto il principale, il secondario prende il suo posto.
+    await user.click(screen.getByRole('button', { name: 'Dorso · principale' }))
+    expect(screen.getByRole('button', { name: 'Bicipiti · principale' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Dorso' }))
+    await user.type(screen.getByLabelText('Nome esercizio'), 'Rematore')
+    await user.click(screen.getByRole('button', { name: 'Aggiungi' }))
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ n: 'Rematore', muscle: 'Bicipiti', muscle2: 'Dorso' }))
+  })
+
+  it('modifica esercizio: gruppi a tasselli, colore del gruppo e cestino', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(), onColore = vi.fn(), onElimina = vi.fn()
+    const ex = esercizio({ muscle: 'Dorso', history: [alzata(), alzata({ date: '2026-09-17' }), alzata({ date: '2026-09-24' })] })
+    render(<EditExModal open onClose={vi.fn()} ex={ex} onSave={onSave} onSaveMuscleColor={onColore} onElimina={onElimina}/>)
+    expect(await screen.findByText('Esercizio · 3 sessioni')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dorso · principale' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Bicipiti' }))
+
+    // Il colore è del gruppo: la riga lo dice, e toccata apre i colori.
+    await user.click(screen.getByRole('button', { name: /Colore di Dorso/ }))
+    const scelto = screen.getAllByRole('button').find(b => b.getAttribute('aria-label')?.startsWith('#'))!
+    await user.click(scelto)
+    expect(scelto).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
+    expect(onColore).toHaveBeenCalledWith('Dorso', scelto.getAttribute('aria-label'))
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ muscle: 'Dorso', muscle2: 'Bicipiti' }), expect.anything())
+
+    await user.click(screen.getByRole('button', { name: 'Elimina esercizio' }))
+    expect(onElimina).toHaveBeenCalledTimes(1)
+  })
+
+  it('modifica esercizio: senza gruppo lo dice, e un gruppo scritto a mano resta fra le scelte', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(<EditExModal open onClose={vi.fn()} ex={esercizio({ muscle: 'Avambracci' })} onSave={onSave} onSaveMuscleColor={vi.fn()}/>)
+    await user.click(await screen.findByRole('button', { name: 'Avambracci · principale' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Scegli il gruppo muscolare.')
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Avambracci' })).toBeInTheDocument()
   })
 })

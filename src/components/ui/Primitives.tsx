@@ -1,10 +1,12 @@
 /* eslint-disable react-refresh/only-export-components -- file di primitives: co-esporta di proposito hook (useGreeting) e componenti condivisi */
 import { useState, useEffect, useRef, useId, useCallback, type ReactNode } from 'react'
+import type React from 'react'
 import { createPortal } from 'react-dom'
 import { Icons } from './Icons'
 import { NUC } from '@/lib/jarvis-tokens'
 import { useT } from '@/lib/i18n'
 import { useFocusTrap, useScrollLock, useModalHost } from '@/hooks/useModalA11y'
+import { useIsDesktop } from '@/hooks/useIsDesktop'
 
 // ── Dynamic greeting (Italian holidays + time of day) ──────────
 function easterDate(year: number) {
@@ -166,5 +168,156 @@ export function JModal({ open, onClose, children, title, leading, headerRight, s
   return <>
     <span ref={sentinelRef} style={{ display: 'none' }}/>
     {createPortal(modal, host)}
+  </>
+}
+
+// ── Il foglio dal basso ────────────────────────────────────────
+// I moduli da compilare — una nuova alzata, la sua correzione, un esercizio
+// nuovo — salgono dal fondo e prendono quasi tutto lo schermo: in cima la
+// maniglia e la testata (occhiello, titolo, la ×), in mezzo i campi che
+// scorrono, e in fondo, fermo, il tasto per salvare. Nel modale al centro il
+// tasto stava in coda ai campi, e su un telefono basso finiva sotto il bordo.
+//
+// La maniglia si trascina in giù per chiudere, come i fogli di iOS. Da desktop
+// il foglio diventa un riquadro al centro: attaccato al fondo di un monitor
+// starebbe lontano da tutto, e il trascinamento col mouse non lo cerca nessuno.
+interface JFoglioProps {
+  open: boolean; onClose: () => void; children: ReactNode
+  titolo: string
+  /** Sopra il titolo, piccolo: di cosa si parla ("Petto · Nuova alzata"). */
+  occhiello?: ReactNode
+  /** Sotto il titolo: la data dell'alzata. */
+  sotto?: ReactNode
+  /** Fermo in fondo, fuori da ciò che scorre: il tasto, e quello che dice
+   *  perché non salva. */
+  piede?: ReactNode
+}
+
+export function JFoglio({ open, onClose, children, titolo, occhiello, sotto, piede }: JFoglioProps) {
+  const t = useT()
+  const isDesktop = useIsDesktop()
+  const [mount, setMount] = useState(open)
+  const [visible, setVisible] = useState(false)
+  const sentinelRef = useRef<HTMLSpanElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const host = useModalHost(sentinelRef, open)
+  const titleId = useId()
+  useFocusTrap(contentRef, open, onClose)
+  useScrollLock(host, open)
+
+  // Il trascinamento della maniglia: quanto è sceso il foglio sotto il dito.
+  const [tiro, setTiro] = useState(0)
+  const inizio = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setMount(true)
+      setTiro(0)
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
+    } else if (mount) {
+      setVisible(false)
+      const timer = setTimeout(() => setMount(false), 240)
+      return () => clearTimeout(timer)
+    }
+    // Reagisce solo all'apertura/chiusura, come JModal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  if (!mount || !host) return <span ref={sentinelRef} style={{ display: 'none' }}/>
+
+  // Si trascina dalla testata, non dai suoi tasti: la × deve restare un tocco.
+  const giu = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDesktop || (e.target as HTMLElement).closest('button, input, textarea, select, label')) return
+    inizio.current = e.clientY
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  const muovi = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (inizio.current !== null) setTiro(Math.max(0, e.clientY - inizio.current))
+  }
+  const lascia = () => {
+    if (inizio.current === null) return
+    inizio.current = null
+    // Oltre un pollice abbondante si chiude; meno, torna su.
+    if (tiro > 90) onClose()
+    setTiro(0)
+  }
+
+  const trascina = tiro > 0 && inizio.current !== null
+  const foglio = (
+    <div onClick={onClose} style={{
+      position: 'absolute', inset: 0, zIndex: 90,
+      display: 'flex', alignItems: isDesktop ? 'center' : 'flex-end', justifyContent: 'center',
+      background: visible ? 'var(--scrim)' : 'transparent',
+      transition: 'background 180ms ease',
+      padding: isDesktop ? 24 : 0,
+    }}>
+      <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: isDesktop ? 460 : 560,
+          // Sul telefono è alto quasi tutto lo schermo, anche con pochi campi:
+          // il tasto sta sempre nello stesso posto, in basso sotto il pollice.
+          ...(isDesktop ? { maxHeight: 'calc(100% - 48px)' } : { height: 'calc(100% - 44px)' }),
+          background: 'var(--surface-pop)', color: 'var(--fg)', fontFamily: NUC.font,
+          border: 'var(--bordo)', ...(isDesktop ? {} : { borderBottom: 'none' }),
+          display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none',
+          transform: isDesktop
+            ? (visible ? 'none' : 'translateY(10px)')
+            : (visible ? `translateY(${tiro}px)` : 'translateY(100%)'),
+          opacity: isDesktop && !visible ? 0 : 1,
+          transition: trascina ? 'none' : 'transform 240ms cubic-bezier(.2,.8,.2,1), opacity 160ms ease',
+        }}
+      >
+        <div onPointerDown={giu} onPointerMove={muovi} onPointerUp={lascia} onPointerCancel={lascia}
+          style={{ flexShrink: 0, padding: isDesktop ? '16px 16px 12px' : '0 16px 12px', touchAction: 'none' }}>
+          {!isDesktop && (
+            <div aria-hidden style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 10px' }}>
+              <span style={{ width: 40, height: 4, background: 'var(--muted-dark)' }}/>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {occhiello && (
+                <div className="j-eyebrow" style={{ fontSize: 13, letterSpacing: '.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{occhiello}</div>
+              )}
+              <div id={titleId} style={{
+                marginTop: occhiello ? 4 : 0,
+                fontFamily: NUC.display, fontSize: 28, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase', color: 'var(--fg)',
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+              }}>{titolo}</div>
+            </div>
+            <button onClick={onClose} aria-label={t('Chiudi')} className="j-hard j-focus" style={{
+              width: 44, height: 44, flexShrink: 0,
+              background: 'var(--surface)', border: 'var(--bordo)',
+              color: 'var(--fg)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}><Icons.x size={18} stroke={2.2}/></button>
+          </div>
+          {sotto && <div style={{ marginTop: 10 }}>{sotto}</div>}
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '4px 16px 20px' }}>
+          {children}
+        </div>
+        {piede && (
+          <div style={{
+            flexShrink: 0, borderTop: 'var(--bordo)', background: 'var(--surface-pop)',
+            padding: `12px 16px ${isDesktop ? '16px' : 'calc(env(safe-area-inset-bottom) + 12px)'}`,
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            {piede}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  return <>
+    <span ref={sentinelRef} style={{ display: 'none' }}/>
+    {createPortal(foglio, host)}
   </>
 }

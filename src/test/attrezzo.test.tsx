@@ -117,9 +117,9 @@ describe('nuova alzata', () => {
     await user.click(await screen.findByRole('button', { name: /peso dell’attrezzo a vuoto/i }))
     await user.type(screen.getByLabelText('Peso dell’attrezzo a vuoto'), '20')
     // L'anteprima del massimale conta già il totale: 80 × (1 + 8/30).
-    expect(screen.getByText('101 kg')).toBeInTheDocument()
+    expect(screen.getByText('101')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kg: 60, reps: 8, sets_n: 3, attrezzo: 20 }))
   })
 
@@ -127,7 +127,7 @@ describe('nuova alzata', () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<LogPalestraModal open onClose={vi.fn()} ex={esercizio()} onSave={onSave}/>)
-    await user.click(await screen.findByRole('button', { name: 'Salva' }))
+    await user.click(await screen.findByRole('button', { name: 'Salva alzata' }))
     expect(onSave).toHaveBeenCalledTimes(1)
     expect(onSave.mock.calls[0][0]).not.toHaveProperty('attrezzo')
   })
@@ -141,11 +141,11 @@ describe('nuova alzata', () => {
     const kg = screen.getByLabelText('Kg')
     // Campo vuoto: non si sa niente, e non si salva.
     await user.clear(kg)
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(onSave).not.toHaveBeenCalled()
     // Zero scritto: solo il bilanciere.
     await user.type(kg, '0')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva alzata' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kg: 0, attrezzo: 20 }))
   })
 })
@@ -163,7 +163,7 @@ describe('modifica esercizio', () => {
     const casella = screen.getByRole('checkbox', { name: /anche per le 2 alzate già registrate/i })
     expect(casella).not.toBeChecked()
 
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ attrezzoKg: 20 }), { attrezzoAncheAlleVecchie: false })
   })
 
@@ -174,7 +174,7 @@ describe('modifica esercizio', () => {
     await user.click(await screen.findByRole('button', { name: /peso dell’attrezzo a vuoto/i }))
     await user.type(screen.getByLabelText('Peso dell’attrezzo a vuoto'), '20')
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ attrezzoKg: 20 }), { attrezzoAncheAlleVecchie: true })
   })
 
@@ -183,7 +183,7 @@ describe('modifica esercizio', () => {
     const onSave = vi.fn()
     render(<EditExModal open onClose={vi.fn()} ex={esercizio({ history: [alzata({})] })} onSave={onSave} onSaveMuscleColor={vi.fn()}/>)
     expect(screen.queryByRole('checkbox')).toBeNull()
-    await user.click(await screen.findByRole('button', { name: 'Salva' }))
+    await user.click(await screen.findByRole('button', { name: 'Salva modifiche' }))
     expect(onSave.mock.calls[0][0].attrezzoKg).toBeUndefined()
     expect(onSave.mock.calls[0][1]).toEqual({ attrezzoAncheAlleVecchie: false })
   })
@@ -199,7 +199,7 @@ describe('modifica di una singola alzata', () => {
     expect(campo).toHaveValue('20')
     await user.clear(campo)
     await user.type(campo, '15')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kg: 60, attrezzo: 15 }))
   })
 
@@ -207,7 +207,7 @@ describe('modifica di una singola alzata', () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(<EditHistoryModal entry={alzata({})} onClose={vi.fn()} onSave={onSave}/>)
-    await user.click(await screen.findByRole('button', { name: 'Salva' }))
+    await user.click(await screen.findByRole('button', { name: 'Salva modifiche' }))
     expect(onSave.mock.calls[0][0].attrezzo).toBeUndefined()
   })
 })

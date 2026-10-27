@@ -120,7 +120,7 @@ describe('dizionario inglese', () => {
       '1RM', 'Account', 'Chat', 'Coaching', 'Hyrox', 'Kg', 'Light weight baby',
       'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal Coach', 'Personal trainer', 'Roxzone',
       'Timer', 'Trend', 'Volume', 'email', 'info', 'min',
-      'password', 'sec', 'superset', '{gruppo} — default', '{n} sess.',
+      'password', 'sec', 'superset', '{n} sess.',
     ])
   })
 })

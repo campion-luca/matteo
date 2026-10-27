@@ -12,7 +12,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { selezionaAlFocus, preCompila } from '@/lib/campi'
 import { useT, useTData } from '@/lib/i18n'
 import { NucEyebrow } from '@/components/ui/NucComponents'
-import { JModal } from '@/components/ui/Primitives'
+import { JModal, JFoglio } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
@@ -31,7 +31,7 @@ import { useBodyWeight, useGruppiMuscolari } from './gymHooks'
 import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
 import { todayISO } from '@/lib/isoDate'
 import { uid } from '@/lib/uid'
-import { fmtShortDate, fmtDayMonth } from '@/lib/dateFormat'
+import { fmtShortDate, fmtDayMonth, fmtDayMon } from '@/lib/dateFormat'
 
 // I modali della scheda Allenamento: registrare una prestazione, aggiungere o
 // modificare un esercizio, correggere una riga di storico.
@@ -399,11 +399,7 @@ function CampoAttrezzo({ valore, onChange, errore }: { valore: string; onChange:
   useEffect(() => { if (valore) setAperto(true) }, [valore])
   if (!aperto) {
     return (
-      <button type="button" onClick={() => setAperto(true)} style={{
-        alignSelf: 'flex-start', background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer',
-        fontFamily: NUC.label, fontSize: 12.5, letterSpacing: '.04em', color: NUC.faint,
-        textDecoration: 'underline', textUnderlineOffset: 3,
-      }}>
+      <button type="button" onClick={() => setAperto(true)} style={LINK_FOGLIO}>
         {t('+ Peso dell’attrezzo a vuoto')}
       </button>
     )
@@ -428,55 +424,196 @@ function CampoAttrezzo({ valore, onChange, errore }: { valore: string; onChange:
   )
 }
 
-// La data dell'alzata sotto il nome dell'esercizio: da leggere, e modificabile
-// solo se lo si chiede. Chiusa è testo con una matita accanto; aperta è il campo
-// data con una spunta che conferma e richiude.
-function DataModificabile({ valore, onChange, aperta, onApri, etichetta }: {
+// ── I pezzi dei fogli dell'alzata ──────────────────────────────
+// «Nuova alzata» e «Modifica alzata» sono lo stesso modulo (ott 2026): la data,
+// stesso peso o serie per serie, i numeri, il carico e il tipo di alzata, il
+// massimale che ne viene. Cambiano la testata e il fondo. I pezzi stanno qui,
+// una volta sola, e le due finestre li compongono.
+
+/** L'etichetta sopra un campo dei fogli: Condensed maiuscolo, grigia. */
+const ETICHETTA_FOGLIO: React.CSSProperties = {
+  fontFamily: NUC.display, fontSize: 13, fontWeight: 700, letterSpacing: '.1em',
+  textTransform: 'uppercase', color: NUC.faint,
+}
+
+/** La data dell'alzata: un tasto col calendario, sotto il titolo. Si legge
+ *  prima di toccarla ("Oggi · 26 ott"), e toccandola si apre il calendario del
+ *  telefono: il campo data vero sta sopra il tasto, trasparente. Con `conAnno`
+ *  la data intera, per un'alzata già registrata che può essere di mesi fa. */
+function ChipData({ valore, onChange, etichetta, conAnno = false }: {
   valore: string
   onChange: (d: string) => void
-  aperta: boolean
-  onApri: (a: boolean) => void
   etichetta: string
+  conAnno?: boolean
 }) {
   const t = useT()
-  const oggi = valore === todayISO()
-  const bottone: React.CSSProperties = {
-    width: 26, height: 26, borderRadius: 'var(--radius-sm)', flexShrink: 0, padding: 0,
-    background: 'var(--surface)', border: '1px solid var(--hairline)',
-    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  }
-  if (aperta) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <input
-          value={valore} onChange={e => e.target.value && onChange(e.target.value)} type="date"
-          aria-label={etichetta} autoFocus className="j-field"
-          style={{ height: 30, width: 140, fontSize: 12, background: 'var(--surface-2)' }}
-        />
-        <button type="button" onClick={() => onApri(false)} aria-label={t('Conferma la data')}
-          style={{ ...bottone, color: 'var(--j-accent-ink)', borderColor: 'var(--j-accent)' }}>
-          <Icons.check size={13} stroke={2.4}/>
-        </button>
-      </div>
-    )
-  }
+  const testo = !valore ? t('Senza data')
+    : conAnno ? `${fmtDayMon(valore)} ${valore.slice(0, 4)}`
+    : valore === todayISO() ? `${t('Oggi')} · ${fmtDayMon(valore)}`
+    : fmtDayMon(valore)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: NUC.faint }}>
-        {oggi ? `${t('Oggi')} · ${fmtShortDate(valore)}` : fmtShortDate(valore)}
-      </span>
-      <button type="button" onClick={() => onApri(true)} aria-label={t('Modifica la data')}
-        style={{ ...bottone, color: NUC.faint }}>
-        <Icons.pencil size={11} stroke={1.8}/>
+    <span className="j-casella" style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8, height: 36, padding: '0 12px',
+      border: 'var(--bordo)', background: 'var(--surface)', color: NUC.ink,
+    }}>
+      <Icons.calendar size={16} stroke={1.8}/>
+      <span style={{ fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>{testo}</span>
+      <input
+        type="date" value={valore} aria-label={etichetta}
+        onChange={e => e.target.value && onChange(e.target.value)}
+        // Su desktop il campo data si apre solo dalla sua icona: lo si apre a mano.
+        onClick={e => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.() } catch { /* già aperto, o non permesso */ } }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', border: 0, padding: 0, margin: 0 }}
+      />
+    </span>
+  )
+}
+
+/** Stesso peso su tutte le serie, o serie per serie. Spenta su un massimale,
+ *  che di serie ne ha una. */
+function SceltaPerSerie({ perSet, onChange, corpo, spenta }: {
+  perSet: boolean; onChange: (perSet: boolean) => void; corpo: boolean; spenta?: boolean
+}) {
+  const t = useT()
+  return (
+    <div aria-disabled={spenta || undefined} style={{ opacity: spenta ? 0.4 : 1, pointerEvents: spenta ? 'none' : undefined, transition: 'opacity 180ms' }}>
+      <FormatoSwitch<'uguale' | 'serie'>
+        valore={perSet ? 'serie' : 'uguale'} onChange={v => onChange(v === 'serie')}
+        valori={['uguale', 'serie']}
+        etichette={[corpo ? t('Stessa zavorra') : t('Stesso kg'), t('Per serie')]}
+        etichettaGruppo={t('Peso uguale o per serie')}
+      />
+    </div>
+  )
+}
+
+/** Una casella col bordo d'inchiostro e il numero grande dentro. */
+function CasellaNumero({ etichetta, errore, children }: { etichetta: string; errore?: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{etichetta}</div>
+      <div className="j-casella" data-errore={errore || undefined} style={{ height: 56, border: 'var(--bordo)', background: 'var(--surface)' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const PIU_MENO: React.CSSProperties = {
+  width: 30, flexShrink: 0, padding: 0, border: 'none', background: 'var(--surface)', color: NUC.ink,
+  fontFamily: NUC.display, fontSize: 22, fontWeight: 700, lineHeight: 1, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
+
+/** Serie · Rip · Kg sulla stessa riga, col peso uguale per tutte. Le serie hanno
+ *  il − e il + ai lati: si cambiano di una alla volta molto più spesso di
+ *  quanto le si scriva. Su un massimale serie e colpi sono 1 × 1, e restano al
+ *  loro posto spente invece di sparire, così la riga non balla. */
+function NumeriAlzata({ serie, onSerie, colpi, onColpi, kg, onKg, corpo, massimale, segna }: {
+  serie: string; onSerie: (v: string) => void
+  colpi: string; onColpi: (v: string) => void
+  kg: string; onKg: (v: string) => void
+  corpo: boolean; massimale: boolean
+  segna: (campo: CampoAlzata) => boolean
+}) {
+  const t = useT()
+  const n = parseInt(serie) || 0
+  const passo = (d: number) => onSerie(String(Math.min(SERIE_MAX, Math.max(1, n + d))))
+  const fisso = (v: string) => (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: NUC.display, fontSize: 26, fontWeight: 800, color: 'var(--muted-dark)', background: 'var(--surface-2)' }}>{v}</div>
+  )
+  return (
+    // La colonna delle serie un po' più larga: dentro ha anche il − e il +, e a
+    // 320px di larghezza un "12" fra i due non ci stava.
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
+      <CasellaNumero etichetta={t('Serie')} errore={segna('serie')}>
+        {massimale ? fisso('1') : (
+          <>
+            <button type="button" onClick={() => passo(-1)} aria-label={t('Una serie in meno')} style={{ ...PIU_MENO, borderRight: 'var(--bordo)' }}>−</button>
+            <input value={serie} onChange={e => onSerie(e.target.value.replace(/[^0-9]/g, ''))} aria-label={t('Serie')} inputMode="numeric"
+              onFocus={selezionaAlFocus} className="j-campo-numero" style={{ textAlign: 'center', padding: 0 }} aria-invalid={segna('serie') || undefined}/>
+            <button type="button" onClick={() => passo(1)} aria-label={t('Una serie in più')} style={{ ...PIU_MENO, borderLeft: 'var(--bordo)' }}>+</button>
+          </>
+        )}
+      </CasellaNumero>
+      <CasellaNumero etichetta={t('Rip')} errore={segna('colpi')}>
+        {massimale ? fisso('1') : (
+          <input value={colpi} onChange={e => onColpi(e.target.value.replace(/[^0-9]/g, ''))} aria-label={t('Colpi')} inputMode="numeric"
+            onFocus={selezionaAlFocus} className="j-campo-numero" style={{ textAlign: 'center' }} aria-invalid={segna('colpi') || undefined}/>
+        )}
+      </CasellaNumero>
+      <CasellaNumero etichetta={corpo ? t('Zavorra') : t('Kg')} errore={segna('kg')}>
+        <input value={kg} onChange={e => onKg(normalizzaDecimale(e.target.value))} aria-label={corpo ? t('Zavorra') : t('Kg')} inputMode="decimal"
+          placeholder={corpo ? '0' : undefined}
+          onFocus={selezionaAlFocus} className="j-campo-numero" style={{ textAlign: 'center' }} aria-invalid={segna('kg') || undefined}/>
+      </CasellaNumero>
+    </div>
+  )
+}
+
+/** Serie per serie: una riga ciascuna coi suoi colpi e i suoi chili. Il numero
+ *  delle serie lo fanno le righe: «Aggiungi serie» ne aggiunge una uguale
+ *  all'ultima, la × sull'ultima la toglie. */
+function TabellaSerie({ n, pesi, colpi, onPeso, onColpi, onAggiungi, onTogli, corpo, erroreKg }: {
+  n: number
+  pesi: string[]; colpi: string[]
+  onPeso: (i: number, v: string) => void
+  onColpi: (i: number, v: string) => void
+  onAggiungi: () => void
+  onTogli: () => void
+  corpo: boolean
+  erroreKg?: boolean
+}) {
+  const t = useT()
+  const griglia: React.CSSProperties = { display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr) minmax(0, 1fr)' }
+  const intestazione: React.CSSProperties = { ...ETICHETTA_FOGLIO, fontSize: 12, padding: '5px 12px' }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ border: 'var(--bordo)', background: 'var(--surface)' }}>
+        <div style={{ ...griglia, background: 'var(--surface-2)' }}>
+          <span style={{ ...intestazione, paddingLeft: 10 }}>#</span>
+          <span style={{ ...intestazione, borderLeft: '1px solid var(--line)' }}>{t('Rip')}</span>
+          <span style={{ ...intestazione, borderLeft: '1px solid var(--line)' }}>{corpo ? t('Zavorra') : t('Kg')}</span>
+        </div>
+        {Array.from({ length: n }, (_, i) => (
+          <div key={i} style={{ ...griglia, height: 50, borderTop: '1px solid var(--line)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, fontFamily: NUC.display, fontSize: 15, fontWeight: 700, color: NUC.faint }}>S{i + 1}</span>
+            <div className="j-casella" style={{ borderLeft: '1px solid var(--line)' }}>
+              <input value={colpi[i] ?? ''} onChange={e => onColpi(i, e.target.value)} aria-label={t('Serie {n} · colpi', { n: i + 1 })}
+                inputMode="numeric" onFocus={selezionaAlFocus} className="j-campo-numero" style={{ fontSize: 24 }}/>
+            </div>
+            <div className="j-casella" data-errore={erroreKg || undefined} style={{ borderLeft: '1px solid var(--line)' }}>
+              <input value={pesi[i] ?? ''} onChange={e => onPeso(i, e.target.value)} aria-label={t('Serie {n} · kg', { n: i + 1 })}
+                placeholder={corpo ? '0' : undefined}
+                inputMode="decimal" onFocus={selezionaAlFocus} className="j-campo-numero" style={{ fontSize: 24 }}
+                aria-invalid={erroreKg || undefined}/>
+              {i === n - 1 && n > 1 && (
+                <button type="button" onClick={onTogli} aria-label={t('Togli la serie {n}', { n: i + 1 })} style={{
+                  width: 44, flexShrink: 0, border: 'none', borderLeft: '1px solid var(--line)', background: 'transparent',
+                  color: NUC.faint, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}><Icons.x size={15} stroke={2}/></button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={onAggiungi} disabled={n >= SERIE_MAX} className="j-focus" style={{
+        height: 46, width: '100%', background: 'transparent', border: '2px dashed var(--muted-dark)', color: NUC.ink,
+        cursor: n >= SERIE_MAX ? 'default' : 'pointer', opacity: n >= SERIE_MAX ? 0.4 : 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+      }}>
+        <Icons.plus size={16} stroke={2.2}/> {t('Aggiungi serie')}
       </button>
     </div>
   )
 }
 
-// Una colonna del blocco interruttori del log: il titolo e le sue due
-// alternative, impilate. Tre colonne affiancate invece di tre righe piene: le sei
-// scelte prendono l'altezza di due bottoni invece che di sei, e restano visibili
-// insieme ai campi su cui agiscono.
+/** Una colonna di scelta: il titolo e le due alternative, una sopra l'altra in
+ *  un riquadro d'inchiostro. Quella scelta è piena, come la cella accesa di un
+ *  interruttore. Due colonne affiancate — il carico, il tipo di alzata — invece
+ *  di quattro righe piene: si toccano di rado, e così non spingono in giù il
+ *  resto. */
 function ColonnaScelta({ titolo, opzioni, spenta }: {
   titolo: string
   opzioni: Array<{ label: string; on: boolean; onClick: () => void }>
@@ -484,22 +621,69 @@ function ColonnaScelta({ titolo, opzioni, spenta }: {
 }) {
   return (
     <div style={{ minWidth: 0, opacity: spenta ? 0.4 : 1, transition: 'opacity 180ms' }}>
-      <div className="j-eyebrow" style={{ fontSize: 12, letterSpacing: '.1em', marginBottom: 6 }}>{titolo}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {opzioni.map(o => (
-          <button key={o.label} type="button" disabled={spenta} onClick={o.onClick} aria-pressed={o.on} style={{
-            height: 32, borderRadius: 'var(--radius-sm)', padding: '0 4px', minWidth: 0,
-            background: o.on ? 'var(--surface-2)' : 'var(--surface)',
-            border: `1px solid ${o.on ? 'var(--j-accent)' : NUC.hairline}`,
-            color: o.on ? 'var(--j-accent-ink)' : NUC.dim,
-            fontFamily: NUC.label, fontSize: 12.5, letterSpacing: '.04em',
-            cursor: spenta ? 'default' : 'pointer', transition: 'all 180ms',
+      <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{titolo}</div>
+      <div role="group" aria-label={titolo} style={{ border: 'var(--bordo)', display: 'flex', flexDirection: 'column' }}>
+        {opzioni.map((o, i) => (
+          <button key={o.label} type="button" disabled={spenta} onClick={o.onClick} aria-pressed={o.on} className="j-focus" style={{
+            height: 38, minWidth: 0, padding: '0 6px', border: 'none', borderTop: i ? 'var(--bordo)' : 'none',
+            background: o.on ? 'var(--ink)' : 'var(--surface)', color: o.on ? 'var(--surface)' : NUC.ink,
+            fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+            cursor: spenta ? 'default' : 'pointer', transition: 'background 160ms, color 160ms',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{o.label}</button>
         ))}
       </div>
     </div>
   )
+}
+
+/** Il massimale che l'alzata vale: il numero con cui verrà giudicata, grande a
+ *  destra, e da dove viene, piccolo a sinistra. */
+function AnteprimaMassimale({ titolo, sotto, kg }: { titolo: string; sotto: string; kg: number }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      padding: '12px 14px', background: 'var(--surface-2)', border: '2px solid var(--hairline-soft)',
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={ETICHETTA_FOGLIO}>{titolo}</div>
+        <div style={{ fontFamily: NUC.display, fontSize: 14, fontWeight: 600, color: NUC.faint, marginTop: 3 }}>{sotto}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexShrink: 0, color: NUC.ink }}>
+        <span style={{ fontFamily: NUC.display, fontSize: 38, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{kg}</span>
+        <span style={{ fontFamily: NUC.display, fontSize: 14, fontWeight: 700, color: NUC.faint }}>KG</span>
+      </div>
+    </div>
+  )
+}
+
+/** La nota dell'alzata, chiusa come l'attrezzo finché non serve: quasi mai, e
+ *  un campo sempre aperto si leggerebbe come una cosa da compilare. */
+function CampoNota({ valore, onChange }: { valore: string; onChange: (v: string) => void }) {
+  const t = useT()
+  const [aperta, setAperta] = useState(!!valore)
+  if (!aperta) {
+    return (
+      <button type="button" onClick={() => setAperta(true)} style={LINK_FOGLIO}>{t('+ Nota su questa alzata')}</button>
+    )
+  }
+  return (
+    <div>
+      <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Nota · facoltativa')}</div>
+      <textarea
+        value={valore} onChange={e => onChange(e.target.value)} rows={2} autoFocus={!valore}
+        placeholder={t('Nota su questa sessione…')} aria-label={t('Nota')} className="j-field"
+        style={{ height: 'auto', minHeight: 64, padding: '10px 12px', resize: 'vertical', lineHeight: 1.45 }}
+      />
+    </div>
+  )
+}
+
+/** Il collegamento sottolineato che apre un campo facoltativo. */
+const LINK_FOGLIO: React.CSSProperties = {
+  alignSelf: 'flex-start', background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',
+  fontFamily: NUC.font, fontSize: 14, fontWeight: 500, color: NUC.ink,
+  textDecoration: 'underline', textUnderlineOffset: 3,
 }
 
 // ── Attrezzo o corpo libero, sull'esercizio ────────────────────
@@ -510,25 +694,168 @@ function ColonnaScelta({ titolo, opzioni, spenta }: {
 function SceltaCarico({ corpo, onChange }: { corpo: boolean; onChange: (corpo: boolean) => void }) {
   const t = useT()
   return (
-    <>
-      <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
-        {t('Tipo di carico')}
+    <div>
+      <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Tipo di carico')}</div>
+      <FormatoSwitch<'attrezzo' | 'corpo'>
+        valore={corpo ? 'corpo' : 'attrezzo'} onChange={v => onChange(v === 'corpo')}
+        valori={['attrezzo', 'corpo']} etichette={[t('Con attrezzo'), t('Corpo libero')]}
+        etichettaGruppo={t('Tipo di carico')} style={{ minHeight: 48 }}
+      />
+    </div>
+  )
+}
+
+// ── I pezzi dei fogli dell'esercizio ───────────────────────────
+// «Nuovo esercizio» e «Modifica esercizio» chiedono le stesse cose (ott 2026):
+// il nome, i gruppi, il tipo di carico, le note. La modifica aggiunge
+// l'attrezzo e il colore del gruppo.
+
+/** I gruppi da scegliere: quelli che l'app conosce, senza «Altro» — è il
+ *  cassetto di chi un gruppo non ce l'ha, non un gruppo da dare a un esercizio —
+ *  a meno che l'esercizio non stia già lì. Un gruppo di `tenere` che non è fra
+ *  questi (un nome vecchio, uno scritto a mano) compare lo stesso, o chi lo ha
+ *  non lo vedrebbe acceso. */
+function gruppiDaScegliere(gruppi: string[], tenere: string[]): string[] {
+  const scelte = gruppi.filter(m => m !== 'Altro' || tenere.includes('Altro'))
+  for (const m of tenere) if (m && !scelte.includes(m)) scelte.push(m)
+  return scelte
+}
+
+/** I gruppi muscolari a tasselli. Un tocco sceglie il principale, il secondo il
+ *  secondario; ritoccarli li toglie. Tolto il principale, il secondario prende
+ *  il suo posto: i due non sono mai lo stesso gruppo (col menu a tendina il
+ *  secondario promosso restava salvato, e la testata diceva «Petto · Petto»). */
+function SceltaGruppi({ scelte, principale, secondario, onChange, errore }: {
+  scelte: string[]; principale: string; secondario: string
+  onChange: (principale: string, secondario: string) => void
+  errore?: boolean
+}) {
+  const t = useT()
+  const tData = useTData()
+  const tocca = (m: string) => {
+    if (m === principale) onChange(secondario, '')
+    else if (m === secondario) onChange(principale, '')
+    else if (!principale) onChange(m, '')
+    else onChange(principale, m)
+  }
+  const aiuto = !principale ? t('Tocca il gruppo principale.')
+    : secondario ? t('Principale: {a} · secondario: {b}', { a: tData(principale), b: tData(secondario) })
+    : t('Principale: {a} · tocca un altro gruppo per il secondario', { a: tData(principale) })
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+        <span style={ETICHETTA_FOGLIO}>{t('Gruppi muscolari')}</span>
+        <span style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.faint }}>{t('principale + uno facoltativo')}</span>
       </div>
-      <div className="flex gap-2">
-        {([false, true] as const).map(bw => (
-          <button key={String(bw)} type="button" onClick={() => onChange(bw)} aria-pressed={corpo === bw} style={{
-            flex: 1, height: 36, borderRadius: 'var(--radius)',
-            background: corpo === bw ? 'var(--surface-2)' : 'var(--surface)',
-            border: `1px solid ${corpo === bw ? 'var(--j-accent)' : NUC.hairline}`,
-            color: corpo === bw ? 'var(--j-accent-ink)' : NUC.dim,
-            fontFamily: NUC.label, fontSize: 12, letterSpacing: '.08em', cursor: 'pointer',
-            transition: 'all 180ms',
-          }}>
-            {bw ? t('Corpo libero') : t('Con attrezzo')}
-          </button>
-        ))}
+      <div role="group" aria-label={t('Gruppo muscolare')} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+        {scelte.map(m => {
+          const ruolo = m === principale ? 1 : m === secondario ? 2 : 0
+          return (
+            <button key={m} type="button" onClick={() => tocca(m)} aria-pressed={ruolo > 0}
+              aria-label={ruolo === 1 ? `${tData(m)} · ${t('principale')}` : ruolo === 2 ? `${tData(m)} · ${t('secondario')}` : tData(m)}
+              className="j-focus" style={{
+                position: 'relative', height: 44, minWidth: 0, padding: '0 4px', cursor: 'pointer',
+                background: ruolo === 1 ? 'var(--ink)' : 'var(--surface)',
+                color: ruolo === 1 ? 'var(--surface)' : NUC.ink,
+                border: ruolo ? 'var(--bordo)' : `1.5px solid ${errore ? 'var(--danger)' : 'var(--hairline-soft)'}`,
+                fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+              {tData(m)}
+              {ruolo > 0 && (
+                <span aria-hidden style={{
+                  position: 'absolute', top: -2, right: -2, width: 18, height: 18,
+                  background: ruolo === 1 ? 'var(--j-accent)' : 'var(--ink)', color: 'var(--surface)',
+                  fontFamily: NUC.display, fontSize: 12, fontWeight: 800, lineHeight: '18px', textAlign: 'center',
+                }}>{ruolo}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
-    </>
+      <div style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.faint, lineHeight: 1.45, marginTop: 8 }}>{aiuto}</div>
+    </div>
+  )
+}
+
+/** Le note dell'esercizio: come si esegue, come si prepara. */
+function CampoNoteEsercizio({ valore, onChange }: { valore: string; onChange: (v: string) => void }) {
+  const t = useT()
+  return (
+    <div>
+      <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Note · facoltative')}</div>
+      <textarea
+        value={valore}
+        onChange={e => onChange(e.target.value)}
+        placeholder={t('Esecuzione, setup, attrezzatura…')}
+        aria-label={t('Note')}
+        className="j-field"
+        rows={3}
+        style={{ height: 'auto', minHeight: 84, padding: '10px 12px', resize: 'none', lineHeight: 1.5 }}
+      />
+    </div>
+  )
+}
+
+/** Il colore, nella modifica dell'esercizio. È del gruppo e non dell'esercizio:
+ *  la riga lo dice prima di toccarla, e toccata apre i colori. */
+function ColoreGruppo({ gruppo, colore, mostrato, onChange }: {
+  gruppo: string
+  /** Il colore scelto dall'utente; vuoto è quello di serie. */
+  colore: string
+  /** Quello che si vede: lo scelto, o quello di serie. */
+  mostrato: string
+  onChange: (c: string) => void
+}) {
+  const t = useT()
+  const tData = useTData()
+  const [aperto, setAperto] = useState(false)
+  const tassello = (scelto: boolean): React.CSSProperties => ({
+    aspectRatio: '1 / 1', width: '100%', padding: 0, cursor: 'pointer',
+    border: scelto ? 'var(--bordo)' : '1.5px solid var(--hairline-soft)',
+    outline: scelto ? '2px solid var(--surface)' : 'none', outlineOffset: -4,
+  })
+  return (
+    <div style={{ border: '1.5px solid var(--hairline-soft)', background: 'var(--surface-2)' }}>
+      <button type="button" onClick={() => setAperto(a => !a)} aria-expanded={aperto} className="j-focus" style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+        background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', color: NUC.ink,
+      }}>
+        <span aria-hidden style={{ width: 28, height: 28, flexShrink: 0, background: mostrato, border: 'var(--bordo)' }}/>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {t('Colore di {gruppo}', { gruppo: tData(gruppo) })}
+          </span>
+          <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 12, color: NUC.faint, marginTop: 2 }}>{t('Vale per tutti gli esercizi del gruppo')}</span>
+        </span>
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+          {t('Gruppo')}
+          <span aria-hidden style={{ display: 'inline-block', transform: aperto ? 'rotate(90deg)' : 'none', transition: 'transform 160ms' }}>→</span>
+        </span>
+      </button>
+      {aperto && (
+        <div role="group" aria-label={t('Colore')} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(34px, 1fr))', gap: 6, padding: '0 14px 14px' }}>
+          <button type="button" onClick={() => onChange('')} aria-label={t('Colore di serie')} aria-pressed={!colore} className="j-focus" style={{
+            ...tassello(!colore), background: 'var(--surface)',
+            fontFamily: NUC.display, fontSize: 14, fontWeight: 800, color: NUC.faint,
+          }}>A</button>
+          {COLOR_PALETTE.map(c => (
+            <button key={c} type="button" onClick={() => onChange(colore === c ? '' : c)} aria-label={c} aria-pressed={colore === c} className="j-focus" style={{ ...tassello(colore === c), background: c }}/>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Il cestino accanto al tasto principale, in fondo ai fogli di modifica. */
+function TastoCestino({ etichetta, onClick }: { etichetta: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={etichetta} title={etichetta} className="j-focus" style={{
+      width: 60, height: 60, flexShrink: 0, cursor: 'pointer',
+      background: 'var(--surface)', border: '2px solid var(--danger)', color: 'var(--danger)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}><Icons.trash size={20} stroke={1.8}/></button>
   )
 }
 
@@ -554,7 +881,6 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   const [setWeightsStr, setSetWeightsStr] = useState<string[]>([])
   const [setRepsStr, setSetRepsStr] = useState<string[]>([])
   const [isMax, setIsMax] = useState(false)            // massimale: una singola al massimo
-  const [modificaData, setModificaData] = useState(false)
   // Il peso dell'attrezzo a vuoto: parte da quello dell'esercizio, e quello che
   // si salva qui diventa il suo (vedi `savePalestraEntry`).
   const [attrezzo, setAttrezzo] = useState('')
@@ -582,7 +908,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     setReps(preCompila(ultima?.reps ?? ex.current.reps))
     setSets(preCompila(ultima?.sets_n ?? ex.current.sets_n))
     // Parte da come è fatto l'esercizio: le trazioni si aprono già a corpo libero.
-    setIsBodyweight(corpoLibero(ex)); setZavorra(''); setModificaData(false)
+    setIsBodyweight(corpoLibero(ex)); setZavorra('')
     setPerSet(false); setSetWeightsStr([]); setSetRepsStr([]); setIsMax(false)
     setAttrezzo(ex.attrezzoKg ? fmtNum(ex.attrezzoKg) : '')
   }, [open, ex])
@@ -705,157 +1031,103 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     onClose()
   }
 
+  // Serie per serie, le righe sono le serie: se ne aggiunge una uguale
+  // all'ultima, o si toglie l'ultima.
+  const aggiungiSerie = () => {
+    if (nSets >= SERIE_MAX) return
+    setSets(String(nSets + 1))
+    setSetWeightsStr(a => { const x = [...a]; x[nSets] = x[nSets - 1] ?? ''; return x })
+    setSetRepsStr(a => { const x = [...a]; x[nSets] = x[nSets - 1] ?? reps ?? ''; return x })
+  }
+  const togliSerie = () => {
+    if (nSets <= 1) return
+    setSets(String(nSets - 1))
+    setSetWeightsStr(a => a.slice(0, nSets - 1))
+    setSetRepsStr(a => a.slice(0, nSets - 1))
+  }
+
   return (
-    <JModal
-      open={open} onClose={onClose} title={tData(ex.n)} width={360}
+    <JFoglio
+      open={open} onClose={onClose}
+      titolo={tData(ex.n)}
+      occhiello={`${tData(displayMuscle(ex.muscle))} · ${t('Nuova alzata')}`}
       // La data è quasi sempre oggi e quasi mai si tocca: sta sotto il nome come
-      // un'informazione, non come un campo. La matita la rende modificabile e
-      // diventa una spunta per confermare — un campo data sempre aperto
-      // nell'intestazione si leggeva come qualcosa da compilare.
-      subtitle={
-        <DataModificabile
-          valore={date} onChange={setDate}
-          aperta={modificaData} onApri={setModificaData}
-          etichetta={t('Data dell’alzata')}
-        />
-      }
+      // un'informazione. Toccandola si apre il calendario.
+      sotto={<ChipData valore={date} onChange={setDate} etichetta={t('Data dell’alzata')}/>}
+      piede={<>
+        <AvvisiSalvataggio problema={problema} salto={saltoVisto ? salto : null}/>
+        <button onClick={save} className="j-btn-accent" style={{ marginTop: 0 }}>{saltoVisto && salto ? t('Conferma e salva') : t('Salva alzata')}</button>
+      </>}
     >
-      <div className="flex flex-col gap-2.5">
-        {/* L'ordine è quello in cui si compila: prima i numeri dell'alzata, poi il
-            carico, e in fondo i tre interruttori che ne cambiano la natura. Gli
-            interruttori stavano in cima, tre righe piene prima del primo campo:
-            si toccano di rado — quasi ogni alzata è con attrezzo, di allenamento,
-            a peso uguale — e occupavano mezzo modale per dire ciò che era già vero. */}
+      <div className="flex flex-col" style={{ gap: 12 }}>
+        <SceltaPerSerie perSet={perSet && !isMax} onChange={v => (v ? enablePerSet() : setPerSet(false))} corpo={isBodyweight} spenta={isMax}/>
 
-        {/* 1. Serie × Colpi */}
-        {isMax ? (
-          <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: '.04em', lineHeight: 1.5, marginTop: 4 }}>
-            {t('Una singola al carico massimo. Serie e colpi valgono 1 × 1.')}
-          </div>
-        ) : (
-          <>
-        {/* Un'etichetta minuscola sopra ogni campo: il segnaposto dentro sparisce
-            appena si scrive, e con i campi precompilati dall'ultima alzata non si
-            vedeva mai — tre numeri senza nome, e bisognava ricordare quale fosse
-            quale. */}
-            <div className="flex gap-2">
-              <CampoEtichettato etichetta={t('serie')}>
-                <input value={sets} onChange={e => setSets(e.target.value)} placeholder={t('serie')} aria-label={t('Serie')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('serie') || undefined} style={segna('serie') ? ROSSO : undefined}/>
-              </CampoEtichettato>
-              <CampoEtichettato etichetta={t('ripetizioni')}>
-                <input value={reps} onChange={e => setReps(e.target.value)} placeholder={t('colpi')} aria-label={t('Colpi')} type="number" inputMode="numeric" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('colpi') || undefined} style={segna('colpi') ? ROSSO : undefined}/>
-              </CampoEtichettato>
-            </div>
-          </>
-        )}
-
-        {/* 2. Il carico */}
         {perSet && !isMax ? (
           <>
-            <div className="j-eyebrow mt-1">
-              {isBodyweight ? t('Zavorra') : t('Kg')}<span style={{ opacity: 0.55 }}> · {t('colpi per serie')}</span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {Array.from({ length: nSets }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span style={{ width: 26, flexShrink: 0, fontFamily: NUC.label, fontSize: 12, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>S{i + 1}</span>
-                  <input
-                    value={setWeightsStr[i] ?? ''}
-                    onChange={e => updateSetWeight(i, e.target.value)}
-                    placeholder={isBodyweight ? t('kg agg.') : 'kg'}
-                    aria-label={t('Serie {n} · kg', { n: i + 1 })}
-                    inputMode="decimal"
-                    onFocus={selezionaAlFocus}
-                    className="j-field"
-                    aria-invalid={segna('kg') || undefined}
-                    style={{ flex: 1, minWidth: 0, ...(segna('kg') ? ROSSO : {}) }}
-                  />
-                  <input
-                    value={setRepsStr[i] ?? ''}
-                    onChange={e => updateSetReps(i, e.target.value)}
-                    placeholder={t('colpi')}
-                    aria-label={t('Serie {n} · colpi', { n: i + 1 })}
-                    inputMode="numeric"
-                    onFocus={selezionaAlFocus}
-                    className="j-field"
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
-                </div>
-              ))}
-            </div>
+            <TabellaSerie
+              n={nSets} pesi={setWeightsStr} colpi={setRepsStr}
+              onPeso={updateSetWeight} onColpi={updateSetReps}
+              onAggiungi={aggiungiSerie} onTogli={togliSerie}
+              corpo={isBodyweight} erroreKg={segna('kg')}
+            />
             {/* Con un attrezzo le righe senza chili non si salvano (vedi `save`):
                 lo si dice qui, mentre le si può ancora riempire. */}
             {!isBodyweight && righe.some(Boolean) && righe.some(r => !r) && (
-              <div role="note" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: 'var(--warn)' }}>
+              <div role="note" style={{ fontFamily: NUC.label, fontSize: 13, lineHeight: 1.5, color: 'var(--warn)' }}>
                 {t('Le serie senza chili non vengono salvate.')}
               </div>
             )}
           </>
-        ) : isBodyweight ? (
-          <>
-            <div className="j-eyebrow mt-1">{t('Zavorra extra')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
-            <input value={zavorra} onChange={e => setZavorra(normalizzaDecimale(e.target.value))} placeholder={t('kg aggiunti')} aria-label={t('Zavorra')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('kg') || undefined} style={segna('kg') ? ROSSO : undefined}/>
-          </>
         ) : (
-          <>
-            <CampoEtichettato etichetta={t('chili')}>
-              <input value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} placeholder="kg" aria-label={t('Kg')} inputMode="decimal" onFocus={selezionaAlFocus} className="j-field" aria-invalid={segna('kg') || undefined} style={segna('kg') ? ROSSO : undefined}/>
-            </CampoEtichettato>
-          </>
+          <NumeriAlzata
+            serie={sets} onSerie={setSets} colpi={reps} onColpi={setReps}
+            kg={isBodyweight ? zavorra : kg} onKg={isBodyweight ? setZavorra : setKg}
+            corpo={isBodyweight} massimale={isMax} segna={segna}
+          />
+        )}
+        {isMax && (
+          <div style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.faint, lineHeight: 1.5, marginTop: -4 }}>
+            {t('Una singola al carico massimo. Serie e colpi valgono 1 × 1.')}
+          </div>
         )}
 
-        {/* 2b. L'attrezzo a vuoto. Dopo i chili, perché è a quelli che si somma;
-            la chiave lo richiude a ogni apertura su un esercizio che non ce l'ha. */}
+        {/* L'attrezzo a vuoto: dopo i chili, perché è a quelli che si somma; la
+            chiave lo richiude a ogni apertura su un esercizio che non ce l'ha. */}
         {!isBodyweight && <CampoAttrezzo key={`${ex.id}-${open}`} valore={attrezzo} onChange={setAttrezzo} errore={segna('attrezzo')}/>}
         {/* La prima volta su un esercizio che ha già uno storico: quelle alzate
             l'attrezzo non ce l'hanno, e questa sembrerà un salto in avanti (e un
             record). Non si può sapere da qui se nei chili di prima c'era già:
             lo si dice, e si dice dove rimediare. */}
         {attrezzoN > 0 && !ex.attrezzoKg && ex.history.some(h => !h.bodyweight) && (
-          <div role="note" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: 'var(--warn)' }}>
+          <div role="note" style={{ fontFamily: NUC.label, fontSize: 13, lineHeight: 1.5, color: 'var(--warn)' }}>
             {t('Le alzate già registrate restano com’erano. Se anche lì scrivevi solo i dischi, sommalo da «Modifica esercizio».')}
           </div>
         )}
 
-        {/* 3. I tre interruttori, in colonna dentro tre colonne. Su un massimale
-            la scelta del carico per serie non esiste: c'è una serie sola, e la
-            colonna resta al suo posto spenta invece di sparire — sparendo
-            allargherebbe le altre due e farebbe ballare il modale a ogni tocco. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 2 }}>
-          <ColonnaScelta titolo={t('Tipo di carico')} opzioni={[
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <ColonnaScelta titolo={t('Carico')} opzioni={[
             { label: t('Attrezzo'),     on: !isBodyweight, onClick: () => { setIsBodyweight(false); setZavorra('') } },
             { label: t('Corpo libero'), on: isBodyweight,  onClick: () => { setIsBodyweight(true);  setZavorra('') } },
           ]}/>
           {/* Un massimale non è una serie con un colpo solo: è la prova di quanto
               sposti, e l'app lo tratta diversamente — non viene stimato (nessun
-              Epley sopra) e alimenta la card Massimali della home con un numero
-              certo invece che dedotto. */}
-          <ColonnaScelta titolo={t('Tipo di alzata')} opzioni={[
+              Epley sopra) e alimenta la card dei massimali con un numero certo
+              invece che dedotto. */}
+          <ColonnaScelta titolo={t('Alzata')} opzioni={[
             { label: t('Allenamento'), on: !isMax, onClick: () => setIsMax(false) },
             { label: t('Massimale'),   on: isMax,  onClick: () => { setIsMax(true); setPerSet(false) } },
-          ]}/>
-          <ColonnaScelta titolo={isBodyweight ? t('Zavorra') : t('Kg')} spenta={isMax} opzioni={[
-            { label: t('Uguale'),    on: !perSet, onClick: () => setPerSet(false) },
-            { label: t('Per serie'), on: perSet,  onClick: () => enablePerSet() },
           ]}/>
         </div>
 
         {preview && (
-          <div className="p-3.5 mt-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius)' }}>
-            <div className="flex justify-between items-baseline">
-              <span style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: 1, color: NUC.faint, textTransform: 'uppercase' }}>{isMax ? t('Massimale') : t('Massimale stimato')}</span>
-              <span style={{ fontFamily: NUC.label, fontSize: 18, color: 'var(--j-accent-ink)', letterSpacing: -0.5 }}>{preview.oneRM} kg</span>
-            </div>
-            <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, marginTop: 5 }}>
-              {isMax ? t('una singola a {kg} kg', { kg: preview.top }) : t('da {kg} kg × {n} colpi', { kg: preview.top, n: repsN })}
-            </div>
-          </div>
+          <AnteprimaMassimale
+            titolo={isMax ? t('Massimale') : t('1RM stimato')}
+            sotto={isMax ? t('una singola a {kg} kg', { kg: fmtNum(preview.top) }) : t('da {kg} kg × {n} rip', { kg: fmtNum(preview.top), n: repsN })}
+            kg={preview.oneRM}
+          />
         )}
-
-        <AvvisiSalvataggio problema={problema} salto={saltoVisto ? salto : null}/>
-        <button onClick={save} className="j-btn-accent">{saltoVisto && salto ? t('Conferma e salva') : t('Salva')}</button>
       </div>
-    </JModal>
+    </JFoglio>
   )
 }
 
@@ -886,7 +1158,7 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
   // Quando il modale viene aperto da una card di gruppo muscolare, parte già
   // sul muscolo giusto.
   useEffect(() => {
-    if (open) setMuscle(presetMuscle ?? '')
+    if (open) { setMuscle(presetMuscle ?? ''); setMuscle2('') }
   }, [open, presetMuscle])
 
   const save = () => {
@@ -904,83 +1176,54 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
     onClose()
   }
 
+  const scelte = gruppiDaScegliere(gruppi, presetMuscle ? [presetMuscle] : [])
+
   return (
-    <JModal open={open} onClose={onClose} title={`${t('Nuovo esercizio')} · ${mode === 'hyrox' ? t('Hyrox') : t('Palestra')}`} width={320}>
-      <div className="flex flex-col gap-2.5">
-        {/* Le label ci sono anche qui, come per il secondo gruppo muscolare: il
-            placeholder da solo sparisce appena si scrive, e il campo resta muto. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
-          {t('Nome')}
-        </div>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field" aria-label={t('Nome esercizio')} aria-invalid={manca === 'nome' || undefined} style={manca === 'nome' ? ROSSO : undefined}/>
-        {mode === 'hyrox' ? (
-          <>
-            <select value={unit} onChange={e => setUnit(e.target.value as 'km' | 'm' | 'rep')} className="j-field">
-              <option value="km">km</option>
-              <option value="m">m</option>
-              <option value="rep">rep</option>
-            </select>
-            <input value={target} onChange={e => setTarget(e.target.value)} placeholder={t('Target (distanza/reps)')} inputMode="decimal" className="j-field"/>
-          </>
-        ) : (
-          <>
-            <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
-              {t('Gruppo muscolare')}
-            </div>
-            <select value={muscle} onChange={e => { setMuscle(e.target.value); setMuscle2('') }} className="j-field" aria-label={t('Gruppo muscolare')} aria-invalid={manca === 'gruppo' || undefined} style={manca === 'gruppo' ? ROSSO : undefined}>
-              <option value="">{t('Seleziona gruppo muscolare')}</option>
-              {/* `value` resta il nome italiano: è ciò che finisce nei dati. Si
-                  traduce solo l'etichetta che si legge. */}
-              {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
-            </select>
-            {/* Un solo campo per il muscolo scritto a mano. Prima erano due input in
-                posizioni diverse dell'albero (uno per muscle vuoto, uno per muscle
-                custom): al primo carattere React smontava l'uno e montava l'altro,
-                e il campo perdeva il focus a ogni tasto. */}
-            {!gruppi.includes(muscle) && (
-              <input
-                value={muscle}
-                onChange={e => setMuscle(e.target.value)}
-                placeholder={muscle ? t('Muscolo (es. Petto)') : t('O scrivi manualmente')}
-                className="j-field"
-              />
-            )}
-            {muscle && (
-              <>
-                <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
-                  {t('Secondo gruppo muscolare (opzionale)')}
-                </div>
-                <select value={muscle2} onChange={e => setMuscle2(e.target.value)} className="j-field">
-                  <option value="">{t('Nessuno')}</option>
-                  {gruppi.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
-                </select>
-                {muscle2 && !gruppi.includes(muscle2) && (
-                  <input value={muscle2} onChange={e => setMuscle2(e.target.value)} placeholder={t('Secondo muscolo')} className="j-field"/>
-                )}
-              </>
-            )}
-            <SceltaCarico corpo={corpo} onChange={setCorpo}/>
-            <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
-              {t('Note (opzionale)')}
-            </div>
-            <textarea
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder={t('Esecuzione, setup, attrezzatura…')}
-              className="j-field"
-              rows={3}
-              style={{ resize: 'none', lineHeight: 1.5 }}
-            />
-          </>
-        )}
+    <JFoglio
+      open={open} onClose={onClose}
+      titolo={t('Nuovo esercizio')}
+      occhiello={mode === 'hyrox' ? t('Hyrox') : presetMuscle ? t('In {gruppo}', { gruppo: tData(presetMuscle) }) : t('Palestra')}
+      piede={<>
         {manca && (
-          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)' }}>
+          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 13, lineHeight: 1.5, color: 'var(--danger)' }}>
             {manca === 'nome' ? t('Scrivi il nome dell’esercizio.') : t('Scegli il gruppo muscolare.')}
           </div>
         )}
-        <button onClick={save} className="j-btn-accent">{t('Aggiungi')}</button>
+        <button onClick={save} className="j-btn-accent" style={{ marginTop: 0 }}>{t('Aggiungi')}</button>
+      </>}
+    >
+      <div className="flex flex-col" style={{ gap: 16 }}>
+        {/* Le etichette sopra ogni campo: il segnaposto da solo sparisce appena
+            si scrive, e il campo resta muto. */}
+        <div>
+          <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Nome')}</div>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Es. Rematore con bilanciere')} className="j-field"
+            aria-label={t('Nome esercizio')} aria-invalid={manca === 'nome' || undefined} style={{ height: 52, ...(manca === 'nome' ? ROSSO : {}) }}/>
+        </div>
+        {mode === 'hyrox' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+            <div>
+              <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Unità')}</div>
+              <select value={unit} onChange={e => setUnit(e.target.value as 'km' | 'm' | 'rep')} className="j-field" aria-label={t('Unità')} style={{ height: 52 }}>
+                <option value="km">km</option>
+                <option value="m">m</option>
+                <option value="rep">rep</option>
+              </select>
+            </div>
+            <div>
+              <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Obiettivo')}</div>
+              <input value={target} onChange={e => setTarget(e.target.value)} placeholder={t('Target (distanza/reps)')} aria-label={t('Obiettivo')} inputMode="decimal" className="j-field" style={{ height: 52 }}/>
+            </div>
+          </div>
+        ) : (
+          <>
+            <SceltaGruppi scelte={scelte} principale={muscle} secondario={muscle2} onChange={(p, s2) => { setMuscle(p); setMuscle2(s2) }} errore={manca === 'gruppo'}/>
+            <SceltaCarico corpo={corpo} onChange={setCorpo}/>
+            <CampoNoteEsercizio valore={note} onChange={setNote}/>
+          </>
+        )}
       </div>
-    </JModal>
+    </JFoglio>
   )
 }
 
@@ -1183,14 +1426,15 @@ export interface OpzioniModificaEsercizio {
   attrezzoAncheAlleVecchie?: boolean
 }
 
-export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
+export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor, onElimina }: {
   open: boolean; onClose: () => void
   ex: PalestraExercise
   onSave: (changes: Partial<PalestraExercise>, opzioni?: OpzioniModificaEsercizio) => void
   onSaveMuscleColor: (muscle: string, color: string | undefined) => void
+  /** Eliminare l'esercizio: il cestino in fondo. La conferma la chiede chi lo passa. */
+  onElimina?: () => void
 }) {
   const t = useT()
-  const tData = useTData()
   // Colori RAW dallo store, NON la mappa risolta di `useMuscleColors()`: questo è il
   // picker e `color` finisce dritto in `onSaveMuscleColor`, che deve salvare la
   // scelta dell'utente e non un valore ricavato.
@@ -1206,7 +1450,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   // Mettere l'attrezzo anche sulle alzate già registrate: lo decide chi sa
   // come le aveva scritte (vedi sotto, accanto alla casella).
   const [ancheVecchie, setAncheVecchie] = useState(false)
-  // Cosa manca, detto quando si preme «Salva».
+  // Cosa manca, detto quando si preme «Salva modifiche».
   const [manca, setManca] = useState<'nome' | 'gruppo' | null>(null)
   useEffect(() => { setManca(null) }, [open, name, muscle])
 
@@ -1222,7 +1466,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ex.id, open])
 
-  // when muscle group changes in the form, show that group's current color
+  // Cambiato il gruppo, il colore mostrato è quello del gruppo nuovo.
   useEffect(() => {
     setColor(muscleColors[muscle] ?? '')
     // Reagisce al solo cambio di gruppo muscolare selezionato nel form.
@@ -1230,6 +1474,11 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   }, [muscle])
 
   const activeColor = color || MUSCLE_COLORS[muscle] || '#8a7440'
+  // I gruppi che l'esercizio ha già restano fra le scelte, anche se non sono
+  // più fra quelli dell'app: vedi `gruppiDaScegliere`.
+  const scelte = gruppiDaScegliere(gruppi, [displayMuscle(ex.muscle), displayMuscle(ex.muscle2 ?? '')])
+  const sessioni = ex.history.length
+  const occhiello = `${t('Esercizio')} · ${sessioni === 0 ? t('nessuna sessione') : sessioni === 1 ? t('1 sessione') : t('{n} sessioni', { n: sessioni })}`
 
   // A corpo libero l'attrezzo non c'è.
   const attrezzoN = corpo ? 0 : parseNum(attrezzo)
@@ -1251,102 +1500,70 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor }: {
   }
 
   return (
-    <JModal open={open} onClose={onClose} title={t('Modifica esercizio')} width={320}>
-      <div className="flex flex-col gap-2.5">
-        {/* Le label ci sono anche qui, come per il secondo gruppo muscolare: il
-            placeholder da solo sparisce appena si scrive, e il campo resta muto. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 2 }}>
-          {t('Nome')}
-        </div>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field"/>
-
-        {/* Il secondario che diventa principale smette di essere secondario: prima
-            restava salvato, e la testata diceva «Petto · Petto». */}
-        <select value={muscle} onChange={e => { setMuscle(e.target.value); setColor(''); if (e.target.value === muscle2) setMuscle2('') }} className="j-field">
-          {gruppi.map(m => <option key={m} value={m}>{tData(m)}</option>)}
-        </select>
-        {!gruppi.includes(muscle) && (
-          <input value={muscle} onChange={e => setMuscle(e.target.value)} placeholder={t('Gruppo muscolare')} className="j-field"/>
-        )}
-
-        <select value={muscle2} onChange={e => setMuscle2(e.target.value)} className="j-field">
-          <option value="">{t('Secondo gruppo (opzionale)')}</option>
-          {gruppi.filter(m => m !== muscle).map(m => <option key={m} value={m}>{tData(m)}</option>)}
-        </select>
-
-        <SceltaCarico corpo={corpo} onChange={setCorpo}/>
-
-        {!corpo && <CampoAttrezzo key={ex.id} valore={attrezzo} onChange={setAttrezzo}/>}
-        {/* Cambiando l'attrezzo, le alzate già scritte restano com'erano: l'app
-            non può sapere se in quei chili l'attrezzo c'era già. Lo sa chi le ha
-            scritte, e lo dice qui. */}
-        {!corpo && attrezzoCambiato && alzateConAttrezzo > 0 && (
-          <label className="flex items-start gap-2" style={{ fontFamily: NUC.label, fontSize: 12.5, lineHeight: 1.5, color: NUC.dim, cursor: 'pointer' }}>
-            <input type="checkbox" checked={ancheVecchie} onChange={e => setAncheVecchie(e.target.checked)} style={{ marginTop: 2 }}/>
-            <span>{t('Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.', { n: alzateConAttrezzo })}</span>
-          </label>
-        )}
-
-        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
-          {t('Colore gruppo muscolare — si applica a tutti gli esercizi')}
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
-          <button onClick={() => setColor('')} style={{
-            width: 28, height: 28, borderRadius: 'var(--radius-sm)', cursor: 'pointer', padding: 0,
-            background: 'var(--surface-2)', border: `2px solid ${!color ? 'var(--fg)' : 'var(--hairline)'}`,
-            fontFamily: NUC.label, fontSize: 12, color: NUC.faint,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>A</button>
-          {COLOR_PALETTE.map(c => (
-            <button key={c} onClick={() => setColor(color === c ? '' : c)} style={{
-              width: 28, height: 28, borderRadius: 'var(--radius-sm)', background: c, cursor: 'pointer', padding: 0,
-              border: `2px solid ${activeColor === c && color === c ? 'var(--surface)' : 'transparent'}`,
-              outline: activeColor === c && color === c ? `2px solid ${c}` : 'none',
-              transition: 'outline 120ms',
-            }}/>
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 0, background: activeColor, flexShrink: 0 }}/>
-          <span style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint }}>
-            {color ? t('{gruppo} — personalizzato', { gruppo: tData(muscle) }) : t('{gruppo} — default', { gruppo: tData(muscle) })}
-          </span>
-        </div>
-
-        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.14em', color: NUC.faint, textTransform: 'uppercase' as const, marginTop: 4 }}>
-          {t('Note (opzionale)')}
-        </div>
-        <textarea
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          placeholder={t('Esecuzione, setup, attrezzatura…')}
-          className="j-field"
-          rows={3}
-          style={{ resize: 'none', lineHeight: 1.5 }}
-        />
-
+    <JFoglio
+      open={open} onClose={onClose}
+      titolo={t('Modifica esercizio')}
+      occhiello={occhiello}
+      piede={<>
         {manca && (
-          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)' }}>
+          <div role="alert" style={{ fontFamily: NUC.label, fontSize: 13, lineHeight: 1.5, color: 'var(--danger)' }}>
             {manca === 'nome' ? t('Scrivi il nome dell’esercizio.') : t('Scegli il gruppo muscolare.')}
           </div>
         )}
-        <button onClick={save} className="j-btn-accent" style={{ marginTop: 4 }}>{t('Salva')}</button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {onElimina && <TastoCestino etichetta={t('Elimina esercizio')} onClick={onElimina}/>}
+          <button onClick={save} className="j-btn-accent" style={{ marginTop: 0, flex: 1, width: 'auto' }}>{t('Salva modifiche')}</button>
+        </div>
+      </>}
+    >
+      <div className="flex flex-col" style={{ gap: 16 }}>
+        <div>
+          <div style={{ ...ETICHETTA_FOGLIO, marginBottom: 6 }}>{t('Nome')}</div>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder={t('Nome esercizio')} className="j-field"
+            aria-label={t('Nome esercizio')} aria-invalid={manca === 'nome' || undefined} style={{ height: 52, ...(manca === 'nome' ? ROSSO : {}) }}/>
+        </div>
+
+        <SceltaGruppi scelte={scelte} principale={muscle} secondario={muscle2} onChange={(p, s2) => { setMuscle(p); setMuscle2(s2) }} errore={manca === 'gruppo'}/>
+
+        <div className="flex flex-col" style={{ gap: 10 }}>
+          <SceltaCarico corpo={corpo} onChange={setCorpo}/>
+          {!corpo && <CampoAttrezzo key={ex.id} valore={attrezzo} onChange={setAttrezzo}/>}
+          {/* Cambiando l'attrezzo, le alzate già scritte restano com'erano: l'app
+              non può sapere se in quei chili l'attrezzo c'era già. Lo sa chi le ha
+              scritte, e lo dice qui. */}
+          {!corpo && attrezzoCambiato && alzateConAttrezzo > 0 && (
+            <label className="flex items-start gap-2" style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: NUC.dim, cursor: 'pointer' }}>
+              <input type="checkbox" checked={ancheVecchie} onChange={e => setAncheVecchie(e.target.checked)} style={{ marginTop: 3, accentColor: 'var(--j-accent)' }}/>
+              <span>{t('Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.', { n: alzateConAttrezzo })}</span>
+            </label>
+          )}
+        </div>
+
+        {muscle && <ColoreGruppo gruppo={muscle} colore={color} mostrato={activeColor} onChange={setColor}/>}
+
+        <CampoNoteEsercizio valore={note} onChange={setNote}/>
       </div>
-    </JModal>
+    </JFoglio>
   )
 }
 
 // ── Edit History Entry Modal ───────────────────────────────────
-export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
+export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, esercizio, onElimina }: {
   entry: PalestraHistoryEntry
   onClose: () => void
   onSave: (updated: PalestraHistoryEntry) => void
+  /** Di che esercizio è l'alzata, per l'occhiello ("Dorso · Rematore"). */
+  esercizio?: { nome: string; muscolo?: string }
+  /** Toglie l'alzata dallo storico (chiede prima chi la passa). Senza, il
+   *  cestino non c'è: l'allenatore che corregge un'alzata non la può togliere. */
+  onElimina?: () => void
   /** Il carico dell'ultima ALTRA alzata dell'esercizio (vedi
    *  `caricoDiRiferimento`): serve a chiedere conferma di un numero lontano
    *  da lì. Senza, non si chiede niente. */
   riferimentoKg?: number | null
 }) {
   const t = useT()
+  const tData = useTData()
   const [problema, setProblema] = useState<Problema | null>(null)
   const [saltoVisto, setSaltoVisto] = useState<{ nuovo: number; ultimo: number } | null>(null)
   const [isBodyweight, setIsBodyweight] = useState(entry.bodyweight === true)
@@ -1452,114 +1669,95 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg }: {
     onClose()
   }
 
-  return (
-    <JModal open={true} onClose={onClose} title={t('Modifica alzata')} width={300}>
-      <div className="flex flex-col gap-2.5">
-        {/* La data si corregge come il resto: una sessione registrata la sera
-            dopo, o col giorno sbagliato, finiva nel posto sbagliato di grafici e
-            trend e l'unico rimedio era cancellarla e riscriverla. */}
-        <div className="j-eyebrow">{t('Data')}</div>
-        <input value={date} onChange={e => setDate(e.target.value)} type="date" className="j-field"/>
-        <div className="j-eyebrow mt-1">{t('Tipo di carico')}</div>
-        <div className="flex gap-2">
-          {([false, true] as const).map(bw => (
-            <button key={String(bw)} onClick={() => { setIsBodyweight(bw); setZavorra(''); setKg('') }} style={{
-              flex: 1, height: 36, borderRadius: 'var(--radius)',
-              background: isBodyweight === bw ? 'var(--surface-2)' : 'var(--surface)',
-              border: `1px solid ${isBodyweight === bw ? 'var(--j-accent)' : NUC.hairline}`,
-              color: isBodyweight === bw ? 'var(--j-accent-ink)' : NUC.dim,
-              fontFamily: NUC.label, fontSize: 12, letterSpacing: '.08em', cursor: 'pointer',
-              transition: 'all 180ms',
-            }}>
-              {bw ? t('Corpo libero') : t('Con attrezzo')}
-            </button>
-          ))}
-        </div>
+  const aggiungiSerie = () => {
+    if (nSets >= SERIE_MAX) return
+    setSets(String(nSets + 1))
+    setSetWeightsStr(a => { const x = [...a]; x[nSets] = x[nSets - 1] ?? ''; return x })
+    setSetRepsStr(a => { const x = [...a]; x[nSets] = x[nSets - 1] ?? reps ?? ''; return x })
+  }
+  const togliSerie = () => {
+    if (nSets <= 1) return
+    setSets(String(nSets - 1))
+    setSetWeightsStr(a => a.slice(0, nSets - 1))
+    setSetRepsStr(a => a.slice(0, nSets - 1))
+  }
 
-        <div className="j-eyebrow">{t('Tipo di alzata')}</div>
-        <div className="flex gap-2">
-          {([false, true] as const).map(v => (
-            <button key={String(v)} onClick={() => { setIsMax(v); if (v) setPerSet(false) }} style={{
-              flex: 1, height: 36, borderRadius: 'var(--radius)',
-              background: isMax === v ? 'var(--surface-2)' : 'var(--surface)',
-              border: `1px solid ${isMax === v ? 'var(--j-accent)' : NUC.hairline}`,
-              color: isMax === v ? 'var(--j-accent-ink)' : NUC.dim,
-              fontFamily: NUC.label, fontSize: 12, letterSpacing: '.08em', cursor: 'pointer',
-              transition: 'all 180ms',
-            }}>
-              {v ? t('Massimale') : t('Allenamento')}
-            </button>
-          ))}
+  // L'anteprima del massimale, come nel log: il numero con cui l'alzata sarà
+  // giudicata. A corpo libero conta anche il corpo, che qui non si sa: si
+  // mostra quando c'è un carico da cui stimarlo.
+  const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
+  const repsN = isMax ? 1 : parseInt(reps) || 0
+  const pesiN = perSet ? Array.from({ length: nSets }, (_, i) => parseNum(setWeightsStr[i])) : []
+  const topLoad = Math.round(((perSet ? Math.max(0, ...pesiN) : parseNum(isBodyweight ? zavorra : kg)) + attrezzoN) * 10) / 10
+  const anteprima = !isBodyweight && topLoad > 0 && repsN > 0
+    ? { top: topLoad, oneRM: Math.round(isMax ? topLoad : estimate1RM(topLoad, repsN)) }
+    : null
+  const segna = (campo: CampoAlzata) => problema?.campo === campo
+
+  return (
+    <JFoglio
+      open onClose={onClose}
+      titolo={t('Modifica alzata')}
+      occhiello={esercizio ? [esercizio.muscolo && tData(displayMuscle(esercizio.muscolo)), tData(esercizio.nome)].filter(Boolean).join(' · ') : undefined}
+      // La data si corregge come il resto: una sessione registrata la sera
+      // dopo, o col giorno sbagliato, finiva nel posto sbagliato di grafici e
+      // trend e l'unico rimedio era cancellarla e riscriverla.
+      sotto={<ChipData valore={date} onChange={setDate} etichetta={t('Data dell’alzata')} conAnno/>}
+      piede={<>
+        <AvvisiSalvataggio problema={problema} salto={saltoVisto}/>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {onElimina && <TastoCestino etichetta={t('Elimina alzata')} onClick={onElimina}/>}
+          <button onClick={save} className="j-btn-accent" style={{ marginTop: 0, flex: 1, width: 'auto' }}>{saltoVisto ? t('Conferma e salva') : t('Salva modifiche')}</button>
         </div>
+      </>}
+    >
+      <div className="flex flex-col" style={{ gap: 12 }}>
+        <SceltaPerSerie perSet={perSet && !isMax} onChange={v => (v ? enablePerSet() : setPerSet(false))} corpo={isBodyweight} spenta={isMax}/>
+
+        {perSet && !isMax ? (
+          <TabellaSerie
+            n={nSets} pesi={setWeightsStr} colpi={setRepsStr}
+            onPeso={updateSetWeight} onColpi={updateSetReps}
+            onAggiungi={aggiungiSerie} onTogli={togliSerie}
+            corpo={isBodyweight} erroreKg={segna('kg')}
+          />
+        ) : (
+          <NumeriAlzata
+            serie={sets} onSerie={setSets} colpi={reps} onColpi={setReps}
+            kg={isBodyweight ? zavorra : kg} onKg={isBodyweight ? setZavorra : setKg}
+            corpo={isBodyweight} massimale={isMax} segna={segna}
+          />
+        )}
         {isMax && (
-          <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: '.04em', lineHeight: 1.5 }}>
+          <div style={{ fontFamily: NUC.font, fontSize: 13, color: NUC.faint, lineHeight: 1.5, marginTop: -4 }}>
             {t('Una singola al carico massimo: serie e colpi diventano 1 × 1.')}
           </div>
         )}
 
-        {!isMax && [
-          { label: t('Serie'), val: sets, set: setSets, mode: 'numeric' as const },
-          { label: t('Colpi'), val: reps, set: setReps, mode: 'numeric' as const },
-        ].map(f => (
-          <div key={f.label}>
-            <div className="j-eyebrow mb-1">{f.label}</div>
-            <input type="number" inputMode={f.mode} value={f.val} onChange={e => f.set(e.target.value)} className="j-field" placeholder="0"/>
-          </div>
-        ))}
+        {!isBodyweight && <CampoAttrezzo valore={attrezzo} onChange={setAttrezzo} errore={segna('attrezzo')}/>}
 
-        {!isMax && (
-          <button type="button" onClick={() => perSet ? setPerSet(false) : enablePerSet()} className="flex items-center justify-between w-full" style={{
-            background: 'transparent', border: 'none', padding: '2px 0', cursor: 'pointer',
-          }}>
-            <span className="j-eyebrow">
-              {isBodyweight ? t('Zavorra') : t('Kg')}{perSet && <span style={{ color: 'var(--j-accent-ink)' }}> · {t('colpi per serie')}</span>}
-            </span>
-            <span style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: perSet ? 'var(--j-accent-ink)' : NUC.faint }}>
-              {perSet ? t('valori uguali') : t('valori per serie')}
-            </span>
-          </button>
-        )}
-
-        {perSet ? (
-          <div className="flex flex-col gap-1.5">
-            {Array.from({ length: nSets }).map((_, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span style={{ width: 30, flexShrink: 0, fontFamily: NUC.label, fontSize: 12, letterSpacing: '.06em', color: NUC.faint, textTransform: 'uppercase' }}>S{i + 1}</span>
-                <input value={setWeightsStr[i] ?? ''} onChange={e => updateSetWeight(i, e.target.value)} inputMode="decimal" aria-label={t('Serie {n} · kg', { n: i + 1 })} placeholder={isBodyweight ? t('kg agg.') : 'kg'} className="j-field" style={{ flex: 1, minWidth: 0 }}/>
-                <input value={setRepsStr[i] ?? ''} onChange={e => updateSetReps(i, e.target.value)} inputMode="numeric" aria-label={t('Serie {n} · colpi', { n: i + 1 })} placeholder={t('colpi')} className="j-field" style={{ flex: 1, minWidth: 0 }}/>
-              </div>
-            ))}
-          </div>
-        ) : isBodyweight ? (
-          <div>
-            <div className="j-eyebrow mb-1">{t('Zavorra extra')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
-            <input inputMode="decimal" value={zavorra} onChange={e => setZavorra(normalizzaDecimale(e.target.value))} className="j-field" placeholder={t('kg aggiunti')}/>
-          </div>
-        ) : (
-          <div>
-            <div className="j-eyebrow mb-1">{t('Kg')}</div>
-            <input inputMode="decimal" value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))} className="j-field" placeholder="0" aria-label={t('Kg')} aria-invalid={problema?.campo === 'kg' || undefined} style={problema?.campo === 'kg' ? ROSSO : undefined}/>
-          </div>
-        )}
-
-        {!isBodyweight && <CampoAttrezzo valore={attrezzo} onChange={setAttrezzo} errore={problema?.campo === 'attrezzo'}/>}
-
-        <div>
-          <div className="j-eyebrow mb-1">{t('Nota')} <span style={{ opacity: 0.45 }}>{t('(opzionale)')}</span></div>
-          <textarea
-            value={nota}
-            onChange={e => setNota(e.target.value)}
-            rows={2}
-            placeholder={t('Nota su questa sessione…')}
-            className="j-field"
-            style={{ height: 'auto', minHeight: 56, padding: '9px 12px', resize: 'vertical', lineHeight: 1.45 }}
-          />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <ColonnaScelta titolo={t('Carico')} opzioni={[
+            { label: t('Attrezzo'),     on: !isBodyweight, onClick: () => { setIsBodyweight(false); setZavorra(''); setKg('') } },
+            { label: t('Corpo libero'), on: isBodyweight,  onClick: () => { setIsBodyweight(true);  setZavorra(''); setKg('') } },
+          ]}/>
+          <ColonnaScelta titolo={t('Alzata')} opzioni={[
+            { label: t('Allenamento'), on: !isMax, onClick: () => setIsMax(false) },
+            { label: t('Massimale'),   on: isMax,  onClick: () => { setIsMax(true); setPerSet(false) } },
+          ]}/>
         </div>
 
-        <AvvisiSalvataggio problema={problema} salto={saltoVisto}/>
-        <button onClick={save} className="j-btn-accent" style={{ marginTop: 4 }}>{saltoVisto ? t('Conferma e salva') : t('Salva')}</button>
+        {anteprima && (
+          <AnteprimaMassimale
+            titolo={isMax ? t('Massimale') : t('1RM stimato')}
+            sotto={isMax ? t('una singola a {kg} kg', { kg: fmtNum(anteprima.top) }) : t('da {kg} kg × {n} rip', { kg: fmtNum(anteprima.top), n: repsN })}
+            kg={anteprima.oneRM}
+          />
+        )}
+
+        <CampoNota valore={nota} onChange={setNota}/>
       </div>
-    </JModal>
+    </JFoglio>
   )
 }
 

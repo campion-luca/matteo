@@ -616,8 +616,9 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
   /** Toglie dallo storico un'alzata registrata da una scheda (l'allenamento
    *  salvato due volte, l'esercizio spuntato per sbaglio). Per riferimento, come
    *  la correzione. */
-  const eliminaAlzata = (a: AlzataSalvata) => {
+  const eliminaAlzata = (a: AlzataSalvata, dopo?: () => void) => {
     confirmDelete(() => {
+      dopo?.()
       set(st => ({
         palestraExercises: (st.palestraExercises ?? []).map(e => {
           if (e.id !== a.exerciseId) return e
@@ -760,6 +761,8 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
         <EditHistoryModal
           entry={correggo.entry}
           riferimentoKg={caricoDiRiferimento(palestraExercises.find(e => e.id === correggo.exerciseId)?.history ?? [], correggo.entry)}
+          esercizio={{ nome: correggo.nome, muscolo: palestraExercises.find(e => e.id === correggo.exerciseId)?.muscle }}
+          onElimina={() => eliminaAlzata(correggo, () => setCorreggo(null))}
           onClose={() => setCorreggo(null)}
           onSave={nuova => { correggiAlzata(correggo, nuova); setCorreggo(null) }}
         />

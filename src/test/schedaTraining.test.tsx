@@ -604,8 +604,9 @@ describe('allenamento: le aggiunte di settembre', () => {
     await user.click(screen.getAllByRole('button', { name: /Panca piana/ })[0])
     expect(screen.getByLabelText('Serie 1 · kg')).toHaveValue('60')
     expect(screen.getByLabelText('Serie 3 · kg')).toHaveValue('60')
+    await user.click(screen.getByRole('button', { name: '+ Nota su questa alzata' }))
     await user.type(screen.getByPlaceholderText('Nota su questa sessione…'), 'ok')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(alzate()[0]).toMatchObject({ kg: 60, setReps: [10, 10, 6], note: 'ok' })
     expect(alzate()[0].setWeights).toBeUndefined()
   })
@@ -660,10 +661,11 @@ describe('allenamento: le aggiunte di settembre', () => {
     expect(screen.queryByRole('button', { name: /Panca piana.*60 kg/ })).not.toBeInTheDocument()
     await user.click(giorno)
 
-    // Toccare l'alzata apre la correzione, con la nota fra i campi.
+    // Toccare l'alzata apre la correzione; la nota si apre dal suo collegamento.
     await user.click(screen.getByRole('button', { name: /Panca piana.*60 kg/ }))
+    await user.click(screen.getByRole('button', { name: '+ Nota su questa alzata' }))
     await user.type(screen.getByPlaceholderText('Nota su questa sessione…'), 'presa larga')
-    await user.click(screen.getByRole('button', { name: 'Salva' }))
+    await user.click(screen.getByRole('button', { name: 'Salva modifiche' }))
     expect(alzate()[0].note).toBe('presa larga')
 
     // Dietro i tre puntini la si toglie, dopo la conferma.

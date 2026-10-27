@@ -619,6 +619,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
           <EditHistoryModal
             entry={correggo.vecchia}
             riferimentoKg={caricoDiRiferimento(dati?.palestraExercises?.find(e => e.id === correggo.exId)?.history ?? [], correggo.vecchia)}
+            esercizio={(() => { const e = dati?.palestraExercises?.find(x => x.id === correggo.exId); return e ? { nome: e.n, muscolo: e.muscle } : undefined })()}
             onClose={() => setCorreggo(null)} onSave={correggi}
           />
         </div>

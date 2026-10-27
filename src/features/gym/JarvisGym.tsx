@@ -930,11 +930,13 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
         </button>
       </div>
     </div>
-    <EditExModal open={showEdit} onClose={() => setShowEdit(false)} ex={ex} onSave={onUpdate} onSaveMuscleColor={onSaveMuscleColor}/>
+    <EditExModal open={showEdit} onClose={() => setShowEdit(false)} ex={ex} onSave={onUpdate} onSaveMuscleColor={onSaveMuscleColor} onElimina={eliminaEsercizio}/>
     {editHistEntry && (
       <EditHistoryModal
         entry={editHistEntry.entry}
         riferimentoKg={caricoDiRiferimento(hist.filter((_, i) => i !== editHistEntry.idx))}
+        esercizio={{ nome: ex.n, muscolo: ex.muscle }}
+        onElimina={() => confirmDelete(() => { deleteHistEntry(editHistEntry.idx); setEditHistEntry(null) }, t('Alzata'))}
         onClose={() => setEditHistEntry(null)}
         onSave={updated => {
           const newHist = sortedHistory(hist.map((h, i) => i === editHistEntry.idx ? updated : h))
