@@ -101,9 +101,26 @@ function conAlzateNateQui(
     // volta", quella con data arretrata no.
     const history = [...(rem.history ?? []), ...nuove].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
     const last = history[history.length - 1]
-    return { ...rem, history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
+    // Lo stato della progressione l'ha scritto lo stesso allenamento che ha
+    // fatto nascere quelle alzate: senza, l'alzata tornava e lo stato no, e la
+    // volta dopo si ripartiva da quello di prima. Per riga vince il più recente;
+    // a pari giorno il remoto, come per tutto il resto.
+    const progressioni = unisciProgressioni(rem.progressioni, loc.progressioni)
+    return { ...rem, history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n }, ...(progressioni ? { progressioni } : {}) }
   })
   return trovate ? out : null
+}
+
+function unisciProgressioni(
+  remote: PalestraExercise['progressioni'], locali: PalestraExercise['progressioni'],
+): PalestraExercise['progressioni'] {
+  if (!locali) return remote
+  const out = { ...remote }
+  for (const [chiave, loc] of Object.entries(locali)) {
+    const rem = out[chiave]
+    if (!rem || loc.il > rem.il) out[chiave] = loc
+  }
+  return out
 }
 
 /** Le pesate del remoto con dentro quelle nate qui: un giorno che il remoto non

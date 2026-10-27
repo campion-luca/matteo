@@ -15,7 +15,7 @@ profili — vive in tabelle a parte.
 |---|---|
 | **Stack** | React 18 · TypeScript strict · Vite 5 · Tailwind · Zustand · Supabase (Auth, Postgres, una Edge Function) |
 | **Bundle** | 120 kB gzip d'ingresso (più 6 kB di CSS), feature in chunk lazy: il più grosso, 47 kB, è il codice che Allenamento e Coaching hanno in comune |
-| **Qualità** | 768 test Vitest · ESLint `--max-warnings 0` · `tsc` strict, tutti in CI |
+| **Qualità** | 838 test Vitest · ESLint `--max-warnings 0` · `tsc` strict, tutti in CI |
 
 ---
 
@@ -43,7 +43,10 @@ telefono senza scorrere. Dall'alto:
   pagina sopra questa;
 - **la scheda di oggi**, col tasto per cominciare. Le schede non hanno un giorno
   della settimana, si girano (A, B, C, poi di nuovo A): la prossima è quella che
-  non fai da più tempo, e prima ancora quelle mai fatte.
+  non fai da più tempo, e prima ancora quelle mai fatte. Con l'allenamento
+  aperto il tasto dice «Riprendi», e accanto a «Tutte» compare **«Chiudi
+  allenamento»**: mai toccato si chiude e basta, con delle serie fatte apre il
+  riepilogo dove si sceglie se salvarlo.
 
 Le pagine si posano una sull'altra — i gruppi, un gruppo, un esercizio — e
 quelle coperte restano montate: tornando indietro la pagina sotto è com'era,
@@ -113,6 +116,15 @@ diventano vere alzate nello storico degli esercizi collegati.
   esercizio nuovo o quando oggi il muscolo arriva più stanco. "Usa" lo scrive
   sulle serie ancora da fare. Le regole, in ordine e con i casi che non copre,
   stanno in [docs/CARICHI.txt](docs/CARICHI.txt).
+- **Le progressioni** (schede create dal 27 ottobre 2026): chi scrive la scheda
+  sceglie per ogni riga multiarticolare (top set + back-off col RIR), mono
+  grande o mono piccola (doppia progressione), coi carichi che ci sono davvero
+  — un passo fisso o la lista di manubri e pacco pesi. In allenamento la card
+  mostra la prescrizione del giorno, si scrive il RIR di ogni serie, e a
+  esercizio chiuso dice dove si va la volta dopo. Le regole sono funzioni pure
+  in [progression.ts](src/features/gym/progression.ts); lo stato di ogni riga
+  sta nell'esercizio di chi si allena. Le schede di prima restano col carico
+  consigliato.
 - **L'allenamento a metà** sta in `localStorage` finché non lo chiudi: una
   ricarica, il tasto indietro premuto per sbaglio, iOS che scarta la pagina
   mentre il telefono è in tasca fra due serie — in palestra non sono casi
@@ -174,8 +186,9 @@ volta, e non contiene 0/O né 1/I/L, perché si detta a voce o si copia da uno
 screenshot. Un allievo ha un allenatore per volta, e la regola sta nel database.
 
 La stessa persona può stare da tutte e due le parti — chi allena si allena
-anche — e la pagina (aperta dalla card **Coaching**) ne ha due sezioni: chi ti
-segue, con il suo profilo e la chat, e chi segui tu. Dalla pagina di un allievo
+anche — e la pagina (aperta dalla card **Coaching**) ne ha due sezioni: **Trova
+un coach**, cioè chi ti segue, con il suo profilo e la chat, e **Seguiti**, chi
+segui tu. Per ora le vedono tutte e due chiunque: i ruoli non ci sono ancora. Dalla pagina di un allievo
 l'allenatore:
 
 - **guarda**, in sola lettura: allenamenti e settimana, curva del peso, volume
@@ -239,15 +252,15 @@ Le due icone in testata aprono due pagine diverse. Il **profilo**: nome, sesso,
 data di nascita (l'età si calcola), altezza, il peso di oggi con lo storico delle
 pesate e la sua direzione — è il denominatore di tutta la forza relativa, e la
 curva che un allenatore guarda per prima — e il profilo pubblico. Le
-**impostazioni**: lingua, notifiche, la memoria delle alzate, l'esportazione dei
-propri dati in un file JSON, la password, e l'uscita dall'account — solo da
+**impostazioni**: lingua, tema, notifiche, la memoria delle alzate, l'esportazione dei
+propri dati in un file JSON, la password, e il **Logout**, in rosso — solo da
 questo dispositivo, dopo aver spinto quello che c'era da spingere; quello che non
 è riuscito a partire, e un allenamento lasciato a metà, restano da parte sul
 telefono e si ritrovano rientrando.
 
 ### Aspetto e accessibilità
 
-- **Un tema solo** (rebranding di ottobre 2026): fondo cemento `#F1F1EF`, card
+- **Un tema, chiaro o scuro** (rebranding di ottobre 2026): fondo cemento `#F1F1EF`, card
   bianche col bordo d'inchiostro da 2 px, inchiostro `#141414`, e un solo
   accento rosso-arancio `#E4472B` per tutto ciò che chiede attenzione — il gesto
   principale, un giorno fatto, un calo, un errore, un "elimina". Barlow
@@ -260,15 +273,24 @@ telefono e si ritrovano rientrando.
   finché sui telefoni ci sono versioni dell'app che li conoscono: toglierli li
   farebbe sparire e ricomparire dal cloud a ogni salvataggio dell'una e
   dell'altra.
+- **Lo scuro** (fine ottobre 2026) è lo stesso tema rovesciato, non un tema a
+  parte: fondo nero, card grigio scurissimo col bordo chiaro, inchiostro quasi
+  bianco, e la card nera della home che diventa chiara. Cambiano solo i colori,
+  in `:root[data-tema="scuro"]`; i componenti sono gli stessi. Si sceglie dalle
+  impostazioni — Chiaro, Scuro o Automatico, che segue il telefono — e la
+  scelta sta su quel dispositivo, non nell'account
+  ([src/lib/tema.ts](src/lib/tema.ts)). Uno script in `index.html` lo applica
+  prima che parta React, perché la pagina non lampeggi chiara.
 - **Contrasto misurato, non promesso**: [src/test/contrast.test.ts](src/test/contrast.test.ts)
-  legge i colori da `:root` in [globals.css](src/styles/globals.css) e verifica le
-  coppie che l'app usa davvero — testo, secondario e accento come testo a 4.5:1
-  sul fondo e sulle card, l'accento e il grigio chiaro sulla card nera. Il bianco
+  legge i colori da [globals.css](src/styles/globals.css), del chiaro e dello
+  scuro, e verifica le coppie che l'app usa davvero — testo, secondario e accento
+  come testo a 4.5:1 sul fondo e sulle card, l'accento e il grigio sulla card
+  d'inchiostro. Il bianco
   sui tasti arancioni si ferma a 4.0:1, sopra la soglia delle scritte grandi
   (3:1): è una scelta di design, e per questo i tasti pieni scrivono in grande e
   in grassetto. I colori dei gruppi muscolari li sceglie l'utente, e quando fanno
   da testo o da fondo passano da `accentInkFor` e `accentFgFor`, che li spingono
-  fino ad AA.
+  fino ad AA (nello scuro schiarendoli invece che scurendoli).
 - **Due lingue**, italiano e inglese, dalle impostazioni. Cambia a schermata
   accesa, senza ricaricare, e segue l'account invece del dispositivo: chi sceglie
   l'inglese se lo ritrova anche aprendo l'app altrove. (Fino a ottobre 2026 la

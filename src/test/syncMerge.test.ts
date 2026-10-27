@@ -60,6 +60,18 @@ describe('recupero delle alzate nate in locale', () => {
     expect(panca?.current.kg).toBe(65)
   })
 
+  it('con l’alzata torna lo stato della progressione che l’ha prodotta', () => {
+    const base = palestra(conStorico('panca', [alz('2026-10-20', 60)]))
+    const stato = (il: string, topWeight: number) => ({ modello: 'topSet' as const, stato: { topWeight, missCount: 0 }, il, evento: 'increase' as const, messaggio: 'x' })
+    // Il remoto ha la riga A ferma al 20; il telefono ha fatto il 28 e l'ha mandata avanti.
+    const remoto = palestra({ ...conStorico('panca', [alz('2026-10-20', 60)]), progressioni: { 'sc:A': stato('2026-10-20', 62.5), 'sc:B': stato('2026-10-25', 50) } })
+    const locale = palestra({ ...conStorico('panca', [alz('2026-10-20', 60), alz('2026-10-28', 62.5)]), progressioni: { 'sc:A': stato('2026-10-28', 65) } })
+    const panca = recuperaCreatiInLocale(locale, remoto, idsNoti(base))?.palestraExercises[0]
+    expect(panca?.progressioni?.['sc:A'].stato).toEqual({ topWeight: 65, missCount: 0 })
+    // La riga che il telefono non conosceva resta quella del remoto.
+    expect(panca?.progressioni?.['sc:B'].il).toBe('2026-10-25')
+  })
+
   it('un’alzata cancellata altrove non torna', () => {
     const base = palestra(conStorico('panca', [alz('2026-09-20', 60), alz('2026-09-22', 62.5)]))
     const remoto = palestra(conStorico('panca', [alz('2026-09-20', 60)]))

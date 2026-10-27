@@ -116,10 +116,11 @@ describe('dizionario inglese', () => {
       //  · parole inglesi già nell'interfaccia italiana: Account, Chat, Coaching, Log,
       //    Pace, Personal trainer, Timer, Trend, Volume, superset,
       //    email, password, info, "Light weight baby";
-      //  · sigle e unità: 1RM, Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo.
-      '1RM', 'Account', 'Chat', 'Coaching', 'Hyrox', 'Kg', 'Light weight baby',
+      //  · sigle e unità: Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo;
+      //  · i nomi della progressione, inglesi anche in palestra: top set, back-off.
+      'Account', 'Back-off', 'Back-off: − %', 'Chat', 'Coaching', 'Hyrox', 'Kg', 'Light weight baby',
       'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal Coach', 'Personal trainer', 'Roxzone',
-      'Timer', 'Trend', 'Volume', 'email', 'info', 'min',
+      'TOP', 'Timer', 'Top set', 'Top set + back-off', 'Trend', 'Volume', 'email', 'info', 'min',
       'password', 'sec', 'superset', '{n} sess.',
     ])
   })

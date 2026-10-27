@@ -2,17 +2,31 @@ import { describe, it, expect } from 'vitest'
 import { accentFgFor, accentInkFor } from '@/lib/jarvis-tokens'
 import { MUSCLE_COLORS, COLOR_PALETTE } from '@/features/gym/gymModel'
 
-// Il tema è uno solo (rebranding, ott 2026): i colori si leggono da `:root` in
-// globals.css, gli stessi che vede l'app, e si misura che le coppie che l'app
-// usa davvero reggano AA (4.5:1). Se qualcuno cambia un colore lassù, è qui che
-// si scopre che una scritta non si legge più.
+// I colori si leggono da globals.css, gli stessi che vede l'app: `:root` per il
+// chiaro, `:root[data-tema="scuro"]` per lo scuro (che ridefinisce solo quello
+// che cambia). Si misura che le coppie che l'app usa davvero reggano AA (4.5:1).
+// Se qualcuno cambia un colore lassù, è qui che si scopre che una scritta non
+// si legge più.
 
 const CSS = Object.values(import.meta.glob('/src/styles/globals.css', { query: '?raw', import: 'default', eager: true }))[0] as string
-const ROOT = CSS.slice(CSS.indexOf(':root {'), CSS.indexOf('\n}', CSS.indexOf(':root {')))
+function blocco(apertura: string): string {
+  const i = CSS.indexOf(apertura)
+  if (i < 0) throw new Error(`${apertura} non c'è in globals.css`)
+  return CSS.slice(i, CSS.indexOf('\n}', i))
+}
+const ROOT = blocco(':root {')
+const SCURO = blocco(':root[data-tema="scuro"] {')
+function cerca(dove: string, nome: string): string | undefined {
+  return dove.match(new RegExp(`--${nome}:\\s*(#[0-9a-fA-F]{6})`))?.[1]
+}
 function token(nome: string): string {
-  const m = ROOT.match(new RegExp(`--${nome}:\\s*(#[0-9a-fA-F]{6})`))
-  if (!m) throw new Error(`--${nome} non è un colore esadecimale in :root`)
-  return m[1]
+  const v = cerca(ROOT, nome)
+  if (!v) throw new Error(`--${nome} non è un colore esadecimale in :root`)
+  return v
+}
+/** Nello scuro: il valore ridefinito, o quello del chiaro se resta uguale. */
+function scuro(nome: string): string {
+  return cerca(SCURO, nome) ?? token(nome)
 }
 
 function relLum(hex: string): number {
@@ -49,7 +63,29 @@ describe('la palette si legge', () => {
   })
 })
 
-describe('un tema solo', () => {
+describe('lo scuro si legge', () => {
+  const fondi = { fondo: scuro('bg'), card: scuro('surface') }
+
+  it.each(Object.entries(fondi))('testo, secondario, accento-come-testo e avvisi reggono sul %s', (_, fondo) => {
+    expect(contrast(scuro('fg'), fondo)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(scuro('fg-mute'), fondo)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(scuro('j-accent-ink'), fondo)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(scuro('danger'), fondo)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('la scritta sopra un tasto d’accento regge come scritta grande', () => {
+    expect(contrast(scuro('j-accent-fg'), scuro('j-accent'))).toBeGreaterThanOrEqual(3)
+  })
+
+  // La card nera, nello scuro, è chiara: l'inchiostro le fa da fondo.
+  it('sulla card d’inchiostro reggono l’accento-come-testo e il secondario', () => {
+    expect(contrast(scuro('accent-su-ink'), scuro('ink'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(scuro('muted-dark'), scuro('ink'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(scuro('surface'), scuro('ink'))).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+describe('i temi tolti', () => {
   it('in globals.css non restano i temi tolti', () => {
     for (const tema of ['.dark {', '.premium {', ':root.neon', ':root.logbook', '.bg-fusione']) {
       expect(CSS).not.toContain(tema)
@@ -68,6 +104,11 @@ describe('accentInkFor — un colore dei dati come testo', () => {
 
   it('lascia invariato un colore già leggibile', () => {
     expect(accentInkFor('#000000')).toBe('#000000')
+  })
+
+  it.each(COLORI_DATI)('%s raggiunge AA anche sulle card dello scuro', hex => {
+    expect(contrast(accentInkFor(hex, true), scuro('surface'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(accentInkFor(hex, true), scuro('bg'))).toBeGreaterThanOrEqual(4.5)
   })
 })
 

@@ -7,7 +7,7 @@
 /* ── Office / Paper design tokens ──────────────────────────────── */
 :root {
   /* Fa adattare i controlli nativi (calendario di input[type=date], orologio di
-     input[type=time], scrollbar) al tema, che è uno solo e chiaro. */
+     input[type=time], scrollbar) al tema: chiaro qui, scuro più sotto. */
   color-scheme: light;
 
   /* ── Colori (rebranding, ott 2026) ─────────────────────────────
@@ -132,6 +132,75 @@
      pieno si ferma a 3.6). Sull'inchiostro l'accento pieno regge da solo. */
   --j-accent-ink:  #C03A20;
   --j-rgb:         228,71,43;
+  /* L'accento come testo SULLA card nera (l'occhiello della card "Oggi", il
+     riepilogo della forza): il pieno, 4.6:1 sull'inchiostro. Un token a sé
+     perché nello scuro la card nera diventa chiara, e lì serve quello scuro. */
+  --accent-su-ink: var(--j-accent);
+
+  /* Il pallino dei messaggi da leggere: rosso pieno, la cifra bianca sopra. */
+  --pallino:       #C03A20;
+  /* Verso cosa sfumano i colori dei gruppi muscolari nelle card degli esercizi
+     (SchieraGruppi): il fondo verso il bianco, la scritta verso il nero. */
+  --verso-fondo:   #FFFFFF;
+  --verso-testo:   #000000;
+}
+
+/* ── Scuro (ott 2026) ──────────────────────────────────────────────
+   Lo stesso tema rovesciato: fondo nero, card grigio scurissimo col bordo
+   chiaro, inchiostro quasi bianco. La card nera della home diventa chiara —
+   è "l'inchiostro" a farle da fondo, e l'inchiostro qui è chiaro — e resta
+   l'unica piena della pagina. L'accento non cambia: è il colore dell'app.
+   Lo accende `data-tema="scuro"` su <html> (vedi lib/tema.ts). Le coppie che
+   devono reggere le misura contrast.test.ts, come per il chiaro. */
+:root[data-tema="scuro"] {
+  color-scheme: dark;
+
+  --bg:        #0B0B0B;
+  --surface:   #181817;
+  --surface-2: #0B0B0B;
+  --input-bg:  #181817;
+
+  --ink:        #EDEDE9;
+  --fg:         #EDEDE9;
+  --fg-soft:    #C9C9C4;
+  --fg-mute:    #9A9A95;   /* secondario: 6.3:1 sulle card */
+  --muted-dark: #666662;   /* secondario sulla card chiara (ex nera): 4.9:1 */
+  --line:       #2E2E2C;
+  --line-dark:  #C9C9C4;
+
+  --chart-2:    #9A9A95;
+
+  --segnale-su:      #EDEDE9;
+  --segnale-giu:     #F05A3C;
+  --segnale-giu-rgb: 240,90,60;
+  --warn:          #F05A3C;
+  --danger:        #F05A3C;
+  --danger-rgb:    240,90,60;
+  --warn-rgb:      240,90,60;
+
+  --track:      #2E2E2C;
+  --scrim:      rgba(0,0,0,0.65);
+
+  --hairline:      #EDEDE9;
+  --hairline-soft: #2E2E2C;
+  --divider:       #2E2E2C;
+
+  --surface-pop:   #181817;
+  --surface-menu:  #181817;
+
+  --tertiary-ink:  #9A9A95;
+
+  --background:         0 0% 4%;
+  --foreground:         60 6% 92%;
+  --border:             60 6% 92%;
+
+  /* Il pieno regge sul nero (4.9:1) ma non sulle card (4.4): come testo un
+     filo più chiaro. Sulla card chiara, quello scuro del tema chiaro. */
+  --j-accent-ink:  #F05A3C;
+  --accent-su-ink: #C03A20;
+
+  --verso-fondo:   #000000;
+  --verso-testo:   #FFFFFF;
 }
 
 @layer base {
@@ -367,6 +436,13 @@
     font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums;
   }
   .j-serie-campo::placeholder { color: var(--muted-dark); font-weight: 600; }
+  /* La colonna del RIR (righe con la progressione) toglie spazio ai chili: sotto
+     i 360px «67,5» si leggeva «67». Lì le unità, già scritte in testata,
+     lasciano il posto ai numeri. */
+  @media (max-width: 359px) {
+    .j-serie-rir .j-serie-unita { display: none; }
+    .j-serie-rir .j-serie-campo { font-size: 24px; }
+  }
 
   /* ── I numeri dei fogli dell'alzata ─────────────────────────────
      Serie, colpi e chili in Condensed 800, grandi come si leggono nel resto
@@ -841,7 +917,7 @@
   }
   .j-oggi-occhiello {
     font-family: var(--font-display); font-size: 15px; font-weight: 700;
-    letter-spacing: .10em; text-transform: uppercase; color: var(--j-accent);
+    letter-spacing: .10em; text-transform: uppercase; color: var(--accent-su-ink);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   /* Il gruppo principale, grande quanto ci sta: 76px, meno se il nome è lungo
@@ -910,6 +986,14 @@
     }
   }
 
+  /* «Chiudi allenamento», accanto a «Tutte» sopra la card "Oggi": sotto i
+     360px non ci sta insieme al titolo «Schede», e resta «Chiudi». */
+  .j-chiudi-corto { display: none; }
+  @media (max-width: 359px) {
+    .j-chiudi-lungo { display: none; }
+    .j-chiudi-corto { display: inline; }
+  }
+
   /* Card del carosello dei gruppi: la pressione è una stretta appena accennata.
      Niente ombra a spessore: è una superficie grande e piena di colore, e un
      rilievo sotto la farebbe sembrare un tasto gigante. */
@@ -930,11 +1014,14 @@
 /* ── Un tema solo ─────────────────────────────────────────────────
    Fino a ottobre 2026 qui sotto c'erano i temi: scuro, Premium, Neon e Logbook,
    ognuno con le sue superfici, i suoi tasti e il suo fondo. Il rebranding li ha
-   tolti tutti — i colori sono quelli di `:root`, e valgono ovunque. */
+   tolti tutti — i colori sono quelli di `:root`, e valgono ovunque. Lo scuro è
+   tornato a fine ottobre, ma come rovescio dello stesso tema e non come un tema
+   a parte: cambia i colori, non i componenti (`:root[data-tema="scuro"]`, in
+   cima). */
 
 /* Il contenitore che PORTA il fondo dell'app: una tinta unita (rebranding,
    ott 2026). Qui c'erano gli aloni che si muovevano, lo "sfondo fuso" e i fondi
-   dei temi scuri; con un tema solo e chiaro il fondo è il colore e basta. */
+   dei temi scuri; adesso il fondo è il colore e basta, chiaro o scuro. */
 .j-bg-fondo { background-image: var(--paper-grain); }
 
 /* ── Desktop: più grande sui monitor grandi ──────────────────────

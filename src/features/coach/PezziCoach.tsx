@@ -173,16 +173,23 @@ export function CardScelta({ titolo, sotto, accesa, onClick, disegno, altezza, r
         padding: 'clamp(12px, 3.4vw, 16px)',
       }}
     >
+      {/* Il disegno in alto a destra, quasi sul bordo, e il nome in fondo. Era
+          appoggiato sopra la card, e un nome lungo o su due righe — «Seguire
+          qualcuno» su un telefono stretto — gli finiva sotto. Adesso sta nel
+          flusso: il margine automatico lo tiene in cima, e fra lui e il nome
+          c'è sempre almeno lo stacco del titolo. Se non ci stanno, la card si
+          allunga invece di sovrapporli (ott 2026). */}
       {disegno && (
         <DisegnoAzione id={disegno} style={{
-          position: 'absolute', top: 'clamp(8px, 2.4vw, 12px)', right: 'clamp(8px, 2.4vw, 12px)',
+          alignSelf: 'flex-end', flexShrink: 0, marginBottom: 'auto',
+          marginTop: 'calc(-1 * clamp(4px, 1.4vw, 6px))', marginRight: 'calc(-1 * clamp(4px, 1.4vw, 6px))',
           width: altezza ? `min(clamp(64px, 24vw, 108px), calc(${altezza} - 58px))` : 64, height: 'auto',
           pointerEvents: 'none',
         }}/>
       )}
       {/* Titolo di riga: Condensed 700, 22px, maiuscolo. */}
       <span style={{
-        position: 'relative', maxWidth: '100%',
+        position: 'relative', maxWidth: '100%', marginTop: disegno ? 'clamp(8px, 2.4vw, 12px)' : undefined,
         fontFamily: NUC.display, fontSize: 'clamp(18px, 5vw, 22px)', fontWeight: 700,
         lineHeight: 1.1, textTransform: 'uppercase',
       }}>{titolo}</span>

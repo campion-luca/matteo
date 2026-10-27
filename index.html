@@ -17,6 +17,17 @@
       rel="stylesheet"
     />
     <title>Matteo</title>
+    <!-- Il tema scuro, prima del primo frame: aspettando React la pagina
+         lampeggerebbe chiara. Stesso conto di src/lib/tema.ts. -->
+    <script>
+      try {
+        var tema = localStorage.getItem('jarvis-tema')
+        if (tema === 'scuro' || (tema === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.dataset.tema = 'scuro'
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0B0B0B')
+        }
+      } catch (e) { /* storage negato: resta il chiaro */ }
+    </script>
   </head>
   <body>
     <div id="root"></div>

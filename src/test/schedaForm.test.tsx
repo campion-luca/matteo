@@ -99,7 +99,8 @@ describe('il form della scheda — esercizi compressi', () => {
 
     await user.click(screen.getByRole('button', { name: /Aggiungi esercizio/ }))
     // La prima si è richiusa sul suo nome; la nuova è aperta, vuota, col cursore dentro.
-    expect(riga('Squat')).toHaveTextContent('3×8')
+    // Su una scheda nuova serie e colpi li dà la progressione: non ancora scelta, un trattino.
+    expect(riga('Squat')).toHaveTextContent('–')
     expect(screen.getAllByLabelText('Nome esercizio')).toHaveLength(1)
     expect(screen.getByLabelText('Nome esercizio')).toHaveValue('')
     expect(screen.getByLabelText('Nome esercizio')).toHaveFocus()

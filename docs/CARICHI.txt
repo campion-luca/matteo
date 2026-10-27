@@ -1,11 +1,16 @@
 COME RAGIONA L'APP SUI CARICHI
 ==============================
-Aggiornato al 7 ottobre 2026.
+Aggiornato al 28 ottobre 2026.
 
 Questo foglio dice, a parole, cosa fa l'app quando ti propone un peso
 mentre esegui una scheda: quando parla, quando sta zitta, in che ordine
 applica le regole e dove ancora non arriva. Va aggiornato ogni volta
 che una regola cambia.
+
+DUE SISTEMI. Le schede create dal 27 ottobre 2026 in poi usano le
+PROGRESSIONI (punto 13, in fondo): ogni riga ne ha una, scelta da chi
+scrive la scheda. Le schede di prima restano col carico consigliato dei
+punti 1-12, che vale solo per loro.
 
 
 1. IN BREVE
@@ -312,3 +317,75 @@ Su quello che manca del tutto:
   - La card e "Usa":    src/features/gym/GymSchede.tsx (ConsiglioCarico)
   - Cosa salva l'alzata a fine allenamento:
                         src/features/gym/GymSchede.tsx (finishTraining)
+
+
+13. LE PROGRESSIONI (SCHEDE DAL 27 OTTOBRE 2026)
+------------------------------------------------
+Le regole stanno in src/features/gym/progression.ts, scritto da te: funzioni
+pure che l'app usa senza modificarle. Qui c'è come le usa.
+
+Chi scrive la scheda (il coach, o tu per te) sceglie per ogni riga uno
+di tre preset. Sono un suggerimento:
+  - Multiarticolare ... top set + back-off col RIR
+                        (top set da 5 a RIR 2, poi 3 × 8 al -10%)
+  - Mono grande ....... doppia progressione 3 × 8-12, fino a 4 serie
+  - Mono piccola ...... doppia progressione 3 × 12-20, fino a 5 serie
+Da «Personalizza» si cambia modello e ogni numero. Serie e colpi della
+riga non si scrivono più a mano: li dà la progressione.
+
+I carichi, sulla stessa riga:
+  - incremento fisso (bilanciere, macchine a dischi): il passo, di serie
+    2,5 kg, e un minimo facoltativo (il bilanciere scarico);
+  - lista (manubri, pacco pesi): i carichi che ci sono davvero. Sulla
+    doppia progressione l'app propone il range adatto al salto fra un
+    carico e il successivo (suggestRepRange): +50% da 4 a 6 kg vuole un
+    range ampio, 12-20. «Usa» lo mette.
+
+Le righe a corpo libero non hanno una progressione: restano come prima.
+
+PRIMA DELLA SEDUTA la card dell'esercizio mostra la prescrizione
+(prescribeTopSet / prescribeDouble) e i campi partono da lì. Da dove
+parte il peso:
+  - dallo stato salvato dall'ultima seduta di quella riga;
+  - se non c'è, dall'ultima alzata dell'esercizio: per il top set il
+    peso che il massimale stimato dà per colpi + RIR (80 × 5 → 75 kg per
+    5 a RIR 2), per la doppia il carico più alto, arrotondati ai carichi
+    della riga ("stimato dallo storico");
+  - per un esercizio mai fatto il peso lo scegli tu, e lo stato nasce da
+    quella prima seduta.
+
+IL RIR si scrive accanto a ogni serie: quante ripetizioni avresti
+ancora fatto (0 = a cedimento). Sul top set decide se si sale: senza,
+progression.ts lo prende uguale all'obiettivo e il carico non sale mai,
+quindi la card lo chiede. Sulla doppia è facoltativo: la doppia guarda i
+colpi. Si salva sull'alzata (setRir), uno per serie.
+
+A ESERCIZIO CHIUSO (tutte le serie spuntate) la card dice dove si va la
+prossima volta: il messaggio di progressTopSet / progressDouble, com'è.
+Lo dice anche il riepilogo prima di salvare. Lo stato si salva solo con
+«Salva e chiudi»: un allenamento scartato non fa avanzare niente.
+
+DOVE STA LO STATO: nell'esercizio di chi si allena, una voce per riga di
+scheda (chiave schedaId:rigaId). Non sulla riga, perché le schede del
+coach stanno nella sua tabella e l'allievo non ci scrive; e lì il coach
+lo vede già, insieme agli esercizi. Se la riga cambia modello (da top
+set a doppia) lo stato vecchio non vale e si riparte dallo storico.
+
+Dove non arriva ancora:
+  - il messaggio è in italiano anche con l'app in inglese (è quello di
+    progression.ts, mostrato com'è);
+  - il top set è sempre la prima serie: se in palestra lo fai dopo, l'app
+    non lo sa;
+  - correggere o eliminare un'alzata dopo averla salvata non rifà lo
+    stato della progressione;
+  - il coach non ha ancora una schermata sua per gli stati e il RIR.
+
+Nel codice:
+  - Le regole:          src/features/gym/progression.ts
+  - Il ponte con l'app: src/features/gym/progressioneScheda.ts
+  - Il form della riga: src/features/gym/FormProgressione.tsx
+  - La card in allenamento e il salvataggio:
+                        src/features/gym/GymSchede.tsx (PrescrizioneCard,
+                        finishTraining)
+  - Le prove:           src/test/progressione.test.tsx
+

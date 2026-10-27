@@ -6,7 +6,7 @@
 // Quale scheda lo decide `schedaDiOggi` (anteprimaScheda.ts, letta da
 // `useSchedaDiOggi` in gymHooks): la prossima del giro, cioè quella che non si fa
 // da più tempo.
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { NucEyebrow } from '@/components/ui/NucComponents'
@@ -14,35 +14,66 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import { useT, tData } from '@/lib/i18n'
 import { quantoFa } from './gymModel'
 import { muscoliDellaScheda, durataPrevista, durataArrotondata, serieDellaScheda } from './anteprimaScheda'
-import { sessioneAperta, allenamentoInCorso } from './sessioneInCorso'
+import { sessioneAperta, allenamentoInCorso, scartaSessione } from './sessioneInCorso'
 import { useSchedaDiOggi } from './gymHooks'
 
 /** Lo stacco fra la card e il tasto, e fra il titolo e la card: segue l'altezza
  *  dello schermo come gli altri respiri della home. */
 const STACCO = 'clamp(8px, 1.4dvh, 12px)'
 
-export function SezioneSchede({ onTutte, onAvvia }: {
+// Un tastino col bordo, come "+ Nuova" e "Modifica" altrove: scritto e basta,
+// accanto al titolo, si leggeva come parte del titolo.
+const TASTINO: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40, padding: '0 clamp(8px, 2.6vw, 12px)',
+  background: 'var(--surface)', border: 'var(--bordo)', cursor: 'pointer', whiteSpace: 'nowrap',
+  fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: NUC.ink,
+}
+
+export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
   /** Apre l'elenco di tutte le schede. */
   onTutte: () => void
   /** Apre la scheda: `subito` = dritti nell'allenamento, altrimenti sul
    *  dettaglio (c'è un altro allenamento aperto, e lì si chiede cosa farne). */
   onAvvia: (schedaId: string, subito: boolean) => void
+  /** «Chiudi allenamento» su un allenamento con delle serie fatte: si apre il
+   *  suo riepilogo, dove si sceglie se salvarlo o no — lo stesso di «Termina». */
+  onChiudi: (schedaId: string) => void
 }) {
   const t = useT()
   const palestraExercises = useJarvisStore(st => st.palestraExercises)
   const oggi = useSchedaDiOggi()
+  // Lo scarto non tocca lo store: è questo a far rileggere il disco.
+  const [, ridisegna] = useState(0)
+
+  // Un altro allenamento aperto, con qualcosa dentro: si passa dal dettaglio,
+  // dove si chiede se chiuderlo. Quello di questa scheda si riprende e basta.
+  const aperta = sessioneAperta()
+  const inCorso = !!oggi && !!aperta && aperta.schedaId === oggi.scheda.id
+
+  // Chi ha toccato «Inizia» ed è tornato indietro trovava solo «Riprendi»: per
+  // chiudere doveva rientrare e passare da «Termina». Avviato e mai toccato si
+  // chiude e basta — non c'è niente da salvare né da perdere.
+  const chiudi = () => {
+    if (!aperta) return
+    if (aperta.vuota) { scartaSessione(); ridisegna(n => n + 1); return }
+    onChiudi(aperta.schedaId)
+  }
 
   const titolo = (
     <NucEyebrow style={{ marginBottom: STACCO, flexShrink: 0 }} right={
-      // Un tastino col bordo, come "+ Nuova" e "Modifica" altrove: scritto e
-      // basta, accanto al titolo, si leggeva come parte del titolo.
-      <button onClick={onTutte} className="j-hard j-focus" style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40, padding: '0 12px',
-        background: 'var(--surface)', border: 'var(--bordo)', cursor: 'pointer',
-        fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: NUC.ink,
-      }}>
-        {t('Tutte')} <Icons.arrow size={15} stroke={2.4}/>
-      </button>
+      <span style={{ display: 'flex', gap: 'clamp(6px, 2vw, 8px)' }}>
+        {/* Sotto i 360px, accanto a «Schede» e a «Tutte», il nome intero non
+            ci sta e tagliava il titolo: lì dice «Chiudi» (vedi .j-chiudi-corto). */}
+        {inCorso && (
+          <button onClick={chiudi} aria-label={t('Chiudi allenamento')} className="j-hard j-focus" style={TASTINO}>
+            <span className="j-chiudi-lungo">{t('Chiudi allenamento')}</span>
+            <span className="j-chiudi-corto">{t('Chiudi')}</span>
+          </button>
+        )}
+        <button onClick={onTutte} className="j-hard j-focus" style={TASTINO}>
+          {t('Tutte')} <Icons.arrow size={15} stroke={2.4}/>
+        </button>
+      </span>
     }>
       {t('Schede')}
     </NucEyebrow>
@@ -70,11 +101,7 @@ export function SezioneSchede({ onTutte, onAvvia }: {
   const serie = serieDellaScheda(scheda)
   const minuti = Math.round(durataArrotondata(durataPrevista(scheda)) / 60)
 
-  // Un altro allenamento aperto, con qualcosa dentro: si passa dal dettaglio,
-  // dove si chiede se chiuderlo. Quello di questa scheda si riprende e basta.
-  const aperta = sessioneAperta()
   const altraAperta = !!aperta && aperta.schedaId !== scheda.id && !aperta.vuota
-  const inCorso = !!aperta && aperta.schedaId === scheda.id
   // Le serie fatte: le diceva la barra "Allenamento in corso" in cima alla home,
   // che per questa scheda non c'è più (vedi `tranne` in InCorsoInHome) — il tasto
   // qui sotto dice già "Riprendi", e le due insieme non stavano su un telefono.

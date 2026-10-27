@@ -147,7 +147,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
           }}
         >
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: 'var(--j-accent)' }}>
+            <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.10em', textTransform: 'uppercase', color: 'var(--accent-su-ink)' }}>
               {t('Massimali ipotetici')}
             </span>
             {qualcosa ? (
@@ -197,7 +197,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
                     <div style={{ fontFamily: NUC.font, fontSize: 15, color: l.kg === null ? 'var(--muted-dark)' : 'var(--surface)' }}>{tData(l.name)}</div>
                     <div style={{
                       ...etichetta, marginTop: 3,
-                      color: provato ? 'var(--j-accent)' : 'var(--muted-dark)',
+                      color: provato ? 'var(--accent-su-ink)' : 'var(--muted-dark)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       {l.source ? `${t(SOURCE_LABELS[l.source])}${daAltro ? ` · ${tData(l.exercise as string)}` : ''}` : t('Mai allenato')}
@@ -222,7 +222,7 @@ export function Riepilogo({ onOpenProfile }: RiepilogoProps) {
             {!s.userWeight && (
               <button onClick={onOpenProfile} className="j-focus" style={{
                 marginTop: 6, minHeight: 44, padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                ...etichetta, color: 'var(--j-accent)',
+                ...etichetta, color: 'var(--accent-su-ink)',
               }}>
                 {t('Inserisci il peso nel profilo →')}
               </button>

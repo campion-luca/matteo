@@ -301,7 +301,7 @@ function SchedaDiOggiDesktop({ onApriEsercizio }: { onApriEsercizio: (ex: Palest
   if (!oggi) {
     return (
       <section style={{ background: 'var(--ink)', color: 'var(--surface)', padding: '22px 22px 24px' }}>
-        <div style={{ ...ETICHETTA, color: 'var(--j-accent)' }}>{t('Oggi')}</div>
+        <div style={{ ...ETICHETTA, color: 'var(--accent-su-ink)' }}>{t('Oggi')}</div>
         <div style={{ fontFamily: NUC.display, fontSize: 40, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase', marginTop: 6 }}>{t('Nessuna scheda')}</div>
         <p style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.5, color: 'var(--muted-dark)', margin: '8px 0 16px', maxWidth: 460 }}>
           {t('Nessuna scheda. Scrivine una: da qui ti dirà ogni giorno quale tocca.')}
@@ -332,7 +332,7 @@ function SchedaDiOggiDesktop({ onApriEsercizio }: { onApriEsercizio: (ex: Palest
     <section style={RIQUADRO}>
       <div style={{ background: 'var(--ink)', color: 'var(--surface)', padding: '16px 18px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ ...ETICHETTA, color: 'var(--j-accent)' }}>
+          <div style={{ ...ETICHETTA, color: 'var(--accent-su-ink)' }}>
             {fattaOggi ? t('Oggi · {scheda} · fatta', { scheda: scheda.title })
               : inCorsoOggi ? t('In corso · {scheda}', { scheda: scheda.title })
               : t('Oggi · {scheda}', { scheda: scheda.title })}

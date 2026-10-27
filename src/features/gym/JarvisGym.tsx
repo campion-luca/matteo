@@ -11,6 +11,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import type React from 'react'
 import { NUC, accentInkFor, cursore } from '@/lib/jarvis-tokens'
+import { useTema } from '@/lib/tema'
 import { NucCard, NucSubTabs, NucEyebrow } from '@/components/ui/NucComponents'
 import { SalutoHeader } from '@/components/ui/SalutoHeader'
 import { Pila, Strato } from '@/components/ui/Pila'
@@ -572,6 +573,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   ex: PalestraExercise; onBack: () => void; muscleColors: Record<string, string>
 }) {
   const t = useT()
+  const { scuro } = useTema()
   const tData = useTData()
   // Già ridotto alla parte che questo esercizio fa sollevare (vedi quotaCorpo).
   const bodyWeight = useBodyWeight() * quotaCorpo(ex)
@@ -632,7 +634,7 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
         <div className="flex items-center gap-3">
           <button onClick={onBack} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="j-eyebrow" style={{ color: accentInkFor(color) }}>{t('Andamento')} · {t('{n} sessioni', { n: hist.length })}</div>
+            <div className="j-eyebrow" style={{ color: accentInkFor(color, scuro) }}>{t('Andamento')} · {t('{n} sessioni', { n: hist.length })}</div>
             <div className="j-page-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(ex.n)}</div>
           </div>
         </div>
@@ -874,20 +876,22 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             <Cronologia
               anni={false}
               riquadro
-              intestazione={soloColpi ? t('Migliore') : t('1RM')}
+              intestazione={t('Peso')}
               voci={dalPiuRecente}
               dataDi={v => v.h.date}
               chiaveDi={v => v.idx}
               conta={n => n === 1 ? t('1 sessione') : t('{n} sessioni', { n })}
               voce={({ h, idx: realIdx }, primo) => (
-                // La data è il punto dell'elenco; accanto serie, colpi e chili
-                // — ciò che si viene a leggere — e sotto di quanto sono cambiati
-                // dalla volta prima; a destra il massimale di quel giorno.
+                // La data è il punto dell'elenco; accanto serie e colpi, sotto
+                // di quanto è cambiato il carico dalla volta prima; a destra i
+                // chili di quel giorno. A destra c'era il massimale stimato:
+                // grande com'era si leggeva come il peso alzato, e non lo è
+                // (ott 2026). Resta nella card in cima e nei grafici.
                 <div className="flex items-center gap-3" style={{ padding: '12px 14px', borderTop: primo ? 'none' : '1px solid var(--line)' }}>
                   <DataPunto iso={h.date} ripiego={h.d}/>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: NUC.display, fontSize: 18, fontWeight: 800, lineHeight: 1.1, color: NUC.ink, textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums' }}>
-                      {h.sets_n} × {fmtReps(h)} · {fmtKgVerso(h)}
+                      {h.sets_n} × {fmtReps(h)}
                     </div>
                     <SegnaleCarico
                       variazione={andamento[realIdx]?.variazione ?? null}
@@ -899,11 +903,8 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                     {/* I numeri non sono più quelli scritti da me: va detto. */}
                     {h.correttaDa && <div style={{ fontFamily: NUC.font, fontSize: 12, color: 'var(--j-accent-ink)', marginTop: 4 }}>{t('corretta da {chi}', { chi: h.correttaDa })}</div>}
                   </div>
-                  <div
-                    title={soloColpi ? t('Serie migliore') : h.maxLift ? t('Massimale') : t('Massimale stimato')}
-                    style={{ flexShrink: 0, minWidth: 30, textAlign: 'right', fontFamily: NUC.display, fontSize: 20, fontWeight: 800, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}
-                  >
-                    {soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}
+                  <div style={{ flexShrink: 0, minWidth: 30, textAlign: 'right', fontFamily: NUC.display, fontSize: 20, fontWeight: 800, color: NUC.ink, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {chiliGrandi(fmtKgVerso(h))}
                   </div>
                   <MenuAzioni
                     etichetta={t('Azioni sull’alzata')}
@@ -1729,6 +1730,9 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // (`riprendi`).
   const [schedaDaAprire, setSchedaDaAprire] = useState<string | null>(null)
   const [riprendi, setRiprendi] = useState(false)
+  // Con `riprendi`: si entra col riepilogo già aperto, per chiudere
+  // l'allenamento. È il «Chiudi allenamento» accanto a «Tutte» in home.
+  const [termina, setTermina] = useState(false)
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null)
   const [showSchede, setShowSchede] = useState(false)
   // La pagina degli esercizi: i gruppi muscolari, aperti dalla card "Esercizi".
@@ -2166,6 +2170,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
           <SezioneSchede
             onTutte={() => setShowSchede(true)}
             onAvvia={(id, subito) => { setSchedaDaAprire(id); setRiprendi(subito); setShowSchede(true) }}
+            onChiudi={id => { setSchedaDaAprire(id); setRiprendi(true); setTermina(true); setShowSchede(true) }}
           />
         )}
         {/* Il menù di Hyrox: Esercizi e Gara, e sotto Statistiche. */}
@@ -2412,7 +2417,7 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
             // la legge solo nascendo.
             <GymSchede key={giro} apri={dove.apri} riprendi={!!dove.riprendi} nuova={!!dove.nuova} onBack={() => vai('oggi')}/>
           ) : (
-            <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false) }}/>
+            <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} termina={termina} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false); setTermina(false) }}/>
           )}
         </Strato>
       )}

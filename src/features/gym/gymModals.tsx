@@ -18,7 +18,7 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import {
   MUSCLE_COLORS, COLOR_PALETTE,
-  displayMuscle, fmtKg, fmtNum, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
+  displayMuscle, fmtKgVerso, fmtNum, fmtReps, pace, weekLabel, estimate1RM, entry1RM, normalizzaDecimale, parseNum,
   effectiveLoad, sortedHistory, fmtTime, colpiMigliori, RACE_STATIONS, ultimaDiLavoro,
   } from './gymModel'
 import { chiliScritti } from './riassuntoAllenamento'
@@ -1303,15 +1303,16 @@ export function ExStatsModal({ ex, onClose }: { ex: PalestraExercise; onClose: (
                   <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid var(--hairline-soft)' }}>
                     <div>
                       <div style={{ fontSize: 13, color: NUC.ink, letterSpacing: -0.2 }}>
-                        {h.sets_n} × {fmtReps(h)} – {fmtKg(h)}
+                        {h.sets_n} × {fmtReps(h)}
                       </div>
                       <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint, letterSpacing: 0.5, marginTop: 2 }}>{dateStr}</div>
                       {h.maxLift && <div style={{ fontFamily: NUC.label, fontSize: 12, color: 'var(--j-accent-ink)', letterSpacing: '.1em', marginTop: 2, textTransform: 'uppercase' }}>{t('Massimale')}</div>}
                     </div>
-                    <div className="text-right flex-shrink-0 ml-3">
-                      <div style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{soloColpi ? colpiMigliori(h) : Math.round(entry1RM(h, bodyWeight))}</div>
-                      {/* Su un massimale non è una stima: dirlo "stim." lo svaluterebbe. */}
-                      <div style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint }}>{soloColpi ? t('colpi') : h.maxLift ? 'kg' : t('kg stim.')}</div>
+                    {/* A destra i chili di quel giorno, come nella pagina
+                        dell'esercizio: il massimale stimato sta nel grafico qui
+                        sopra, e in elenco si leggeva come il peso alzato. */}
+                    <div className="text-right flex-shrink-0 ml-3" style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--j-accent-ink)', letterSpacing: -0.3, whiteSpace: 'nowrap' }}>
+                      {fmtKgVerso(h)}
                     </div>
                   </div>
                 )
@@ -1660,6 +1661,9 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
       kg: kgN, reps: repsOut, sets_n: setsN,
       setWeights,   // esplicito: azzera eventuali pesi-serie non più validi
       setReps,      // idem per i colpi-serie
+      // Il RIR è uno per serie salvata: con un numero di serie diverso non si
+      // sa più a quali appartenga, e resta solo dove le serie sono quelle.
+      setRir: setsN === entry.sets_n ? entry.setRir : undefined,
       bodyweight: isBodyweight ? true : undefined,
       maxLift: isMax ? true : undefined,
       machineModel: undefined,

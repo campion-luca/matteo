@@ -21,6 +21,7 @@ import { Icons } from '@/components/ui/Icons'
 import { supabase, idUtenteSuDisco } from '@/lib/supabase'
 import { attivaPush, spegniPush, statoPush, type StatoPush } from '@/lib/push'
 import { esci } from '@/lib/uscita'
+import { useTema, scegliTema, TEMI, type Tema } from '@/lib/tema'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
 import { AvatarProfilo, ProfiloPubblico } from './ProfiloPubblico'
@@ -211,7 +212,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     eyebrow: t('Logout'),
     title: t('Uscire dall’account?'),
     body: t('Esci solo da questo dispositivo. Quello che non è ancora salvato nel cloud, e un allenamento lasciato a metà, restano qui: li ritrovi rientrando su questo telefono. Per rientrare serve la rete.'),
-    cta: t('Esci'),
+    cta: t('Logout'),
   })
 
   // La freccia in alto, e Esc da tastiera. Dal profilo pubblico con qualcosa
@@ -491,6 +492,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           <NucEyebrow>{t('Generale')}</NucEyebrow>
           <div style={CARD}>
             <LinguaSection/>
+            <TemaSection/>
             {/* Notifiche: stavano in cima al Coaching, dove a ogni ingresso
                 toglievano una riga alle cose da fare. Sono un'impostazione del
                 dispositivo, e si cercano qui. */}
@@ -549,13 +551,16 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               onClick={esporta}
               divisa
             />
+            {/* Rosso, come le altre uscite senza ritorno immediato: per
+                rientrare servono la password e la rete. */}
             <RigaImpostazione
               icona={<Icons.esci size={18} stroke={1.9}/>}
-              titolo={uscendo ? t('Attendi…') : t('Esci')}
+              titolo={uscendo ? t('Attendi…') : t('Logout')}
               onClick={handleLogout}
               disabled={uscendo}
               freccia={false}
               divisa
+              pericolo
             />
           </div>
         </section>
@@ -667,6 +672,38 @@ function LinguaSection() {
   )
 }
 
+// ── Tema ───────────────────────────────────────────────────────
+// Chiaro, scuro, o quello del telefono. Senza conferma, al contrario della
+// lingua: il cambio si vede tutto e subito, e si torna indietro con lo stesso
+// tocco. La scelta resta su questo dispositivo (vedi lib/tema).
+function TemaSection() {
+  const t = useT()
+  const { scelto } = useTema()
+  const nomi: Record<Tema, string> = { chiaro: t('Chiaro'), scuro: t('Scuro'), auto: t('Automatico') }
+  return (
+    <div style={{ padding: 14, borderTop: '1px solid var(--line)' }}>
+      <div style={TITOLO_RIGA}>{t('Tema')}</div>
+      <div style={SOTTO_RIGA}>
+        {scelto === 'auto' ? t('Segue il tema del telefono.') : t('Vale su questo dispositivo.')}
+      </div>
+      <div role="radiogroup" aria-label={t('Tema')} className="j-switch" style={{ ...cursore(TEMI.indexOf(scelto), TEMI.length), marginTop: 12 }}>
+        {TEMI.map(v => (
+          <button
+            key={v}
+            onClick={() => scegliTema(v)}
+            role="radio"
+            aria-checked={v === scelto}
+            className="j-switch-cell"
+            style={{ height: 44, cursor: v === scelto ? 'default' : 'pointer', fontSize: 15 }}
+          >
+            {nomi[v]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Notifiche ──────────────────────────────────────────────────
 // Un interruttore, e sotto in che stato si è. Di serie sono accese: l'app le
 // chiede al primo ingresso e a chi ha già detto di sì le riaccende da sola
@@ -734,7 +771,7 @@ const TITOLO_RIGA: CSSProperties = { fontFamily: NUC.font, fontSize: 15, fontWei
 const SOTTO_RIGA: CSSProperties = { fontFamily: NUC.font, fontSize: 13, lineHeight: 1.4, color: 'var(--fg-mute)', marginTop: 2 }
 
 /** Una riga che si tocca: icona, titolo, a volte una riga sotto, e la freccia. */
-function RigaImpostazione({ icona, titolo, sotto, onClick, aperta, disabled, freccia = true, divisa }: {
+function RigaImpostazione({ icona, titolo, sotto, onClick, aperta, disabled, freccia = true, divisa, pericolo }: {
   icona: ReactNode; titolo: string; sotto?: string; onClick: () => void
   /** Apre qualcosa qui sotto (la password): la freccia gira. */
   aperta?: boolean
@@ -742,15 +779,17 @@ function RigaImpostazione({ icona, titolo, sotto, onClick, aperta, disabled, fre
   freccia?: boolean
   /** Il filo sopra: per tutte le righe tranne la prima. */
   divisa?: boolean
+  /** Icona e titolo nel rosso degli avvisi: il Logout. */
+  pericolo?: boolean
 }) {
   return (
     <button onClick={onClick} disabled={disabled} aria-expanded={aperta} className="j-riga-gruppo flex items-center w-full" style={{
       gap: 12, padding: '14px', minHeight: 52, textAlign: 'left', cursor: disabled ? 'default' : 'pointer',
-      background: 'transparent', border: 'none', borderTop: divisa ? '1px solid var(--line)' : 'none', color: 'var(--fg)',
+      background: 'transparent', border: 'none', borderTop: divisa ? '1px solid var(--line)' : 'none', color: pericolo ? 'var(--danger)' : 'var(--fg)',
     }}>
       <span style={{ display: 'flex', flexShrink: 0 }}>{icona}</span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ ...TITOLO_RIGA, display: 'block' }}>{titolo}</span>
+        <span style={{ ...TITOLO_RIGA, display: 'block', ...(pericolo ? { color: 'var(--danger)' } : {}) }}>{titolo}</span>
         {sotto && <span style={{ ...SOTTO_RIGA, display: 'block' }}>{sotto}</span>}
       </span>
       {freccia && (

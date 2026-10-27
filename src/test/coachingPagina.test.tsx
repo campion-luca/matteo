@@ -39,10 +39,10 @@ describe('la pagina del Coaching', () => {
   })
   afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
-  it('ha due card, Coaching e Seguiti, e in alto la chat e i codici', async () => {
+  it('ha due card, Trova un coach e Seguiti, e in alto la chat e i codici', async () => {
     apri()
     const schede = await screen.findAllByRole('tab')
-    expect(schede.map(s => s.textContent)).toEqual([expect.stringMatching(/^Coaching/), expect.stringMatching(/^Seguiti/)])
+    expect(schede.map(s => s.textContent)).toEqual([expect.stringMatching(/^Trova un coach/), expect.stringMatching(/^Seguiti/)])
     expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Codici' })).toBeInTheDocument()
     // Il codice non si genera più da qui.

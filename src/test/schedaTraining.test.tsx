@@ -345,6 +345,34 @@ describe('la card di un esercizio in allenamento', () => {
     expect(screen.getByLabelText('Croci alla peck deck · nota')).toBeInTheDocument()
   })
 
+  it('la «x» chiude la nota senza tenerla: vuota se non c’era, com’era se la si correggeva', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+
+    // Aperta per sbaglio e scritto qualcosa: la «x» la butta.
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Aggiungi nota' }))
+    await user.type(screen.getByLabelText('Croci alla peck deck · nota'), 'prova')
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Chiudi senza salvare la nota' }))
+    expect(screen.queryByLabelText('Croci alla peck deck · nota')).toBeNull()
+    expect(screen.queryByText('prova')).toBeNull()
+
+    // Una nota salvata, riaperta e cambiata: la «x» rimette quella di prima.
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Aggiungi nota' }))
+    await user.type(screen.getByLabelText('Croci alla peck deck · nota'), 'presa larga')
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Salva la nota' }))
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Modifica nota' }))
+    await user.type(screen.getByLabelText('Croci alla peck deck · nota'), ' e stretta')
+    await user.click(screen.getByRole('button', { name: 'Croci alla peck deck · Chiudi senza salvare la nota' }))
+    expect(screen.getByText('presa larga')).toBeInTheDocument()
+
+    // E all'alzata arriva quella di prima.
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: /salva e chiudi/i }))
+    const h = alzate('Croci alla peck deck')
+    expect(h[h.length - 1].note).toBe('presa larga')
+  })
+
   it('una nota scritta e non «salvata» finisce comunque nell’alzata', async () => {
     // Il tasto chiude il campo; il testo è al sicuro a ogni tasto, o chi
     // dimentica di premerlo perderebbe la nota chiudendo l'allenamento.

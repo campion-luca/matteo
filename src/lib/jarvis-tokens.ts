@@ -63,6 +63,9 @@ function contrast(a: string, b: string): number {
 // a `--surface-2`). È il caso peggiore: sul bianco delle card ogni colore che
 // regge sul cemento regge anche lì. Va tenuta allineata a globals.css.
 const FONDO = '#F1F1EF'
+// Nello scuro il caso peggiore è la card (`--surface` di `[data-tema="scuro"]`),
+// più chiara del fondo: un colore che regge lì regge anche sul nero.
+const FONDO_SCURO = '#181817'
 // I due inchiostri disponibili sopra un fondo colorato: il bianco e il nero del tema.
 const BIANCO = '#FFFFFF'
 const NERO   = '#141414'
@@ -74,10 +77,12 @@ function pushToAA(from: string, bg: string, up: boolean): string {
   return c
 }
 
-/** Un colore usato COME TESTO sul fondo chiaro: scurito, mantenendo la tinta,
- *  finché non supera AA. Se è già leggibile passa invariato. */
-export function accentInkFor(hex: string): string {
-  return pushToAA(hex, FONDO, false)
+/** Un colore usato COME TESTO sul fondo: scurito (schiarito nello scuro),
+ *  mantenendo la tinta, finché non supera AA. Se è già leggibile passa
+ *  invariato. `scuro` lo dà `useTema`, che fa ridisegnare chi lo usa quando
+ *  il tema cambia. */
+export function accentInkFor(hex: string, scuro = false): string {
+  return scuro ? pushToAA(hex, FONDO_SCURO, true) : pushToAA(hex, FONDO, false)
 }
 
 /** Il testo SOPRA un fondo colorato: bianco o nero, quello che si legge meglio.

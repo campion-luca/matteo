@@ -23,7 +23,7 @@ export function BadgeNonLetti({ n, style }: { n: number; style?: CSSProperties }
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         minWidth: 17, height: 17, padding: '0 5px', boxSizing: 'border-box',
         borderRadius: 'var(--radius-pill)',
-        background: 'var(--segnale-giu)', color: '#fff',
+        background: 'var(--pallino)', color: '#fff',
         fontFamily: NUC.label, fontSize: 10, fontWeight: 700, lineHeight: 1,
         ...style,
       }}

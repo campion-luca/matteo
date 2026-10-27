@@ -5,6 +5,7 @@ import { JarvisGym } from '@/features/gym/JarvisGym'
 import { schedaDiOggi, serieDellaScheda } from '@/features/gym/anteprimaScheda'
 import { useJarvisStore, EMPTY_STATE, type GymScheda, type PalestraExercise } from '@/store/useJarvisStore'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import { localISO } from '@/lib/isoDate'
 
 // La home dopo il rebranding (ott 2026): tre card — Coaching, Esercizi,
@@ -103,6 +104,8 @@ describe('la home', () => {
     expect(screen.getByText('mai fatta', { exact: false })).toBeInTheDocument()
     expect(screen.getByText('Petto')).toBeInTheDocument()
     expect(screen.getByText('7')).toBeInTheDocument()
+    // Senza un allenamento aperto non c'è niente da chiudere.
+    expect(screen.queryByRole('button', { name: 'Chiudi allenamento' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Inizia allenamento/ }))
     // Dritti nell'allenamento della scheda, non nel suo dettaglio.
     expect(await screen.findByRole('button', { name: /termina allenamento/i })).toBeInTheDocument()
@@ -143,6 +146,58 @@ describe('la home', () => {
     expect(screen.getByText('In corso · Lunedì')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Riprendi allenamento/ })).toBeInTheDocument()
     expect(screen.queryByText('Allenamento in corso')).not.toBeInTheDocument()
+  })
+
+  // «Inizia», indietro, e il tasto diceva solo «Riprendi»: per chiudere
+  // bisognava rientrare e passare da «Termina». Adesso accanto a «Tutte» c'è
+  // «Chiudi allenamento».
+  it('aperto e mai toccato, «Chiudi allenamento» lo chiude e basta', async () => {
+    const user = userEvent.setup()
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì')] })
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'a', salvataA: Date.now(),
+      progress: { 'a-1': { checks: [false, false, false, false], weights: ['', '', '', ''], reps: ['8', '8', '8', '8'] } },
+    }))
+    monta()
+    expect(screen.getByRole('button', { name: /Riprendi allenamento/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Chiudi allenamento' }))
+    // Niente da salvare, niente da chiedere: è chiuso.
+    expect(screen.queryByRole('button', { name: 'Chiudi allenamento' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Inizia allenamento/ })).toBeInTheDocument()
+    expect(localStorage.getItem('jarvis-sessione-in-corso-v1')).toBeNull()
+  })
+
+  it('con delle serie fatte, «Chiudi allenamento» apre il riepilogo: chiuso senza salvare si torna in home', async () => {
+    const user = userEvent.setup()
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì')] })
+    apertaSu('a', 'a-1')
+    render(
+      <ConfirmDeleteProvider>
+        <JarvisGym onOpenCoach={vi.fn()} onOpenProfile={vi.fn()} onOpenUser={vi.fn()}/>
+        <ConfirmModal/>
+      </ConfirmDeleteProvider>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Chiudi allenamento' }))
+    // Il riepilogo di «Termina», già aperto: si sceglie lì se salvare.
+    expect(await screen.findByRole('button', { name: /salva e chiudi/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /chiudi senza salvare/i }))
+    await user.click(screen.getByRole('button', { name: 'Scarta' }))
+    expect(await screen.findByRole('button', { name: /Inizia allenamento/ })).toBeInTheDocument()
+    expect(localStorage.getItem('jarvis-sessione-in-corso-v1')).toBeNull()
+    expect(useJarvisStore.getState().palestraExercises).toEqual([])
+  })
+
+  it('con delle serie fatte, «Salva e chiudi» dal riepilogo le mette nello storico', async () => {
+    const user = userEvent.setup()
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Lunedì')] })
+    apertaSu('a', 'a-1')
+    monta()
+    await user.click(screen.getByRole('button', { name: 'Chiudi allenamento' }))
+    await user.click(await screen.findByRole('button', { name: /salva e chiudi/i }))
+    const panca = useJarvisStore.getState().palestraExercises.find(e => e.n === 'Panca piana')
+    expect(panca?.history).toHaveLength(1)
+    expect(panca?.history[0]).toMatchObject({ kg: 60, sets_n: 2 })
+    expect(localStorage.getItem('jarvis-sessione-in-corso-v1')).toBeNull()
   })
 
   it('solo aperto su un’altra scheda, senza serie spuntate: la card resta quella del giro, e la barra c’è', () => {

@@ -3,6 +3,9 @@ import { persist, type PersistStorage, type StorageValue } from 'zustand/middlew
 // Solo il tipo: `import type` sparisce alla compilazione, quindi il fatto che
 // `i18n` importi a sua volta lo store non crea un ciclo a runtime.
 import type { Lang } from '@/lib/i18n'
+import type {
+  LoadSteps, TopSetConfig, TopSetState, DoubleProgressionConfig, DoubleProgressionState, ProgressionEvent,
+} from '@/features/gym/progression'
 import { conSegnoCorpoLibero, conGruppo } from '@/features/gym/catalogo'
 
 // ── Types ──────────────────────────────────────────────────────
@@ -100,6 +103,12 @@ export interface PalestraHistoryEntry {
   // "sedile al 4"). Resta attaccato a QUESTA alzata, e alla successiva sullo
   // stesso esercizio si rilegge come "nota dell'ultima volta".
   note?: string
+  // Le ripetizioni in riserva dichiarate serie per serie (stesso patto di
+  // `setWeights`: un valore per serie salvata), `null` dove non sono state
+  // scritte. Le chiede la progressione della scheda (vedi progressioneScheda):
+  // sul top set decidono se si sale. Non si chiama `rir` perché quel nome,
+  // usato da una versione vecchia, viene ancora potato (vedi `migrateNested`).
+  setRir?: (number | null)[]
 }
 export interface PalestraExercise {
   // Il colore non è per esercizio: deriva dal gruppo muscolare (vedi `muscleColors`).
@@ -115,7 +124,30 @@ export interface PalestraExercise {
   attrezzoKg?: number
   current: { kg: number; reps: number; sets_n: number }
   history: PalestraHistoryEntry[]
+  // Lo stato della progressione per ogni riga di scheda che usa questo
+  // esercizio, per chiave `schedaId:rigaId` (vedi progressioneScheda). Sta qui
+  // e non sulla riga perché le schede dell'allenatore vivono nella sua tabella,
+  // dove chi si allena non scrive; e qui il coach lo vede già, con gli esercizi.
+  progressioni?: Record<string, StatoProgressione>
 }
+
+// ── La progressione di una riga di scheda (dal 27 ott 2026) ────
+// Tre preset, che sono un suggerimento di chi scrive la scheda: multiarticolare
+// → top set + back-off col RIR, monoarticolare grande o piccolo → doppia
+// progressione. Le regole sono in progression.ts; qui solo come si salvano.
+export type PresetProgressione = 'multi' | 'monoGrande' | 'monoPiccola' | 'personalizzata'
+
+export type ProgressioneRiga =
+  | { modello: 'topSet'; preset: PresetProgressione; cfg: Omit<TopSetConfig, 'steps'>; steps: LoadSteps }
+  | { modello: 'doppia'; preset: PresetProgressione; cfg: Omit<DoubleProgressionConfig, 'steps'>; steps: LoadSteps }
+
+/** Dove è arrivata una riga, dopo l'ultima seduta. `il` è il giorno della
+ *  seduta che l'ha prodotto; evento e messaggio sono quelli che la progressione
+ *  ha restituito, da rileggere la volta dopo. */
+export type StatoProgressione = { il: string; evento: ProgressionEvent; messaggio: string } & (
+  | { modello: 'topSet'; stato: TopSetState }
+  | { modello: 'doppia'; stato: DoubleProgressionState }
+)
 
 export interface GymSchedaExercise {
   id: string
@@ -127,6 +159,10 @@ export interface GymSchedaExercise {
   bodyweight?: boolean     // a corpo libero — come `muscle`, serve a creare l'esercizio se è nuovo
   note?: string            // appunto libero (es. "presa larga", "tempo 3-1-1"): mostrato anche in allenamento
   supersetWithNext?: boolean // questo esercizio è in superset con il SUCCESSIVO (nessun rest tra i due)
+  // Come si progredisce su questa riga (solo nelle schede `conProgressioni`).
+  // Con questa, `sets` e `reps` qui sopra sono quelli che la config dice, scritti
+  // per chi legge la scheda senza conoscerla (durata, elenco, analisi).
+  progressione?: ProgressioneRiga
 }
 
 export interface GymScheda {
@@ -136,6 +172,9 @@ export interface GymScheda {
   createdAt: string
   updatedAt: string
   draft?: boolean          // true = bozza incompleta (salvata comunque per non perdere il lavoro)
+  // Nata col form delle progressioni (dal 27 ott 2026): ogni riga sceglie la sua.
+  // Le schede di prima non ce l'hanno e restano col carico consigliato di sempre.
+  conProgressioni?: true
 }
 
 // ── Gruppi muscolari creati dall'utente ────────────────────────
@@ -237,9 +276,14 @@ export interface JarvisState {
 // regola non la conoscono e non la rispettano: protegge da qui in avanti.
 //
 // VA ALZATO ogni volta che si aggiunge una chiave a `STATE_KEYS`. Per un campo
-// nuovo DENTRO una struttura che c'è già (un'alzata, una scheda) non serve: il
-// filtro lavora al primo livello, e quelli le versioni vecchie li conservano.
-export const VERSIONE_DATI = 1
+// nuovo DENTRO una struttura che c'è già (un'alzata, una scheda) di solito non
+// serve: il filtro lavora al primo livello, e quelli le versioni vecchie li
+// conservano. Ma non quando una versione vecchia RISCRIVE quella struttura
+// campo per campo:
+//   2 → le progressioni (28 ott 2026). Il form delle schede di prima ricostruisce
+//       ogni riga coi campi che conosce: modificando su un telefono non
+//       aggiornato una scheda nuova, `progressione` e `conProgressioni` sparivano.
+export const VERSIONE_DATI = 2
 
 // La versione del tema corrente. Alzarla rimette tutti gli account sul layout di
 // default una volta, al primo caricamento dopo l'aggiornamento; poi la scelta

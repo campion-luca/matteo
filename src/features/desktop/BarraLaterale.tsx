@@ -52,7 +52,9 @@ export function BarraLaterale({ userId, onUtente, onImpostazioni }: {
       <button key={id} type="button" onClick={() => vai(id)} aria-current={attiva ? 'page' : undefined} className="j-focus" style={{
         width: '100%', minHeight: 38, padding: '0 12px 0 16px', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        background: attiva ? 'rgba(255,255,255,.08)' : 'transparent', border: 'none',
+        // Un velo del colore della scritta: chiaro sulla barra nera, scuro
+        // sulla barra che nello scuro diventa chiara.
+        background: attiva ? 'color-mix(in srgb, var(--surface) 10%, transparent)' : 'transparent', border: 'none',
         boxShadow: attiva ? 'inset 3px 0 0 var(--j-accent)' : 'none',
         color: 'var(--surface)', textAlign: 'left',
         fontFamily: NUC.display, fontSize: 15, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',

@@ -42,10 +42,13 @@ function ieri(): string {
  *  sta ben sopra 7:1. `acceso` è il distretto sulla figura. */
 function toni(colori: Record<string, string>, muscle: string) {
   const c = colori[muscle] ?? colori.Altro ?? '#8a7440'
+  // Nello scuro i due versi si scambiano (`--verso-fondo` e `--verso-testo` in
+  // globals.css): il fondo scende verso il nero e la scritta sale verso il
+  // bianco, e la card resta una tinta sola a due altezze.
   return {
-    fondo: `color-mix(in srgb, ${c} 52%, #fff)`,
-    inchiostro: `color-mix(in srgb, ${c} 22%, #000)`,
-    acceso: `color-mix(in srgb, ${c} 45%, #000)`,
+    fondo: `color-mix(in srgb, ${c} 52%, var(--verso-fondo))`,
+    inchiostro: `color-mix(in srgb, ${c} 22%, var(--verso-testo))`,
+    acceso: `color-mix(in srgb, ${c} 45%, var(--verso-testo))`,
   }
 }
 

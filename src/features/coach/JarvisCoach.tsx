@@ -7,8 +7,11 @@
 // Due ruoli nella stessa schermata, perché sono due lati della stessa cosa e la
 // stessa persona può stare da entrambi (chi allena si allena anche).
 //
-//  • "Coaching" — chi mi segue: la sua faccia, il suo profilo, la chat con lui.
-//  • "Seguiti"  — chi seguo io: le loro facce, e da lì la scheda di ciascuno.
+//  • "Trova un coach" — chi mi segue: la sua faccia, il suo profilo, la chat
+//    con lui; senza, come farsi seguire. (Fino a ottobre 2026 "Coaching".)
+//  • "Seguiti" — chi seguo io: le loro facce, e da lì la scheda di ciascuno.
+// Per ora le vedono tutti e due chiunque: i ruoli (chi è allenatore, chi no)
+// non esistono ancora.
 // In alto a destra, due quadratini: la chat con tutti, e la chiave dei codici
 // con cui ci si collega. (Fino a ottobre 2026 la chat era una terza card e i
 // codici stavano dentro le due sezioni; prima ancora le sezioni si chiamavano
@@ -260,8 +263,10 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
         onChange={setRuolo}
         // Finché l'elenco non è arrivato sotto il nome non si scrive niente:
         // "Nessuno" per un secondo, a chi un coach ce l'ha, sarebbe una bugia.
+        // Sotto «Trova un coach» il nome di chi ti segue, se c'è: senza,
+        // "Nessuno" sotto un invito a cercarne uno non aggiungeva niente.
         sotto={caricamento ? {} : {
-          seguito: allenatori.length ? nomeCoach(allenatori[0]) : t('Nessuno'),
+          seguito: allenatori.length ? nomeCoach(allenatori[0]) : undefined,
           allenatore: atleti.length === 0 ? t('Nessuno') : atleti.length === 1 ? t('1 allievo') : t('{n} allievi', { n: atleti.length }),
         }}
       />
@@ -313,8 +318,8 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
 }
 
 // ── Le due sezioni, in cima ────────────────────────────────────
-// Due card come quelle in home, non una barra di parole: «Coaching» è chi
-// allena te, «Seguiti» chi alleni tu. Ognuna col suo disegno, nello stesso
+// Due card come quelle in home, non una barra di parole: «Trova un coach» è
+// chi allena te, «Seguiti» chi alleni tu. Ognuna col suo disegno, nello stesso
 // stile delle card in home (vedi CardScelta). Erano tre, con la chat; da quando
 // la chat sta in alto a destra le due rimaste hanno preso il suo posto, e sono
 // più grandi.
@@ -334,7 +339,7 @@ function SezioniCoach({ valore, onChange, sotto }: {
   sotto: Partial<Record<Ruolo, string>>
 }) {
   const t = useT()
-  const nomi: Record<Ruolo, string> = { seguito: t('Coaching'), allenatore: t('Seguiti') }
+  const nomi: Record<Ruolo, string> = { seguito: t('Trova un coach'), allenatore: t('Seguiti') }
   return (
     <div role="tablist" aria-label={t('Personal Coach')} style={{
       display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'clamp(8px, 2.4vw, 12px)',

@@ -49,6 +49,8 @@ export interface SerieInCorso {
    *  libero. Sta qui e non solo nella pagina: ricaricata la pagina, l'esercizio
    *  tornava con l'attrezzo e le sue serie senza chili non contavano più. */
   corpo?: true
+  /** Il RIR scritto serie per serie, sulle righe con la progressione. */
+  rir?: string[]
 }
 
 /** La firma di una riga: l'esercizio (per nome, come lo collega la scheda) e i
@@ -88,6 +90,7 @@ function ridimensiona(p: SerieInCorso, n: number): SerieInCorso {
     ...(p.note ? { note: p.note } : {}),
     ...(p.firma ? { firma: p.firma } : {}),
     ...(p.corpo ? { corpo: true as const } : {}),
+    ...(Array.isArray(p.rir) ? { rir: Array.from({ length: n }, (_, i) => p.rir?.[i] ?? '') } : {}),
   }
 }
 
@@ -102,13 +105,17 @@ const integra = (p: SerieInCorso | undefined): p is SerieInCorso =>
  *  come si faceva: quello che è stato spuntato sugli esercizi che ci sono ancora
  *  resta. Degli esercizi tolti si perdono le spunte (non c'è più dove metterle);
  *  quelli nuovi non compaiono qui, e chi chiama li fa partire da zero. */
-export function leggiSessione(scheda: GymScheda, ora = Date.now()): Record<string, SerieInCorso> | null {
+export function leggiSessione(scheda: GymScheda, ora = Date.now(), serieSalvate = false): Record<string, SerieInCorso> | null {
   const s = leggiSalvata(ora)
   if (!s || s.schedaId !== scheda.id) return null
   const out: Record<string, SerieInCorso> = {}
   for (const e of scheda.exercises) {
     const p = s.progress[e.id]
-    if (integra(p)) out[e.id] = ridimensiona(p, Math.max(1, e.sets))
+    // `serieSalvate`: chi legge la scheda com'è scritta e non come la si esegue
+    // oggi. Su una riga con la progressione le serie le decide lei (la doppia
+    // ne aggiunge), e la sessione salvata ne ha quante ne ha prescritte.
+    const n = serieSalvate && e.progressione && integra(p) ? Math.max(1, p.checks.length) : Math.max(1, e.sets)
+    if (integra(p)) out[e.id] = ridimensiona(p, n)
   }
   return out
 }
@@ -201,12 +208,13 @@ export function allenamentoInCorso(trova: (schedaId: string) => GymScheda | unde
   const aperta = sessioneAperta(ora)
   const scheda = aperta ? trova(aperta.schedaId) : undefined
   if (!aperta || !scheda) return undefined
-  const rimaste = Object.values(leggiSessione(scheda, ora) ?? {})
+  const lette = leggiSessione(scheda, ora, true) ?? {}
+  const rimaste = Object.values(lette)
   if (!aperta.vuota && !rimaste.some(p => p.checks.some(Boolean) || !!p.note?.trim())) return undefined
   return {
     scheda,
     fatte: rimaste.reduce((n, p) => n + p.checks.filter(Boolean).length, 0),
-    totali: scheda.exercises.reduce((n, e) => n + Math.max(1, e.sets), 0),
+    totali: scheda.exercises.reduce((n, e) => n + (e.progressione && lette[e.id] ? lette[e.id].checks.length : Math.max(1, e.sets)), 0),
     vecchia: aperta.vecchia, iniziataA: aperta.iniziataA, vuota: aperta.vuota,
   }
 }

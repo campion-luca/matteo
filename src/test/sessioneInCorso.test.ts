@@ -164,6 +164,17 @@ describe('sessione di allenamento in corso', () => {
     expect(allenamentoInCorso(id => (id === 'sc1' ? cresciuta : undefined))).toMatchObject({ scheda: cresciuta, fatte: 2, totali: 8, vecchia: false })
   })
 
+  // La doppia progressione può prescrivere più serie di quante la riga ne
+  // scriva: contate sulla riga scritta, la serie aggiunta spariva dai conti.
+  it('su una riga con la progressione contano le serie prescritte, non quelle scritte', () => {
+    const conProgressione: GymScheda = {
+      ...scheda([{ id: 'e1', sets: 3 }]),
+      exercises: [{ id: 'e1', name: 'Curl', sets: 3, reps: '8-12', progressione: { modello: 'doppia', preset: 'monoGrande', cfg: { repMin: 8, repMax: 12, baseSets: 3, maxSets: 4 }, steps: { kind: 'increment', step: 2 } } }],
+    }
+    salvaSessione('sc1', { e1: { ...serie(4), checks: [false, false, false, true] } })
+    expect(allenamentoInCorso(() => conProgressione)).toMatchObject({ fatte: 1, totali: 4 })
+  })
+
   it('solo avviato: è in corso, a zero serie', () => {
     salvaSessione(PUSH.id, { e1: serie(4), e2: serie(3) })
     expect(allenamentoInCorso(() => PUSH)).toMatchObject({ scheda: PUSH, fatte: 0, totali: 7 })
