@@ -24,7 +24,13 @@ import { useT, useTData, useLang } from '@/lib/i18n'
 import { fmtKg, fmtReps, fmtTime } from '@/features/gym/gymModel'
 import { giorniAllenati, settimaneDiFila, raggruppaGiorno, type VoceAllenamento } from './allenamenti'
 
-export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CalendarioAllenamenti({ open, onClose, pagina = false, iniziale }: {
+  open: boolean; onClose: () => void
+  /** Senza finestra intorno: su desktop il calendario è una pagina (vedi JarvisGym). */
+  pagina?: boolean
+  /** Il giorno da mostrare aprendolo, invece dell'ultimo allenamento. */
+  iniziale?: string
+}) {
   const t = useT()
   const tData = useTData()
   const lang = useLang()
@@ -54,6 +60,12 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
   useEffect(() => {
     if (!open) return
     const n = new Date()
+    if (iniziale) {
+      const [y, m] = iniziale.split('-').map(Number)
+      setMese({ y, m: m - 1 })
+      scegli(iniziale)
+      return
+    }
     setMese({ y: n.getFullYear(), m: n.getMonth() })
     const ultimo = [...giorni.keys()].sort().pop() ?? null
     scegli(ultimo && ultimo.slice(0, 7) === localISO(n).slice(0, 7) ? ultimo : null)
@@ -136,8 +148,8 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
 
   const tutteAperte = giorno.schede.length > 0 && giorno.schede.every(sc => aperte.has(sc.id))
 
-  return (
-    <JModal open={open} onClose={onClose} title={t('I tuoi allenamenti')} width={400}>
+  const corpo = (
+    <>
       {/* I due numeri, su fondo nero: la serie e il mese che si guarda. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', background: 'var(--ink)', color: 'var(--surface)', marginBottom: 18 }}>
         <NumeroNero v={serie} k={serie === 1 ? t('settimana di fila') : t('settimane di fila')}/>
@@ -297,7 +309,12 @@ export function CalendarioAllenamenti({ open, onClose }: { open: boolean; onClos
           </>
         )}
       </div>
-    </JModal>
+    </>
+  )
+  // Su desktop è una pagina: la colonna gliela dà lo strato.
+  if (pagina) return <div style={{ paddingTop: 4 }}>{corpo}</div>
+  return (
+    <JModal open={open} onClose={onClose} title={t('I tuoi allenamenti')} width={400}>{corpo}</JModal>
   )
 }
 

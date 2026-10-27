@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useShallow } from 'zustand/react/shallow'
-import { useJarvisStore } from '@/store/useJarvisStore'
+import { useJarvisStore, type GymScheda } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { useT } from '@/lib/i18n'
 import { idUtenteSuDisco } from '@/lib/supabase'
@@ -42,28 +41,35 @@ export function useGruppiMuscolari(): string[] {
 // barra in cima annunciava Pull: due cose, una delle quali sbagliata, e sui
 // telefoni bassi il tasto finiva di nuovo sotto il bordo.
 export function useSchedaDiOggi() {
-  const { gymSchede, palestraExercises } = useJarvisStore(useShallow(st => ({
-    gymSchede: st.gymSchede,
-    palestraExercises: st.palestraExercises,
-  })))
+  const palestraExercises = useJarvisStore(st => st.palestraExercises)
+  const tutte = useSchedeVisibili()
   const oggi = useOggi()
-  const [versioneRicevute, setVersioneRicevute] = useState(0)
-  useEffect(() => suSchedeRicevute(() => setVersioneRicevute(v => v + 1)), [])
   // Dal disco a ogni giro, come la barra: aprire o chiudere un allenamento non
   // passa dallo store.
   const aperta = sessioneAperta()
   const inCorsoId = aperta && !aperta.vuota && !aperta.vecchia ? aperta.schedaId : null
   return useMemo(() => {
-    const io = idUtenteSuDisco()
-    const ricevute = io ? schedeRicevuteInCache(io).map(r => r.scheda) : []
-    const tutte = [...ricevute, ...(gymSchede ?? [])]
     const inCorso = inCorsoId ? tutte.find(sc => sc.id === inCorsoId) : undefined
     const suaCard = inCorso ? schedaDiOggi([inCorso], palestraExercises, oggi) : null
     if (suaCard) return { ...suaCard, fattaOggi: false }
     return schedaDiOggi(tutte, palestraExercises, oggi)
+  }, [tutte, palestraExercises, oggi, inCorsoId])
+}
+
+// Tutte le schede su cui ci si allena: quelle che l'allenatore mi ha mandato
+// (dall'ultima copia salvata sul telefono) e poi le mie, nell'ordine
+// dell'elenco. Le bozze ci sono: chi le mostra decide se tenerle.
+export function useSchedeVisibili(): GymScheda[] {
+  const gymSchede = useJarvisStore(st => st.gymSchede)
+  const [versioneRicevute, setVersioneRicevute] = useState(0)
+  useEffect(() => suSchedeRicevute(() => setVersioneRicevute(v => v + 1)), [])
+  return useMemo(() => {
+    const io = idUtenteSuDisco()
+    const ricevute = io ? schedeRicevuteInCache(io).map(r => r.scheda) : []
+    return [...ricevute, ...(gymSchede ?? [])]
     // `versioneRicevute` non si legge: c'è per far rileggere la copia sul disco.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gymSchede, palestraExercises, oggi, versioneRicevute, inCorsoId])
+  }, [gymSchede, versioneRicevute])
 }
 
 // Gruppo → quale figura accendere. Contiene SOLO i gruppi creati dall'utente: gli

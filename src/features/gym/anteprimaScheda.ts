@@ -30,14 +30,19 @@ export interface MuscoloToccato {
   esercizi: number
 }
 
-/** Il gruppo muscolare di una riga: quello scritto sulla riga, o quello
- *  dell'esercizio a cui è collegata (per id, poi per nome — una scheda arrivata
- *  da un allenatore ha i nomi, non gli id). "Altro" se non si sa. */
-function muscoloDi(riga: GymSchedaExercise, palestra: PalestraExercise[]): string {
-  if (riga.muscle?.trim()) return displayMuscle(riga.muscle.trim())
+/** L'esercizio a cui una riga è collegata: per id, poi per nome — una scheda
+ *  arrivata da un allenatore ha i nomi, non gli id. */
+export function esercizioDellaRiga(riga: GymSchedaExercise, palestra: PalestraExercise[]): PalestraExercise | undefined {
   const nome = riga.name.trim().toLowerCase()
-  const ex = (riga.linkedExerciseId ? palestra.find(e => e.id === riga.linkedExerciseId) : undefined)
-    ?? palestra.find(e => e.n.trim().toLowerCase() === nome)
+  return (riga.linkedExerciseId ? palestra.find(e => e.id === riga.linkedExerciseId) : undefined)
+    ?? (nome ? palestra.find(e => e.n.trim().toLowerCase() === nome) : undefined)
+}
+
+/** Il gruppo muscolare di una riga: quello scritto sulla riga, o quello
+ *  dell'esercizio a cui è collegata. "Altro" se non si sa. */
+export function muscoloDellaRiga(riga: GymSchedaExercise, palestra: PalestraExercise[]): string {
+  if (riga.muscle?.trim()) return displayMuscle(riga.muscle.trim())
+  const ex = esercizioDellaRiga(riga, palestra)
   return ex?.muscle?.trim() ? displayMuscle(ex.muscle.trim()) : 'Altro'
 }
 
@@ -47,7 +52,7 @@ export function muscoliDellaScheda(scheda: GymScheda, palestra: PalestraExercise
   const conto = new Map<string, number>()
   for (const riga of scheda.exercises) {
     if (!riga.name.trim()) continue
-    const m = muscoloDi(riga, palestra)
+    const m = muscoloDellaRiga(riga, palestra)
     conto.set(m, (conto.get(m) ?? 0) + 1)
   }
   // `sort` è stabile: a parità di esercizi vale l'ordine di inserimento.

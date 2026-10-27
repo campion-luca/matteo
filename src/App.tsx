@@ -26,6 +26,7 @@ import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { t, useT, LANG_TAGS } from '@/lib/i18n'
 import { readStorage, writeStorage } from '@/lib/safeStorage'
 import { avviaMessaggi, fermaMessaggi } from '@/lib/messaggiLive'
+import { useNavDesktop, SEZIONI_COACH } from '@/features/desktop/navDesktop'
 
 // ── Lazy-loaded features ───────────────────────────────────────
 const JarvisBoot      = lazy(() => import('@/features/boot/JarvisBoot').then(m => ({ default: m.JarvisBoot })))
@@ -35,6 +36,7 @@ const JarvisLogin     = lazy(() => import('@/features/auth/JarvisLogin').then(m 
 const FirstSetup      = lazy(() => import('@/features/auth/FirstSetup').then(m => ({ default: m.FirstSetup })))
 // Personal Coach: overlay aperto dalla card nell'allenamento
 const JarvisCoach     = lazy(() => import('@/features/coach/JarvisCoach').then(m => ({ default: m.JarvisCoach })))
+const BarraLaterale   = lazy(() => import('@/features/desktop/BarraLaterale').then(m => ({ default: m.BarraLaterale })))
 
 // ── Suspense fallback ──────────────────────────────────────────
 function TabFallback() {
@@ -511,7 +513,8 @@ export default function App() {
   // portarlo sui messaggi (vedi `apriMessaggi` in JarvisCoach).
   const [notificheToccate, setNotificheToccate] = useState(0)
   useEffect(() => {
-    const apri = () => { setCoachSuMessaggi(true); setShowCoach(true); setNotificheToccate(n => n + 1) }
+    // Su desktop i messaggi sono una sezione della barra: ci si va (vedi navDesktop).
+    const apri = () => { setCoachSuMessaggi(true); setShowCoach(true); setNotificheToccate(n => n + 1); useNavDesktop.getState().vai('messaggi') }
     if (new URLSearchParams(window.location.search).get('apri') === 'messaggi') {
       apri()
       // L'indirizzo si ripulisce: ricaricando la pagina non deve riaprirsi il
@@ -531,6 +534,11 @@ export default function App() {
   const apriImpostazioni = useCallback(() => setProfilo('impostazioni'), [])
   const apriProfilo = useCallback(() => setProfilo('utente'), [])
   const apriCoach = useCallback(() => { setProfilo(null); setShowCoach(true) }, [])
+  // Su desktop il coaching non si apre sopra la pagina: è una delle sezioni
+  // della barra laterale, e quale lo dice la sezione aperta.
+  const sezioneDesktop = useNavDesktop(st => st.dove.sezione)
+  const vaiDesktop = useNavDesktop(st => st.vai)
+  const coachDesktop = isDesktop && SEZIONI_COACH.includes(sezioneDesktop)
 
   // `<html lang>` non è cosmesi: è quello che dice al lettore di schermo con che
   // pronuncia leggere la pagina, e al browser con che regole sillabare e proporre
@@ -883,8 +891,34 @@ export default function App() {
           {/* Sotto lo splash e non dopo: lo splash la copre (zIndex 100), e
               intanto l'allenamento scarica il suo codice e si disegna. Prima
               partiva solo a splash finito, e i due tempi si sommavano. */}
-          {pronto && (
+          {pronto && !isDesktop && (
             <Contenuto onOpenProfile={apriImpostazioni} onOpenUser={apriProfilo} onOpenCoach={apriCoach}/>
+          )}
+          {/* Su desktop: la barra a sinistra, e accanto l'area delle pagine —
+              l'allenamento e il coaching. L'area è uno strato a sé (`zIndex: 0`):
+              quello che ci si apre dentro resta dentro, e profilo, finestre e
+              avvisi le passano sopra coprendo anche la barra. */}
+          {pronto && isDesktop && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+              <Suspense fallback={<div style={{ width: 208, background: 'var(--ink)' }}/>}>
+                <BarraLaterale userId={session.user.id} onUtente={apriProfilo} onImpostazioni={apriImpostazioni}/>
+              </Suspense>
+              <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', zIndex: 0, overflow: 'hidden' }}>
+                <Contenuto onOpenProfile={apriImpostazioni} onOpenUser={apriProfilo} onOpenCoach={apriCoach}/>
+                <Suspense fallback={null}>
+                  {coachDesktop && (
+                    <JarvisCoach
+                      // Una pagina per sezione: `iniziale` vale solo all'apertura.
+                      key={sezioneDesktop}
+                      userId={session.user.id}
+                      iniziale={sezioneDesktop === 'allievi' ? 'allenatore' : sezioneDesktop === 'messaggi' ? 'messaggi' : 'seguito'}
+                      apriMessaggi={notificheToccate}
+                      onBack={() => vaiDesktop('oggi')}
+                    />
+                  )}
+                </Suspense>
+              </div>
+            </div>
           )}
 
           {pronto && booted && !loadFailed && profiloVuoto && !setupFatto && (
@@ -911,7 +945,7 @@ export default function App() {
 
           {/* Personal Coach — overlay su mobile e desktop, aperto dall'allenamento */}
           <Suspense fallback={null}>
-            {showCoach  && <JarvisCoach  userId={session.user.id} iniziale={coachSuMessaggi ? 'messaggi' : 'seguito'} apriMessaggi={notificheToccate} onBack={() => { setShowCoach(false); setCoachSuMessaggi(false) }}/>}
+            {showCoach && !isDesktop && <JarvisCoach  userId={session.user.id} iniziale={coachSuMessaggi ? 'messaggi' : 'seguito'} apriMessaggi={notificheToccate} onBack={() => { setShowCoach(false); setCoachSuMessaggi(false) }}/>}
           </Suspense>
         </>
       )}

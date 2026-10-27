@@ -58,6 +58,9 @@ import { FormatoSwitch } from './FormatoSwitch'
 import { type FormatoHyrox, sessioniDel, formatoSessione, aDistanzaIntera, categoriaStima, tempoConfrontabile } from './hyroxStima'
 import { todayISO } from '@/lib/isoDate'
 import { GlobalSearch, type Trovato } from '@/features/search/GlobalSearch'
+import { CalendarioAllenamenti } from '@/features/dashboard/CalendarioAllenamenti'
+import { OggiDesktop } from '@/features/desktop/OggiDesktop'
+import { useNavDesktop } from '@/features/desktop/navDesktop'
 
 type MuscleView = 'vol' | 'sessioni'
 /** Cosa mostra l'elenco degli esercizi Hyrox: le sessioni di allenamento, o i
@@ -1737,6 +1740,38 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const apriNuovoGruppo = useCallback(() => setShowNuovoGruppo(true), [])
   const chiudiRicerca = useCallback(() => setShowRicercaGlobale(false), [])
 
+  // Su desktop le pagine grandi — schede, esercizi, statistiche, calendario —
+  // sono sezioni della barra laterale (vedi navDesktop): quale è aperta lo dice
+  // lei, e chi qui dentro ne vuole aprire una le chiede di andarci. Al posto
+  // della home c'è la pagina «Oggi». Sul telefono restano strati sopra la
+  // home, ognuno col suo stato qui sopra.
+  const isDesktop = useIsDesktop()
+  const { dove, giro, vai } = useNavDesktop(useShallow(st => ({ dove: st.dove, giro: st.giro, vai: st.vai })))
+  const schedeAperte = isDesktop ? dove.sezione === 'schede' : showSchede
+  const statsAperte = isDesktop ? dove.sezione === 'statistiche' : stats
+  const eserciziAperti = isDesktop ? dove.sezione === 'esercizi' : showEsercizi
+  const calendarioAperto = isDesktop && dove.sezione === 'calendario'
+  // Cambiando sezione si arriva in cima alla nuova: gruppo ed esercizio aperti
+  // si chiudono, o sopra «Oggi» resterebbe la pagina dello stacco. Non quando
+  // li ha appena aperti chi ci porta (`tieni`: la ricerca, un record).
+  useEffect(() => {
+    if (!isDesktop || dove.tieni) return
+    setSelectedMuscle(null)
+    setSelectedExercise(null)
+    setShowExerciseCharts(false)
+    // Solo a ogni spostamento: `giro` è lui.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giro])
+  // ⌘K (Ctrl K) apre la ricerca, come dice il campo in cima a «Oggi».
+  useEffect(() => {
+    if (!isDesktop) return
+    const tasto = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowRicercaGlobale(true) }
+    }
+    window.addEventListener('keydown', tasto)
+    return () => window.removeEventListener('keydown', tasto)
+  }, [isDesktop])
+
   // Mappa risolta (default + override utente). Il picker di EditExModal riceve
   // invece `s.muscleColors` raw: vedi sotto.
   const muscleColors = useMuscleColors()
@@ -2218,11 +2253,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
 
   // Gli esercizi: i gruppi muscolari, in una pagina a sé con la sua freccia.
   // Da qui si apre un gruppo (che le si posa sopra, vedi Pila) e poi un esercizio.
-  const paginaEsercizi = showEsercizi ? (
+  // Su desktop è una sezione della barra: niente freccia, ci si va da lì.
+  const paginaEsercizi = eserciziAperti ? (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="j-page-header">
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowEsercizi(false)} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
+          {!isDesktop && <button onClick={() => setShowEsercizi(false)} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>}
           <div className="j-page-title" style={{ flex: 1, minWidth: 0 }}>{t('Esercizi')}</div>
         </div>
       </div>
@@ -2248,11 +2284,11 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // schermata per leggerli, e per richiuderle bisognava risalire in cima a
   // ritoccare la card. Qui hanno tutta la pagina.
   // Si monta solo aperta: i grafici non si calcolano finché non li si guarda.
-  const paginaStatistiche = stats ? (
+  const paginaStatistiche = statsAperte ? (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="j-page-header">
         <div className="flex items-center gap-3">
-          <button onClick={() => setStats(false)} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>
+          {!isDesktop && <button onClick={() => setStats(false)} aria-label={t('Indietro')} className="j-btn-back"><Icons.back size={20} stroke={1.8}/></button>}
           <div className="j-page-title" style={{ flex: 1, minWidth: 0 }}>{t('Statistiche')}</div>
         </div>
       </div>
@@ -2277,21 +2313,14 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const apriDaRicerca = (cosa: Trovato) => {
     setStats(false)
     if (cosa.tipo === 'scheda') {
+      if (isDesktop) { vai({ sezione: 'schede', apri: cosa.id }); return }
       setSchedaDaAprire(cosa.id)
       setShowSchede(true)
       return
     }
     if (cosa.tipo === 'esercizio') {
       const ex = s.palestraExercises.find(e => e.id === cosa.id)
-      if (!ex) return
-      setTab('palestra')
-      setSelectedHyrox(null)
-      setShowExerciseCharts(false)
-      // Tornando indietro dall'esercizio si passa dal suo gruppo e poi dalla
-      // pagina degli esercizi, come se ci si fosse arrivati a mano.
-      setShowEsercizi(true)
-      setSelectedMuscle(displayMuscle(ex.muscle))
-      setSelectedExercise(ex)
+      if (ex) apriEsercizio(ex)
       return
     }
     const stazione = cosa.id === runStationData.id ? runStationData
@@ -2302,6 +2331,41 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
     setSelectedMuscle(null)
     setSelectedHyrox(stazione)
   }
+
+  // Un esercizio aperto da fuori dal suo gruppo — la ricerca, una riga di
+  // «Oggi», un record. Tornando indietro si passa dal suo gruppo e poi dalla
+  // pagina degli esercizi, come se ci si fosse arrivati a mano.
+  const apriEsercizio = (ex: PalestraExercise) => {
+    setTab('palestra')
+    setSelectedHyrox(null)
+    setShowExerciseCharts(false)
+    if (isDesktop) vai({ sezione: 'esercizi', tieni: true })
+    else setShowEsercizi(true)
+    setSelectedMuscle(displayMuscle(ex.muscle))
+    setSelectedExercise(ex)
+  }
+
+  // «Oggi», al posto della home: vedi OggiDesktop.
+  const paginaOggi = isDesktop ? (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="j-scroll-area" style={{ padding: '26px 28px 32px' }}>
+        <OggiDesktop onCerca={() => setShowRicercaGlobale(true)} onApriEsercizio={apriEsercizio} onProfilo={onOpenUser}/>
+      </div>
+    </div>
+  ) : null
+
+  // Il calendario degli allenamenti, che sul telefono è una finestra: su
+  // desktop è una sezione della barra, e una pagina.
+  const paginaCalendario = calendarioAperto ? (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="j-page-header">
+        <div className="j-page-title">{t('Calendario')}</div>
+      </div>
+      <div className="j-scroll-area">
+        <CalendarioAllenamenti key={giro} pagina open onClose={() => vai('oggi')} iniziale={dove.giorno}/>
+      </div>
+    </div>
+  ) : null
 
   // Modali e ricerca globale stanno FUORI dalle pagine: la radice può essere
   // coperta (sopra c'è il gruppo aperto), e un modale montato dentro di lei
@@ -2328,19 +2392,28 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // resto — la larghezza la dà lo strato, uguale per ogni pagina.
   return (
     <>
-      <Strato coperto={showSchede || stats}>
+      <Strato coperto={schedeAperte || statsAperte || calendarioAperto} largo={isDesktop}>
         <Pila
           // La home, e sopra (se aperta) la pagina degli esercizi: tutte e due
           // restano montate sotto il gruppo aperto, come ogni strato della pila.
-          radice={<Pila radice={paginaRadice} detail={paginaEsercizi}/>}
+          // Su desktop la home è «Oggi», larga quanto la finestra.
+          radice={<Pila radice={paginaOggi ?? paginaRadice} detail={paginaEsercizi} largo={isDesktop}/>}
           master={paginaMuscolo}
           detail={paginaEsercizio ?? paginaHyrox}
+          largo={isDesktop}
         />
       </Strato>
       {paginaStatistiche && <Strato coperto={false}>{paginaStatistiche}</Strato>}
-      {showSchede && (
+      {paginaCalendario && <Strato coperto={false}>{paginaCalendario}</Strato>}
+      {schedeAperte && (
         <Strato coperto={false}>
-          <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false) }}/>
+          {isDesktop ? (
+            // Una sezione nuova a ogni spostamento (`giro`): la scheda da aprire
+            // la legge solo nascendo.
+            <GymSchede key={giro} apri={dove.apri} riprendi={!!dove.riprendi} nuova={!!dove.nuova} onBack={() => vai('oggi')}/>
+          ) : (
+            <GymSchede apri={schedaDaAprire ?? undefined} riprendi={riprendi} onBack={() => { setShowSchede(false); setSchedaDaAprire(null); setRiprendi(false) }}/>
+          )}
         </Strato>
       )}
       {contorno}

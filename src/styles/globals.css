@@ -649,6 +649,89 @@
     margin-inline: auto;
   }
 
+  /* ── La pagina «Oggi» del desktop (vedi OggiDesktop) ──────────
+     Due colonne quando lo spazio c'è — il lavoro a sinistra, il quadro a destra
+     — e una sola su un portatile stretto, col quadro sotto. Si misura la
+     pagina e non la finestra: la barra laterale e lo zoom di `.j-desktop` ne
+     mangiano una parte che la finestra non sa. */
+  .j-desk {
+    container-type: inline-size;
+    display: flex; flex-direction: column; gap: 22px;
+    max-width: 1400px; margin-inline: auto;
+  }
+  .j-desk-colonne {
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; align-items: start;
+  }
+  .j-desk-pila { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+  @container (min-width: 860px) {
+    .j-desk-colonne { grid-template-columns: minmax(0, 1fr) 300px; }
+  }
+  @container (min-width: 1180px) {
+    .j-desk-colonne { grid-template-columns: minmax(0, 1fr) 340px; }
+  }
+
+  /* I cinque numeri: un riquadro solo, divisi da un filo. Il filo è il fondo
+     che passa fra le celle, così regge anche quando vanno a capo. */
+  .j-desk-numeri {
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1px; background: var(--line); border: var(--bordo);
+  }
+  @container (max-width: 720px) {
+    .j-desk-numeri { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  .j-desk-schede {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px;
+  }
+  .j-desk-carta {
+    position: relative; display: block; min-width: 0; min-height: 132px;
+    padding: 12px 14px 12px 22px; text-align: left; cursor: pointer;
+    background: var(--surface); border: var(--bordo); color: var(--ink);
+    box-shadow: 4px 4px 0 0 var(--ink);
+    transition: box-shadow var(--motion-fast) var(--ease), transform var(--motion-fast) var(--ease);
+  }
+  .j-desk-carta:active { box-shadow: 2px 2px 0 0 var(--ink); transform: translate(2px, 2px); }
+
+  /* Le tabelle: intestazione grigia su un filo d'inchiostro, righe divise da
+     un filo chiaro. Una riga che porta da qualche parte si scurisce al
+     passaggio del mouse. */
+  .j-desk-tabella { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  /* L'intestazione va a capo invece di finire coi puntini: «Ultimo carico» in
+     una colonna stretta si legge su due righe, «Ultimo cari…» no. */
+  .j-desk-tabella th {
+    padding: 8px 10px; text-align: left; line-height: 1.2; vertical-align: bottom; overflow-wrap: normal;
+    background: var(--surface-2); border-bottom: var(--bordo);
+    font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--fg-mute);
+  }
+  .j-desk-tabella td {
+    padding: 0 10px; height: 42px; border-top: 1px solid var(--line);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: var(--font-body); font-size: 14px; color: var(--ink);
+  }
+  .j-desk-tabella tbody tr:first-child td { border-top: none; }
+  .j-desk-tabella tr[data-tocca] { cursor: pointer; }
+  .j-desk-tabella tr[data-tocca]:hover td { background: var(--surface-2); }
+  .j-desk-tabella th:first-child, .j-desk-tabella td:first-child { padding-left: 14px; }
+  .j-desk-cifra {
+    font-family: var(--font-display) !important; font-size: 15px !important; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .j-desk-sigla {
+    font-family: var(--font-display) !important; font-size: 13px !important; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--fg-mute) !important;
+  }
+  .j-desk-tenue { color: var(--fg-mute) !important; }
+  .j-desk-nome {
+    display: block; max-width: 100%; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: none; border: none; text-align: left; cursor: inherit;
+    font: inherit; font-weight: 500; color: inherit;
+  }
+  .j-desk-pr {
+    display: inline-block; padding: 3px 6px; background: var(--j-accent); color: #fff;
+    font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: .06em;
+  }
+
   /* ── Interruttori a segmenti ──────────────────────────────
      Fronte/Retro, Kg/Volte, griglia/elenco, intera/mezza: una regola sola per
      tutti (rebranding, ott 2026). Un riquadro col bordo d'inchiostro, celle
@@ -854,7 +937,7 @@
    dei temi scuri; con un tema solo e chiaro il fondo è il colore e basta. */
 .j-bg-fondo { background-image: var(--paper-grain); }
 
-/* ── Desktop: tutto più grande ───────────────────────────────────
+/* ── Desktop: più grande sui monitor grandi ──────────────────────
    L'app è disegnata sul telefono: testi da 13-15px, etichette da 10, tasti da
    36. A un palmo dagli occhi vanno bene; su un monitor, a un braccio, sono
    piccoli. Qui non si ritocca misura per misura — sono scritte inline in ogni
@@ -865,10 +948,13 @@
    pagine continuano a riempire la finestra e a scorrere dentro i loro bordi,
    senza dover rimpicciolire a mano il contenitore del rapporto inverso.
 
-   Tre passi: di base, da portatile e fino al Full HD, e sui monitor più grandi.
+   Tre passi: nessuno zoom fino ai 1800px, un poco sul Full HD, di più sui
+   monitor grandi. Erano 1,15 / 1,3 / 1,5, quando il desktop era la colonna del
+   telefono al centro; da quando è un gestionale (ott 2026: la barra laterale e
+   la pagina «Oggi» a due colonne) i suoi testi sono già della misura giusta per
+   un monitor, e a 1,3 su un portatile da 1440 le due colonne non ci stavano.
    I due più alti chiedono anche l'ALTEZZA: ingrandendo, in una finestra bassa
-   entrano meno righe, e un portatile da 13 pollici con l'app al 150%
-   mostrerebbe mezza home.
+   entrano meno righe.
 
    La classe la mette App sul contenitore del ramo desktop (da 1024px in su,
    vedi useIsDesktop).
@@ -876,6 +962,6 @@
    `--card-min` è la colonna minima della griglia di gruppi ed esercizi (vedi
    GRIGLIA in JarvisGym): sul telefono la decide la larghezza dello schermo, qui
    la pagina è larga 860px e con quella misura le card sarebbero otto per riga. */
-.j-desktop { zoom: 1.15; --card-min: 150px; }
-@media (min-width: 1360px) and (min-height: 740px)  { .j-desktop { zoom: 1.3; } }
-@media (min-width: 2000px) and (min-height: 1000px) { .j-desktop { zoom: 1.5; } }
+.j-desktop { zoom: 1; --card-min: 150px; }
+@media (min-width: 1800px) and (min-height: 960px)  { .j-desktop { zoom: 1.15; } }
+@media (min-width: 2400px) and (min-height: 1200px) { .j-desktop { zoom: 1.35; } }

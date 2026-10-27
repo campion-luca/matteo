@@ -136,7 +136,7 @@ const iconBtn = (danger = false, size = 44): CSSProperties => ({
 
 
 // ── Container: gestisce la navigazione interna della sezione Schede ──
-export function GymSchede({ onBack, apri, riprendi = false }: {
+export function GymSchede({ onBack, apri, riprendi = false, nuova = false }: {
   onBack: () => void
   /** L'id di una scheda da aprire subito sul dettaglio (dalla ricerca). */
   apri?: string
@@ -144,6 +144,9 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
    *  uscendone si torna da dove si è venuti. È la barra «Allenamento in corso»
    *  della home. */
   riprendi?: boolean
+  /** Si parte dal modulo di una scheda nuova: il tasto «Nuova scheda» della
+   *  pagina «Oggi» su desktop. Annullando si resta nell'elenco. */
+  nuova?: boolean
 }) {
   const t = useT()
   const { gymSchede, palestraExercises, userName } = useJarvisStore(useShallow(st => ({
@@ -232,7 +235,7 @@ export function GymSchede({ onBack, apri, riprendi = false }: {
     const io = idUtenteSuDisco()
     return gymSchede?.find(x => x.id === apri) ?? (io ? schedaRicevutaInCache(io, apri) : undefined) ?? null
   })
-  const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>(active ? (riprendi ? 'training' : 'detail') : 'list')
+  const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>(active ? (riprendi ? 'training' : 'detail') : nuova ? 'form' : 'list')
   const [editing, setEditing] = useState<GymScheda | null>(null) // scheda in modifica nel form (null = nuova)
   // Si è entrati dritti nell'allenamento da fuori: «indietro» riporta fuori, non
   // al dettaglio di una scheda da cui non si è passati. Vale per quell'ingresso

@@ -20,14 +20,16 @@ import type { ReactNode } from 'react'
 // indietro voleva dire ricostruire da capo la home — testata, settimana,
 // carosello — con lo scorrimento di nuovo in cima. Adesso l'indietro toglie lo
 // strato di sopra, e sotto c'è la pagina com'era.
-export function Pila({ radice, master = null, detail }: {
+export function Pila({ radice, master = null, detail, largo = false }: {
   radice: ReactNode
   master?: ReactNode | null
   detail: ReactNode | null
+  /** La radice prende tutta la larghezza (vedi `Strato`). */
+  largo?: boolean
 }) {
   return (
     <>
-      <Strato coperto={!!(master || detail)}>{radice}</Strato>
+      <Strato coperto={!!(master || detail)} largo={largo}>{radice}</Strato>
       {master && <Strato coperto={!!detail}>{master}</Strato>}
       {detail && <Strato coperto={false}>{detail}</Strato>}
     </>
@@ -51,11 +53,14 @@ const LARGHEZZA_PAGINA = 860
 //
 // Il centro lo fanno i margini: con `inset: 0` e un tetto di larghezza, quello
 // che avanza ai lati si divide in parti uguali.
-export function Strato({ coperto, children }: { coperto: boolean; children: ReactNode }) {
+//
+// `largo` toglie il tetto: la pagina «Oggi» del desktop è un gestionale, e si
+// fa le colonne da sé (vedi OggiDesktop).
+export function Strato({ coperto, largo = false, children }: { coperto: boolean; largo?: boolean; children: ReactNode }) {
   return (
     <div aria-hidden={coperto || undefined} style={{
       position: 'absolute', inset: 0,
-      maxWidth: LARGHEZZA_PAGINA, marginInline: 'auto',
+      maxWidth: largo ? undefined : LARGHEZZA_PAGINA, marginInline: 'auto',
       visibility: coperto ? 'hidden' : undefined,
     }}>
       {children}
