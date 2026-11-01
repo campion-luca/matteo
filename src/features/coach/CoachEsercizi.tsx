@@ -19,12 +19,17 @@ import { useT, useTData } from '@/lib/i18n'
 import type { PalestraExercise } from '@/store/useJarvisStore'
 import { perMuscolo } from './gruppi'
 import { TendinaGruppo } from './TendinaGruppo'
+import { rankEsercizio } from '@/features/gym/rankEsercizio'
+import { RankCard } from '@/features/gym/RankCard'
 import type { Correggi } from './CoachSessioni'
 
 // ── L'elenco ───────────────────────────────────────────────────
-export function CoachGrafici({ esercizi, onApri }: {
+export function CoachGrafici({ esercizi, onApri, peso = 0, sex }: {
   esercizi: PalestraExercise[]
   onApri: (ex: PalestraExercise) => void
+  /** Il peso e il sesso dell'allievo: decidono il rank di ogni esercizio. */
+  peso?: number
+  sex?: 'M' | 'F'
 }) {
   const t = useT()
   const tData = useTData()
@@ -49,6 +54,7 @@ export function CoachGrafici({ esercizi, onApri }: {
           <NucCard pad={0}>
             {g.esercizi.map((ex, i) => {
               const ultima = sortedHistory(ex.history)[ex.history.length - 1]
+              const rank = rankEsercizio(ex, peso, sex)
               return (
                 <button key={ex.id} onClick={() => onApri(ex)} className="j-riga-gruppo" style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', textAlign: 'left',
@@ -59,6 +65,7 @@ export function CoachGrafici({ esercizi, onApri }: {
                     <span style={{ display: 'block', marginTop: 2, fontFamily: NUC.label, fontSize: 10.5, color: 'var(--fg-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {ex.history.length === 1 ? t('1 sessione') : t('{n} sessioni', { n: ex.history.length })}
                       {' · '}{t('ultima')} {ultima.sets_n} × {fmtReps(ultima)} – {fmtKg(ultima)}
+                      {rank && ` · ${t(rank.rank.nome)}`}
                     </span>
                   </span>
                   <Icons.chev size={14} stroke={2} style={{ color: 'var(--fg-mute)', flexShrink: 0 }}/>
@@ -73,10 +80,11 @@ export function CoachGrafici({ esercizi, onApri }: {
 }
 
 // ── La scheda di un esercizio ──────────────────────────────────
-export function CoachEsercizio({ ex, peso, onCorreggi }: {
+export function CoachEsercizio({ ex, peso, sex, onCorreggi }: {
   ex: PalestraExercise
   /** Il peso dell'ALLIEVO: a corpo libero è lui il carico, non chi guarda. */
   peso: number
+  sex?: 'M' | 'F'
   onCorreggi?: Correggi
 }) {
   const t = useT()
@@ -103,9 +111,11 @@ export function CoachEsercizio({ ex, peso, onCorreggi }: {
   ]
 
   if (!hist.length) return <div className="j-empty">{t('Nessuna sessione registrata')}</div>
+  const rank = rankEsercizio(ex, peso, sex)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {rank && <RankCard rank={rank}/>}
       <div className="grid grid-cols-3 gap-2">
         {riquadri.map(r => (
           <div key={r.k} className="j-stat-tile">

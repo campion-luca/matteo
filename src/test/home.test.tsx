@@ -24,6 +24,58 @@ const fatta = (id: string, data: string): PalestraExercise => ({
   history: [{ d: 'W', date: data, kg: 60, reps: 8, sets_n: 3, scheda: { id, nome: id } }],
 })
 
+describe('la scheda di oggi col numero del coach', () => {
+  const A = scheda('a', 'A', { ordine: 1 }), B = scheda('b', 'B', { ordine: 2 }), C = scheda('c', 'C', { ordine: 3 })
+  const mia = scheda('mia', 'La mia')
+
+  it('tocca quella dopo l’ultima fatta', () => {
+    const r = schedaDiOggi([A, B, C], [fatta('a', '2026-10-20'), fatta('b', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('c')
+    expect(r?.giorniFa).toBeNull()
+  })
+
+  it('dopo l’ultima si riparte dalla prima', () => {
+    const r = schedaDiOggi([A, B, C], [fatta('a', '2026-10-18'), fatta('b', '2026-10-20'), fatta('c', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('a')
+    expect(r?.giorniFa).toBe(5)
+  })
+
+  it('mai fatte: si parte dalla 1, ovunque stia nell’elenco', () => {
+    expect(schedaDiOggi([C, A, B], [], OGGI)?.scheda.id).toBe('a')
+  })
+
+  it('una saltata non si recupera: conta il numero, non da quanto non si fa', () => {
+    const r = schedaDiOggi([A, B, C], [fatta('a', '2026-10-20'), fatta('b', '2026-10-01'), fatta('c', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('a')
+  })
+
+  it('due fatte lo stesso giorno: si riparte dalla più avanti', () => {
+    const r = schedaDiOggi([A, B, C], [fatta('a', '2026-10-22'), fatta('b', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('c')
+  })
+
+  it('le schede senza numero non vengono proposte, nemmeno se mai fatte', () => {
+    const r = schedaDiOggi([A, B, mia], [fatta('a', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('b')
+  })
+
+  it('una scheda senza numero fatta oggi resta la scheda di oggi', () => {
+    const r = schedaDiOggi([A, B, mia], [fatta('mia', OGGI)], OGGI)
+    expect(r).toMatchObject({ scheda: { id: 'mia' }, fattaOggi: true })
+  })
+
+  it('un buco nei numeri non ferma il giro', () => {
+    // La 2 è stata cancellata: restano la 1 e la 3.
+    const r = schedaDiOggi([A, C], [fatta('a', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('c')
+  })
+
+  it('una bozza col numero non conta', () => {
+    const r = schedaDiOggi([A, scheda('b', 'B', { ordine: 2, draft: true }), C], [fatta('a', '2026-10-22')], OGGI)
+    expect(r?.scheda.id).toBe('c')
+  })
+})
+
 describe('la scheda di oggi', () => {
   const A = scheda('a', 'A'), B = scheda('b', 'B'), C = scheda('c', 'C')
 
@@ -73,6 +125,39 @@ describe('la home', () => {
     monta()
     for (const nome of ['Coaching', 'Esercizi', 'Statistiche']) expect(screen.getByRole('button', { name: nome })).toBeInTheDocument()
     expect(screen.queryByText(/Gruppi muscolari/)).not.toBeInTheDocument()
+  })
+
+  it('una cornice sola da «Schede» a «Tutte», e tutta porta all’elenco', async () => {
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Spinta')] })
+    const user = userEvent.setup()
+    monta()
+    const cornice = screen.getByRole('button', { name: 'Tutte le schede' })
+    expect(cornice).toHaveTextContent('Schede')
+    expect(cornice).toHaveTextContent('Tutte')
+    await user.click(cornice)
+    expect(await screen.findByText(/Schede/, { selector: '.j-page-title' })).toBeInTheDocument()
+  })
+
+  it('toccare la scheda di oggi la apre in anteprima, senza far partire l’allenamento', async () => {
+    useJarvisStore.setState({ gymSchede: [scheda('a', 'Spinta')] })
+    const user = userEvent.setup()
+    monta()
+    await user.click(screen.getByRole('button', { name: 'Apri la scheda Spinta' }))
+    expect(await screen.findByText('Panca piana')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Panca piana · serie 1 · kg')).not.toBeInTheDocument()
+  })
+
+  it('sulla card c’è il traguardo più vicino della scheda', () => {
+    useJarvisStore.setState({
+      userWeight: 80, userSex: 'M',
+      gymSchede: [scheda('a', 'Spinta')],
+      palestraExercises: [{
+        id: 'p', n: 'Panca piana', muscle: 'Petto', current: { kg: 100, reps: 1, sets_n: 1 },
+        history: [{ d: 'W', date: '2026-10-01', kg: 100, reps: 1, sets_n: 1, maxLift: true }],
+      }],
+    })
+    monta()
+    expect(screen.getByText('Mancano 12 kg per Platino · Panca piana')).toBeInTheDocument()
   })
 
   it('«Esercizi» apre i gruppi muscolari, e la freccia riporta alla home', async () => {

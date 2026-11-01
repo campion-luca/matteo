@@ -479,6 +479,31 @@ describe('Grafici dell’allievo', () => {
     expect(onCorreggi).toHaveBeenCalledWith('px-Panca piana', expect.objectContaining({ date: '2026-08-27', kg: 65 }))
   })
 
+  it('il coach vede il rank del seguito, sull’esercizio e nell’elenco', async () => {
+    const user = userEvent.setup()
+    const panca = di('Panca piana', 'Petto', [h({ date: '2026-08-20', kg: 100, reps: 1, sets_n: 1, maxLift: true })])
+    render(<CoachEsercizio ex={panca} peso={80} sex="M"/>)
+    expect(screen.getByText('Oro')).toBeInTheDocument()
+    expect(screen.getByText('Mancano 12 kg di massimale per Platino')).toBeInTheDocument()
+    cleanup()
+
+    render(<CoachGrafici esercizi={[panca]} onApri={vi.fn()} peso={80} sex="M"/>)
+    await user.click(screen.getByRole('button', { name: /^Petto/ }))
+    expect(screen.getByText(/· Oro/)).toBeInTheDocument()
+  })
+
+  it('il rank dipende dal peso e dal sesso del seguito, non da chi guarda', () => {
+    const panca = di('Panca piana', 'Petto', [h({ date: '2026-08-20', kg: 50, reps: 1, sets_n: 1, maxLift: true })])
+    render(<CoachEsercizio ex={panca} peso={60} sex="F"/>)
+    expect(screen.getByText('Platino')).toBeInTheDocument()
+  })
+
+  it('un esercizio senza tabella non mostra un rank', () => {
+    const laterali = di('Alzate laterali con manubri', 'Spalle', [h({ date: '2026-08-20', kg: 12 })])
+    render(<CoachEsercizio ex={laterali} peso={80} sex="M"/>)
+    expect(screen.queryByText(/Bronzo|Argento|Oro|Platino|Diamante/)).not.toBeInTheDocument()
+  })
+
   it('un esercizio a colpi si legge a colpi, non a chili', () => {
     const abWheel = di('Ab wheel', 'Core', [h({ date: '2026-08-20', kg: 0, reps: 10, bodyweight: true }), h({ date: '2026-08-27', kg: 0, reps: 14, bodyweight: true })])
     render(<CoachEsercizio ex={abWheel} peso={104}/>)

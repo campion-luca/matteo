@@ -65,6 +65,70 @@ describe('scoreFor — il numero della mappa', () => {
   })
 })
 
+describe('il peso corporeo', () => {
+  const massimale = (n: string, muscle: string, kg: number) =>
+    [ex({ n, muscle, history: [h({ kg, reps: 1, sets_n: 1, maxLift: true })] })]
+  const distretto = (lista: PalestraExercise[], muscle: string, peso: number, sex?: 'M' | 'F') =>
+    districtStrength(lista, peso, sex).find(d => d.muscle === muscle)!
+  /** I chili che servono per arrivare al livello, a questo peso. */
+  const chiliPer = (livello: number, muscle: string, peso: number, sex: 'M' | 'F') => {
+    let kg = 1
+    while (strengthLevel(kg / peso, muscle, sex, peso) < livello) kg += 1
+    return kg
+  }
+
+  it('al peso di riferimento valgono i numeri della tabella', () => {
+    expect(scoreFor(1.50, 'Petto', 'M', 80)).toBe(100)
+    expect(scoreFor(0.90, 'Petto', 'F', 60)).toBe(100)
+    expect(strengthLevel(1.10, 'Petto', 'M', 80)).toBe(3)
+    expect(strengthLevel(1.09, 'Petto', 'M', 80)).toBe(2)
+  })
+
+  it('senza un peso restano i numeri della tabella', () => {
+    expect(scoreFor(1.50, 'Petto', 'M')).toBe(100)
+    expect(scoreFor(1.50, 'Petto', 'M', 0)).toBe(100)
+  })
+
+  it('gli stessi 100 kg di panca valgono di più a 76 kg che a 100 kg', () => {
+    const leggero = distretto(massimale('Panca', 'Petto', 100), 'Petto', 76, 'M')
+    const pesante = distretto(massimale('Panca', 'Petto', 100), 'Petto', 100, 'M')
+    expect(leggero).toMatchObject({ level: 3, score: 86 })
+    expect(pesante).toMatchObject({ level: 2, score: 72 })
+  })
+
+  it('la divisione per il peso resta quella vera: cambia la soglia, non il rapporto', () => {
+    expect(distretto(massimale('Panca', 'Petto', 100), 'Petto', 100, 'M').ratio).toBe(1)
+  })
+
+  it('a chi pesa molto chiede meno del multiplo fisso', () => {
+    expect(chiliPer(4, 'Glutei', 110, 'M')).toBeLessThan(2.6 * 110)
+    expect(chiliPer(4, 'Glutei', 90, 'F')).toBeLessThan(2.1 * 90)
+  })
+
+  it('a chi pesa poco chiede di più di quanto direbbe il multiplo fisso', () => {
+    expect(chiliPer(4, 'Petto', 60, 'M')).toBeGreaterThan(1.5 * 60)
+    expect(chiliPer(4, 'Gambe', 50, 'F')).toBeGreaterThan(1.75 * 50)
+  })
+
+  it('le soglie restano in ordine anche ai pesi estremi', () => {
+    for (const peso of [40, 150]) {
+      for (const sex of ['M', 'F'] as const) {
+        const [base, buono, forte] = [2, 3, 4].map(l => chiliPer(l, 'Gambe', peso, sex))
+        expect(base).toBeLessThan(buono)
+        expect(buono).toBeLessThan(forte)
+      }
+    }
+  })
+
+  it('il core non ha dati suoi, e segue la stessa curva', () => {
+    expect(chiliPer(4, 'Core', 110, 'M')).toBeLessThan(0.75 * 110)
+  })
+
+  it('sesso ignoto: la curva maschile, come la tabella', () => {
+    expect(scoreFor(1, 'Petto', undefined, 100)).toBe(scoreFor(1, 'Petto', 'M', 100))
+  })
+})
+
 describe('districtStrength', () => {
   it('un distretto prende il suo esercizio migliore, non la media', () => {
     const d = districtStrength([

@@ -37,7 +37,8 @@ export type TipoMessaggio =
   // …e gli avvisi che l'app scrive per conto di chi ha fatto la cosa.
   // `collegamento` è il primo di tutti: un allenatore ha appena preso in carico
   // l'allievo, che deve saperlo (e sapere chi è) senza andarselo a cercare.
-  | 'allenamento' | 'scheda' | 'nota' | 'correzione' | 'collegamento'
+  // `rank`: l'allievo è salito di rank su un esercizio (vedi avvisoRank).
+  | 'allenamento' | 'scheda' | 'nota' | 'correzione' | 'collegamento' | 'rank'
 
 // ── Il filo diretto ────────────────────────────────────────────
 const PREFISSO_CHAT = 'chat~'

@@ -1,17 +1,15 @@
-// Personal Coach: collegare due account e guardare gli allenamenti dell'altro.
+// Coaching: collegare due account e guardare gli allenamenti dell'altro.
 //
 // Ha preso il posto del vecchio "Personal Coach", che calcolava fabbisogno
-// calorico, proteine e obiettivo di peso. Il nome è rimasto perché è quello che
-// la voce di menù è diventata: un coach è una persona, non una formula.
+// calorico, proteine e obiettivo di peso: un coach è una persona, non una
+// formula. Il titolo dice "Coaching", come la card che apre questa pagina.
 //
-// Due ruoli nella stessa schermata, perché sono due lati della stessa cosa e la
-// stessa persona può stare da entrambi (chi allena si allena anche).
+// Due lati della stessa cosa, e chi allena sta su entrambi (si allena anche lui).
 //
 //  • "Trova un coach" — chi mi segue: la sua faccia, il suo profilo, la chat
-//    con lui; senza, come farsi seguire. (Fino a ottobre 2026 "Coaching".)
-//  • "Seguiti" — chi seguo io: le loro facce, e da lì la scheda di ciascuno.
-// Per ora le vedono tutti e due chiunque: i ruoli (chi è allenatore, chi no)
-// non esistono ancora.
+//    con lui, e i coach che ci sono nell'app. (Fino a ottobre 2026 "Coaching".)
+//  • "Seguiti" — chi seguo io: le loro facce, e da lì la scheda di ciascuno. Solo
+//    per i coach (vedi lib/ruolo): un atleta vede una card sola, larga.
 // In alto a destra, due quadratini: la chat con tutti, e la chiave dei codici
 // con cui ci si collega. (Fino a ottobre 2026 la chat era una terza card e i
 // codici stavano dentro le due sezioni; prima ancora le sezioni si chiamavano
@@ -31,10 +29,11 @@ import { fmtShortDate } from '@/lib/dateFormat'
 import {
   activeInvite, revokeInvite,
   myAthletes, myCoaches, unlink, athleteData,
-  schedeAssegnate, salvaSchedaAssegnata, eliminaSchedaAssegnata, type CoachScheda,
+  schedeAssegnate, salvaSchedaAssegnata, eliminaSchedaAssegnata, numeraSchede, ordineDi, type CoachScheda,
   noteAllievo, salvaNotaCoach, type NotaCoach,
-  type CoachLink, type CoachInvite, type AthleteData,
+  elencoCoach, type CoachLink, type CoachInvite, type AthleteData, type CoachPubblico,
 } from '@/lib/coach'
+import { aggiornaRuolo, useRuolo } from '@/lib/ruolo'
 import { leggiProfili, tieniSoloProfili, useProfiliStore, useProfilo, nomeCompleto, type Profilo } from '@/lib/profili'
 import { CoachAthlete, NoteEsercizi } from './CoachAthlete'
 import { CoachConfronto } from './CoachConfronto'
@@ -92,9 +91,14 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
   const [invito, setInvito] = useState<CoachInvite | null>(null)
   const [allenatori, setAllenatori] = useState<CoachLink[]>([])
   const [atleti, setAtleti] = useState<CoachLink[]>([])
+  const [coachApp, setCoachApp] = useState<CoachPubblico[]>([])
   const [caricamento, setCaricamento] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const profili = useProfiliStore(s => s.profili)
+  const coachAbilitato = useRuolo(s => s.coach)
+  // Chi segue già qualcuno da prima dei ruoli continua a vederlo: i suoi allievi
+  // non devono sparire perché nessuno gli ha ancora dato il titolo.
+  const conSeguiti = coachAbilitato || atleti.length > 0
 
   // L'allievo aperto: id + nome dal collegamento (il nome vero arriva col dato,
   // ma serve un titolo anche mentre il dato sta ancora arrivando).
@@ -132,6 +136,10 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
       }
       setAllenatori(cs)
       setAtleti(as)
+      void aggiornaRuolo(userId)
+      // Se l'elenco non c'è ancora sul server si va avanti senza: è una cosa in
+      // più, non può tenere fuori dalla pagina.
+      void elencoCoach().then(setCoachApp).catch(() => { /* resta vuoto */ })
       // Prima si tolgono quelle di chi non è più collegato (vedi `tieniSoloProfili`).
       const collegati = [...cs.map(l => l.coach_id), ...as.map(l => l.athlete_id)]
       tieniSoloProfili(collegati, userId)
@@ -233,6 +241,7 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
           coach={allenatori.length ? nomeCoach(allenatori[0]) : null}
           verso={verso}
           onVerso={setVerso}
+          coachAbilitato={coachAbilitato}
           onCollegato={() => { void ricarica(true) }}
           onVaiAiSeguiti={() => { setRuolo('allenatore'); setVista(null) }}
         />
@@ -246,7 +255,7 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
 
   return (
     <Pagina
-      titolo={t('Personal Coach')}
+      titolo={t('Coaching')}
       onBack={onBack}
       isDesktop={isDesktop}
       destra={<>
@@ -259,8 +268,9 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
       </>}
     >
       <SezioniCoach
-        valore={ruolo}
+        valore={conSeguiti ? ruolo : 'seguito'}
         onChange={setRuolo}
+        conSeguiti={conSeguiti}
         // Finché l'elenco non è arrivato sotto il nome non si scrive niente:
         // "Nessuno" per un secondo, a chi un coach ce l'ha, sarebbe una bugia.
         // Sotto «Trova un coach» il nome di chi ti segue, se c'è: senza,
@@ -283,7 +293,7 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
             li fa lampeggiare chiari: era la banda luminosa che compariva
             passando all'altro lato. Non hanno effetti al montaggio, tenerli vivi
             non costa niente. */}
-        <div hidden={ruolo !== 'seguito'}>
+        <div hidden={conSeguiti && ruolo !== 'seguito'}>
           <LatoCoaching
             allenatori={allenatori}
             profili={profili}
@@ -294,10 +304,14 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
               sotto: t('Ti segue dal {data}', { data: fmtShortDate(l.created_at.slice(0, 10)) }),
             })}
             onRimuovi={togliCoach}
-            onCodice={() => apriCodici('farsi')}
+          />
+          <ElencoCoach
+            coach={coachApp.filter(c => c.user_id !== userId && !allenatori.some(l => l.coach_id === c.user_id))}
+            nessunoTiSegue={allenatori.length === 0}
+            sonoCoach={coachAbilitato}
           />
         </div>
-        <div hidden={ruolo !== 'allenatore'}>
+        <div hidden={!conSeguiti || ruolo !== 'allenatore'}>
           <LatoSeguiti
             atleti={atleti}
             profili={profili}
@@ -322,7 +336,7 @@ export function JarvisCoach({ userId, onBack, iniziale = 'seguito', apriMessaggi
 // chi allena te, «Seguiti» chi alleni tu. Ognuna col suo disegno, nello stesso
 // stile delle card in home (vedi CardScelta). Erano tre, con la chat; da quando
 // la chat sta in alto a destra le due rimaste hanno preso il suo posto, e sono
-// più grandi.
+// più grandi. Un atleta non segue nessuno: per lui ce n'è una sola, larga tutta.
 //
 // A differenza di quelle in home non aprono una pagina: scelgono cosa c'è sotto,
 // quindi una delle due è sempre accesa — piena d'inchiostro.
@@ -332,20 +346,22 @@ const SEZIONI: Array<{ id: Ruolo; disegno: 'allenatore' | 'gruppo' }> = [
 ]
 const ALTEZZA_SEZIONE = 'clamp(128px, 20dvh, 172px)'
 
-function SezioniCoach({ valore, onChange, sotto }: {
+function SezioniCoach({ valore, onChange, conSeguiti, sotto }: {
   valore: Ruolo
   onChange: (r: Ruolo) => void
+  conSeguiti: boolean
   /** Una riga sotto il nome di ogni card: chi è il coach, quanti allievi. */
   sotto: Partial<Record<Ruolo, string>>
 }) {
   const t = useT()
   const nomi: Record<Ruolo, string> = { seguito: t('Trova un coach'), allenatore: t('Seguiti') }
+  const sezioni = conSeguiti ? SEZIONI : SEZIONI.slice(0, 1)
   return (
-    <div role="tablist" aria-label={t('Personal Coach')} style={{
-      display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'clamp(8px, 2.4vw, 12px)',
+    <div role="tablist" aria-label={t('Coaching')} style={{
+      display: 'grid', gridTemplateColumns: `repeat(${sezioni.length}, minmax(0, 1fr))`, gap: 'clamp(8px, 2.4vw, 12px)',
       marginTop: 6, marginBottom: 18,
     }}>
-      {SEZIONI.map(s => (
+      {sezioni.map(s => (
         <CardScelta
           key={s.id}
           titolo={nomi[s.id]}
@@ -361,7 +377,7 @@ function SezioniCoach({ valore, onChange, sotto }: {
 }
 
 // ── "Coaching": chi mi segue ───────────────────────────────────
-function LatoCoaching({ allenatori, profili, nomeDi, onScrivi, onProfilo, onRimuovi, onCodice }: {
+function LatoCoaching({ allenatori, profili, nomeDi, onScrivi, onProfilo, onRimuovi }: {
   allenatori: CoachLink[]
   profili: Record<string, Profilo>
   nomeDi: (l: CoachLink) => string
@@ -369,8 +385,6 @@ function LatoCoaching({ allenatori, profili, nomeDi, onScrivi, onProfilo, onRimu
   onScrivi: (l: CoachLink) => void
   onProfilo: (l: CoachLink) => void
   onRimuovi: (l: CoachLink) => void
-  /** Porta ai codici, sul "farmi seguire". */
-  onCodice: () => void
 }) {
   const t = useT()
 
@@ -382,10 +396,9 @@ function LatoCoaching({ allenatori, profili, nomeDi, onScrivi, onProfilo, onRimu
           <div style={{ fontFamily: NUC.font, fontSize: 15, color: 'var(--fg)', marginBottom: 6 }}>
             {t('Nessuno ti segue.')}
           </div>
-          <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)', marginBottom: 14 }}>
-            {t('I tuoi dati sono solo tuoi. Per farti seguire genera un codice e dallo a chi ti allena: lo trovi anche nella chiave in alto a destra.')}
+          <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)' }}>
+            {t('I tuoi dati sono solo tuoi. Per farti seguire genera un codice dalla chiave in alto a destra e dallo a chi ti allena.')}
           </div>
-          <Bottone onClick={onCodice}>{t('Genera un codice')}</Bottone>
         </NucCard>
       </>
     )
@@ -428,6 +441,53 @@ function LatoCoaching({ allenatori, profili, nomeDi, onScrivi, onProfilo, onRimu
         {t('Si può avere un solo coach per volta: per cambiarlo, scollegati prima da quello che hai.')}
       </div>
     </>
+  )
+}
+
+// ── I coach che ci sono nell'app ───────────────────────────────
+// Per ora ci si guarda e basta: il collegamento passa sempre dal codice, che
+// genera chi vuole farsi seguire.
+function ElencoCoach({ coach, nessunoTiSegue, sonoCoach }: {
+  coach: CoachPubblico[]
+  nessunoTiSegue: boolean
+  sonoCoach: boolean
+}) {
+  const t = useT()
+  if (!coach.length && (sonoCoach || !nessunoTiSegue)) return null
+  return (
+    <div style={{ marginTop: 18 }}>
+      <NucEyebrow>{t('I coach dell’app')}</NucEyebrow>
+      {coach.length === 0 ? (
+        <NucCard pad={16}>
+          <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)' }}>
+            {t('Per ora non ci sono coach disponibili.')}
+          </div>
+        </NucCard>
+      ) : (
+        <NucCard pad={0} style={{ overflow: 'hidden' }}>
+          {coach.map((c, i) => {
+            const nome = nomeCompleto(c, t('Allenatore'))
+            return (
+              <div key={c.user_id} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+                borderTop: i === 0 ? 'none' : '1px solid var(--hairline-soft)',
+              }}>
+                <Avatar foto={c.foto} nome={nome} size={42}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: 'var(--fg)', overflowWrap: 'anywhere' }}>{nome}</div>
+                  {c.focus?.trim() && (
+                    <div style={{ fontFamily: NUC.label, fontSize: 11, letterSpacing: '.06em', color: 'var(--fg-mute)', marginTop: 3 }}>{c.focus}</div>
+                  )}
+                  {c.bio?.trim() && (
+                    <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.45, color: 'var(--fg-soft)', marginTop: 5 }}>{c.bio}</div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </NucCard>
+      )}
+    </div>
   )
 }
 
@@ -572,7 +632,10 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     // vede, e "ho aggiornato la scheda" di una che non ha mai visto non dice niente.
     const prima = assegnate.find(r => r.id === sc.id)
     const nuova = !prima || !!prima.scheda.draft
-    return salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', sc)
+    // Il form non sa del numero: una scheda ritoccata tiene il suo, una nuova va
+    // in fondo al giro. Una bozza no, l'allievo non la vede.
+    const ordine = sc.draft ? undefined : ordineDi(assegnate, sc.id)
+    return salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', { ...sc, ordine })
       .then(() => {
         if (chiudi) setForm(null)
         ricarica()
@@ -584,6 +647,18 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
         }
       })
       .catch(e => { setSalvataggio(messaggio(e)); throw e })
+  }
+
+  // Si scrivono solo le righe che cambiano, e senza avvisare nessuno: chi sistema
+  // l'ordine tocca più numeri di fila, e a ogni tocco partirebbe una notifica.
+  // L'allievo lo trova alla prossima apertura dell'app.
+  const numera = (r: CoachScheda, numero: number) => {
+    const nuove = numeraSchede(assegnate, r.id, numero)
+    const cambiate = nuove.filter(n => n.scheda.ordine !== assegnate.find(a => a.id === n.id)?.scheda.ordine)
+    setSalvataggio(null)
+    setAssegnate(nuove)
+    Promise.all(cambiate.map(n => salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', n.scheda)))
+      .catch(e => { setSalvataggio(messaggio(e)); ricarica() })
   }
 
   // Nome e cognome dal suo profilo; senza, il nome che usa nell'app.
@@ -705,6 +780,8 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     return (
       <Pagina titolo={t('Grafici')} onBack={() => setSotto(null)} isDesktop={isDesktop}>
         <CoachGrafici
+          peso={dati.userWeight ?? 0}
+          sex={dati.userSex}
           esercizi={dati.palestraExercises ?? []}
           onApri={ex => { setSalvataggio(null); setEsercizioId(ex.id); setSotto('esercizio') }}
         />
@@ -726,7 +803,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     return conCorrezione(
       <Pagina titolo={esercizio.n} onBack={() => setSotto('grafici')} isDesktop={isDesktop}>
         {salvataggio && <Avviso testo={salvataggio} tono="errore"/>}
-        <CoachEsercizio ex={esercizio} peso={dati.userWeight ?? 0} onCorreggi={apriCorrezione}/>
+        <CoachEsercizio ex={esercizio} peso={dati.userWeight ?? 0} sex={dati.userSex} onCorreggi={apriCorrezione}/>
       </Pagina>,
     )
   }
@@ -813,6 +890,7 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
                 errore={salvataggio}
                 onNuova={() => { setSalvataggio(null); setForm({ scheda: null }) }}
                 onApri={sc => { setSalvataggio(null); setForm({ scheda: sc }) }}
+                onNumero={numera}
                 onElimina={r => confirmDelete(() => {
                   eliminaSchedaAssegnata(r.id)
                     .then(() => setAssegnate(a => a.filter(x => x.id !== r.id)))
@@ -832,14 +910,17 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
 // Le schede che l'allenatore ha scritto per questo allievo. Sta in cima alla
 // pagina, sopra le statistiche: è la sola cosa che un allenatore FA da qui —
 // tutto il resto sotto è roba da guardare.
-function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
+function SchedeAssegnate({ righe, errore, onNuova, onApri, onNumero, onElimina }: {
   righe: CoachScheda[]
   errore: string | null
   onNuova: () => void
   onApri: (sc: GymScheda) => void
+  onNumero: (r: CoachScheda, numero: number) => void
   onElimina: (r: CoachScheda) => void
 }) {
   const t = useT()
+  // Quelle che l'allievo ha davvero: una sola non ha un ordine da dare.
+  const numerabili = righe.filter(r => !r.scheda.draft)
   // Una tendina, chiusa all'apertura: le schede si scrivono una volta e si
   // ritoccano di rado, mentre la pagina dell'allievo si apre per guardare come
   // sta andando. Aperte, spingevano sotto la piega tutto il resto.
@@ -880,6 +961,24 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
             display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px 10px 14px',
             borderTop: i === 0 ? 'none' : '1px solid var(--line)',
           }}>
+            {/* Il numero si sceglie da una tendina: scritto a mano, due schede
+                potrebbero avere lo stesso. «–» finché non ne ha ricevuto uno. */}
+            {numerabili.length > 1 && !r.scheda.draft && (
+              <select
+                value={r.scheda.ordine ? numerabili.indexOf(r) + 1 : ''}
+                onChange={e => onNumero(r, Number(e.target.value))}
+                aria-label={t('Numero di {scheda}', { scheda: r.scheda.title })}
+                className="j-hard j-focus"
+                style={{
+                  width: 44, height: 44, flexShrink: 0, padding: 0, appearance: 'none', textAlign: 'center', textAlignLast: 'center',
+                  background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink, cursor: 'pointer',
+                  fontFamily: NUC.display, fontSize: 18, fontWeight: 700,
+                }}
+              >
+                {!r.scheda.ordine && <option value="">–</option>}
+                {numerabili.map((_, n) => <option key={n} value={n + 1}>{n + 1}</option>)}
+              </select>
+            )}
             <button
               onClick={() => onApri(r.scheda)}
               className="j-focus"
@@ -918,6 +1017,11 @@ function SchedeAssegnate({ righe, errore, onNuova, onApri, onElimina }: {
             </button>
           </div>
         ))}
+        {numerabili.length > 1 && (
+          <div style={{ padding: '10px 14px', borderTop: '1px solid var(--line)', fontFamily: NUC.font, fontSize: 13, color: 'var(--fg-mute)', lineHeight: 1.5 }}>
+            {t('Il numero è l’ordine delle schede: in home l’allievo trova quella dopo l’ultima fatta, e dopo l’ultima si riparte dalla 1.')}
+          </div>
+        )}
       </div>
       )}
     </div>

@@ -153,7 +153,6 @@ export const EN_UI: Record<string, string> = {
   'Statistiche': 'Statistics',
   'Indietro': 'Back',
   'Mappa della forza': 'Strength map',
-  'Personal Coach': 'Personal Coach',
 
   // ── Dialogo di conferma ──────────────────────────────────────
   'Eliminazione': 'Delete',
@@ -309,6 +308,9 @@ export const EN_UI: Record<string, string> = {
   'questa persona': 'this person',
   'Questa persona non ha ancora salvato nulla.': 'This person hasn’t saved anything yet.',
   'Schede assegnate': 'Assigned plans',
+  'Numero di {scheda}': 'Number of {scheda}',
+  'Il numero è l’ordine delle schede: in home l’allievo trova quella dopo l’ultima fatta, e dopo l’ultima si riparte dalla 1.':
+    'The number is the order of the plans: on the home screen the athlete finds the one after the last completed, and after the last it restarts from 1.',
   'Condividi la scheda': 'Share plan',
   'Condividi': 'Share',
   '«{scheda}» finisce nelle sue schede, pronta da avviare.':
@@ -457,6 +459,30 @@ export const EN_UI: Record<string, string> = {
   '1 allenamento': '1 workout',
   '{n} allenamenti': '{n} workouts',
   'Record personali': 'Personal records',
+  // I rank di un esercizio (vedi rankEsercizio).
+  'Bronzo': 'Bronze',
+  'Argento': 'Silver',
+  'Oro': 'Gold',
+  'Platino': 'Platinum',
+  'Diamante': 'Diamond',
+  'Rank massimo': 'Top rank',
+  'Manca 1 kg di massimale per {rank}': '1 kg of 1RM to {rank}',
+  'Mancano {kg} kg di massimale per {rank}': '{kg} kg of 1RM to {rank}',
+  'Manca 1 kg per {rank} · {esercizio}': '1 kg to {rank} · {esercizio}',
+  'Mancano {kg} kg per {rank} · {esercizio}': '{kg} kg to {rank} · {esercizio}',
+  'Nuovo rank su {esercizio}: {rank}.': 'New rank on {esercizio}: {rank}.',
+  'nuovo rank': 'new rank',
+  'Nuovo rank: {rank}': 'New rank: {rank}',
+  'era {n} colpi': 'was {n} reps',
+  // La home.
+  'Tutte le schede': 'All plans',
+  'Apri la scheda {scheda}': 'Open the plan {scheda}',
+  // I ruoli (vedi lib/ruolo).
+  'I coach dell’app': 'Coaches in the app',
+  'Per ora non ci sono coach disponibili.': 'No coaches available yet.',
+  'Solo un coach può seguire qualcuno.': 'Only a coach can follow someone.',
+  'I tuoi dati sono solo tuoi. Per farti seguire genera un codice dalla chiave in alto a destra e dallo a chi ti allena.':
+    'Your data is yours alone. To be followed, generate a code from the key at the top right and give it to whoever trains you.',
   'stima {n} kg': 'est. {n} kg',
   'Tempi per esercizio': 'Times per exercise',
   'media {v}': 'avg {v}',
@@ -1115,8 +1141,6 @@ export const EN_UI: Record<string, string> = {
     'No conversations. To message someone, open them from “Coaching” or “Athletes”; anyone who receives a plan from you can also ask for info or a replacement from the question mark at the top of the plan.',
   'Lo segui dal {data}': 'You’ve coached them since {data}',
   'Nessuno ti segue.': 'No one is coaching you.',
-  'I tuoi dati sono solo tuoi. Per farti seguire genera un codice e dallo a chi ti allena: lo trovi anche nella chiave in alto a destra.':
-    'Your data is yours alone. To get coached, generate a code and give it to your coach: you’ll also find it under the key at the top right.',
   'Profilo di {chi}': '{chi}’s profile',
   'Chiedi il codice a chi vuoi seguire e inseriscilo qui: lo genera dalla sua app.':
     'Ask the person you want to coach for their code and enter it here: they generate it in their app.',

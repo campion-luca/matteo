@@ -1773,7 +1773,13 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
 // Una lista e non un singolo: a fine scheda si salvano più alzate in un colpo e i
 // record possono essere due o tre. Mostrarli uno per volta avrebbe voluto dire tre
 // modali in fila da chiudere a mano.
-export interface RecordItem { name: string; prev: number; next: number }
+export interface RecordItem {
+  name: string; prev: number; next: number
+  /** Il record è in colpi e non in chili. */
+  colpi?: true
+  /** Il rank raggiunto, se questo record ne ha fatto salire uno. */
+  salitoA?: string
+}
 
 export function RecordModal({ records, onClose }: { records: RecordItem[]; onClose: () => void }) {
   const t = useT()
@@ -1794,19 +1800,26 @@ export function RecordModal({ records, onClose }: { records: RecordItem[]; onClo
           }}>
             <div style={{ fontFamily: NUC.font, fontSize: 14, color: NUC.ink, marginBottom: 6 }}>{tData(r.name)}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontFamily: NUC.label, fontSize: 24, color: 'var(--j-accent-ink)', letterSpacing: -0.8 }}>{r.next} kg</span>
+              <span style={{ fontFamily: NUC.label, fontSize: 24, color: 'var(--j-accent-ink)', letterSpacing: -0.8 }}>{r.next} {r.colpi ? t('colpi') : 'kg'}</span>
               <span style={{ fontFamily: NUC.label, fontSize: 12, color: NUC.faint }}>
-                {t('era {kg} kg', { kg: r.prev })} · +{r.next - r.prev}
+                {r.colpi ? t('era {n} colpi', { n: r.prev }) : t('era {kg} kg', { kg: r.prev })} · +{r.next - r.prev}
               </span>
             </div>
+            {r.salitoA && (
+              <div style={{ marginTop: 6, fontFamily: NUC.display, fontSize: 14, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
+                {t('Nuovo rank: {rank}', { rank: t(r.salitoA) })}
+              </div>
+            )}
           </div>
         ))}
 
         {/* Il numero è una stima, e dirlo qui evita che la medaglia prometta una
             singola che non hai mai provato davvero. */}
-        <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: NUC.faint, lineHeight: 1.5 }}>
-          {t('Massimale stimato dai chili e dai colpi della serie.')}
-        </div>
+        {records.some(r => !r.colpi) && (
+          <div style={{ fontFamily: NUC.label, fontSize: 12, letterSpacing: '.04em', color: NUC.faint, lineHeight: 1.5 }}>
+            {t('Massimale stimato dai chili e dai colpi della serie.')}
+          </div>
+        )}
 
         <button onClick={onClose} className="j-btn-accent">{t('Bene così')}</button>
       </div>

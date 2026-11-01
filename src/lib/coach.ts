@@ -109,6 +109,23 @@ export async function unlink(coachId: string, athleteId: string): Promise<void> 
   if (error) throw error
 }
 
+export interface CoachPubblico {
+  user_id: string
+  nome: string | null
+  cognome: string | null
+  foto: string | null
+  focus: string | null
+  bio: string | null
+}
+
+/** I coach dell'app, per chi ne cerca uno. Solo quello che raccontano del loro
+ *  lavoro: il resto del profilo resta fra chi è collegato. */
+export async function elencoCoach(): Promise<CoachPubblico[]> {
+  const { data, error } = await supabase.rpc('elenco_coach')
+  if (error) throw new Error(translateCoachError(error.message))
+  return (data ?? []) as CoachPubblico[]
+}
+
 /** Riscatta un codice: da qui in poi vedo gli allenamenti di chi me l'ha dato. */
 export async function redeemCode(code: string, coachName: string): Promise<{ athlete_id: string; athlete_name: string | null }> {
   const { data, error } = await supabase.rpc('redeem_coach_code', {
@@ -170,6 +187,45 @@ export interface CoachScheda {
 
 const CAMPI = 'id, coach_id, athlete_id, scheda, coach_name, created_at, updated_at'
 
+// ── L'ordine delle schede ──────────────────────────────────────
+// L'allenatore dà un numero alle schede di un allievo, e la home ne segue il giro
+// (vedi `schedaDiOggi`). Il numero sta dentro la GymScheda e non in una colonna
+// sua: così arriva all'allievo insieme alla scheda, anche nella copia che resta
+// sul telefono. Il prezzo è che chi riscrive la riga deve rimettercelo: vedi
+// `ordineDi`.
+
+/** Le righe in ordine di numero. Quelle senza restano dopo, come sono arrivate. */
+export function perOrdine(righe: CoachScheda[]): CoachScheda[] {
+  const posto = (r: CoachScheda) => r.scheda.ordine ?? Number.MAX_SAFE_INTEGER
+  return [...righe].sort((a, b) => posto(a) - posto(b))
+}
+
+/** Il numero di una scheda che si sta per scrivere. Quella che ce l'ha lo tiene:
+ *  il form e la ricondivisione riscrivono la riga intera, e lo perderebbero. Una
+ *  nuova va in fondo al giro, se l'allenatore i numeri li ha dati; altrimenti
+ *  resta senza, e la home continua a fare da sé. */
+export function ordineDi(righe: CoachScheda[], schedaId: string): number | undefined {
+  const sua = righe.find(r => r.id === schedaId)?.scheda.ordine
+  if (sua) return sua
+  const numeri = righe.flatMap(r => r.scheda.ordine ?? [])
+  return numeri.length ? Math.max(...numeri) + 1 : undefined
+}
+
+/** Mette la scheda al posto `numero` e rinumera tutte da 1: due schede col 2 non
+ *  direbbero quale viene prima, e un buco resterebbe un buco. Le bozze restano
+ *  fuori e in fondo: l'allievo non le vede, e il giro non deve contarle. */
+export function numeraSchede(righe: CoachScheda[], id: string, numero: number): CoachScheda[] {
+  const vere = perOrdine(righe.filter(r => !r.scheda.draft))
+  const sua = vere.find(r => r.id === id)
+  if (!sua) return righe
+  const altre = vere.filter(r => r.id !== id)
+  altre.splice(numero - 1, 0, sua)
+  return [
+    ...altre.map((r, i) => ({ ...r, scheda: { ...r.scheda, ordine: i + 1 } })),
+    ...righe.filter(r => r.scheda.draft),
+  ]
+}
+
 /** Le schede che QUESTO allenatore ha assegnato a QUESTO allievo. */
 export async function schedeAssegnate(athleteId: string): Promise<CoachScheda[]> {
   const { data, error } = await supabase
@@ -178,7 +234,7 @@ export async function schedeAssegnate(athleteId: string): Promise<CoachScheda[]>
     .eq('athlete_id', athleteId)
     .order('updated_at', { ascending: false })
   if (error) throw new Error(translateCoachError(error.message))
-  return (data ?? []) as CoachScheda[]
+  return perOrdine((data ?? []) as CoachScheda[])
 }
 
 /** Le schede che gli allenatori hanno assegnato a ME.
@@ -193,7 +249,7 @@ export async function schedeRicevute(userId: string): Promise<CoachScheda[]> {
     .eq('athlete_id', userId)
     .order('updated_at', { ascending: false })
   if (error) throw new Error(translateCoachError(error.message))
-  return (data ?? []) as CoachScheda[]
+  return perOrdine((data ?? []) as CoachScheda[])
 }
 
 // ── Le schede ricevute, anche senza rete ───────────────────────
@@ -341,6 +397,7 @@ export function translateCoachError(message: string): string {
   // Un allenatore per volta (vedi redeem_coach_code): chi vuole cambiarlo si
   // scollega prima da quello che ha.
   if (m.includes('GIA_SEGUITO')) return t('Questa persona ha già un coach: deve prima scollegarsi da quello.')
+  if (m.includes('NON_COACH')) return t('Solo un coach può seguire qualcuno.')
   if (m.includes('NON_AUTENTICATO')) return t('Sessione scaduta. Esci e rientra.')
   // La rete: una richiesta lasciata cadere perché non rispondeva (vedi
   // `authedFetch`) o rifiutata dal browser. Prima arrivava a schermo il testo
@@ -406,6 +463,8 @@ export function copiaPerAllievo(
   // Una bozza è una scheda lasciata a metà per non perdere il lavoro: chi la
   // riceve non la vedrebbe nemmeno (l'elenco delle assegnate le filtra via).
   delete copia.draft
+  // Il numero è il posto in un altro elenco: lo dà `condividiScheda`.
+  delete copia.ordine
   return copia
 }
 
@@ -414,5 +473,7 @@ export async function condividiScheda(
   coachId: string, athleteId: string, coachName: string,
   scheda: import('@/store/useJarvisStore').GymScheda,
 ): Promise<void> {
-  await salvaSchedaAssegnata(coachId, athleteId, coachName, copiaPerAllievo(scheda, athleteId))
+  const copia = copiaPerAllievo(scheda, athleteId)
+  const ordine = ordineDi(await schedeAssegnate(athleteId), copia.id)
+  await salvaSchedaAssegnata(coachId, athleteId, coachName, { ...copia, ordine })
 }

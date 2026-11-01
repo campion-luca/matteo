@@ -43,7 +43,7 @@ export function EtichettaTipo({ tipo }: { tipo: TipoMessaggio }) {
   // frase detta — "allenamento finito" non l'ha digitato nessuno.
   if (tipo !== 'info' && tipo !== 'sostituzione') {
     const nome = tipo === 'allenamento' ? t('allenamento') : tipo === 'scheda' ? t('scheda') : tipo === 'nota' ? t('nota')
-      : tipo === 'collegamento' ? t('collegamento') : t('correzione')
+      : tipo === 'collegamento' ? t('collegamento') : tipo === 'rank' ? t('nuovo rank') : t('correzione')
     return (
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -53,7 +53,7 @@ export function EtichettaTipo({ tipo }: { tipo: TipoMessaggio }) {
         letterSpacing: '.12em', textTransform: 'uppercase',
       }}>
         {tipo === 'allenamento' ? <Icons.check size={9} stroke={2.6}/> : tipo === 'scheda' ? <Icons.book size={9} stroke={2.2}/>
-          : tipo === 'collegamento' ? <Icons.user size={9} stroke={2.2}/> : <Icons.pencil size={9} stroke={2.2}/>}
+          : tipo === 'collegamento' ? <Icons.user size={9} stroke={2.2}/> : tipo === 'rank' ? <Icons.trophy size={9} stroke={2.2}/> : <Icons.pencil size={9} stroke={2.2}/>}
         {nome}
       </span>
     )

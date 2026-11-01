@@ -9,14 +9,18 @@
 // La scala che rende i distretti confrontabili è il MASSIMALE SUL PESO CORPOREO,
 // con soglie diverse per distretto: 1.6× sulle gambe è lo stesso grado di 0.5×
 // sulle braccia. Solo così "verde ovunque" vuol dire davvero equilibrato.
+//
+// E le soglie cambiano col peso di chi solleva (vedi `ESPONENTI`): gli stessi 100 kg
+// di panca non valgono uguale a 76 kg e a 100 kg, ma nemmeno quanto dice la
+// divisione, soprattutto fra chi è forte.
 import type { PalestraExercise } from '@/store/useJarvisStore'
 import { displayMuscle, effectiveLoad, entry1RM } from './gymModel'
 import { quotaCorpo } from './catalogo'
 import { BIG_LIFTS, eAlzata } from './gymMaxLifts'
 
 // ── Soglie ─────────────────────────────────────────────────────
-// Multipli del peso corporeo, sull'alzata rappresentativa del distretto (panca
-// per il petto, rematore per il dorso, squat per le gambe, stacco per i glutei,
+// Multipli del peso corporeo a un peso di riferimento (vedi `PESO_RIFERIMENTO`),
+// sull'alzata rappresentativa del distretto (panca per il petto, rematore per il dorso, squat per le gambe, stacco per i glutei,
 // lento avanti per le spalle, curl per i bicipiti, presa stretta per i tricipiti).
 //
 // Sono APPROSSIMAZIONI da standard diffusi, non misure: gli stessi chili su una
@@ -67,15 +71,38 @@ const THRESHOLDS_F: Record<string, Thresholds> = {
 // del corpo né un'alzata di riferimento da cui ricavare una soglia.
 export const MAPPED_MUSCLES = Object.keys(THRESHOLDS_M)
 
+// ── Il peso corporeo ───────────────────────────────────────────
+// Le tabelle qui sopra valgono a questi pesi: lì i numeri si leggono così come sono.
+const PESO_RIFERIMENTO: Record<'M' | 'F', number> = { M: 80, F: 60 }
+
+// A un altro peso non basta moltiplicare: i chili non crescono in proporzione al
+// peso corporeo, e il multiplo fisso chiedeva troppo a chi pesa molto. La soglia in
+// chili cresce come peso^⅔, il valore classico degli studi sulla forza (0,66 in
+// Folland 2008, sugli uomini magri). Le tabelle di tabelleForza, su 1.466 persone,
+// dicono lo stesso ordine di grandezza: fra 0,45 e 0,51 in media, con molta
+// differenza da un esercizio all'altro. Un valore solo, uguale per tutti: è una
+// correzione, non una misura.
+const ESPONENTE_PESO = 2 / 3
+
 // Sesso ignoto → tabella maschile, che ha le soglie più alte. Sbagliare per
 // eccesso mostra un livello più basso del reale; sbagliare per difetto
 // regalerebbe un "Forte" a chi non c'è ancora arrivato.
-function thresholdsFor(muscle: string, sex?: 'M' | 'F'): Thresholds | undefined {
-  return (sex === 'F' ? THRESHOLDS_F : THRESHOLDS_M)[muscle]
+// Senza un peso restano le soglie della tabella.
+function thresholdsFor(muscle: string, sex?: 'M' | 'F', bodyWeightKg?: number): Thresholds | undefined {
+  const quale = sex === 'F' ? 'F' : 'M'
+  const soglie = (quale === 'F' ? THRESHOLDS_F : THRESHOLDS_M)[muscle]
+  if (!soglie || !bodyWeightKg || bodyWeightKg <= 0) return soglie
+  const alPeso = (bodyWeightKg / PESO_RIFERIMENTO[quale]) ** (ESPONENTE_PESO - 1)
+  return [soglie[0] * alPeso, soglie[1] * alPeso, soglie[2] * alPeso]
 }
 
-export function strengthLevel(ratio: number, muscle: string, sex?: 'M' | 'F'): StrengthLevel {
-  const soglie = thresholdsFor(muscle, sex)
+/** I multipli del peso corporeo (base · buono · forte) a questo peso. */
+export function soglieDistretto(muscle: string, sex?: 'M' | 'F', bodyWeightKg?: number): Thresholds | undefined {
+  return thresholdsFor(muscle, sex, bodyWeightKg)
+}
+
+export function strengthLevel(ratio: number, muscle: string, sex?: 'M' | 'F', bodyWeightKg?: number): StrengthLevel {
+  const soglie = thresholdsFor(muscle, sex, bodyWeightKg)
   if (!soglie || !(ratio > 0)) return 0
   if (ratio >= soglie[2]) return 4
   if (ratio >= soglie[1]) return 3
@@ -106,8 +133,8 @@ export interface DistrictStrength {
 // Oltre "Forte" il punteggio si ferma a 100: non è un fondoscala che si sfonda,
 // è "obiettivo raggiunto". Chi arriva lì ha bisogno di standard veri, non di
 // questa tabella.
-export function scoreFor(ratio: number | null, muscle: string, sex?: 'M' | 'F'): number {
-  const soglie = thresholdsFor(muscle, sex)
+export function scoreFor(ratio: number | null, muscle: string, sex?: 'M' | 'F', bodyWeightKg?: number): number {
+  const soglie = thresholdsFor(muscle, sex, bodyWeightKg)
   if (!soglie || !ratio || ratio <= 0) return 0
   return Math.min(100, Math.round((ratio / soglie[2]) * 100))
 }
@@ -159,8 +186,8 @@ export function districtStrength(
     const ratio = bodyWeightKg > 0 && b > 0 ? b / bodyWeightKg : null
     return {
       muscle, best: b, ratio,
-      level: ratio === null ? 0 : strengthLevel(ratio, muscle, sex),
-      score: scoreFor(ratio, muscle, sex),
+      level: ratio === null ? 0 : strengthLevel(ratio, muscle, sex, bodyWeightKg),
+      score: scoreFor(ratio, muscle, sex, bodyWeightKg),
     }
   })
 }

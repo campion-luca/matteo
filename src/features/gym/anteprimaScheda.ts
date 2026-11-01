@@ -163,6 +163,11 @@ export function schedePerMese<T extends { id: string }>(
 // del giro è quella che non si fa da più tempo. Prima ancora quelle mai fatte,
 // nell'ordine dell'elenco: una scheda nuova è la prossima da provare.
 // Se oggi una scheda è già stata fatta, è lei la scheda di oggi — fatta.
+//
+// Se il coach ha numerato le schede il giro è il suo: tocca quella dopo l'ultima
+// fatta, e dopo l'ultima si riparte dalla prima. Anche quando l'allievo ne ha
+// saltata una: il numero dice una sequenza, non un debito da recuperare. Le schede
+// senza numero restano nell'elenco e si possono avviare, ma la home non le propone.
 
 export interface SchedaDiOggi {
   scheda: GymScheda
@@ -170,6 +175,30 @@ export interface SchedaDiOggi {
   fattaOggi: boolean
   /** Da quanti giorni non la si fa. `null` se mai. */
   giorniFa: number | null
+}
+
+/** La scheda dopo l'ultima fatta, in un giro già in ordine. A pari data vale la
+ *  più avanti nel giro: è lì che si era arrivati. */
+function dopoUltimaFatta(giro: GymScheda[], ultime: Map<string, string>): GymScheda {
+  let indice = -1
+  let quando = ''
+  giro.forEach((sc, i) => {
+    const q = ultime.get(sc.id)
+    if (q && q >= quando) { indice = i; quando = q }
+  })
+  return giro[(indice + 1) % giro.length]
+}
+
+/** La prima mai fatta; se sono state fatte tutte, quella che non si fa da più tempo. */
+function daPiuTempo(valide: GymScheda[], ultime: Map<string, string>): GymScheda {
+  let scelta = valide[0]
+  let quando = ultime.get(scelta.id) ?? null
+  for (const sc of valide.slice(1)) {
+    if (quando === null) break
+    const q = ultime.get(sc.id) ?? null
+    if (q === null || q < quando) { scelta = sc; quando = q }
+  }
+  return scelta
 }
 
 /** `schede` nell'ordine dell'elenco (quelle del coach prima, poi le proprie). */
@@ -181,13 +210,9 @@ export function schedaDiOggi(schede: GymScheda[], palestra: PalestraExercise[], 
   const ultime = ultimaVoltaPerScheda(palestra)
   const fatta = valide.find(sc => ultime.get(sc.id) === oggi)
   if (fatta) return { scheda: fatta, fattaOggi: true, giorniFa: 0 }
-  let scelta = valide[0]
-  let quando = ultime.get(scelta.id) ?? null
-  for (const sc of valide.slice(1)) {
-    if (quando === null) break
-    const q = ultime.get(sc.id) ?? null
-    if (q === null || q < quando) { scelta = sc; quando = q }
-  }
+  const giro = valide.filter(sc => sc.ordine).sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0))
+  const scelta = giro.length ? dopoUltimaFatta(giro, ultime) : daPiuTempo(valide, ultime)
+  const quando = ultime.get(scelta.id) ?? null
   return { scheda: scelta, fattaOggi: false, giorniFa: quando === null ? null : Math.max(0, giorniTra(quando, oggi)) }
 }
 

@@ -17,6 +17,7 @@ import { loadUserData, saveUserData, fetchRemoto, senzaRete } from '@/lib/cloudS
 import { useSyncStatus } from '@/lib/syncStatus'
 import { getSyncMeta, setSynced, markDirty, decideInitialSync, remotoCambiato, segnaInViaggio, confermaRemoto, stessoIstante, dimenticaUltimoSync } from '@/lib/syncMeta'
 import { myCoaches } from '@/lib/coach'
+import { aggiornaRuolo } from '@/lib/ruolo'
 import { correzioniPer, eliminaCorrezioni, applicaCorrezioni } from '@/lib/correzioni'
 import { proprietario, segnaProprietario, parcheggia, riprendi, svuotaDatiLocali, pulisciParcheggi } from '@/lib/proprietario'
 import { cercaAggiornamento } from '@/lib/aggiornamento'
@@ -653,6 +654,7 @@ export default function App() {
     const id = session?.user?.id
     if (!id) { fermaMessaggi(); return }
     avviaMessaggi(id)
+    void aggiornaRuolo(id)
     // Se questo dispositivo ha già dato il permesso alle notifiche, l'iscrizione
     // dev'essere a nome di chi è entrato adesso — e se non c'è si rifà: sono
     // accese di serie (vedi lib/push).

@@ -175,6 +175,9 @@ export interface GymScheda {
   // Nata col form delle progressioni (dal 27 ott 2026): ogni riga sceglie la sua.
   // Le schede di prima non ce l'hanno e restano col carico consigliato di sempre.
   conProgressioni?: true
+  // Il posto nell'ordine deciso dal coach (1 = la prima). C'è solo sulle schede
+  // assegnate, e dice alla home quale tocca (vedi `schedaDiOggi`).
+  ordine?: number
 }
 
 // ── Gruppi muscolari creati dall'utente ────────────────────────

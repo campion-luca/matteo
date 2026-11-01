@@ -595,6 +595,14 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           >
             Exercise data by RepDB (repdb.co)
           </a>
+          {/* Le tabelle dei rank: la licenza CC BY chiede la citazione, il link alla
+              licenza e di dire cosa si è cambiato. Vedi tabelleForza. */}
+          <div style={{ marginTop: 6, fontFamily: NUC.font, fontSize: 12, lineHeight: 1.45, color: 'var(--fg-mute)' }}>
+            Strength norms adapted from Piper et al., IJSC{' '}
+            <a href="https://doi.org/10.47206/ijsc.v1i1.40" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>2021</a>,{' '}
+            <a href="https://doi.org/10.47206/ijsc.v2i1.138" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>2022</a>{' '}
+            (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>CC BY 4.0</a>), converted to 1RM and interpolated by body weight.
+          </div>
         </div>
 
         </>

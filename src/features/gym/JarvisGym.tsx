@@ -23,8 +23,7 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  displayMuscle, exColor, MUSCLE_OPTIONS, fmtKg, fmtKgVerso, fmtNum, fmtReps, fmtTime, fmtVol, entry1RM, recordFor,
-  effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico, correnteDa,
+  displayMuscle, exColor, MUSCLE_OPTIONS, fmtKg, fmtKgVerso, fmtNum, fmtReps, fmtTime, fmtVol, entry1RM,   effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico, correnteDa,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
 import { useMuscleColors } from './useMuscleColors'
@@ -53,6 +52,9 @@ import { useT, useTData } from '@/lib/i18n'
 import { fmtShortDate, fmtDayMonth, fmtDayMon } from '@/lib/dateFormat'
 import { AddExModal, EditExModal, EditHistoryModal, ExStatsModal, HyroxStatsModal, LogHyroxModal, LogPalestraModal, NuovoGruppoModal, RecordModal, RegistraGaraModal, type OpzioniModificaEsercizio } from './gymModals'
 import type { RecordItem } from './gymModals'
+import { recordAlzata, rankEsercizio } from './rankEsercizio'
+import { RankCard } from './RankCard'
+import { avvisaNuovoRank } from './avvisoRank'
 import { HyroxCard, HyroxDetail, RaceSummary, StazioniInGara } from './GymHyrox'
 import { HYROX_ATTIVO } from './hyroxAttivo'
 import { FormatoSwitch } from './FormatoSwitch'
@@ -243,6 +245,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
   const [prOpen, setPrOpen] = useState(false)
   const [volumeOpen, setVolumeOpen] = useState(false)
   const bodyWeight = useBodyWeight()
+  const sesso = useJarvisStore(st => st.userSex)
 
   const totalPalestra = exercises.reduce((sum, ex) => sum + ex.history.length, 0)
   const totalHyrox    = hyroxExercises.reduce((sum, ex) => sum + ex.history.length, 0)
@@ -259,7 +262,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
       // Gli esercizi che non vanno a chili (addominali, polpacci a corpo libero)
       // hanno per record i colpi: scrivere "0 kg" direbbe che non si è fatto niente.
       const bestColpi = aColpi(ex) && bestKg === 0 && ex.history.length ? Math.max(...ex.history.map(colpiMigliori)) : 0
-      return { ex, name: ex.n, muscle: displayMuscle(ex.muscle), bestKg, best1RM, bestColpi, sessions: ex.history.length }
+      return { ex, name: ex.n, muscle: displayMuscle(ex.muscle), bestKg, best1RM, bestColpi, sessions: ex.history.length, rank: rankEsercizio(ex, bodyWeight, sesso) }
     }).sort((a, b) => b.best1RM - a.best1RM)
 
     // Due numeri per muscolo, non uno: i chili spostati e i GIORNI in cui l'hai
@@ -281,7 +284,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
     const muscleEntries = [...map.entries()].map(([muscle, v]) => ({ muscle, vol: v.vol, days: v.days.size }))
 
     return { prs, muscleEntries }
-  }, [exercises, bodyWeight])
+  }, [exercises, bodyWeight, sesso])
 
   // I record divisi per distretto, nell'ordine di sempre (Petto, Dorso, Gambe…),
   // coi gruppi creati dall'utente prima di "Altro". Dentro al gruppo resta
@@ -440,7 +443,7 @@ function GymStats({ exercises, hyroxExercises, statsTab, formatoHyrox, onFormato
                           >
                             <span style={{ flex: 1, minWidth: 0 }}>
                               <span style={{ display: 'block', fontSize: 13.5, color: NUC.ink, letterSpacing: -0.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(pr.name)}</span>
-                              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em', marginTop: 2 }}>{t('{n} sess.', { n: pr.sessions })}</span>
+                              <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em', marginTop: 2 }}>{t('{n} sess.', { n: pr.sessions })}{pr.rank && ` · ${t(pr.rank.rank.nome)}`}</span>
                             </span>
                             <span style={{ flexShrink: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <span style={{ display: 'block', fontFamily: NUC.label, fontSize: 14.5, fontWeight: 600, color: 'var(--j-accent-ink)', letterSpacing: -0.3 }}>{valorePr(pr)}</span>
@@ -693,7 +696,9 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   const t = useT()
   const tData = useTData()
   // Già ridotto alla parte che questo esercizio fa sollevare (vedi quotaCorpo).
-  const bodyWeight = useBodyWeight() * quotaCorpo(ex)
+  const pesoCorporeo = useBodyWeight()
+  const sesso = useJarvisStore(st => st.userSex)
+  const bodyWeight = pesoCorporeo * quotaCorpo(ex)
   // Ordinato per data: lo storico viene letto E riscritto da questa vista, quindi
   // l'ordinamento si normalizza anche su disco e gli indici restano coerenti.
   const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
@@ -760,6 +765,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   // Per ogni alzata: quanto è cambiato il carico dalla volta prima, e se quel
   // giorno è stato un record. Stesso indice di `hist`.
   const andamento = useMemo(() => andamentoStorico(hist, bodyWeight, soloColpi), [hist, bodyWeight, soloColpi])
+  const rank = rankEsercizio(ex, pesoCorporeo, sesso)
 
   // L'ultima alzata e il miglior massimale, per la card in cima.
   const ultima = hist[hist.length - 1]
@@ -841,6 +847,8 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
             )}
           </div>
         </div>
+
+        {rank && <RankCard rank={rank}/>}
 
         {/* ── L'andamento: il grafico, e il link a quello completo. */}
         {hist.length > 0 && (
@@ -1873,8 +1881,11 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const savePalestraEntry = (ex: PalestraExercise, entry: PalestraHistoryEntry) => {
     // Il confronto va fatto PRIMA di scrivere: dopo, l'alzata appena salvata
     // starebbe già nello storico e batterebbe sempre sé stessa.
-    const rec = recordFor(ex.history, entry, bodyWeight * quotaCorpo(ex))
+    const { userSex, userName } = useJarvisStore.getState()
+    const rec = recordAlzata(ex, entry, bodyWeight, userSex)
     if (rec) setRecords([{ name: ex.n, ...rec }])
+    const io = idUtenteSuDisco()
+    if (rec?.salitoA && io) void avvisaNuovoRank(io, userName, [{ name: ex.n, salitoA: rec.salitoA }])
 
     // Storico ordinato per data e `current` preso dalla sessione più RECENTE, non
     // da quella appena inserita: registrando una serie arretrata, il prefill dei

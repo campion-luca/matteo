@@ -38,6 +38,7 @@ const COSTANTI = [
   '/src/features/gym/gymMaxLifts.ts',
   '/src/features/gym/gymModel.ts',
   '/src/features/gym/gymStrength.ts',
+  '/src/features/gym/rankEsercizio.ts',
   '/src/features/profile/JarvisProfile.tsx',
 ]
 
@@ -112,14 +113,14 @@ describe('dizionario inglese', () => {
     expect(uguali.sort()).toEqual([
       // Con l'inglese l'elenco è più lungo che col tedesco: l'italiano della
       // palestra è pieno di parole inglesi, e quelle restano come sono.
-      //  · nomi propri: Hyrox, Roxzone, Personal Coach;
+      //  · nomi propri: Hyrox, Roxzone;
       //  · parole inglesi già nell'interfaccia italiana: Account, Chat, Coaching, Log,
       //    Pace, Personal trainer, Timer, Trend, Volume, superset,
       //    email, password, info, "Light weight baby";
       //  · sigle e unità: Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo;
       //  · i nomi della progressione, inglesi anche in palestra: top set, back-off.
       'Account', 'Back-off', 'Back-off: − %', 'Chat', 'Coaching', 'Hyrox', 'Kg', 'Light weight baby',
-      'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal Coach', 'Personal trainer', 'Roxzone',
+      'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal trainer', 'Roxzone',
       'TOP', 'Timer', 'Top set', 'Top set + back-off', 'Trend', 'Volume', 'email', 'info', 'min',
       'password', 'sec', 'superset', '{n} sess.',
     ])

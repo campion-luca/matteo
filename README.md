@@ -43,7 +43,9 @@ telefono senza scorrere. Dall'alto:
   pagina sopra questa;
 - **la scheda di oggi**, col tasto per cominciare. Le schede non hanno un giorno
   della settimana, si girano (A, B, C, poi di nuovo A): la prossima è quella che
-  non fai da più tempo, e prima ancora quelle mai fatte. Con l'allenamento
+  non fai da più tempo, e prima ancora quelle mai fatte. Se il coach ha dato un
+  numero alle schede vale il suo ordine: tocca quella dopo l'ultima fatta, e le
+  schede senza numero non vengono proposte. Con l'allenamento
   aperto il tasto dice «Riprendi», e accanto a «Tutte» compare **«Chiudi
   allenamento»**: mai toccato si chiude e basta, con delle serie fatte apre il
   riepilogo dove si sceglie se salvarlo.
@@ -145,8 +147,20 @@ questa settimana, la **mappa della forza** e i **massimali ipotetici**.
   soglie **diverse per distretto** (e per sesso) — servono 1.10× per un "base"
   sulle gambe e 0.35× per lo stesso grado sui bicipiti — perché i chili di due
   distretti non sono confrontabili: uno squat da 100 kg e un curl da 25 sono
-  entrambi buoni. Un esercizio con due gruppi conta per intero sul primario e a
-  metà sul secondario.
+  entrambi buoni. Quei numeri valgono a 80 kg per gli uomini e a 60 per le donne:
+  a un altro peso le soglie si piegano (peso^⅔), perché i chili non crescono in
+  proporzione al peso corporeo. Un esercizio con due gruppi conta per intero sul
+  primario e a metà sul secondario.
+- **Rank**: cinque, Bronzo, Argento, Oro, Platino e Diamante, dal massimale
+  migliore rispetto a quello che alza di norma chi pesa uguale (soglie al 20°, 50°,
+  80° e 95° percentile). Le tabelle vengono da due studi liberi, Piper e colleghi
+  2021 e 2022 (CC BY 4.0), su panca, lat machine, lento avanti, curl e leg press:
+  vedi `tabelleForza.ts`. Squat, stacco, rematore e panca presa stretta usano le
+  soglie della mappa; gli altri esercizi non hanno un rank. Sta nella pagina
+  dell'esercizio, con i chili che mancano al prossimo, nell'elenco dei record, nel
+  messaggio di record, e anche il coach lo vede nella pagina dell'allievo, dove
+  arriva un avviso quando l'allievo sale. In home, sulla card della scheda di oggi,
+  il traguardo più vicino.
 - **Massimali ipotetici**: squat, panca e stacco, e il loro total rapportato al
   tuo peso — il modo in cui la forza si racconta fuori da questa app. Ognuno dice
   da dove viene: dichiarato, stimato da una serie a ripetizioni, o ricavato dal
@@ -188,7 +202,8 @@ screenshot. Un allievo ha un allenatore per volta, e la regola sta nel database.
 La stessa persona può stare da tutte e due le parti — chi allena si allena
 anche — e la pagina (aperta dalla card **Coaching**) ne ha due sezioni: **Trova
 un coach**, cioè chi ti segue, con il suo profilo e la chat, e **Seguiti**, chi
-segui tu. Per ora le vedono tutte e due chiunque: i ruoli non ci sono ancora. Dalla pagina di un allievo
+segui tu, che vedono solo i coach: per un atleta c'è una card sola, con sotto i
+coach dell'app. Dalla pagina di un allievo
 l'allenatore:
 
 - **guarda**, in sola lettura: allenamenti e settimana, curva del peso, volume
@@ -453,7 +468,10 @@ Gli schemi si eseguono dall'SQL Editor di Supabase, in quest'ordine:
    la foto; dopo `coach_schema.sql`, perché le regole di lettura guardano i
    collegamenti. Finché manca, il Coaching mostra i nomi copiati nel
    collegamento e nessuna foto.
-4. [supabase/storico_schema.sql](supabase/storico_schema.sql) — facoltativo:
+4. [supabase/ruoli_schema.sql](supabase/ruoli_schema.sql) — i ruoli: chi è coach.
+   Chi si iscrive è sempre un atleta; si diventa coach aggiungendo una riga a
+   `coach_abilitati` dall'SQL Editor, e dal client non si può.
+5. [supabase/storico_schema.sql](supabase/storico_schema.sql) — facoltativo:
    una copia al giorno della riga `user_data` di ognuno, com'era prima della
    prima modifica della giornata, tenuta due settimane. L'app non la legge: serve
    a te, dalla dashboard, il giorno che a qualcuno spariscono i dati. La
@@ -573,6 +591,7 @@ CI su ogni push e PR: [.github/workflows/ci.yml](.github/workflows/ci.yml).
 ├── supabase/
 │   ├── coach_schema.sql    # collegamenti, codici, schede, note, messaggi, correzioni, push
 │   ├── profili_schema.sql  # profilo pubblico e foto
+│   ├── ruoli_schema.sql    # chi è coach, l'elenco dei coach
 │   ├── storico_schema.sql  # una copia al giorno di user_data (facoltativo)
 │   └── functions/notifica/ # Edge Function delle notifiche push
 ├── docs/                   # CARICHI.txt e due documenti storici
@@ -611,6 +630,8 @@ alla catena, e nessuno dei file si importa a vicenda.
 ```
 gymModel.ts            calcoli e costanti (1RM, volume, pace, record) — nessun React, testato
 gymStrength.ts         forza per distretto e traguardi — puro, testato
+rankEsercizio.ts       i rank per esercizio e il traguardo in home — puro, testato
+tabelleForza.ts        i chili di norma per peso, dagli studi — puro, testato
 gymMaxLifts.ts         squat, panca, stacco e il total — puro, testato
 caricoConsigliato.ts   il carico consigliato (le regole a parole: docs/CARICHI.txt)
 limitiAlzata.ts        numeri impossibili e improbabili

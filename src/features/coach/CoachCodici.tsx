@@ -21,7 +21,7 @@ import { Avviso, Bottone, CardScelta } from './PezziCoach'
 
 export type Verso = 'farsi' | 'seguire'
 
-export function CoachCodici({ userId, userName, invito, onInvito, coach, verso, onVerso, onCollegato, onVaiAiSeguiti }: {
+export function CoachCodici({ userId, userName, invito, onInvito, coach, coachAbilitato, verso, onVerso, onCollegato, onVaiAiSeguiti }: {
   userId: string
   userName: string
   invito: CoachInvite | null
@@ -29,6 +29,8 @@ export function CoachCodici({ userId, userName, invito, onInvito, coach, verso, 
   /** Il nome di chi mi segue già, se qualcuno c'è: allora un codice non si
    *  genera (un coach per volta). */
   coach: string | null
+  /** Solo un coach segue qualcuno: a un atleta il secondo verso non si propone. */
+  coachAbilitato: boolean
   verso: Verso | null
   onVerso: (v: Verso) => void
   /** Ho appena riscattato un codice: gli elenchi vanno riletti. */
@@ -36,6 +38,9 @@ export function CoachCodici({ userId, userName, invito, onInvito, coach, verso, 
   onVaiAiSeguiti: () => void
 }) {
   const t = useT()
+  if (!coachAbilitato) {
+    return <FarmiSeguire userId={userId} userName={userName} invito={invito} onInvito={onInvito} coach={coach}/>
+  }
   return (
     <>
       <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.55, color: 'var(--fg-soft)', margin: '0 2px 14px' }}>

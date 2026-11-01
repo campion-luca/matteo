@@ -12,6 +12,7 @@ import { Icons } from '@/components/ui/Icons'
 import { useT } from '@/lib/i18n'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { useNonLetti } from '@/lib/messaggiLive'
+import { useRuolo } from '@/lib/ruolo'
 import { fmtNum } from '@/features/gym/gymModel'
 import { useSchedeVisibili } from '@/features/gym/gymHooks'
 import { useNavDesktop, type SezioneDesktop } from './navDesktop'
@@ -35,6 +36,7 @@ export function BarraLaterale({ userId, onUtente, onImpostazioni }: {
   })))
   const schede = useSchedeVisibili().filter(sc => !sc.draft).length
   const allievi = useAllievi(s => s.allievi.length)
+  const coachAbilitato = useRuolo(s => s.coach)
   const daLeggere = useNonLetti()
 
   // Gli allievi si rileggono all'apertura e tornando sulla finestra: un allievo
@@ -94,7 +96,7 @@ export function BarraLaterale({ userId, onUtente, onImpostazioni }: {
           {voce('statistiche', t('Statistiche'))}
         </>)}
         {gruppo(t('Coaching'), <>
-          {voce('allievi', t('Allievi'), allievi)}
+          {(coachAbilitato || allievi > 0) && voce('allievi', t('Allievi'), allievi)}
           {voce('messaggi', t('Messaggi'), daLeggere)}
           {voce('coach', t('Il mio coach'))}
         </>)}

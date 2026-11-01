@@ -18,14 +18,16 @@ import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry, ProgressioneRiga, StatoProgressione } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, ultimaDiLavoro, correnteDa, recordFor, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, ultimaDiLavoro, correnteDa, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti } from './gymModel'
 import { fmtDayMonthFull, fmtDayMon, fmtMeseAnno } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
+import { recordAlzata } from './rankEsercizio'
+import { avvisaNuovoRank } from './avvisoRank'
 import { useBodyWeight, useGruppiMuscolari, useMuscleIcons, useScartaAllenamento } from './gymHooks'
 import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, timerChiuso, ricordaTimerChiuso, firmaRiga, type AllenamentoInCorso } from './sessioneInCorso'
 import { BarraInCorso } from './InCorso'
-import { corpoLibero, quotaCorpo, aColpi } from './catalogo'
+import { corpoLibero, aColpi } from './catalogo'
 import { useMuscleColors } from './useMuscleColors'
 import { FacciaEsercizio, DataPunto, SegnaleCarico, MenuAzioni, FotoGrande } from './gymShared'
 import { TimerRecupero, TimerIcona } from './TimerRecupero'
@@ -156,10 +158,11 @@ export function GymSchede({ onBack, apri, riprendi = false, termina = false, nuo
   nuova?: boolean
 }) {
   const t = useT()
-  const { gymSchede, palestraExercises, userName } = useJarvisStore(useShallow(st => ({
+  const { gymSchede, palestraExercises, userName, userSex } = useJarvisStore(useShallow(st => ({
     gymSchede: st.gymSchede,
     palestraExercises: st.palestraExercises,
     userName: st.userName,
+    userSex: st.userSex,
   })))
   const muscleColors = useMuscleColors()
   const set = useJarvisStore.setState
@@ -548,7 +551,7 @@ export function GymSchede({ onBack, apri, riprendi = false, termina = false, nuo
       if (target) {
         const tid = target.id
         // Confronto con lo storico PRIMA di accodare: dopo, l'alzata batterebbe sé stessa.
-        const rec = recordFor(target.history, entry, bodyWeight * quotaCorpo(target))
+        const rec = recordAlzata(target, entry, bodyWeight, userSex)
         if (rec) recs.push({ name: target.n, ...rec })
         // `current` (il precompilato della prossima volta) è l'alzata più
         // RECENTE, non quella appena aggiunta: un allenamento di tre giorni fa
@@ -598,6 +601,7 @@ export function GymSchede({ onBack, apri, riprendi = false, termina = false, nuo
     setActive(conCollegamenti(useJarvisStore.getState().gymSchede?.find(s => s.id === scheda.id) ?? scheda))
     setView('detail')
     setRecords(recs)
+    if (ioId) void avvisaNuovoRank(ioId, userName ?? '', recs)
     setAppenaSalvate(salvate)
 
     // Chi mi segue lo viene a sapere: una riga nella chat con ciascuno, con

@@ -26,6 +26,7 @@ import type { JarvisState } from '@/store/useJarvisStore'
 import { getSyncMeta, clearSyncMeta, ripristinaSyncMeta, type SyncMeta } from './syncMeta'
 import { dimenticaSchedeRicevute } from './coach'
 import { dimenticaProfili } from './profili'
+import { dimenticaRuolo } from './ruolo'
 import { scartaSessione, esportaSessione, importaSessione } from '@/features/gym/sessioneInCorso'
 
 const CHIAVE = 'jarvis-proprietario-v1'
@@ -139,6 +140,7 @@ export function svuotaDatiLocali(): void {
   dimenticaSchedeRicevute()
   // Le facce di chi seguiva l'altro, idem.
   dimenticaProfili()
+  dimenticaRuolo()
   // E l'allenamento a metà: restando, chi entrava dopo si ritrovava "riprendi"
   // sulle serie di un altro.
   scartaSessione()

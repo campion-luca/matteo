@@ -4,18 +4,19 @@
 // faccio oggi?", non "in che gruppo sta la panca".
 //
 // Quale scheda lo decide `schedaDiOggi` (anteprimaScheda.ts, letta da
-// `useSchedaDiOggi` in gymHooks): la prossima del giro, cioè quella che non si fa
-// da più tempo.
+// `useSchedaDiOggi` in gymHooks): la prossima del giro, cioè quella dopo l'ultima
+// fatta se il coach ha numerato le schede, altrimenti quella che non si fa da più
+// tempo.
 import { useState, type CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
-import { NucEyebrow } from '@/components/ui/NucComponents'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { useT, tData } from '@/lib/i18n'
 import { quantoFa } from './gymModel'
 import { muscoliDellaScheda, durataPrevista, durataArrotondata, serieDellaScheda } from './anteprimaScheda'
 import { sessioneAperta, allenamentoInCorso, scartaSessione } from './sessioneInCorso'
 import { useSchedaDiOggi } from './gymHooks'
+import { traguardoScheda } from './rankEsercizio'
 
 /** Lo stacco fra la card e il tasto, e fra il titolo e la card: segue l'altezza
  *  dello schermo come gli altri respiri della home. */
@@ -41,6 +42,8 @@ export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
 }) {
   const t = useT()
   const palestraExercises = useJarvisStore(st => st.palestraExercises)
+  const peso = useJarvisStore(st => st.userWeight ?? 0)
+  const sesso = useJarvisStore(st => st.userSex)
   const oggi = useSchedaDiOggi()
   // Lo scarto non tocca lo store: è questo a far rileggere il disco.
   const [, ridisegna] = useState(0)
@@ -59,24 +62,23 @@ export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
     onChiudi(aperta.schedaId)
   }
 
+  // Una cornice sola da «Schede» a «Tutte», tutta da toccare: il titolo accanto a
+  // un tastino sembrava non fare niente. Stessa altezza del tastino di prima, così
+  // il conto dell'altezza della home non cambia.
   const titolo = (
-    <NucEyebrow style={{ marginBottom: STACCO, flexShrink: 0 }} right={
-      <span style={{ display: 'flex', gap: 'clamp(6px, 2vw, 8px)' }}>
-        {/* Sotto i 360px, accanto a «Schede» e a «Tutte», il nome intero non
-            ci sta e tagliava il titolo: lì dice «Chiudi» (vedi .j-chiudi-corto). */}
-        {inCorso && (
-          <button onClick={chiudi} aria-label={t('Chiudi allenamento')} className="j-hard j-focus" style={TASTINO}>
-            <span className="j-chiudi-lungo">{t('Chiudi allenamento')}</span>
-            <span className="j-chiudi-corto">{t('Chiudi')}</span>
-          </button>
-        )}
-        <button onClick={onTutte} className="j-hard j-focus" style={TASTINO}>
-          {t('Tutte')} <Icons.arrow size={15} stroke={2.4}/>
+    <div style={{ display: 'flex', gap: 'clamp(6px, 2vw, 8px)', marginBottom: STACCO, flexShrink: 0 }}>
+      <button onClick={onTutte} aria-label={t('Tutte le schede')} className="j-hard j-focus" style={{ ...TASTINO, flex: 1, minWidth: 0, justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, letterSpacing: '.02em' }}>{t('Schede')}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t('Tutte')} <Icons.arrow size={15} stroke={2.4}/></span>
+      </button>
+      {/* «Chiudi» e basta: il nome intero toglieva alla cornice lo spazio per
+          «Tutte», e di cosa si tratta lo dice la card qui sotto. */}
+      {inCorso && (
+        <button onClick={chiudi} aria-label={t('Chiudi allenamento')} className="j-hard j-focus" style={TASTINO}>
+          {t('Chiudi')}
         </button>
-      </span>
-    }>
-      {t('Schede')}
-    </NucEyebrow>
+      )}
+    </div>
   )
 
   if (!oggi) {
@@ -110,6 +112,10 @@ export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
   const avanzamento = inCorso && !fattaOggi ? allenamentoInCorso(id => (id === scheda.id ? scheda : undefined)) : undefined
   const inCorsoOggi = !!avanzamento && !avanzamento.vecchia
 
+  const apriScheda = () => onAvvia(scheda.id, false)
+  // Il prossimo gradino su questa scheda: la ragione per mettere un chilo in più.
+  const traguardo = traguardoScheda(scheda, palestraExercises, peso, sesso)
+
   const numero = (valore: string, etichetta: string) => (
     <div className="j-oggi-cifra">
       <div className="j-oggi-numero">{valore}</div>
@@ -123,8 +129,19 @@ export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
     // stringe sui telefoni bassi, non il tasto che finisce sotto il bordo.
     <section style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
       {titolo}
-      {/* La card "Oggi": misure e regole in `.j-oggi` (globals.css). */}
-      <div className="j-oggi">
+      {/* La card "Oggi": misure e regole in `.j-oggi` (globals.css). Toccandola si
+          apre la scheda, per guardarla prima di cominciare; a partire dritti è il
+          tasto qui sotto. Un `div` e non un `button`: il contenitore porta le
+          misure `cqh`, e dentro a un bottone l'altezza del figlio non si regge. */}
+      <div
+        className={`j-oggi j-focus${traguardo ? ' con-traguardo' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-label={t('Apri la scheda {scheda}', { scheda: scheda.title })}
+        onClick={apriScheda}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apriScheda() } }}
+        style={{ cursor: 'pointer' }}
+      >
         <div className="j-oggi-corpo">
           <div style={{ minWidth: 0 }}>
             <div className="j-oggi-occhiello">
@@ -140,6 +157,13 @@ export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
               {avanzamento && inCorsoOggi ? t('{fatte}/{totali} serie fatte', { fatte: avanzamento.fatte, totali: avanzamento.totali })
                 : giorniFa === null ? t('mai fatta') : t('ultima volta {quando}', { quando: quantoFa(giorniFa, t) })}
             </div>
+            {traguardo && (
+              <div className="j-oggi-traguardo">
+                {traguardo.mancano === 1
+                  ? t('Manca 1 kg per {rank} · {esercizio}', { rank: t(traguardo.rank.nome), esercizio: tData(traguardo.esercizio) })
+                  : t('Mancano {kg} kg per {rank} · {esercizio}', { kg: traguardo.mancano, rank: t(traguardo.rank.nome), esercizio: tData(traguardo.esercizio) })}
+              </div>
+            )}
           </div>
           <div className="j-oggi-numeri">
             {numero(String(esercizi), esercizi === 1 ? t('esercizio') : t('esercizi'))}

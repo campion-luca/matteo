@@ -934,6 +934,15 @@
     font-family: var(--font-body); font-size: 13px; line-height: 1.4; color: var(--muted-dark);
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
   }
+  /* Il traguardo più vicino sulla scheda: una riga. Sui telefoni alti la card si
+     allunga per farle posto; sugli altri prende il posto del dettaglio, e sui più
+     bassi se ne va con lui: il tasto e i numeri contano di più. */
+  .j-oggi-traguardo {
+    margin-top: 6px;
+    font-family: var(--font-body); font-size: 13px; font-weight: 600; line-height: 1.3;
+    color: var(--accent-su-ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .j-oggi-numeri {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
     padding-top: 14px; border-top: 1px solid var(--line-dark);
@@ -976,22 +985,19 @@
     }
     /* Card bassa: l'etichetta accanto al numero invece che sotto. È una riga in
        meno, e «6 esercizi» si legge lo stesso. E un filo meno di respiro. */
+    .j-oggi.con-traguardo { max-height: 274px; }
+    @container (max-height: 249px) {
+      .con-traguardo .j-oggi-dettaglio { display: none; }
+      .j-oggi-traguardo { margin-top: clamp(2px, 3cqh, 8px); }
+    }
     @container (max-height: 175px) {
       .j-oggi-corpo { padding-block: 8px 9px; gap: 6px; }
       .j-oggi-cifra { display: flex; align-items: baseline; gap: 5px; }
       .j-oggi-etichetta { margin-top: 0; }
     }
     @container (max-height: 138px) {
-      .j-oggi-dettaglio { display: none; }
+      .j-oggi-dettaglio, .j-oggi-traguardo { display: none; }
     }
-  }
-
-  /* «Chiudi allenamento», accanto a «Tutte» sopra la card "Oggi": sotto i
-     360px non ci sta insieme al titolo «Schede», e resta «Chiudi». */
-  .j-chiudi-corto { display: none; }
-  @media (max-width: 359px) {
-    .j-chiudi-lungo { display: none; }
-    .j-chiudi-corto { display: inline; }
   }
 
   /* Card del carosello dei gruppi: la pressione è una stretta appena accennata.

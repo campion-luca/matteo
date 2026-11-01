@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { accentFgFor, accentInkFor } from '@/lib/jarvis-tokens'
 import { MUSCLE_COLORS, COLOR_PALETTE } from '@/features/gym/gymModel'
+import { RANK } from '@/features/gym/rankEsercizio'
 
 // I colori si leggono da globals.css, gli stessi che vede l'app: `:root` per il
 // chiaro, `:root[data-tema="scuro"]` per lo scuro (che ridefinisce solo quello
@@ -96,6 +97,12 @@ describe('i temi tolti', () => {
 // I colori dei gruppi muscolari non sono del tema: li sceglie l'utente. Quando
 // fanno da testo o da fondo sotto un testo, passano da queste due funzioni.
 const COLORI_DATI = [...new Set([...Object.values(MUSCLE_COLORS), ...COLOR_PALETTE])]
+
+describe('le medaglie dei rank', () => {
+  it.each(RANK.map(r => [r.nome, r.colore]))('%s: il segno si legge sul suo fondo', (_, colore) => {
+    expect(contrast(accentFgFor(colore), colore)).toBeGreaterThanOrEqual(4.5)
+  })
+})
 
 describe('accentInkFor — un colore dei dati come testo', () => {
   it.each(COLORI_DATI)('%s raggiunge AA sul fondo', hex => {
