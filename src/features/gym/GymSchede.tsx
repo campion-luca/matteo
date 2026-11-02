@@ -16,7 +16,7 @@ import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
-import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry, ProgressioneRiga, StatoProgressione } from '@/store/useJarvisStore'
+import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry, ProgressioneRiga, StatoProgressione, TecnicaRiga } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, ultimaDiLavoro, correnteDa, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti } from './gymModel'
 import { fmtDayMonthFull, fmtDayMon, fmtMeseAnno } from '@/lib/dateFormat'
@@ -34,6 +34,8 @@ import { TimerRecupero, TimerIcona } from './TimerRecupero'
 import { caricoConsigliato, contaPerMuscolo, GIORNI_DI_STOP, type Consiglio } from './caricoConsigliato'
 import { carichiValidi, serieERipetizioni, oggiDellaRiga, rigaDiOggi, esitoEsercizio, colpiBersaglio, leggiRir, type OggiRiga } from './progressioneScheda'
 import { CampoProgressione } from './FormProgressione'
+import { CampoTecnica } from './FormTecnica'
+import { SIGLA_TECNICA, serieConTecnica, sintesiTecnica, tecnicaDi, testiTecnica } from './tecniche'
 import { todayISO, giorniTra, localISO } from '@/lib/isoDate'
 import { uid } from '@/lib/uid'
 import { idUtenteSuDisco } from '@/lib/supabase'
@@ -1181,6 +1183,7 @@ interface FormRow {
   id: string; name: string; sets: string; reps: string; linkedExerciseId?: string; muscle: string; bodyweight: boolean; note: string; supersetWithNext: boolean
   /** La progressione scelta per la riga (solo nelle schede `conProgressioni`). */
   progressione?: ProgressioneRiga
+  tecnica?: TecnicaRiga
   /** L'esercizio a cui la riga era collegata aprendo il form. Serve a dire cosa
    *  succede quando se ne cambia il nome, e a ricollegarla se il nome torna. */
   origine?: { id: string; nome: string }
@@ -1226,6 +1229,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
       ? scheda.exercises.map(e => ({
         id: e.id, name: e.name, sets: String(e.sets), reps: e.reps, linkedExerciseId: e.linkedExerciseId, muscle: e.muscle ?? '', bodyweight: !!e.bodyweight, note: e.note ?? '', supersetWithNext: !!e.supersetWithNext,
         ...(e.progressione ? { progressione: e.progressione } : {}),
+        ...(e.tecnica ? { tecnica: e.tecnica } : {}),
         ...(e.linkedExerciseId && palestraExercises.some(x => x.id === e.linkedExerciseId) ? { origine: { id: e.linkedExerciseId, nome: e.name } } : {}),
       }))
       : [{ id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', bodyweight: false, note: '', supersetWithNext: false }]
@@ -1379,6 +1383,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         // Solo per un esercizio nuovo: di uno che esiste già lo sa l'esercizio.
         ...(!r.linkedExerciseId && r.bodyweight ? { bodyweight: true } : {}),
         ...(r.note.trim() ? { note: r.note.trim() } : {}),
+        ...(r.tecnica ? { tecnica: r.tecnica } : {}),
         // Il superset lega l'esercizio al SUCCESSIVO: sull'ultimo non ha senso.
         ...(r.supersetWithNext && i < filled.length - 1 ? { supersetWithNext: true as const } : {}),
       }))
@@ -1516,7 +1521,8 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
           if (!eAperta) {
             const senzaNome = r.name.trim() === ''
             const manca = daCompletare(r)
-            const dettagli = [muscolo && tData(muscolo), linkedToPrev && t('superset'), r.note.trim() && t('con nota')].filter(Boolean).join(' · ')
+            const tecnica = tecnicaDi(r)
+            const dettagli = [muscolo && tData(muscolo), linkedToPrev && t('superset'), tecnica && testiTecnica(tecnica.tipo, t).nome, r.note.trim() && t('con nota')].filter(Boolean).join(' · ')
             return (
               <div key={r.id}>
                 <div className="flex items-stretch" style={{ background: 'var(--surface)', border: 'var(--bordo)', marginBottom: legame ? 0 : 10 }}>
@@ -1728,6 +1734,15 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                   onCambia={() => patch(r.id, { supersetWithNext: !r.supersetWithNext })}
                 />
               </div>
+
+              {/* Una tecnica che questa versione non conosce (da un'app più
+                  nuova) non si vede, ma resta sulla riga finché non se ne
+                  sceglie un'altra: salvare non la cancella. */}
+              <CampoTecnica
+                valore={tecnicaDi(r)}
+                onChange={tecnica => patch(r.id, { tecnica })}
+                backoff={conProgressione(r) && r.progressione?.modello === 'topSet' ? r.progressione.cfg.backoffSets : undefined}
+              />
 
               {/* Nota (facoltativa): si vede anche durante l'allenamento */}
               <label style={{ display: 'block', marginTop: 14 }}>
@@ -2186,26 +2201,37 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, scollegato 
 
   // La riga di un esercizio: il numero, la foto col contorno del colore del suo
   // gruppo muscolare, il nome e il gruppo, e a destra serie × colpi.
-  const rigaEsercizio = (e: GymSchedaExercise, sigla: string, primo: boolean) => (
-    <div key={e.id} className="flex items-center" style={{ gap: 12, padding: '12px 14px', borderTop: primo ? 'none' : '1px solid var(--line)' }}>
-      <span style={{ width: 28, flexShrink: 0, fontFamily: NUC.display, fontSize: 20, fontWeight: 700, color: NUC.ink }}>{sigla}</span>
-      <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48} colore={muscleColor(e.muscle, muscleColors)}/>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.25, color: NUC.ink }}>{tData(e.name)}</div>
-        <div style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 2 }}>
-          {e.muscle ? tData(displayMuscle(e.muscle)) : t('Senza gruppo')}
-        </div>
-        {e.note && (
-          <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: NUC.faint, marginTop: 4, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
-            {e.note}
+  const rigaEsercizio = (e: GymSchedaExercise, sigla: string, primo: boolean) => {
+    // La tecnica, se tocca davvero una serie: col solo top set non ne tocca nessuna.
+    const tecnica = tecnicaDi(e)
+    const conTop = e.progressione?.modello === 'topSet'
+    const conTecnica = !!tecnica && serieConTecnica(tecnica, e.sets, conTop).some(Boolean)
+    return (
+      <div key={e.id} className="flex items-center" style={{ gap: 12, padding: '12px 14px', borderTop: primo ? 'none' : '1px solid var(--line)' }}>
+        <span style={{ width: 28, flexShrink: 0, fontFamily: NUC.display, fontSize: 20, fontWeight: 700, color: NUC.ink }}>{sigla}</span>
+        <FacciaEsercizio nome={e.name} muscolo={e.muscle} lato={48} colore={muscleColor(e.muscle, muscleColors)}/>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.25, color: NUC.ink }}>{tData(e.name)}</div>
+          <div style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 2 }}>
+            {e.muscle ? tData(displayMuscle(e.muscle)) : t('Senza gruppo')}
           </div>
-        )}
+          {tecnica && conTecnica && (
+            <div style={{ fontFamily: NUC.display, fontSize: 12, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--j-accent-ink)', marginTop: 3 }}>
+              {sintesiTecnica(tecnica, t, conTop)}
+            </div>
+          )}
+          {e.note && (
+            <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: NUC.faint, marginTop: 4, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+              {e.note}
+            </div>
+          )}
+        </div>
+        <div style={{ flexShrink: 0, fontFamily: NUC.display, fontSize: 22, fontWeight: 800, color: NUC.ink, whiteSpace: 'nowrap' }}>
+          {e.sets}×{e.reps}
+        </div>
       </div>
-      <div style={{ flexShrink: 0, fontFamily: NUC.display, fontSize: 22, fontWeight: 800, color: NUC.ink, whiteSpace: 'nowrap' }}>
-        {e.sets}×{e.reps}
-      </div>
-    </div>
-  )
+    )
+  }
 
   // I tre numeri sotto il titolo: esercizi, serie, da quanto non la si fa.
   const numero = (valore: ReactNode, etichetta: string, primo: boolean) => (
@@ -2756,6 +2782,24 @@ function ConsiglioCarico({ consiglio, serie, applicabile, onUsa }: {
   )
 }
 
+// ── La tecnica allenante, dentro la card di un esercizio ───────
+// Come si fa la serie, e su quali: con le parole della scheda, prima delle
+// serie. Sotto, cosa scrivere nei campi (vedi tecniche): la serie principale,
+// non gli scali né le mini-serie.
+function RiquadroTecnica({ tecnica, conTop }: { tecnica: TecnicaRiga; conTop: boolean }) {
+  const t = useT()
+  const { come, campi } = testiTecnica(tecnica.tipo, t)
+  return (
+    <div style={{ padding: '10px 12px', background: 'var(--surface-2)', border: `1px solid ${NUC.hairline}` }}>
+      <div style={{ fontFamily: NUC.display, fontSize: 13, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>
+        {sintesiTecnica(tecnica, t, conTop)}
+      </div>
+      <div style={{ fontFamily: NUC.font, fontSize: 13.5, lineHeight: 1.45, color: NUC.ink, marginTop: 4 }}>{come}</div>
+      {campi && <div style={{ fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.4, color: NUC.faint, marginTop: 4 }}>{campi}</div>}
+    </div>
+  )
+}
+
 // ── La prescrizione di una riga con la progressione ────────────
 // Al posto del consiglio, sulle schede `conProgressioni`: cosa fare oggi, serie
 // per serie, come lo dice `prescribeTopSet` / `prescribeDouble`. Sotto, quello
@@ -2921,6 +2965,13 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, p, last,
   // l'allenamento, a «Salva e chiudi» — un allenamento scartato non avanza.
   const esito = progr && exDone ? esitoEsercizio(progr, serieDellaProgressione(p, progr, attrezzo), todayISO()) : null
   const topSenzaRir = progr?.p.modello === 'topSet' && p.checks[0] && leggiRir(p.rir?.[0]) === null
+  // La tecnica allenante: le serie che tocca (mai il top set, vedi tecniche),
+  // e la sigla accanto al numero solo dove non le tocca tutte — su ogni riga
+  // direbbe quello che il riquadro sopra dice già.
+  const tecnica = tecnicaDi(e)
+  const conTop = progr?.p.modello === 'topSet'
+  const toccate = serieConTecnica(tecnica, nSets, conTop)
+  const marcate = toccate.every(Boolean) ? [] : toccate
   const intestazione: CSSProperties = { fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint }
   return (
     <div style={{ marginBottom: e.supersetWithNext ? 0 : 14 }}>
@@ -2992,6 +3043,12 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, p, last,
               applicabile={p.weights.some((w, i) => !p.checks[i] && consiglio.pesi[i] !== undefined && parseNum(w) !== consiglio.pesi[i])}
               onUsa={() => onUsa(e.id, consiglio.pesi)}
             />
+          </div>
+        )}
+
+        {tecnica && toccate.some(Boolean) && (
+          <div style={{ padding: '0 14px 14px' }}>
+            <RiquadroTecnica tecnica={tecnica} conTop={conTop}/>
           </div>
         )}
 
@@ -3083,8 +3140,15 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, p, last,
                 background: on ? 'var(--surface-2)' : 'transparent',
                 transition: 'background-color 120ms',
               }}>
-                <span style={{ fontFamily: NUC.display, fontSize: progr?.prescrizione[i]?.label === 'top' ? 15 : 20, fontWeight: progr?.prescrizione[i]?.label === 'top' ? 800 : 600, color: on ? NUC.faint : NUC.ink }}>
-                  {progr?.prescrizione[i]?.label === 'top' ? t('TOP') : i + 1}
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.05 }}>
+                  <span style={{ fontFamily: NUC.display, fontSize: progr?.prescrizione[i]?.label === 'top' ? 15 : 20, fontWeight: progr?.prescrizione[i]?.label === 'top' ? 800 : 600, color: on ? NUC.faint : NUC.ink }}>
+                    {progr?.prescrizione[i]?.label === 'top' ? t('TOP') : i + 1}
+                  </span>
+                  {marcate[i] && tecnica && (
+                    <span aria-hidden="true" style={{ fontFamily: NUC.display, fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: on ? NUC.faint : 'var(--j-accent-ink)' }}>
+                      {SIGLA_TECNICA[tecnica.tipo]}
+                    </span>
+                  )}
                 </span>
                 {/* Prima i colpi, poi i chili: è l'ordine in cui la serie si
                     racconta ("10 per 60") e quello in cui si scrive a fine
@@ -3123,7 +3187,9 @@ const CardAllenamento = memo(function CardAllenamento({ e, legatoPrima, p, last,
                 <button
                   onClick={() => onToggle(e.id, i)}
                   aria-pressed={on}
-                  aria-label={t('Serie {n}', { n: i + 1 })}
+                  // La sigla si vede e basta: chi usa lo screen reader sente qui
+                  // che questa è la serie della tecnica.
+                  aria-label={`${t('Serie {n}', { n: i + 1 })}${tecnica && toccate[i] ? ` · ${testiTecnica(tecnica.tipo, t).nome}` : ''}`}
                   style={{
                     width: 44, height: 44, padding: 0, cursor: 'pointer', justifySelf: 'end',
                     border: 'var(--bordo)', background: on ? 'var(--ink)' : 'var(--surface)',

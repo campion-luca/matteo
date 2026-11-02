@@ -118,9 +118,10 @@ describe('dizionario inglese', () => {
       //    Pace, Personal trainer, Timer, Trend, Volume, superset,
       //    email, password, info, "Light weight baby";
       //  · sigle e unità: Kg, min, sec, e "{n} sess." che abbrevia allo stesso modo;
-      //  · i nomi della progressione, inglesi anche in palestra: top set, back-off.
-      'Account', 'Back-off', 'Back-off: − %', 'Chat', 'Coaching', 'Hyrox', 'Kg', 'Light weight baby',
-      'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal trainer', 'Roxzone',
+      //  · i nomi della progressione, inglesi anche in palestra: top set, back-off;
+      //  · e quelli delle tecniche allenanti: drop set, rest-pause.
+      'Account', 'Back-off', 'Back-off: − %', 'Chat', 'Coaching', 'Drop set', 'Hyrox', 'Kg', 'Light weight baby',
+      'Log', 'No', 'Pace', 'Pace (sec/km)', 'Personal trainer', 'Rest-pause', 'Roxzone',
       'TOP', 'Timer', 'Top set', 'Top set + back-off', 'Trend', 'Volume', 'email', 'info', 'min',
       'password', 'sec', 'superset', '{n} sess.',
     ])

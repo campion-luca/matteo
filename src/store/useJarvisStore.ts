@@ -149,6 +149,13 @@ export type StatoProgressione = { il: string; evento: ProgressionEvent; messaggi
   | { modello: 'doppia'; stato: DoubleProgressionState }
 )
 
+// ── La tecnica allenante di una riga di scheda (dal 2 nov 2026) ─
+// Drop set, myo reps, rest-pause, eccentrica lenta: COME si fa la serie, oltre
+// a quante serie e quanti colpi. Una per riga, sull'ultima serie o su tutte.
+// Cosa vuol dire ciascuna sta in tecniche.ts.
+export type TipoTecnica = 'dropSet' | 'myoReps' | 'restPause' | 'eccentrica'
+export interface TecnicaRiga { tipo: TipoTecnica; serie: 'ultima' | 'tutte' }
+
 export interface GymSchedaExercise {
   id: string
   name: string
@@ -159,6 +166,7 @@ export interface GymSchedaExercise {
   bodyweight?: boolean     // a corpo libero — come `muscle`, serve a creare l'esercizio se è nuovo
   note?: string            // appunto libero (es. "presa larga", "tempo 3-1-1"): mostrato anche in allenamento
   supersetWithNext?: boolean // questo esercizio è in superset con il SUCCESSIVO (nessun rest tra i due)
+  tecnica?: TecnicaRiga    // la tecnica allenante (drop set, myo reps…): mostrata anche in allenamento
   // Come si progredisce su questa riga (solo nelle schede `conProgressioni`).
   // Con questa, `sets` e `reps` qui sopra sono quelli che la config dice, scritti
   // per chi legge la scheda senza conoscerla (durata, elenco, analisi).
@@ -286,7 +294,9 @@ export interface JarvisState {
 //   2 → le progressioni (28 ott 2026). Il form delle schede di prima ricostruisce
 //       ogni riga coi campi che conosce: modificando su un telefono non
 //       aggiornato una scheda nuova, `progressione` e `conProgressioni` sparivano.
-export const VERSIONE_DATI = 2
+//   3 → le tecniche allenanti (2 nov 2026), per lo stesso motivo: il form di
+//       prima riscriverebbe la riga senza `tecnica`.
+export const VERSIONE_DATI = 3
 
 // La versione del tema corrente. Alzarla rimette tutti gli account sul layout di
 // default una volta, al primo caricamento dopo l'aggiornamento; poi la scelta

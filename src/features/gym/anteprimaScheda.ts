@@ -4,8 +4,9 @@
 // se sta nell'ora che si ha.
 //
 // Logica pura: l'elenco la disegna (vedi SchedeListPage), i conti si provano qui.
-import type { GymScheda, GymSchedaExercise, PalestraExercise } from '@/store/useJarvisStore'
+import type { GymScheda, GymSchedaExercise, PalestraExercise, TipoTecnica } from '@/store/useJarvisStore'
 import { colpiPrevisti, displayMuscle, ultimaVoltaPerScheda } from './gymModel'
+import { tecnicaDi, toccaSerie } from './tecniche'
 import { localISO, giorniTra } from '@/lib/isoDate'
 
 /** Il recupero fra una serie e l'altra: un minuto e mezzo, lo stesso del timer
@@ -61,8 +62,8 @@ export function muscoliDellaScheda(scheda: GymScheda, palestra: PalestraExercise
     .sort((a, b) => b.esercizi - a.esercizi)
 }
 
-/** Quanto dura la scheda, in secondi: per ogni serie il tempo di farla più il
- *  recupero. È una stima — non conta il riscaldamento né la coda alla
+/** Quanto dura la scheda, in secondi: per ogni serie il tempo di farla (con la
+ *  sua tecnica allenante, se ce l'ha) più il recupero. È una stima — non conta il riscaldamento né la coda alla
  *  macchina — e chi la mostra la arrotonda (vedi `durataArrotondata`).
  *
  *  In un superset fra i due esercizi non ci si ferma: il recupero è uno solo,
@@ -71,15 +72,36 @@ export function durataPrevista(scheda: GymScheda): number {
   return durataRimanente(scheda, {})
 }
 
+/** Quanto allunga una serie la tecnica allenante, oltre ai colpi della serie
+ *  stessa. Conti fatti sulle descrizioni (vedi tecniche). Stanno fuori dal
+ *  tetto di `SERIE_MAX_SEC`: quello è per la serie, questo viene dopo. */
+function secondiTecnica(tipo: TipoTecnica, colpi: number): number {
+  switch (tipo) {
+    // Due scali: il peso da cambiare, una decina di secondi, e ~6 colpi.
+    case 'dropSet': return 2 * (10 + 6 * SECONDI_A_COLPO)
+    // Due pause da 15 secondi, con ~3 colpi dopo ciascuna.
+    case 'restPause': return 2 * (15 + 3 * SECONDI_A_COLPO)
+    // 3-4 mini-serie da 3-5 colpi, con 10-15 secondi di respiri prima.
+    case 'myoReps': return Math.round(3.5 * (12.5 + 4 * SECONDI_A_COLPO))
+    // Scendere in 3-4 secondi: un paio in più a colpo.
+    case 'eccentrica': return 2 * colpi
+  }
+}
+
 /** Quanto pesa ogni serie di una riga, recupero compreso, in secondi. Vuoto
  *  per una riga senza nome. */
 function secondiPerSerie(riga: GymSchedaExercise): number[] {
   if (!riga.name.trim()) return []
   const serie = Math.min(SERIE_MAX, Math.max(1, Math.floor(riga.sets) || 1))
   const recupero = riga.supersetWithNext ? 0 : RECUPERO_SEC
-  return colpiPrevisti(riga.reps, serie).map(colpi => {
+  const tecnica = tecnicaDi(riga)
+  const conTop = riga.progressione?.modello === 'topSet'
+  return colpiPrevisti(riga.reps, serie).map((colpi, i) => {
     const lavoro = (colpi || COLPI_SE_NON_SI_SA) * SECONDI_A_COLPO
-    return Math.min(SERIE_MAX_SEC, Math.max(SERIE_MIN_SEC, lavoro)) + recupero
+    // Sulle serie VERE e non su quelle col tetto: "l'ultima" è quella che in
+    // allenamento porta la sigla, anche su una riga da 25 serie.
+    const extra = tecnica && toccaSerie(tecnica, i, riga.sets, conTop) ? secondiTecnica(tecnica.tipo, colpi || COLPI_SE_NON_SI_SA) : 0
+    return Math.min(SERIE_MAX_SEC, Math.max(SERIE_MIN_SEC, lavoro)) + extra + recupero
   })
 }
 

@@ -1,6 +1,6 @@
 COME RAGIONA L'APP SUI CARICHI
 ==============================
-Aggiornato al 28 ottobre 2026.
+Aggiornato al 2 novembre 2026.
 
 Questo foglio dice, a parole, cosa fa l'app quando ti propone un peso
 mentre esegui una scheda: quando parla, quando sta zitta, in che ordine
@@ -388,4 +388,68 @@ Nel codice:
                         src/features/gym/GymSchede.tsx (PrescrizioneCard,
                         finishTraining)
   - Le prove:           src/test/progressione.test.tsx
+
+
+14. LE TECNICHE ALLENANTI (DAL 2 NOVEMBRE 2026)
+-----------------------------------------------
+Chi scrive la scheda può dare a ogni riga una tecnica, una sola:
+
+  - Drop set ......... arrivi a cedimento, scali subito il carico del
+                       20-30% e riparti senza pausa. Per 2 scali.
+  - Myo reps ......... una serie d'attivazione da 12-15 reps vicino al
+                       cedimento, 3-5 respiri profondi (10-15 secondi),
+                       una mini-serie da 3-5 reps; la mini-serie 3-4 volte.
+  - Rest-pause ....... arrivi a cedimento, 15 secondi di pausa e altre
+                       reps, per 2 volte.
+  - Eccentrica lenta . scendi in 3-4 secondi, risali a velocità normale.
+
+E dice su quali serie: sull'ultima o su tutte. Scegliendola parte da
+dove va di solito: l'eccentrica su tutte, le altre sull'ultima (il myo
+reps è già da solo una serie d'attivazione più 3-4 mini-serie: su ognuna
+di tre serie sarebbe tre volte tanto).
+
+MAI SUL TOP SET. Drop set, rest-pause e myo reps portano la serie a
+cedimento, cioè a RIR 0; sul top set è il RIR a dire se il carico sale,
+e a cedimento ogni volta resterebbe fermo per sempre. Su una riga col
+top set la tecnica va sulle back-off: «tutte» vuol dire tutte le
+back-off, e il form lo dice. Col solo top set (zero back-off) non c'è
+una serie su cui farla: il form lo dice, e in allenamento non compare.
+
+In allenamento la card dell'esercizio la mostra prima delle serie, con
+cosa fare; se non vale per tutte le serie, quelle toccate portano la
+sigla (DROP, MYO, R-P, ECC) accanto al numero, e lo screen reader la
+legge col numero della serie («Serie 3 · Drop set»).
+
+NEI CAMPI VA LA SERIE PRINCIPALE. Gli scali del drop set, le mini-serie
+del myo reps e i colpi dopo le pause del rest-pause non si scrivono, e
+la card lo ricorda. Sommati alla serie sarebbero colpi fatti con meno
+peso, o dopo una pausa, contati come se fossero al peso pieno: il
+massimale stimato salirebbe senza motivo, e la doppia progressione
+alzerebbe il carico prima del tempo. Così il carico consigliato e le
+progressioni non cambiano: la tecnica non li tocca.
+
+La stima della durata conta il tempo in più: circa un minuto per un
+drop set o un rest-pause, un minuto e mezzo per un myo reps, un paio di
+secondi a colpo per l'eccentrica lenta.
+
+Dove non arriva ancora:
+  - gli scali e le mini-serie non si registrano: chi allena non li vede;
+  - una tecnica per riga: eccentrica lenta più drop set sull'ultima non
+    si può dire, se non nella nota;
+  - i numeri delle tecniche (20-30%, 2 scali, 15 secondi) sono fissi:
+    per cambiarli si scrive nella nota della riga;
+  - le schede del coach stanno in una tabella a parte, che il controllo
+    sulla versione dei dati non copre: un'app non aggiornata che
+    modifica una scheda assegnata la risalva senza la tecnica (succedeva
+    già con le progressioni). Non si può impedire dall'app nuova: quella
+    vecchia il controllo non lo conosce;
+  - una tecnica scritta da un'app più nuova, che questa non conosce,
+    non si vede; ma modificando la scheda resta com'era.
+
+Nel codice:
+  - Cosa sono:          src/features/gym/tecniche.ts
+  - Il form della riga: src/features/gym/FormTecnica.tsx
+  - La card in allenamento:
+                        src/features/gym/GymSchede.tsx (RiquadroTecnica)
+  - Le prove:           src/test/tecniche.test.tsx
 

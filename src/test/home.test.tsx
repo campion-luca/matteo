@@ -188,7 +188,9 @@ describe('la home', () => {
     expect(screen.getByText('Oggi · Giovedì')).toBeInTheDocument()
     expect(screen.getByText('mai fatta', { exact: false })).toBeInTheDocument()
     expect(screen.getByText('Petto')).toBeInTheDocument()
-    expect(screen.getByText('7')).toBeInTheDocument()
+    // Il numero della card, non uno qualsiasi: la striscia della settimana in
+    // cima mostra i giorni del mese, e nelle settimane col 7 il test cadeva.
+    expect(screen.getByText('7', { selector: '.j-oggi-numero' })).toBeInTheDocument()
     // Senza un allenamento aperto non c'è niente da chiudere.
     expect(screen.queryByRole('button', { name: 'Chiudi allenamento' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Inizia allenamento/ }))

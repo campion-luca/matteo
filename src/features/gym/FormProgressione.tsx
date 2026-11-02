@@ -2,7 +2,7 @@
 // Tre preset — multiarticolare, mono grande, mono piccola — che sono il
 // suggerimento; i carichi che ci sono davvero (un passo fisso, o la lista dei
 // manubri e del pacco pesi); e «Personalizza» per cambiare modello e numeri.
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { Interruttore } from '@/components/ui/NucComponents'
@@ -11,17 +11,12 @@ import type { ProgressioneRiga } from '@/store/useJarvisStore'
 import type { LoadSteps } from './progression'
 import { fmtNum, parseNum } from './gymModel'
 import { conPreset, conModello, rangeConsigliato, leggiLista, PASSO_FISSO, LISTA_MANUBRI, PRESET_FISSI, type PresetFisso } from './progressioneScheda'
-
-const ETICHETTA: CSSProperties = {
-  fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.1em',
-  textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 6,
-}
-const SPIEGA: CSSProperties = { fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.45, color: 'var(--fg-mute)', marginTop: 6 }
+import { ETICHETTA, SPIEGA } from './stiliForm'
 
 /** Una fila di scelte col bordo d'inchiostro: quella accesa è piena. Le
  *  larghezze seguono le parole: a 320px «Multiarticolare», che non va a capo,
  *  in un terzo di riga non ci stava. */
-function Scelte<T extends string>({ valori, etichette, attivo, onScegli, etichetta }: {
+export function Scelte<T extends string>({ valori, etichette, attivo, onScegli, etichetta }: {
   valori: readonly T[]; etichette: Record<T, string>; attivo: T | null; onScegli: (v: T) => void; etichetta: string
 }) {
   return (
