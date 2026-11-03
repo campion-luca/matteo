@@ -735,6 +735,11 @@ export const EN_UI: Record<string, string> = {
   'La nuova password deve avere almeno 6 caratteri.': 'The new password must be at least 6 characters long.',
   'Utente non trovato.': 'User not found.',
   'Password attuale non corretta.': 'Current password is incorrect.',
+  'La nuova password deve essere diversa da quella attuale.': 'The new password must be different from the current one.',
+  'La nuova password deve avere almeno {n} caratteri.': 'The new password must be at least {n} characters long.',
+  'La nuova password è troppo facile da indovinare: scegline una più lunga o meno prevedibile.':
+    'The new password is too easy to guess: choose a longer or less predictable one.',
+  'Non è stato possibile aggiornare la password. Riprova.': 'Couldn’t update the password. Try again.',
   'Logout': 'Log out',
 
   // ── Svuota le alzate ─────────────────────────────────────────
@@ -844,6 +849,8 @@ export const EN_UI: Record<string, string> = {
     'Enter only the plates: the {kg} kg of the bar are added for you.',
   'Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.':
     'Apply it to the {n} lifts already logged too. Tick this only if you have been entering the plates alone.',
+  'Vale anche per l’alzata già registrata. Spuntalo solo se finora scrivevi i soli dischi.':
+    'Apply it to the lift already logged too. Tick this only if you have been entering the plates alone.',
   'scrivi solo i dischi: + {kg} kg di attrezzo': 'enter only the plates: + {kg} kg of bar',
   'Scrivi i dischi: 0 se usi solo l’attrezzo.': 'Enter the plates: 0 if you use the bar alone.',
   'Un numero negativo non si può registrare.': 'A negative number can’t be logged.',
@@ -856,6 +863,8 @@ export const EN_UI: Record<string, string> = {
   'Scrivi quante serie hai fatto.': 'Enter how many sets you did.',
   'Scrivi quanti colpi hai fatto.': 'Enter how many reps you did.',
   'Scrivi quanti colpi hai fatto nelle serie fino a cedimento.': 'Enter how many reps you did in the sets to failure.',
+  'Una serie spuntata a 0 colpi non si salva: scrivi quanti ne hai fatti, o togli la spunta.':
+    'A set ticked at 0 reps can’t be saved: enter how many you did, or untick it.',
   'Scrivi i chili.': 'Enter the weight.',
   'Conferma e salva': 'Confirm and save',
   'Da correggere prima di salvare: chiudi questa finestra e sistema i numeri.':
@@ -889,6 +898,11 @@ export const EN_UI: Record<string, string> = {
   'Questa scheda è già assegnata: se manca qualcosa non viene salvata, così a chi la usa resta quella di prima.':
     'This plan is already assigned: if something is missing it isn’t saved, so whoever uses it keeps the previous one.',
   'Ho tolto la scheda «{scheda}».': 'I removed the plan “{scheda}”.',
+  // Il coach ritocca o rinumera una scheda che nel frattempo è stata tolta.
+  '«{scheda}» non c’è più: è stata tolta nel frattempo, e le modifiche non sono state salvate.':
+    '“{scheda}” no longer exists: it was removed in the meantime, and your changes weren’t saved.',
+  'Una scheda non c’è più: è stata tolta nel frattempo. L’elenco è aggiornato.':
+    'A plan no longer exists: it was removed in the meantime. The list is up to date.',
   'Togliere la scheda?': 'Remove the plan?',
   '«{scheda}» te l’ha mandata {chi}, e ne esiste una copia sola: togliendola qui sparisce anche dalla sua app. Glielo facciamo sapere.':
     '“{scheda}” was sent to you by {chi}, and there is only one copy: removing it here removes it from their app too. We’ll let them know.',
@@ -1172,6 +1186,10 @@ export const EN_UI: Record<string, string> = {
   'Cambia foto': 'Change photo',
   'Aggiungi foto': 'Add photo',
   'Togli': 'Remove',
+  'la foto': 'the photo',
+  'Togliere la foto?': 'Remove the photo?',
+  'Il tuo coach e chi segui vedranno l’iniziale del nome al suo posto. Per riaverla dovrai sceglierla di nuovo.':
+    'Your coach and your athletes will see your initial instead. To get it back you’ll have to choose it again.',
   'Viene ridotta a un quadrato piccolo prima di partire: non rallenta niente.':
     'It’s shrunk to a small square before upload: it doesn’t slow anything down.',
   'Cognome': 'Surname',
@@ -1242,6 +1260,8 @@ export const EN_UI: Record<string, string> = {
   'Cerca': 'Search',
   'Costanza': 'Consistency',
   'sett.': 'wks',
+  // Una settimana sola: in italiano "sett." è la stessa, in inglese no.
+  'una|sett.': 'wk',
   'nessuna settimana di fila': 'no weeks in a row',
   'di fila, record personale': 'in a row, personal best',
   'di fila · record {n}': 'in a row · best {n}',
@@ -1277,6 +1297,7 @@ export const EN_UI: Record<string, string> = {
   '1 giorno': '1 day',
   '{n} giorni': '{n} days',
   '{n} sett. di fila': '{n} wks in a row',
+  '1 sett. di fila': '1 wk in a row',
   'Forza': 'Strength',
   'massimali {kg} kg': 'max lifts {kg} kg',
   'Registra un’alzata: qui vedrai quanto è forte ogni gruppo.': 'Log a lift: here you’ll see how strong each group is.',
@@ -1388,6 +1409,19 @@ export const EN_UI: Record<string, string> = {
   'Su tutte le serie': 'On every set',
   'Su quali serie': 'Which sets',
   'Tocca di nuovo la tecnica per toglierla.': 'Tap the technique again to remove it.',
+  'Troppi codici sbagliati: riprova fra un’ora.': 'Too many wrong codes: try again in an hour.',
+  'Il testo è troppo lungo.': 'The text is too long.',
+  'Giudicata sui {alzato} kg che hai alzato, non sui {prescritto} prescritti.': 'Judged on the {alzato} kg you lifted, not the {prescritto} prescribed.',
+  // ── Storico pesate ──
+  'Storico pesate': 'Weigh-in history',
+  '1 pesata': '1 weigh-in',
+  '{n} pesate': '{n} weigh-ins',
+  'la pesata': 'the weigh-in',
+  'Togliere la pesata del {data}?': 'Remove the weigh-in of {data}?',
+  '{kg} kg spariscono dallo storico e dal grafico.': '{kg} kg will disappear from the history and the chart.',
+  'Peso del {data} in kg': 'Weight on {data} in kg',
+  'Correggi la pesata del {data}': 'Edit the weigh-in of {data}',
+  'Togli la pesata del {data}': 'Remove the weigh-in of {data}',
   'tutte le back-off': 'every back-off set',
   'Su tutte le back-off': 'On every back-off set',
   'Sul top set no: è il suo RIR a dire se il carico sale. La tecnica va sulle back-off.': 'Not on the top set: its RIR decides whether the load goes up. The technique goes on the back-off sets.',

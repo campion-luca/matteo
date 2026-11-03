@@ -27,6 +27,14 @@ export function useModalHost(ref: RefObject<HTMLElement>, active: boolean): HTML
   return host
 }
 
+// I dialog aperti, dal primo all'ultimo: Esc e Tab li ascoltano tutti sulla
+// finestra, ma li gestisce solo quello in cima. Una conferma aperta sopra un
+// foglio («Elimina alzata» dentro «Modifica alzata») riceveva Esc insieme al
+// foglio: si chiudevano tutti e due, e le correzioni non salvate del foglio
+// se ne andavano con lei. E il Tab del foglio tirava il focus fuori dalla
+// conferma, verso i suoi campi.
+const aperti: object[] = []
+
 /**
  * Porta il focus dentro il dialog all'apertura, lo restituisce a chi ce l'aveva
  * alla chiusura, cicla il Tab dentro il dialog e chiama `onEscape` su Esc.
@@ -37,6 +45,19 @@ export function useModalHost(ref: RefObject<HTMLElement>, active: boolean): HTML
  */
 export function useFocusTrap(ref: RefObject<HTMLElement>, active: boolean, onEscape: () => void): void {
   const prevFocus = useRef<HTMLElement | null>(null)
+  // Il posto nella pila: un oggetto qualsiasi, purché sia di questo dialog.
+  const io = useRef({})
+
+  // Nella pila si entra all'apertura e se ne esce alla chiusura, in un effetto
+  // a parte: quello dei tasti si rifà a ogni `onEscape` nuovo (di solito una
+  // funzione scritta al volo), e rientrando passerebbe in cima a chi gli è
+  // stato aperto sopra.
+  useEffect(() => {
+    if (!active) return
+    const me = io.current
+    aperti.push(me)
+    return () => { const i = aperti.lastIndexOf(me); if (i >= 0) aperti.splice(i, 1) }
+  }, [active])
 
   useEffect(() => {
     if (!active) return
@@ -68,6 +89,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement>, active: boolean, onEsc
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
+      if (aperti[aperti.length - 1] !== io.current) return
       if (e.key === 'Escape') { onEscape(); return }
       if (e.key !== 'Tab') return
       const el = ref.current

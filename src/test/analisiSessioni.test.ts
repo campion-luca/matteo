@@ -266,6 +266,57 @@ describe('le serie corte quando ne manca qualcuna', () => {
   })
 })
 
+// Un massimale dichiarato è una singola a un carico che non è quello di lavoro:
+// come in `variazioneCarico`, sta fuori dal confronto da tutte e due le parti.
+describe('il carico col massimale di mezzo', () => {
+  const palestra = [es('p', 'Panca piana', [
+    alzata('2026-10-20', 80, 8, 3),
+    alzata('2026-10-22', 110, 1, 1, { maxLift: true }),
+    alzata('2026-10-24', 80, 8, 3),
+  ])]
+  const giornate = analizzaGiornate(palestra, [], 80)
+  const giorno = (date: string) => giornate.find(g => g.date === date)!
+  const carico = (date: string) => giorno(date).gruppi[0].esercizi[0].carico
+
+  it('il giorno del massimale non è un carico salito', () => {
+    expect(carico('2026-10-22')).toMatchObject({ ora: 110, delta: null })
+    expect(giorno('2026-10-22').caricoSalito).toBe(0)
+  })
+
+  it('la volta dopo si confronta con l’ultima alzata di lavoro, non col massimale', () => {
+    // Prima: "−30 kg", un calo di carico segnato come problema a chi allena.
+    expect(carico('2026-10-24')).toEqual({ ora: 80, prima: 80, delta: 0 })
+    expect(giorno('2026-10-24').caloCarico).toBe(0)
+    expect(haProblemi(giorno('2026-10-24'))).toBe(false)
+  })
+
+  it('con solo un massimale prima non c’è un "prima" da confrontare', () => {
+    const [g] = analizzaGiornate([es('p', 'Panca piana', [
+      alzata('2026-10-22', 110, 1, 1, { maxLift: true }),
+      alzata('2026-10-24', 80, 8, 3),
+    ])], [], 80)
+    expect(g.gruppi[0].esercizi[0].carico).toEqual({ ora: 80, prima: null, delta: null })
+  })
+})
+
+// Mezzo chilo in su e mezzo chilo in giù devono pesare uguale.
+describe('il carico arrotondato al mezzo chilo', () => {
+  const delta = (prima: number, dopo: number) => analizzaGiornate(
+    [es('p', 'Panca piana', [alzata('2026-09-10', prima, 8, 3), alzata('2026-09-17', dopo, 8, 3)])], [], 80,
+  )[0].gruppi[0].esercizi[0].carico!.delta
+
+  it('un quarto di chilo conta allo stesso modo in salita e in discesa', () => {
+    expect(delta(80, 80.25)).toBe(0.5)
+    // Prima −0,25 diventava 0: "stesso carico", mentre +0,25 era "salito".
+    expect(delta(80, 79.75)).toBe(-0.5)
+  })
+
+  it('una differenza più piccola è lo stesso carico, senza lo zero col meno', () => {
+    expect(delta(80, 80.1)).toBe(0)
+    expect(Object.is(delta(80, 79.9), 0)).toBe(true)
+  })
+})
+
 describe('giornate senza confronto', () => {
   it('le alzate a mano non hanno serie mancanti né saltati', () => {
     const [g] = analizzaGiornate([es('p', 'Panca piana', [alzata('2026-09-17', 80, 8, 2)])], [SCHEDA_A], 80)

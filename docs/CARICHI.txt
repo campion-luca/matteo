@@ -1,6 +1,6 @@
 COME RAGIONA L'APP SUI CARICHI
 ==============================
-Aggiornato al 2 novembre 2026.
+Aggiornato al 3 novembre 2026.
 
 Questo foglio dice, a parole, cosa fa l'app quando ti propone un peso
 mentre esegui una scheda: quando parla, quando sta zitta, in che ordine
@@ -63,6 +63,14 @@ possono essere diversi, e si vedrà dalla seconda settimana.
     si ripete. Due numeri a scendere ("12-10") scalano solo se le serie
     sono due; altrimenti vale il più basso per tutte (dal 7 ottobre
     2026: prima si leggeva solo il primo numero, uguale per tutte).
+    Scritto come "3x10" o "4×8-10", conta quello dopo la x: 10 colpi
+    (o 8), con le serie della riga. Prima si leggeva il 3, cioè le
+    serie (dal 3 novembre 2026);
+  - un campo dei colpi lasciato vuoto vale l'obiettivo; uno con scritto
+    "0" no: una serie spuntata a 0 colpi non si salva, e il riepilogo
+    chiede di scrivere quanti se ne sono fatti o di togliere la spunta.
+    Prima lo 0 diventava l'obiettivo, senza segnalarlo (dal 3 novembre
+    2026);
   - il tasto "uguale" copia sulle altre serie chili e colpi della prima.
     Se la scheda chiede colpi a scalare copia solo i chili.
 
@@ -175,6 +183,17 @@ L'app le guarda dall'alto in basso e si ferma alla prima che vale.
 
 Mai di più. Sui pesi leggeri il passo è più corto perché da 8 a 10,5
 sarebbe un quarto in più.
+
+Due precisazioni (dal 3 novembre 2026):
+  - la fascia si legge sul carico VERO, dischi più attrezzo: 8 kg di
+    dischi sul bilanciere da 20 sono 28 kg, e salgono di 2 (a 10 di
+    dischi), non di 1. Il consiglio resta in dischi. Scendendo, con
+    l'attrezzo si può arrivare a 0, cioè al solo bilanciere. Anche il
+    "devi salire" confronta le due settimane sul carico vero: 60 scritti
+    per intero e 40 di dischi sul bilanciere da 20 sono lo stesso peso;
+  - scendendo, il passo è quello della fascia in cui si ARRIVA: da 30 si
+    scende a 28 (non 27,5), da 10 a 9 (non 8), così risalendo si torna
+    al punto di partenza. Prima 30 → 27,5 → 29,5, e i 30 non tornavano.
 
 
 7. COME CAPISCE SE IL MUSCOLO È FRESCO O STANCO
@@ -342,17 +361,26 @@ I carichi, sulla stessa riga:
     range ampio, 12-20. «Usa» lo mette.
 
 Le righe a corpo libero non hanno una progressione: restano come prima.
+Il form lo decide come l'allenamento (dal 3 novembre 2026): è a corpo
+libero anche un esercizio la cui ultima alzata era a corpo libero o a
+0 kg su ogni serie. Prima il form lasciava scegliere la progressione, e
+in allenamento non faceva niente.
 
 PRIMA DELLA SEDUTA la card dell'esercizio mostra la prescrizione
 (prescribeTopSet / prescribeDouble) e i campi partono da lì. Da dove
 parte il peso:
-  - dallo stato salvato dall'ultima seduta di quella riga;
+  - dallo stato salvato dall'ultima seduta di quella riga, arrotondato
+    ai carichi che la riga ha ADESSO: cambiati il passo o la lista (non
+    il modello), 62,5 con la lista [60, 65] diventa 60 (dal 3 novembre
+    2026: prima restava 62,5, un carico che non c'è);
   - se non c'è, dall'ultima alzata dell'esercizio: per il top set il
     peso che il massimale stimato dà per colpi + RIR (80 × 5 → 75 kg per
     5 a RIR 2), per la doppia il carico più alto, arrotondati ai carichi
-    della riga ("stimato dallo storico");
-  - per un esercizio mai fatto il peso lo scegli tu, e lo stato nasce da
-    quella prima seduta.
+    della riga ("stimato dallo storico"). I massimali dichiarati non
+    contano, e un'alzata da cui non esce un peso (0 kg, 0 colpi) si
+    salta per la precedente (dal 3 novembre 2026: prima prescriveva 0 kg);
+  - per un esercizio mai fatto, o senza un'alzata da cui partire, il
+    peso lo scegli tu, e lo stato nasce da quella prima seduta.
 
 IL RIR si scrive accanto a ogni serie: quante ripetizioni avresti
 ancora fatto (0 = a cedimento). Sul top set decide se si sale: senza,
@@ -364,6 +392,25 @@ A ESERCIZIO CHIUSO (tutte le serie spuntate) la card dice dove si va la
 prossima volta: il messaggio di progressTopSet / progressDouble, com'è.
 Lo dice anche il riepilogo prima di salvare. Lo stato si salva solo con
 «Salva e chiudi»: un allenamento scartato non fa avanzare niente.
+
+IL PESO ALZATO DAVVERO (dal 3 novembre 2026). Le regole di
+progression.ts partono dal peso prescritto e non leggono quello delle
+serie. Se in palestra se ne usa un altro, la seduta si giudica su quello
+ALZATO, arrotondato ai carichi della riga; progression.ts non cambia, è
+lo stato che gli si passa a ripartire da lì:
+  - top set: conta il peso del top set. Prescritto 80, fatto 70 × 5 a
+    RIR 5: la volta dopo 75 (prima 85). Prescritto 75, fatto 80 × 5 a
+    RIR 2: resta a 80 (prima tornava a 75). I colpi mancati contati
+    finora ripartono da zero, perché erano su un altro peso;
+  - doppia: conta la serie più leggera, perché la doppia vuole tutte le
+    serie al massimo dei colpi allo stesso peso. Prescritto 10, fatto
+    3 × 12 con 8: la volta dopo 10 (prima 12). Più pesante del
+    prescritto vale come un aumento: se i colpi non arrivano al minimo
+    si torna al prescritto;
+  - col peso prescritto non cambia niente. A esercizio chiuso la card
+    lo dice: «Giudicata sui 70 kg che hai alzato, non sugli 80».
+  Alla prima seduta della doppia lo stato nasce dalla serie più leggera
+  (prima dalla prima serie).
 
 DOVE STA LO STATO: nell'esercizio di chi si allena, una voce per riga di
 scheda (chiave schedaId:rigaId). Non sulla riga, perché le schede del
@@ -377,7 +424,8 @@ Dove non arriva ancora:
   - il top set è sempre la prima serie: se in palestra lo fai dopo, l'app
     non lo sa;
   - correggere o eliminare un'alzata dopo averla salvata non rifà lo
-    stato della progressione;
+    stato della progressione («Svuota lo storico» invece lo azzera, dal
+    3 novembre 2026: prima la scheda ripartiva dal top set di prima);
   - il coach non ha ancora una schermata sua per gli stati e il RIR.
 
 Nel codice:

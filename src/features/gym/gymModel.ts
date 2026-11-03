@@ -54,6 +54,32 @@ export function exColor(ex: PalestraExercise, muscleColors: Record<string, strin
   return muscleColors[m] ?? muscleColors[ex.muscle] ?? muscleColors.Altro ?? MUSCLE_COLORS.Altro
 }
 
+// ── L'esercizio di un nome ───────────────────────────────
+/** L'esercizio che si chiama così, senza badare a maiuscole e spazi. Prima il
+ *  nome di adesso; poi i nomi di prima (`nomiPrima`), perché una riga di
+ *  scheda scritta col nome vecchio — quelle del coach portano solo il nome —
+ *  trovi l'esercizio rinominato invece di farne nascere uno vuoto. */
+export function esercizioPerNome<T extends { n: string; nomiPrima?: string[] }>(palestra: readonly T[], nome: string): T | undefined {
+  const n = nome.trim().toLowerCase()
+  if (!n) return undefined
+  return palestra.find(e => e.n.trim().toLowerCase() === n)
+    ?? palestra.find(e => e.nomiPrima?.some(p => p.trim().toLowerCase() === n))
+}
+
+/** I nomi di prima dopo un cambio di nome: quello lasciato si aggiunge, quello
+ *  nuovo — se era già stato suo — si toglie. */
+export function nomiDopoRinomina(ex: { n: string; nomiPrima?: string[] }, nuovo: string): string[] {
+  const nuovoN = nuovo.trim().toLowerCase()
+  const visti = new Set<string>()
+  return [...(ex.nomiPrima ?? []), ex.n]
+    .filter(p => {
+      const k = p.trim().toLowerCase()
+      if (!k || k === nuovoN || visti.has(k)) return false
+      visti.add(k)
+      return true
+    })
+}
+
 // ── Numeri decimali scritti a mano ───────────────────────
 // Un campo peso deve accettare sia 62.5 sia 62,5.
 //
@@ -279,12 +305,17 @@ const SERIE_MAX = 50
  *
  *  Due numeri a scendere su un numero di serie diverso da due ("12-10" su
  *  quattro) non dicono a quale serie tocca cosa: vale il più basso per tutte,
- *  che al massimo tace su una serie corta ma non ne inventa una. */
+ *  che al massimo tace su una serie corta ma non ne inventa una.
+ *
+ *  Serie per colpi scritti nel campo dei colpi ("3x10", "4 × 8-10"): il primo
+ *  numero sono le serie, e i colpi sono quello che viene dopo. Leggendo il
+ *  numero in testa, "3x10" chiedeva 3 colpi a serie. Le serie restano quelle
+ *  della riga. */
 export function colpiPrevisti(reps: string, serie: number): number[] {
   // Il numero di serie è un campo libero: senza un tetto, un "999999999"
   // battuto per sbaglio chiederebbe un elenco lungo altrettanto.
   const n = Math.min(SERIE_MAX, Math.max(1, Math.floor(serie) || 1))
-  const testo = String(reps ?? '').trim()
+  const testo = String(reps ?? '').trim().replace(/^\d+\s*[x×]\s*(?=\d)/i, '')
   const tutte = (c: number) => Array(n).fill(c > 0 ? c : 0) as number[]
   // Solo numeri separati da trattini, barre, virgole o spazi. Tutto il resto —
   // "10 per lato", "8 lente 3-1-1" — non è un elenco di serie: conta il numero

@@ -6,6 +6,7 @@ import { condividiScheda, numeraSchede, ordineDi, perOrdine, copiaPerAllievo, id
 import { useMessaggiStore } from '@/lib/messaggiLive'
 import { useProfiliStore } from '@/lib/profili'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import type { GymScheda } from '@/store/useJarvisStore'
 
 // Il coach dà un numero alle schede di un allievo, e la home ne segue il giro.
@@ -63,22 +64,39 @@ describe('l’ordine delle schede', () => {
 describe('il numero nella pagina dell’allievo', () => {
   let righe: CoachScheda[]
   let scritte: Array<{ id: string; scheda: GymScheda }>
+  // Righe che si vedono ma che la RLS non lascia toccare: il collegamento sciolto.
+  let bloccate: Set<string>
 
   beforeEach(() => {
     righe = []
     scritte = []
+    bloccate = new Set()
     useMessaggiStore.setState({ userId: IO, messaggi: [], primoGiroFatto: true, errore: null })
     useProfiliStore.setState({ owner: null, profili: {} })
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
       const u = decodeURIComponent(String(url))
       const risposta = (corpo: unknown) => new Response(JSON.stringify(corpo), { status: 200, headers: { 'Content-Type': 'application/json' } })
       if (u.includes('/coach_schede')) {
+        const id = new URL(String(url)).searchParams.get('id')?.replace(/^eq\./, '')
+        const sua = righe.find(r => r.id === id)
         if (init?.method === 'POST') {
           const corpo = JSON.parse(String(init.body)) as { id: string; scheda: GymScheda }
           scritte.push(corpo)
           return risposta(null)
         }
-        return risposta(righe)
+        // Come la RLS vera: una riga che non c'è, o che non si può toccare, non
+        // dà errore — risponde con zero righe.
+        if (init?.method === 'PATCH') {
+          if (!sua || bloccate.has(sua.id)) return risposta([])
+          scritte.push({ id: sua.id, scheda: (JSON.parse(String(init.body)) as { scheda: GymScheda }).scheda })
+          return risposta([{ id: sua.id }])
+        }
+        if (init?.method === 'DELETE') {
+          if (!sua || bloccate.has(sua.id)) return risposta([])
+          righe = righe.filter(r => r !== sua)
+          return risposta([{ id: sua.id }])
+        }
+        return risposta(id ? righe.filter(r => r.id === id) : righe)
       }
       if (u.includes('/rpc/athlete_training_data')) return risposta({
         userName: 'Anna',
@@ -93,7 +111,7 @@ describe('il numero nella pagina dell’allievo', () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
   const apriSchede = async (user: ReturnType<typeof userEvent.setup>) => {
-    render(<ConfirmDeleteProvider><JarvisCoach userId={IO} onBack={() => {}} iniziale="allenatore"/></ConfirmDeleteProvider>)
+    render(<ConfirmDeleteProvider><JarvisCoach userId={IO} onBack={() => {}} iniziale="allenatore"/><ConfirmModal/></ConfirmDeleteProvider>)
     await user.click(await screen.findByRole('button', { name: /^Anna/ }))
     await user.click(await screen.findByRole('button', { name: /Schede assegnate/ }))
   }
@@ -110,8 +128,85 @@ describe('il numero nella pagina dell’allievo', () => {
     expect(screen.getByRole('combobox', { name: 'Numero di Scheda c' })).toHaveValue('2')
     // Niente messaggio all'allievo: l'unica cosa scritta sul server sono le schede
     // (le `rpc` sono POST anche quando leggono).
-    const scrive = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST').map(([u]) => String(u))
+    const scrive = vi.mocked(fetch).mock.calls.filter(([, init]) => ['POST', 'PATCH', 'DELETE'].includes(init?.method ?? '')).map(([u]) => String(u))
     expect(scrive.filter(u => !u.includes('/rpc/')).every(u => u.includes('/coach_schede'))).toBe(true)
+  })
+
+  // Una scheda già assegnata si aggiorna, mai un upsert: prima la riga si
+  // riscriveva per intero dalla copia letta all'apertura della pagina, e una
+  // scheda tolta dall'allievo nel frattempo tornava in piedi.
+  const upsertSchede = () => vi.mocked(fetch).mock.calls
+    .filter(([u, init]) => String(u).includes('/coach_schede') && init?.method === 'POST')
+
+  it('ritoccare una scheda che l’allievo ha tolto non la rimette in piedi', async () => {
+    const user = userEvent.setup()
+    righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 })]
+    await apriSchede(user)
+    await user.click(await screen.findByText('Scheda a'))
+    // Mentre il form è aperto, l'allievo la toglie dalle sue schede.
+    righe = [riga('b', { ordine: 2 })]
+    await user.click(await screen.findByRole('button', { name: /^Salva/ }))
+
+    expect(await screen.findByText('«Scheda a» non c’è più: è stata tolta nel frattempo, e le modifiche non sono state salvate.')).toBeInTheDocument()
+    expect(scritte).toEqual([])
+    expect(upsertSchede()).toHaveLength(0)
+    // L'elenco riletto non la conta più.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Schede assegnate/ })).toHaveTextContent('· 1'))
+  })
+
+  it('rinumerare rilegge le righe: una scheda tolta non torna, un ritocco fatto altrove resta', async () => {
+    const user = userEvent.setup()
+    righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 }), riga('c', { ordine: 3 })]
+    await apriSchede(user)
+    // Nel frattempo l'allievo toglie la b, e da un altro dispositivo la a cambia titolo.
+    righe = [riga('a', { ordine: 1, title: 'Scheda a (ritoccata)' }), riga('c', { ordine: 3 })]
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Numero di Scheda c' }), '1')
+
+    await waitFor(() => expect(scritte).toHaveLength(2))
+    expect(scritte.map(s => `${s.id}:${s.scheda.ordine}`).sort()).toEqual(['a:2', 'c:1'])
+    // Della riga riletta cambia solo il numero.
+    expect(scritte.find(s => s.id === 'a')?.scheda.title).toBe('Scheda a (ritoccata)')
+    expect(upsertSchede()).toHaveLength(0)
+    await waitFor(() => expect(screen.queryByText('Scheda b')).not.toBeInTheDocument())
+  })
+
+  it('rinumerare una scheda che non c’è più lo dice, e non scrive niente', async () => {
+    const user = userEvent.setup()
+    righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 }), riga('c', { ordine: 3 })]
+    await apriSchede(user)
+    righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 })]
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Numero di Scheda c' }), '1')
+
+    expect(await screen.findByText('Una scheda non c’è più: è stata tolta nel frattempo. L’elenco è aggiornato.')).toBeInTheDocument()
+    expect(scritte).toEqual([])
+    expect(upsertSchede()).toHaveLength(0)
+    await waitFor(() => expect(screen.queryByText('Scheda c')).not.toBeInTheDocument())
+  })
+
+  // Un DELETE che la RLS non lascia passare risponde "fatto" su zero righe: la
+  // pagina diceva eliminata una scheda che l'allievo aveva ancora.
+  it('eliminare una scheda che non si può più toccare dice perché, e la scheda resta', async () => {
+    const user = userEvent.setup()
+    righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 })]
+    bloccate.add('a')
+    await apriSchede(user)
+    await user.click(await screen.findByRole('button', { name: 'Elimina Scheda a' }))
+    await user.click(await screen.findByRole('button', { name: 'Sì, elimina' }))
+
+    expect(await screen.findByText('Non sei più collegato a questa persona: il collegamento è stato sciolto.')).toBeInTheDocument()
+    expect(screen.getByText('Scheda a')).toBeInTheDocument()
+  })
+
+  it('eliminare una scheda che l’allievo aveva già tolto la toglie e basta', async () => {
+    const user = userEvent.setup()
+    righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 })]
+    await apriSchede(user)
+    righe = [riga('b', { ordine: 2 })]
+    await user.click(await screen.findByRole('button', { name: 'Elimina Scheda a' }))
+    await user.click(await screen.findByRole('button', { name: 'Sì, elimina' }))
+
+    await waitFor(() => expect(screen.queryByText('Scheda a')).not.toBeInTheDocument())
+    expect(screen.queryByText(/Non sei più collegato/)).not.toBeInTheDocument()
   })
 
   it('senza numeri ogni scheda mostra un trattino, e la bozza non ha la tendina', async () => {

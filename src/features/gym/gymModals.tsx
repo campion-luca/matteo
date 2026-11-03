@@ -554,7 +554,7 @@ function NumeriAlzata({ serie, onSerie, colpi, onColpi, kg, onKg, corpo, massima
 /** Serie per serie: una riga ciascuna coi suoi colpi e i suoi chili. Il numero
  *  delle serie lo fanno le righe: «Aggiungi serie» ne aggiunge una uguale
  *  all'ultima, la × sull'ultima la toglie. */
-function TabellaSerie({ n, pesi, colpi, onPeso, onColpi, onAggiungi, onTogli, corpo, erroreKg }: {
+function TabellaSerie({ n, pesi, colpi, onPeso, onColpi, onAggiungi, onTogli, corpo, erroreKg, erroreColpi }: {
   n: number
   pesi: string[]; colpi: string[]
   onPeso: (i: number, v: string) => void
@@ -563,6 +563,9 @@ function TabellaSerie({ n, pesi, colpi, onPeso, onColpi, onAggiungi, onTogli, co
   onTogli: () => void
   corpo: boolean
   erroreKg?: boolean
+  /** Serie per serie i colpi stanno qui, non nel campo «Rip»: è qui che si
+   *  segna quello che manca. */
+  erroreColpi?: boolean
 }) {
   const t = useT()
   const griglia: React.CSSProperties = { display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr) minmax(0, 1fr)' }
@@ -578,9 +581,10 @@ function TabellaSerie({ n, pesi, colpi, onPeso, onColpi, onAggiungi, onTogli, co
         {Array.from({ length: n }, (_, i) => (
           <div key={i} style={{ ...griglia, height: 50, borderTop: '1px solid var(--line)' }}>
             <span style={{ display: 'flex', alignItems: 'center', paddingLeft: 10, fontFamily: NUC.display, fontSize: 15, fontWeight: 700, color: NUC.faint }}>S{i + 1}</span>
-            <div className="j-casella" style={{ borderLeft: '1px solid var(--line)' }}>
+            <div className="j-casella" data-errore={erroreColpi || undefined} style={{ borderLeft: '1px solid var(--line)' }}>
               <input value={colpi[i] ?? ''} onChange={e => onColpi(i, e.target.value)} aria-label={t('Serie {n} · colpi', { n: i + 1 })}
-                inputMode="numeric" onFocus={selezionaAlFocus} className="j-campo-numero" style={{ fontSize: 24 }}/>
+                inputMode="numeric" onFocus={selezionaAlFocus} className="j-campo-numero" style={{ fontSize: 24 }}
+                aria-invalid={erroreColpi || undefined}/>
             </div>
             <div className="j-casella" data-errore={erroreKg || undefined} style={{ borderLeft: '1px solid var(--line)' }}>
               <input value={pesi[i] ?? ''} onChange={e => onPeso(i, e.target.value)} aria-label={t('Serie {n} · kg', { n: i + 1 })}
@@ -904,7 +908,11 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     // totale, e riproposta tale e quale si sarebbe salvata col bilanciere in più.
     const ultima = ultimaDiLavoro(ex.history)
     const attrezzoOggi = corpoLibero(ex) ? 0 : (ex.attrezzoKg ?? 0)
-    setKg(preCompila(ultima ? Math.max(0, ultima.kg + (ultima.attrezzo ?? 0) - attrezzoOggi) : ex.current.kg))
+    // Arrotondato ai centesimi: la somma coi decimali sbaglia all'ultima cifra,
+    // e 22,3 di dischi su un bilanciere da 20, riproposti su uno da 15, si
+    // leggevano «27.299999999999997» nel campo.
+    const dischi = ultima ? Math.round(Math.max(0, ultima.kg + (ultima.attrezzo ?? 0) - attrezzoOggi) * 100) / 100 : ex.current.kg
+    setKg(preCompila(dischi))
     setReps(preCompila(ultima?.reps ?? ex.current.reps))
     setSets(preCompila(ultima?.sets_n ?? ex.current.sets_n))
     // Parte da come è fatto l'esercizio: le trazioni si aprono già a corpo libero.
@@ -938,22 +946,37 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     const base = isBodyweight ? zavorra : kg
     setSetWeightsStr(Array.from({ length: nSets }, (_, i) => setWeightsStr[i] ?? (base || '')))
     setSetRepsStr(Array.from({ length: nSets }, (_, i) => setRepsStr[i] ?? (reps || '')))
+    // «Serie» vuoto (il catalogo azzerato, lo storico svuotato) diventa le righe
+    // che si vedono: tornando a «Stesso kg» non si ritrova un campo vuoto
+    // accanto a una tabella che di serie ne aveva una.
+    if (!(setsN > 0)) setSets(String(nSets))
     setPerSet(true)
   }
 
-  // Pesi e colpi per serie (numerici) limitati al numero di serie impostato
+  // Serie per serie i numeri sono quelli delle righe: le serie sono le righe, e
+  // i colpi di ciascuna sono i suoi. Prima i colpi venivano dal campo «Rip» di
+  // «Stesso kg», che lì non si vede, a meno che le righe non fossero diverse fra
+  // loro: 3 × 8 pre-compilato, passato a «Per serie» e riscritto 10, 10, 10, si
+  // salvava a 8 colpi. Una riga senza colpi resta senza: non prende quelli del
+  // campo nascosto.
   const perSetNums = perSet ? Array.from({ length: nSets }, (_, i) => parseNum(setWeightsStr[i])) : []
-  const perSetReps = perSet ? Array.from({ length: nSets }, (_, i) => parseInt(setRepsStr[i]) || repsN || 0) : []
+  const perSetReps = perSet ? Array.from({ length: nSets }, (_, i) => parseInt(setRepsStr[i]) || 0) : []
   const perSetAvg = perSetNums.length ? perSetNums.reduce((a, b) => a + b, 0) / perSetNums.length : 0
   // Quali righe hanno i chili scritti. Con un attrezzo dichiarato vale anche lo
   // zero scritto — una serie col bilanciere scarico (vedi `chiliScritti`).
   const scritta = (i: number) => chiliScritti(setWeightsStr[i], attrezzoN > 0)
   const righe = perSet ? Array.from({ length: nSets }, (_, i) => scritta(i)) : []
+  // Le righe che si salvano. Con un attrezzo, una riga lasciata senza chili non
+  // è una serie fatta (vedi `serieValide` in riassuntoAllenamento): non si salva
+  // a 0 kg, si toglie, e le serie contate sono quelle rimaste.
+  const tenute = perSet ? righe.map((r, i) => (isBodyweight || r ? i : -1)).filter(i => i >= 0) : []
 
   const effectiveKg = perSet ? perSetAvg : (isBodyweight ? (zavorraN || 0) : kgN)
-  const hasValues = isBodyweight
-    ? (repsN > 0 && setsN > 0)
-    : (repsN > 0 && setsN > 0 && (perSet ? righe.some(Boolean) : chiliScritti(kg, attrezzoN > 0)))
+  const hasValues = perSet
+    ? tenute.length > 0 && tenute.every(i => perSetReps[i] > 0)
+    : isBodyweight
+      ? (repsN > 0 && setsN > 0)
+      : (repsN > 0 && setsN > 0 && chiliScritti(kg, attrezzoN > 0))
 
   // Anteprima: il carico più pesante dell'alzata e il massimale che ne deriva.
   // Prima qui stava il "coefficiente di difficoltà" dell'EVL, cioè una stima di
@@ -964,25 +987,38 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
   // sollevare (vedi `quotaCorpo`) — come per i record: senza, delle trazioni
   // con 10 kg di zavorra davano "massimale 13 kg" e salvate ne valevano 114.
   const caricoCorpo = isBodyweight && ex ? bodyWeight * quotaCorpo(ex) : 0
-  const topLoad = Math.round(((perSet ? Math.max(0, ...perSetNums) : effectiveKg) + attrezzoN + caricoCorpo) * 10) / 10
-  const preview = (ex && hasValues && topLoad > 0)
+  const conAttrezzo = (kgScritti: number) => Math.round((kgScritti + attrezzoN + caricoCorpo) * 10) / 10
+  const topLoad = conAttrezzo(perSet ? Math.max(0, ...perSetNums) : effectiveKg)
+  // Serie per serie, la serie che vale di più coi SUOI colpi: è così che
+  // `entry1RM` giudicherà l'alzata salvata. Prima il carico più pesante si
+  // stimava sui colpi del campo «Rip» nascosto.
+  const daStimare = perSet
+    ? tenute.reduce((m, i) => {
+      const s = { kg: conAttrezzo(perSetNums[i]), n: perSetReps[i] }
+      return estimate1RM(s.kg, s.n) > estimate1RM(m.kg, m.n) ? s : m
+    }, { kg: 0, n: 0 })
+    : { kg: topLoad, n: repsN }
+  const preview = (ex && hasValues && daStimare.kg > 0)
     // Su un massimale non c'è niente da stimare: il carico È il massimale.
-    ? { top: topLoad, oneRM: Math.round(isMax ? topLoad : estimate1RM(topLoad, repsN)) }
+    ? { top: daStimare.kg, n: daStimare.n, oneRM: Math.round(isMax ? daStimare.kg : estimate1RM(daStimare.kg, daStimare.n)) }
     : null
 
   if (!ex) return null
 
-  // Quello che impedisce di salvare, nell'ordine in cui lo si incontra.
+  // Quello che impedisce di salvare, nell'ordine in cui lo si incontra. Serie
+  // per serie si guardano le righe, non i campi di «Stesso kg» che lì non si
+  // vedono: col pre-compilato a zero (un esercizio del catalogo, lo storico
+  // svuotato) «Salva» chiedeva i colpi di un campo nascosto.
   const controlla = (): Problema | null => {
     const impossibile = numeroImpossibile({
-      serie: setsN,
-      colpi: perSet ? [repsN, ...perSetReps] : [repsN],
-      kg: isBodyweight ? [zavorraN, ...perSetNums] : (perSet ? perSetNums : [kgN]),
+      serie: perSet ? nSets : setsN,
+      colpi: perSet ? perSetReps : [repsN],
+      kg: perSet ? perSetNums : [isBodyweight ? zavorraN : kgN],
       attrezzo: attrezzoN,
     })
     if (impossibile) return { campo: impossibile.campo, testo: testoImpossibile(t, impossibile) }
-    if (!(setsN > 0)) return { campo: 'serie', testo: t('Scrivi quante serie hai fatto.') }
-    if (!(repsN > 0)) return { campo: 'colpi', testo: t('Scrivi quanti colpi hai fatto.') }
+    if (!perSet && !(setsN > 0)) return { campo: 'serie', testo: t('Scrivi quante serie hai fatto.') }
+    if (perSet ? tenute.some(i => !(perSetReps[i] > 0)) : !(repsN > 0)) return { campo: 'colpi', testo: t('Scrivi quanti colpi hai fatto.') }
     if (!hasValues) {
       return { campo: 'kg', testo: attrezzoN > 0 ? t('Scrivi i dischi: 0 se usi solo l’attrezzo.') : t('Scrivi i chili.') }
     }
@@ -999,23 +1035,19 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
     if (prob) { setProblema(prob); return }
     if (salto && !saltoVisto) { setSaltoVisto(true); return }
     // Con peso variabile: `kg` = serie più pesante (rappresentativa), e i pesi
-    // per serie salvati solo se effettivamente diversi tra loro.
-    // Con un attrezzo, una riga lasciata senza chili non è una serie fatta
-    // (vedi `serieValide` in riassuntoAllenamento): non si salva a 0 kg, si
-    // toglie, e le serie contate sono quelle rimaste.
-    const tenute = perSet
-      ? perSetNums.slice(0, nSets).map((_, i) => (isBodyweight || scritta(i) ? i : -1)).filter(i => i >= 0)
-      : []
+    // per serie salvati solo se effettivamente diversi tra loro. Le righe
+    // senza chili sono già fuori (vedi `tenute`).
     const weights = tenute.map(i => perSetNums[i])
     const varies = perSet && weights.length > 1 && new Set(weights).size > 1
     const kgOut = perSet ? (weights.length ? Math.max(...weights) : 0) : (isBodyweight ? (zavorraN || 0) : kgN)
     const repsPerSet = tenute.map(i => perSetReps[i])
     const variesReps = perSet && repsPerSet.length > 1 && new Set(repsPerSet).size > 1
-    // Col peso variabile il valore rappresentativo è la serie più pesante: i
-    // colpi che l'accompagnano devono essere i SUOI, o `kg × reps` descriverebbe
-    // una serie mai avvenuta.
+    // Il valore rappresentativo è la serie più pesante: i colpi che
+    // l'accompagnano devono essere i SUOI, o `kg × reps` descriverebbe una serie
+    // mai avvenuta. Anche con le righe tutte uguali, e anche con una riga sola:
+    // vengono dalle righe, non dal campo «Rip» nascosto.
     const topIdx = weights.length ? weights.indexOf(Math.max(...weights)) : -1
-    const repsOut = variesReps && topIdx >= 0 ? repsPerSet[topIdx] : repsN
+    const repsOut = perSet && topIdx >= 0 ? repsPerSet[topIdx] : repsN
     onSave({
       d: weekLabel(date), date,
       kg: kgOut,
@@ -1068,7 +1100,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
               n={nSets} pesi={setWeightsStr} colpi={setRepsStr}
               onPeso={updateSetWeight} onColpi={updateSetReps}
               onAggiungi={aggiungiSerie} onTogli={togliSerie}
-              corpo={isBodyweight} erroreKg={segna('kg')}
+              corpo={isBodyweight} erroreKg={segna('kg')} erroreColpi={segna('colpi')}
             />
             {/* Con un attrezzo le righe senza chili non si salvano (vedi `save`):
                 lo si dice qui, mentre le si può ancora riempire. */}
@@ -1122,7 +1154,7 @@ export function LogPalestraModal({ open, onClose, ex, onSave }: LogPalestraModal
         {preview && (
           <AnteprimaMassimale
             titolo={isMax ? t('Massimale') : t('1RM stimato')}
-            sotto={isMax ? t('una singola a {kg} kg', { kg: fmtNum(preview.top) }) : t('da {kg} kg × {n} rip', { kg: fmtNum(preview.top), n: repsN })}
+            sotto={isMax ? t('una singola a {kg} kg', { kg: fmtNum(preview.top) }) : t('da {kg} kg × {n} rip', { kg: fmtNum(preview.top), n: preview.n })}
             kg={preview.oneRM}
           />
         )}
@@ -1155,22 +1187,30 @@ export function AddExModal({ open, onClose, mode, onAdd, presetMuscle }: AddExMo
   const [manca, setManca] = useState<'nome' | 'gruppo' | null>(null)
   useEffect(() => { setManca(null) }, [open, name, muscle])
 
-  // Quando il modale viene aperto da una card di gruppo muscolare, parte già
-  // sul muscolo giusto.
+  // Ogni apertura parte da un foglio pulito, e da una card di gruppo muscolare
+  // già sul muscolo giusto. Prima ripartiva solo il gruppo: nome, nota e corpo
+  // libero di una bozza lasciata a metà (chiusa con la ×, senza aggiungere)
+  // ricomparivano sull'esercizio dopo.
   useEffect(() => {
-    if (open) { setMuscle(presetMuscle ?? ''); setMuscle2('') }
+    if (!open) return
+    setName(''); setUnit('m'); setTarget(''); setNote(''); setCorpo(false)
+    setMuscle(presetMuscle ?? ''); setMuscle2('')
   }, [open, presetMuscle])
 
   const save = () => {
-    if (!name.trim()) { setManca('nome'); return }
+    // Il nome senza gli spazi ai lati, come lo salva già «Modifica esercizio»:
+    // lo spazio lasciato in fondo dalla tastiera del telefono restava dentro il
+    // nome, e "Panca " non era più uguale a "Panca" dove i nomi si confrontano.
+    const nome = name.trim()
+    if (!nome) { setManca('nome'); return }
     // Il gruppo è obbligatorio. Senza, l'esercizio finiva in una card senza
     // nome che non si apriva: c'era, ma non lo si raggiungeva più se non dalla
     // ricerca.
     if (mode !== 'hyrox' && !muscle.trim()) { setManca('gruppo'); return }
     if (mode === 'hyrox') {
-      onAdd({ id: uid('hx'), n: name, unit, target: parseFloat(target) || 1, history: [] })
+      onAdd({ id: uid('hx'), n: nome, unit, target: parseFloat(target) || 1, history: [] })
     } else {
-      onAdd({ id: uid('px'), n: name, muscle: muscle.trim(), ...(muscle2 ? { muscle2 } : {}), ...(note.trim() ? { note: note.trim() } : {}), bodyweight: corpo, current: { kg: 0, reps: 8, sets_n: 3 }, history: [] })
+      onAdd({ id: uid('px'), n: nome, muscle: muscle.trim(), ...(muscle2 ? { muscle2 } : {}), ...(note.trim() ? { note: note.trim() } : {}), bodyweight: corpo, current: { kg: 0, reps: 8, sets_n: 3 }, history: [] })
     }
     setName(''); setUnit('m'); setTarget(''); setMuscle(''); setMuscle2(''); setNote(''); setCorpo(false)
     onClose()
@@ -1484,7 +1524,10 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor, onEl
   // A corpo libero l'attrezzo non c'è.
   const attrezzoN = corpo ? 0 : parseNum(attrezzo)
   const attrezzoCambiato = attrezzoN !== (ex.attrezzoKg ?? 0)
-  const alzateConAttrezzo = ex.history.filter(h => !h.bodyweight).length
+  // Solo le alzate che un attrezzo loro non ce l'hanno: chi l'ha già scritto
+  // ha già detto il suo. Prima la casella lo riscriveva su tutte, e passando
+  // da un bilanciere da 20 a uno da 15 ogni totale di prima perdeva 5 kg.
+  const alzateSenzaAttrezzo = ex.history.filter(h => !h.bodyweight && !h.attrezzo).length
 
   const save = () => {
     if (!name.trim()) { setManca('nome'); return }
@@ -1495,7 +1538,7 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor, onEl
     // l'esercizio, con il selettore ancora acceso su "Corpo libero".
     onSave(
       { n: name.trim(), muscle, muscle2: muscle2 && muscle2 !== muscle ? muscle2 : undefined, note: note.trim() || undefined, bodyweight: corpo, attrezzoKg: attrezzoN > 0 ? attrezzoN : undefined },
-      { attrezzoAncheAlleVecchie: attrezzoCambiato && ancheVecchie },
+      { attrezzoAncheAlleVecchie: attrezzoCambiato && attrezzoN > 0 && ancheVecchie },
     )
     onClose()
   }
@@ -1531,11 +1574,14 @@ export function EditExModal({ open, onClose, ex, onSave, onSaveMuscleColor, onEl
           {!corpo && <CampoAttrezzo key={ex.id} valore={attrezzo} onChange={setAttrezzo}/>}
           {/* Cambiando l'attrezzo, le alzate già scritte restano com'erano: l'app
               non può sapere se in quei chili l'attrezzo c'era già. Lo sa chi le ha
-              scritte, e lo dice qui. */}
-          {!corpo && attrezzoCambiato && alzateConAttrezzo > 0 && (
+              scritte, e lo dice qui. Togliendolo non si chiede niente: non c'è
+              niente da sommare. */}
+          {!corpo && attrezzoCambiato && attrezzoN > 0 && alzateSenzaAttrezzo > 0 && (
             <label className="flex items-start gap-2" style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: NUC.dim, cursor: 'pointer' }}>
               <input type="checkbox" checked={ancheVecchie} onChange={e => setAncheVecchie(e.target.checked)} style={{ marginTop: 3, accentColor: 'var(--j-accent)' }}/>
-              <span>{t('Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.', { n: alzateConAttrezzo })}</span>
+              <span>{alzateSenzaAttrezzo === 1
+                ? t('Vale anche per l’alzata già registrata. Spuntalo solo se finora scrivevi i soli dischi.')
+                : t('Vale anche per le {n} alzate già registrate. Spuntalo solo se finora scrivevi i soli dischi.', { n: alzateSenzaAttrezzo })}</span>
             </label>
           )}
         </div>
@@ -1586,7 +1632,13 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
   const [setWeightsStr, setSetWeightsStr] = useState<string[]>(
     entry.setWeights?.map(String) ?? (entry.setReps ?? []).map(() => (entry.kg > 0 ? String(entry.kg) : '')),
   )
-  const [setRepsStr, setSetRepsStr] = useState<string[]>(entry.setReps?.map(String) ?? [])
+  // E all'inverso: con i soli pesi variabili i colpi sono gli stessi in ogni
+  // serie, e le righe partono da quelli. Vuote, ora che i colpi si prendono
+  // dalle righe (vedi `save`), aprire l'alzata per una nota chiedeva di
+  // riscriverli tutti.
+  const [setRepsStr, setSetRepsStr] = useState<string[]>(
+    entry.setReps?.map(String) ?? (entry.setWeights ?? []).map(() => String(entry.reps)),
+  )
   // Anche un'alzata già registrata può essere un massimale: il flag si mette e si
   // toglie da qui, altrimenti l'unico modo sarebbe cancellarla e riscriverla.
   const [isMax, setIsMax] = useState(entry.maxLift === true)
@@ -1605,43 +1657,50 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
     const base = isBodyweight ? zavorra : kg
     setSetWeightsStr(Array.from({ length: nSets }, (_, i) => setWeightsStr[i] ?? (base || '')))
     setSetRepsStr(Array.from({ length: nSets }, (_, i) => setRepsStr[i] ?? (reps || '')))
+    // Come nel log: «Serie» vuoto diventa le righe che si vedono.
+    if (!(parseInt(sets) > 0)) setSets(String(nSets))
     setPerSet(true)
   }
+  // Serie per serie contano le righe, come nel log: quante sono e i colpi di
+  // ciascuna, non i campi di «Stesso kg» che lì non si vedono.
+  const perSerie = perSet && !isMax
 
   const save = () => {
     const repsN = isMax ? 1 : parseInt(reps)
-    const setsN = isMax ? 1 : parseInt(sets)
+    const setsN = isMax ? 1 : perSerie ? nSets : parseInt(sets)
     const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
     const stop = (campo: CampoAlzata, testo: string) => setProblema({ campo, testo })
     // I numeri che non si accettano, prima di tutto il resto.
-    const scritti = perSet ? Array.from({ length: Math.min(SERIE_MAX, Math.max(1, setsN || 1)) }, (_, i) => i) : []
+    const scritti = perSerie ? Array.from({ length: nSets }, (_, i) => i) : []
+    const rps = scritti.map(i => parseInt(setRepsStr[i]) || 0)
     const impossibile = numeroImpossibile({
       serie: setsN,
-      colpi: [repsN, ...scritti.map(i => parseInt(setRepsStr[i]))],
-      kg: perSet ? scritti.map(i => parseNum(setWeightsStr[i])) : [isBodyweight ? parseNum(zavorra) : parseNum(kg)],
+      colpi: perSerie ? rps : [repsN],
+      kg: perSerie ? scritti.map(i => parseNum(setWeightsStr[i])) : [isBodyweight ? parseNum(zavorra) : parseNum(kg)],
       attrezzo: attrezzoN,
     })
     if (impossibile) return stop(impossibile.campo, testoImpossibile(t, impossibile))
     if (!(setsN > 0)) return stop('serie', t('Scrivi quante serie hai fatto.'))
-    if (!(repsN > 0)) return stop('colpi', t('Scrivi quanti colpi hai fatto.'))
+    if (perSerie ? rps.some(r => !(r > 0)) : !(repsN > 0)) return stop('colpi', t('Scrivi quanti colpi hai fatto.'))
     const senzaChili = () => stop('kg', attrezzoN > 0 ? t('Scrivi i dischi: 0 se usi solo l’attrezzo.') : t('Scrivi i chili.'))
     let setWeights: number[] | undefined
     let setReps: number[] | undefined
     let kgN: number
     let repsOut = repsN
-    if (perSet) {
+    if (perSerie) {
       // Qui le righe a 0 kg NON si tolgono, a differenza del log: è un'alzata
       // che esiste già, e aprirla per aggiungere una nota non deve cambiarle
       // il numero di serie in silenzio. Chi vuole toglierne una abbassa "Serie".
-      const nums = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseNum(setWeightsStr[i]))
+      const nums = scritti.map(i => parseNum(setWeightsStr[i]))
       if (!isBodyweight && !nums.some((_, i) => chiliScritti(setWeightsStr[i], attrezzoN > 0))) return senzaChili()
-      const rps = Array.from({ length: Math.max(1, setsN) }, (_, i) => parseInt(setRepsStr[i]) || repsN)
-      kgN = nums.length ? Math.max(...nums) : 0
+      kgN = Math.max(...nums)
       setWeights = new Set(nums).size > 1 ? nums : undefined
       setReps = new Set(rps).size > 1 ? rps : undefined
       // Come nel log: `kg` e `reps` restano una coppia vera, quella della serie
-      // più pesante, non due estremi presi da serie diverse.
-      if (setReps) repsOut = rps[nums.indexOf(Math.max(...nums))] || repsN
+      // più pesante, non due estremi presi da serie diverse. Anche con le righe
+      // tutte uguali: 10, 8, 6 corretti in 8, 8, 8 restavano a 10 colpi, quelli
+      // del campo «Rip» nascosto.
+      repsOut = rps[nums.indexOf(kgN)]
     } else {
       kgN = isBodyweight ? parseNum(zavorra) : parseNum(kg)
       if (!isBodyweight && !chiliScritti(kg, attrezzoN > 0)) return senzaChili()
@@ -1689,12 +1748,16 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
   // L'anteprima del massimale, come nel log: il numero con cui l'alzata sarà
   // giudicata. A corpo libero conta anche il corpo, che qui non si sa: si
   // mostra quando c'è un carico da cui stimarlo.
+  // Serie per serie, la serie che vale di più coi SUOI colpi (vedi il log).
   const attrezzoN = isBodyweight ? 0 : parseNum(attrezzo)
   const repsN = isMax ? 1 : parseInt(reps) || 0
-  const pesiN = perSet ? Array.from({ length: nSets }, (_, i) => parseNum(setWeightsStr[i])) : []
-  const topLoad = Math.round(((perSet ? Math.max(0, ...pesiN) : parseNum(isBodyweight ? zavorra : kg)) + attrezzoN) * 10) / 10
-  const anteprima = !isBodyweight && topLoad > 0 && repsN > 0
-    ? { top: topLoad, oneRM: Math.round(isMax ? topLoad : estimate1RM(topLoad, repsN)) }
+  const conAttrezzo = (kgScritti: number) => Math.round((kgScritti + attrezzoN) * 10) / 10
+  const daStimare = perSerie
+    ? Array.from({ length: nSets }, (_, i) => ({ kg: conAttrezzo(parseNum(setWeightsStr[i])), n: parseInt(setRepsStr[i]) || 0 }))
+      .reduce((m, s) => (estimate1RM(s.kg, s.n) > estimate1RM(m.kg, m.n) ? s : m), { kg: 0, n: 0 })
+    : { kg: conAttrezzo(parseNum(isBodyweight ? zavorra : kg)), n: repsN }
+  const anteprima = !isBodyweight && daStimare.kg > 0 && daStimare.n > 0
+    ? { top: daStimare.kg, n: daStimare.n, oneRM: Math.round(isMax ? daStimare.kg : estimate1RM(daStimare.kg, daStimare.n)) }
     : null
   const segna = (campo: CampoAlzata) => problema?.campo === campo
 
@@ -1723,7 +1786,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
             n={nSets} pesi={setWeightsStr} colpi={setRepsStr}
             onPeso={updateSetWeight} onColpi={updateSetReps}
             onAggiungi={aggiungiSerie} onTogli={togliSerie}
-            corpo={isBodyweight} erroreKg={segna('kg')}
+            corpo={isBodyweight} erroreKg={segna('kg')} erroreColpi={segna('colpi')}
           />
         ) : (
           <NumeriAlzata
@@ -1754,7 +1817,7 @@ export function EditHistoryModal({ entry, onClose, onSave, riferimentoKg, eserci
         {anteprima && (
           <AnteprimaMassimale
             titolo={isMax ? t('Massimale') : t('1RM stimato')}
-            sotto={isMax ? t('una singola a {kg} kg', { kg: fmtNum(anteprima.top) }) : t('da {kg} kg × {n} rip', { kg: fmtNum(anteprima.top), n: repsN })}
+            sotto={isMax ? t('una singola a {kg} kg', { kg: fmtNum(anteprima.top) }) : t('da {kg} kg × {n} rip', { kg: fmtNum(anteprima.top), n: anteprima.n })}
             kg={anteprima.oneRM}
           />
         )}

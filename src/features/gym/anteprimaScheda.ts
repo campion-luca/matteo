@@ -5,7 +5,7 @@
 //
 // Logica pura: l'elenco la disegna (vedi SchedeListPage), i conti si provano qui.
 import type { GymScheda, GymSchedaExercise, PalestraExercise, TipoTecnica } from '@/store/useJarvisStore'
-import { colpiPrevisti, displayMuscle, ultimaVoltaPerScheda } from './gymModel'
+import { colpiPrevisti, displayMuscle, ultimaVoltaPerScheda, esercizioPerNome } from './gymModel'
 import { tecnicaDi, toccaSerie } from './tecniche'
 import { localISO, giorniTra } from '@/lib/isoDate'
 
@@ -31,12 +31,12 @@ export interface MuscoloToccato {
   esercizi: number
 }
 
-/** L'esercizio a cui una riga è collegata: per id, poi per nome — una scheda
- *  arrivata da un allenatore ha i nomi, non gli id. */
+/** L'esercizio a cui una riga è collegata: per id, poi per nome (anche uno di
+ *  prima, vedi `esercizioPerNome`) — una scheda arrivata da un allenatore ha i
+ *  nomi, non gli id. */
 export function esercizioDellaRiga(riga: GymSchedaExercise, palestra: PalestraExercise[]): PalestraExercise | undefined {
-  const nome = riga.name.trim().toLowerCase()
   return (riga.linkedExerciseId ? palestra.find(e => e.id === riga.linkedExerciseId) : undefined)
-    ?? (nome ? palestra.find(e => e.n.trim().toLowerCase() === nome) : undefined)
+    ?? esercizioPerNome(palestra, riga.name)
 }
 
 /** Il gruppo muscolare di una riga: quello scritto sulla riga, o quello

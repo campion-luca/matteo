@@ -96,3 +96,60 @@ describe('applicare le correzioni dell’allenatore', () => {
     expect(applicaCorrezioni(stato, []).esercizi).toBe(stato)
   })
 })
+
+// `nuova` arriva da un jsonb di cui il database non controlla la forma: una
+// chiamata REST scritta a mano ci mette quello che vuole. Una data che non era un
+// testo faceva esplodere l'ordinamento, e la correzione restava in tabella a
+// riprovarci a ogni apertura; il resto finiva tale e quale nei dati dell'allievo.
+describe('una correzione malformata', () => {
+  const storta = (o: unknown) => o as PalestraHistoryEntry
+
+  it('una data che non è un testo non fa esplodere niente: la correzione è persa', () => {
+    const orig = alz('2026-09-24', 80)
+    const c = corr(orig, storta({ ...orig, date: 42 }))
+    const stato = [panca([alz('2026-09-17', 77.5), orig])]
+    let esito: ReturnType<typeof applicaCorrezioni> | undefined
+    expect(() => { esito = applicaCorrezioni(stato, [c]) }).not.toThrow()
+    expect(esito?.perse).toEqual([c.id])
+    expect(esito?.esercizi).toBe(stato)
+  })
+
+  it('chili scritti come testo, o un’alzata che non è un oggetto: perse, e le altre si applicano lo stesso', () => {
+    const orig = alz('2026-09-24', 80)
+    const testo = corr(orig, storta({ ...orig, kg: '85' }))
+    const nulla = corr(orig, storta(null))
+    const serie = corr(orig, storta({ ...orig, setWeights: ['80', 80] }))
+    const buona = corr(orig, { ...orig, kg: 82.5 })
+    const esito = applicaCorrezioni([panca([orig])], [testo, nulla, serie, buona])
+    expect(esito.perse).toEqual([testo.id, nulla.id, serie.id])
+    expect(esito.applicate).toEqual([buona.id])
+    expect(esito.esercizi[0].history[0].kg).toBe(82.5)
+  })
+
+  it('le chiavi che un’alzata non ha non entrano nei dati dell’allievo', () => {
+    const orig = alz('2026-09-24', 80)
+    const c = corr(orig, storta({ ...orig, kg: 85, admin: true, html: '<img src=x>' }))
+    const { esercizi, applicate } = applicaCorrezioni([panca([orig])], [c])
+    expect(applicate).toEqual([c.id])
+    expect(esercizi[0].history[0]).toEqual({ ...orig, kg: 85 })
+  })
+
+  it('nemmeno dentro `scheda` e `piano`', () => {
+    const orig = alz('2026-09-24', 80)
+    const c = corr(orig, storta({
+      ...orig, kg: 85,
+      scheda: { id: 'sc1', nome: 'Push', extra: 'x'.repeat(100) },
+      piano: { sets: 3, reps: '8', riga: 'r1', junk: { grande: true } },
+    }))
+    const { esercizi } = applicaCorrezioni([panca([orig])], [c])
+    expect(esercizi[0].history[0].scheda).toEqual({ id: 'sc1', nome: 'Push' })
+    expect(esercizi[0].history[0].piano).toEqual({ sets: 3, reps: '8', riga: 'r1' })
+  })
+
+  it('una data storta già nello storico non blocca le correzioni alle altre alzate', () => {
+    const orig = alz('2026-09-24', 80)
+    const c = corr(orig, { ...orig, kg: 85 })
+    const esito = applicaCorrezioni([panca([storta({ ...alz('', 70), date: 7 }), orig])], [c])
+    expect(esito.applicate).toEqual([c.id])
+  })
+})

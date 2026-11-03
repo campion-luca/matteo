@@ -66,6 +66,24 @@ CREATE POLICY "invite_owner" ON public.coach_invites
   FOR ALL USING (auth.uid() = athlete_id) WITH CHECK (auth.uid() = athlete_id);
 
 
+-- ── I tentativi di riscatto andati a vuoto ─────────────────────
+-- Un codice è di 6 caratteri su 31: circa 887 milioni di combinazioni, che
+-- provate a raffica da uno script prima o poi ne indovinano una — e il codice
+-- indovinato collega a un allievo che non ha dato il consenso, coi suoi
+-- allenamenti e il suo profilo. Qui si contano i codici sbagliati di ciascuno:
+-- oltre i 10 in un'ora il riscatto si ferma (vedi sotto).
+-- Nessuna policy, di proposito: dal client non si legge e non si scrive. La
+-- scrive solo `redeem_coach_code`, che gira coi permessi del database.
+CREATE TABLE IF NOT EXISTS public.coach_tentativi (
+  user_id uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  quando  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS coach_tentativi_idx ON public.coach_tentativi (user_id, quando);
+
+ALTER TABLE public.coach_tentativi ENABLE ROW LEVEL SECURITY;
+
+
 -- ── Riscatto del codice ────────────────────────────────────────
 -- SECURITY DEFINER perché l'allenatore deve poter risolvere un codice che non è
 -- suo, senza per questo poter leggere la tabella degli inviti.
@@ -95,6 +113,22 @@ BEGIN
     RAISE EXCEPTION 'NON_AUTENTICATO';
   END IF;
 
+  -- Solo un coach riscatta un codice, e lo si chiede PRIMA di guardare il
+  -- codice. Prima lo diceva il trigger sui collegamenti (ruoli_schema.sql), cioè
+  -- solo a codice trovato: chiunque poteva provare codici e riconoscere quelli
+  -- buoni da «NON_COACH» al posto di «CODICE_NON_VALIDO».
+  IF NOT EXISTS (SELECT 1 FROM public.coach_abilitati c WHERE c.user_id = auth.uid()) THEN
+    RAISE EXCEPTION 'NON_COACH';
+  END IF;
+
+  -- Dieci codici sbagliati in un'ora, e ci si ferma (vedi coach_tentativi).
+  -- Quelli di più di un giorno fa non servono più.
+  DELETE FROM public.coach_tentativi t WHERE t.user_id = auth.uid() AND t.quando < now() - interval '1 day';
+  IF (SELECT count(*) FROM public.coach_tentativi t
+       WHERE t.user_id = auth.uid() AND t.quando > now() - interval '1 hour') >= 10 THEN
+    RAISE EXCEPTION 'TROPPI_TENTATIVI';
+  END IF;
+
   -- `FOR UPDATE`: chi arriva secondo sullo stesso codice aspetta il primo, e
   -- quando tocca a lui il codice è già stato consumato. Senza, due allenatori
   -- che lo inseriscono nello stesso istante passavano tutti e due il controllo
@@ -105,8 +139,13 @@ BEGIN
      AND expires_at > now()
      FOR UPDATE;
 
+  -- Il codice sbagliato si conta, e la risposta è vuota invece di un errore:
+  -- un errore annullerebbe anche il conteggio, che sta nella stessa
+  -- transazione. L'app legge la risposta vuota come «codice non valido» (vedi
+  -- `redeemCode`).
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'CODICE_NON_VALIDO';
+    INSERT INTO public.coach_tentativi (user_id) VALUES (auth.uid());
+    RETURN;
   END IF;
 
   IF inv.athlete_id = auth.uid() THEN
@@ -138,7 +177,7 @@ BEGIN
   -- nemmeno se qualcuno un giorno togliesse la direttiva qui sopra.
   UPDATE public.coach_links l
      SET athlete_name = inv.athlete_name,
-         coach_name   = p_coach_name
+         coach_name   = left(p_coach_name, 200)
    WHERE l.coach_id   = auth.uid()
      AND l.athlete_id = inv.athlete_id;
 
@@ -146,7 +185,7 @@ BEGIN
   -- stati rinfrescati: il legame si crea solo quando non c'era.
   IF NOT FOUND THEN
     INSERT INTO public.coach_links (coach_id, athlete_id, athlete_name, coach_name)
-    VALUES (auth.uid(), inv.athlete_id, inv.athlete_name, p_coach_name);
+    VALUES (auth.uid(), inv.athlete_id, inv.athlete_name, left(p_coach_name, 200));
   END IF;
 
   -- Il codice si consuma: è un invito, non una password permanente.
@@ -224,6 +263,10 @@ AS $$
   DELETE FROM public.coach_invites WHERE expires_at < now();
 $$;
 
+-- Non la chiama nessuno da fuori: le altre funzioni dicono a chi è concessa,
+-- questa non lo diceva, e così poteva chiamarla chiunque — anche senza account.
+REVOKE ALL ON FUNCTION public.purge_expired_coach_invites() FROM public, anon, authenticated;
+
 
 -- ── Le schede assegnate dall'allenatore ────────────────────────
 -- Vivono in una TABELLA e non dentro il blob dell'atleta.
@@ -275,9 +318,18 @@ ALTER TABLE public.coach_schede ENABLE ROW LEVEL SECURITY;
 
 -- Visibile a entrambi: all'atleta perché deve allenarcisi, all'allenatore perché
 -- l'ha scritta lui e deve poterla rivedere.
+--
+-- Le BOZZE però solo all'allenatore: sono lavoro lasciato a metà, e l'app glielo
+-- dice ("non ancora visibile a lui"). Prima il filtro stava solo nell'app
+-- dell'allievo, e con una chiamata REST le bozze si leggevano lo stesso. Il
+-- confronto è fra jsonb e non un cast a boolean: un `draft` scritto storto non
+-- deve far fallire la lettura di tutte le schede.
 DROP POLICY IF EXISTS "schede_visible_to_both" ON public.coach_schede;
 CREATE POLICY "schede_visible_to_both" ON public.coach_schede
-  FOR SELECT USING (auth.uid() = coach_id OR auth.uid() = athlete_id);
+  FOR SELECT USING (
+    auth.uid() = coach_id
+    OR (auth.uid() = athlete_id AND NOT coalesce(scheda -> 'draft' = 'true'::jsonb, false))
+  );
 
 -- Scrive SOLO l'allenatore, e solo verso un atleta che lo ha collegato. Il
 -- controllo sul collegamento sta qui e non nell'app: un filtro fatto nel client
@@ -328,7 +380,8 @@ CREATE POLICY "schede_updated_by_coach" ON public.coach_schede
 DROP POLICY IF EXISTS "schede_deletable_by_both" ON public.coach_schede;
 CREATE POLICY "schede_deletable_by_both" ON public.coach_schede
   FOR DELETE USING (
-    auth.uid() = athlete_id
+    -- L'allievo non tocca le bozze, come non le vede.
+    (auth.uid() = athlete_id AND NOT coalesce(scheda -> 'draft' = 'true'::jsonb, false))
     OR (auth.uid() = coach_id AND EXISTS (
       SELECT 1 FROM public.coach_links l
        WHERE l.coach_id = auth.uid() AND l.athlete_id = coach_schede.athlete_id
@@ -357,6 +410,13 @@ CREATE TABLE IF NOT EXISTS public.coach_note (
 );
 
 CREATE INDEX IF NOT EXISTS coach_note_athlete_idx ON public.coach_note (athlete_id);
+
+-- Come per i messaggi (vedi `messaggi_lunghezze`): un limite largo, per chi scrive a mano.
+DO $$ BEGIN
+  ALTER TABLE public.coach_note ADD CONSTRAINT note_lunghezze CHECK (
+    char_length(nota) <= 8000 AND coalesce(char_length(coach_name), 0) <= 200
+  ) NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 ALTER TABLE public.coach_note ENABLE ROW LEVEL SECURITY;
 
@@ -458,6 +518,40 @@ CREATE INDEX IF NOT EXISTS coach_messaggi_athlete_idx ON public.coach_messaggi (
 CREATE INDEX IF NOT EXISTS coach_messaggi_coach_idx   ON public.coach_messaggi (coach_id);
 CREATE INDEX IF NOT EXISTS coach_messaggi_scheda_idx  ON public.coach_messaggi (scheda_id);
 
+-- Quando la notifica di questo messaggio è partita. La funzione `notifica` la
+-- prende una volta sola: prima la si poteva richiamare per dieci minuti sullo
+-- stesso messaggio, e far vibrare il telefono dell'altro a ripetizione. Dal
+-- client non si scrive (vedi i GRANT più giù, e il trigger che all'inserimento
+-- la rimette vuota).
+ALTER TABLE public.coach_messaggi ADD COLUMN IF NOT EXISTS notificato_at timestamptz;
+
+-- I vincoli si aggiungono una volta sola (da qui il blocco DO), e `NOT VALID`:
+-- valgono per i messaggi nuovi, quelli già scritti restano come sono.
+DO $$ BEGIN
+  -- Il filo diretto è `chat~<allenatore>~<allievo>` (vedi src/lib/messaggi.ts).
+  -- Il campo è testo libero, e un allievo di C poteva scrivere nel filo fra C e
+  -- un altro allievo B, firmandosi B: il messaggio compariva nella chat sbagliata,
+  -- come detto da un altro. Qui il nome del filo deve essere quello della coppia
+  -- che scrive.
+  ALTER TABLE public.coach_messaggi ADD CONSTRAINT chat_della_coppia CHECK (
+    scheda_id NOT LIKE 'chat~%' OR scheda_id = 'chat~' || coach_id::text || '~' || athlete_id::text
+  ) NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  -- Un limite alla lunghezza: un messaggio da qualche megabyte si riscaricava a
+  -- ogni giro della chat aperta, ogni tre secondi. I limiti sono larghi — l'app
+  -- ne mette di più stretti nei suoi campi — e servono contro chi scrive a mano.
+  ALTER TABLE public.coach_messaggi ADD CONSTRAINT messaggi_lunghezze CHECK (
+    char_length(testo) <= 8000
+    AND char_length(scheda_id) <= 200
+    AND coalesce(char_length(scheda_titolo), 0) <= 300
+    AND coalesce(char_length(autore_nome), 0) <= 200
+    AND coalesce(char_length(esercizio_id), 0) <= 200
+    AND coalesce(char_length(esercizio_nome), 0) <= 300
+  ) NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 ALTER TABLE public.coach_messaggi ENABLE ROW LEVEL SECURITY;
 
 -- Visibile alle due parti e a nessun altro.
@@ -530,6 +624,9 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   NEW.created_at := now();
+  -- La notifica parte dalla funzione `notifica`, non da chi scrive: chi
+  -- inserisce non può dirla già partita.
+  NEW.notificato_at := NULL;
   RETURN NEW;
 END $$;
 

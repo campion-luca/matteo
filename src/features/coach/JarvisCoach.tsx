@@ -14,7 +14,7 @@
 // con cui ci si collega. (Fino a ottobre 2026 la chat era una terza card e i
 // codici stavano dentro le due sezioni; prima ancora le sezioni si chiamavano
 // "Ti seguono", "Segui" e "Messaggi", poi "Coach", "Seguiti" e "Chat".)
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { localISO, giorniTra, todayISO } from '@/lib/isoDate'
 import { natalDi, etaScheda } from '@/features/gym/anteprimaScheda'
 import { NUC } from '@/lib/jarvis-tokens'
@@ -29,7 +29,8 @@ import { fmtShortDate } from '@/lib/dateFormat'
 import {
   activeInvite, revokeInvite,
   myAthletes, myCoaches, unlink, athleteData,
-  schedeAssegnate, salvaSchedaAssegnata, eliminaSchedaAssegnata, numeraSchede, ordineDi, type CoachScheda,
+  schedeAssegnate, salvaSchedaAssegnata, aggiornaSchedaAssegnata, eliminaSchedaAssegnata,
+  numeraSchede, numeraSchedeAssegnate, ordineDi, type CoachScheda,
   noteAllievo, salvaNotaCoach, type NotaCoach,
   elencoCoach, type CoachLink, type CoachInvite, type AthleteData, type CoachPubblico,
 } from '@/lib/coach'
@@ -625,6 +626,9 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // Restituisce la promessa, e la lascia fallire: il form deve sapere se il
   // salvataggio è riuscito, o direbbe "niente da salvare" a chi sta per uscire
   // con le modifiche ancora solo sullo schermo.
+  // Le scritture sulle schede dell'allievo, in fila (vedi `numera` più giù).
+  const codaNumeri = useRef<Promise<void>>(Promise.resolve())
+  const giroNumeri = useRef(0)
   const salva = (sc: GymScheda, chiudi = true): Promise<void> => {
     setSalvataggio(null)
     // Nuova o già assegnata: lo si guarda PRIMA di salvare, dopo ci sarebbe comunque.
@@ -635,8 +639,27 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
     // Il form non sa del numero: una scheda ritoccata tiene il suo, una nuova va
     // in fondo al giro. Una bozza no, l'allievo non la vede.
     const ordine = sc.draft ? undefined : ordineDi(assegnate, sc.id)
-    return salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', { ...sc, ordine })
-      .then(() => {
+    // Una scheda già assegnata si aggiorna e basta: se nel frattempo l'allievo
+    // l'ha tolta, non torna (vedi `aggiornaSchedaAssegnata`). Il form a quel
+    // punto si chiude: di un salvataggio fallito sa dire solo "controlla la
+    // rete", e lasciato aperto si sarebbe riprovato all'infinito su una riga che
+    // non c'è. Il perché lo si legge sopra l'elenco, intanto riletto.
+    //
+    // In fila con la rinumerazione: un giro di numeri partito prima riscrive
+    // le righe com'erano quando le ha rilette, e arrivando dopo questo
+    // salvataggio se lo sarebbe mangiato.
+    const scrittura = codaNumeri.current.then(() => (prima
+      ? aggiornaSchedaAssegnata(link.coach_name ?? '', { ...sc, ordine })
+      : salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', { ...sc, ordine }).then(() => true)))
+    codaNumeri.current = scrittura.then(() => {}, () => {})
+    return scrittura
+      .then(scritta => {
+        if (!scritta) {
+          setForm(null)
+          setSalvataggio(t('«{scheda}» non c’è più: è stata tolta nel frattempo, e le modifiche non sono state salvate.', { scheda: sc.title }))
+          ricarica()
+          return
+        }
         if (chiudi) setForm(null)
         ricarica()
         // Una bozza l'allievo non la vede: non c'è niente di cui avvisarlo.
@@ -652,13 +675,24 @@ function SchedaAllievo({ link, onBack }: { link: CoachLink; onBack: () => void }
   // Si scrivono solo le righe che cambiano, e senza avvisare nessuno: chi sistema
   // l'ordine tocca più numeri di fila, e a ogni tocco partirebbe una notifica.
   // L'allievo lo trova alla prossima apertura dell'app.
-  const numera = (r: CoachScheda, numero: number) => {
-    const nuove = numeraSchede(assegnate, r.id, numero)
-    const cambiate = nuove.filter(n => n.scheda.ordine !== assegnate.find(a => a.id === n.id)?.scheda.ordine)
+  //
+  // A schermo il numero cambia subito; sul server si scrive sulle righe rilette
+  // in quel momento (vedi `numeraSchedeAssegnate`). Un giro per volta, in fila:
+  // due tendine toccate di seguito rileggevano entrambe prima che la prima
+  // avesse scritto, e la seconda rimetteva i numeri vecchi. Le righe rilette
+  // finiscono a schermo solo dall'ultimo giro, o tornerebbe per un attimo il
+  // numero di prima.
+  const numera =(r: CoachScheda, numero: number) => {
     setSalvataggio(null)
-    setAssegnate(nuove)
-    Promise.all(cambiate.map(n => salvaSchedaAssegnata(link.coach_id, link.athlete_id, link.coach_name ?? '', n.scheda)))
-      .catch(e => { setSalvataggio(messaggio(e)); ricarica() })
+    setAssegnate(a => numeraSchede(a, r.id, numero))
+    const giro = ++giroNumeri.current
+    codaNumeri.current = codaNumeri.current.then(() =>
+      numeraSchedeAssegnate(link.athlete_id, link.coach_name ?? '', r.id, numero)
+        .then(({ righe, sparita }) => {
+          if (giro === giroNumeri.current) setAssegnate(righe)
+          if (sparita) setSalvataggio(t('Una scheda non c’è più: è stata tolta nel frattempo. L’elenco è aggiornato.'))
+        })
+        .catch(e => { setSalvataggio(messaggio(e)); ricarica() }))
   }
 
   // Nome e cognome dal suo profilo; senza, il nome che usa nell'app.

@@ -12,13 +12,14 @@
 // È la vista di partenza dei gruppi (vedi `vistaGruppiIniziale`, dove si chiama
 // ancora 'carosello' perché è il valore salvato sui telefoni); la griglia
 // piccola e l'elenco restano dietro l'interruttore accanto al titolo.
-import { useState, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { MuscleIcon } from './MuscleIcons'
 import { useT, useTData } from '@/lib/i18n'
 import { fmtDayMonthFull } from '@/lib/dateFormat'
-import { todayISO } from '@/lib/isoDate'
+import { giorniTra } from '@/lib/isoDate'
+import { useOggi } from '@/hooks/useOggi'
 import type { PalestraExercise } from '@/store/useJarvisStore'
 
 /** L'ultimo giorno in cui si è allenato un esercizio del gruppo, o `null`. */
@@ -28,12 +29,6 @@ function ultimaVolta(items: PalestraExercise[]): string | null {
     if (h.date && (!max || h.date > max)) max = h.date
   }
   return max
-}
-
-function ieri(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 /** I toni di una card, dal colore del suo gruppo. Il fondo è il colore schiarito
@@ -55,12 +50,15 @@ function toni(colori: Record<string, string>, muscle: string) {
 /** "Ultima volta: ieri", oppure "Mai allenato": quando si è lavorato un gruppo. */
 function useQuando(): (items: PalestraExercise[]) => string {
   const t = useT()
-  const [oggi] = useState(todayISO)
-  const [ieriIso] = useState(ieri)
+  // Il giorno che cambia da solo (vedi useOggi). Era fissato al montaggio: la
+  // PWA resta aperta per giorni, e il mercoledì l'allenamento di martedì si
+  // leggeva ancora «oggi».
+  const oggi = useOggi()
   return items => {
     const quando = ultimaVolta(items)
     if (!quando) return t('Mai allenato')
-    const data = quando === oggi ? t('oggi') : quando === ieriIso ? t('ieri') : fmtDayMonthFull(quando)
+    const giorni = giorniTra(quando, oggi)
+    const data = giorni === 0 ? t('oggi') : giorni === 1 ? t('ieri') : fmtDayMonthFull(quando)
     return t('Ultima volta: {data}', { data })
   }
 }

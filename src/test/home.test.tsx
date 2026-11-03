@@ -157,7 +157,7 @@ describe('la home', () => {
       }],
     })
     monta()
-    expect(screen.getByText('Mancano 12 kg per Platino · Panca piana')).toBeInTheDocument()
+    expect(screen.getByText('Mancano 8 kg per Platino · Panca piana')).toBeInTheDocument()
   })
 
   it('«Esercizi» apre i gruppi muscolari, e la freccia riporta alla home', async () => {

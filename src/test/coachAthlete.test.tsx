@@ -484,7 +484,7 @@ describe('Grafici dell’allievo', () => {
     const panca = di('Panca piana', 'Petto', [h({ date: '2026-08-20', kg: 100, reps: 1, sets_n: 1, maxLift: true })])
     render(<CoachEsercizio ex={panca} peso={80} sex="M"/>)
     expect(screen.getByText('Oro')).toBeInTheDocument()
-    expect(screen.getByText('Mancano 12 kg di massimale per Platino')).toBeInTheDocument()
+    expect(screen.getByText('Mancano 8 kg di massimale per Platino')).toBeInTheDocument()
     cleanup()
 
     render(<CoachGrafici esercizi={[panca]} onApri={vi.fn()} peso={80} sex="M"/>)

@@ -115,6 +115,20 @@ Deno.serve(async req => {
       .maybeSingle()
     if (!legame) return risposta(200, { inviate: 0, motivo: 'collegamento sciolto' })
 
+    // Una notifica per messaggio. Prima la si poteva richiamare per tutti i dieci
+    // minuti in cui il messaggio è "recente", e far vibrare il telefono
+    // dell'altro a ripetizione. Il messaggio si prende in un colpo solo — segnato
+    // solo se non lo era — così nemmeno due chiamate nello stesso istante passano
+    // tutte e due. Si segna PRIMA di inviare: una notifica persa è meglio di dieci.
+    const { data: presa, error: nonPresa } = await admin
+      .from('coach_messaggi')
+      .update({ notificato_at: new Date().toISOString() })
+      .eq('id', m.id)
+      .is('notificato_at', null)
+      .select('id')
+    if (nonPresa) return risposta(500, { errore: nonPresa.message })
+    if (!presa?.length) return risposta(200, { inviate: 0, motivo: 'già notificato' })
+
     const destinatario = m.autore === m.coach_id ? m.athlete_id : m.coach_id
     const { data: iscrizioni } = await admin
       .from('push_iscrizioni')

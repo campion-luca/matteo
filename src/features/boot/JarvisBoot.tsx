@@ -1,9 +1,12 @@
 // Animazione d'avvio, mostrata una volta per sessione del browser.
 //
-// Non è decorazione pura: copre il tempo in cui l'app carica il blob utente dal
-// cloud, che su rete lenta è visibile. Il flag sta in sessionStorage
-// ('jarvis-booted') e non in localStorage, così torna a ogni apertura vera
-// dell'app ma non a ogni cambio di tab.
+// Non è decorazione pura: mentre si vede, sotto, l'allenamento scarica il suo
+// codice e si disegna (vedi App), e quando sparisce la pagina è già pronta. Il
+// caricamento dal cloud invece non lo copre: viene prima, e lo splash si monta
+// solo quando quello ha deciso cosa c'è nello store (`pronto` in App) — fino ad
+// allora c'è lo scheletro. Il flag sta in sessionStorage ('jarvis-booted') e non
+// in localStorage, così torna a ogni apertura vera dell'app ma non a ogni
+// cambio di tab.
 //
 // Chiedeva anche nome, sesso, età e peso a chi era nuovo. Non lo fa più: quelle
 // domande le fa `FirstSetup`, che ne fa cinque invece di quattro e calcola l'età

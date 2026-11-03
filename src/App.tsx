@@ -19,7 +19,7 @@ import { getSyncMeta, setSynced, markDirty, decideInitialSync, remotoCambiato, s
 import { myCoaches } from '@/lib/coach'
 import { aggiornaRuolo } from '@/lib/ruolo'
 import { correzioniPer, eliminaCorrezioni, applicaCorrezioni } from '@/lib/correzioni'
-import { proprietario, segnaProprietario, parcheggia, riprendi, svuotaDatiLocali, pulisciParcheggi } from '@/lib/proprietario'
+import { proprietario, segnaProprietario, parcheggia, riprendi, svuotaDatiLocali, pulisciParcheggi, entratoAltrove, lasciaAllAltraScheda } from '@/lib/proprietario'
 import { cercaAggiornamento } from '@/lib/aggiornamento'
 import { riallineaPush, staccaPushLocale } from '@/lib/push'
 import { idsNoti, recuperaCreatiInLocale } from '@/lib/syncMerge'
@@ -133,6 +133,9 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount, onAllineato }:
     }
 
     const performSave = async () => {
+      // Fermato da chi svuota lo store (vedi `smetti` qui sotto): l'invio
+      // all'uscita dalla pagina, o un "riprova" toccato, non devono partire più.
+      if (!vivo) return
       if (inFlight.current) { dirty.current = true; return }
       // Niente da mandare, niente da salvare. Prima si salvava a ogni uscita
       // dall'app anche senza modifiche, con un orario nuovo: un dispositivo con i
@@ -256,7 +259,7 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount, onAllineato }:
     // che è nato qui). Non scrive mai: leggere non deve far diventare questo
     // dispositivo "il più recente".
     const rileggi = async () => {
-      if (inFlight.current || senzaRete()) return
+      if (!vivo || inFlight.current || senzaRete()) return
       if (getSyncMeta().dirty) { void performSave(); return }
       inFlight.current = true
       try {
@@ -279,7 +282,10 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount, onAllineato }:
         // un salvataggio fallito, e il prossimo ritorno ci riprova.
       } finally {
         inFlight.current = false
-        if (dirty.current) scheduleSave()
+        // Come in `performSave`: un bridge smontato mentre la lettura era in
+        // viaggio non pianifica più salvataggi — il timer partiva dopo la
+        // pulizia, e nessuno l'avrebbe più spento.
+        if (vivo && dirty.current) scheduleSave()
       }
     }
 
@@ -299,9 +305,27 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount, onAllineato }:
     // segnale debole non è "offline"), e chi tiene l'app aperta sulla scheda
     // senza toccare niente restava con l'avviso "dati cloud non caricati"
     // finché non la toccava. Dopo la prima risposta il giro non fa più niente.
-    const giroFinoAlPrimoSi = setInterval(() => { if (maiAllineato && !senzaRete()) void rileggi() }, 20_000)
+    //
+    // Nemmeno con l'app vecchia: lì il cloud non risponde mai "allineato" (non
+    // lo si applica e non lo si scrive), e il giro andava avanti per sempre —
+    // una lettura del database e una ricerca dell'aggiornamento ogni venti
+    // secondi. L'aggiornamento lo cercano già UpdateToast (ogni ora e al
+    // ritorno sull'app) e la pill, al tocco.
+    const giroFinoAlPrimoSi = setInterval(() => {
+      if (maiAllineato && !senzaRete() && !useSyncStatus.getState().vecchia) void rileggi()
+    }, 20_000)
     // Per chi sta uscendo dall'account: vedi lib/uscita.
     useSyncStatus.getState().setSalvaOra(flushNow)
+    // Per chi sta per svuotare lo store (vedi `svuotaDatiLocali`): da qui
+    // questo bridge non è più in servizio, come se fosse già smontato — e
+    // smette di ascoltare lo store, così lo stato vuoto non diventa una
+    // modifica da mandare al cloud di chi esce.
+    useSyncStatus.getState().setSmetti(() => {
+      vivo = false
+      unsub()
+      clearTimeout(saveTimer.current)
+      clearTimeout(retryTimer.current)
+    })
 
     // Modifiche fatte offline che il load ha deciso di tenere: vanno spinte subito,
     // senza aspettare che l'utente tocchi qualcosa (potrebbe non farlo mai più).
@@ -315,6 +339,7 @@ function CloudSyncBridge({ userId, initialUpdatedAt, pushOnMount, onAllineato }:
       window.removeEventListener('online', tornataLaRete)
       clearInterval(giroFinoAlPrimoSi)
       useSyncStatus.getState().setSalvaOra(null)
+      useSyncStatus.getState().setSmetti(null)
       clearTimeout(saveTimer.current)
       clearTimeout(retryTimer.current)
       setStatus('idle')
@@ -506,6 +531,12 @@ export default function App() {
   // Quale delle due porte è aperta: le impostazioni dell'app o il profilo (nome,
   // dati, peso). Una sola alla volta, e `null` quando non c'è niente aperto.
   const [profilo, setProfilo] = useState<null | 'impostazioni' | 'utente'>(null)
+  // L'ultima porta aperta, che resta tale anche a pannello chiuso: chiudendo
+  // il profilo, per i 320ms dell'animazione d'uscita, il contenuto diventava
+  // quello delle impostazioni — la pagina che scivola via non era quella che
+  // si stava guardando.
+  const ultimaPorta = useRef<'impostazioni' | 'utente'>('impostazioni')
+  if (profilo) ultimaPorta.current = profilo
   const [showCoach, setShowCoach] = useState(false)
   // Si apre sui messaggi quando si arriva toccando una notifica: nell'indirizzo
   // (`?apri=messaggi`, app chiusa) o detto dal service worker (app già aperta).
@@ -584,8 +615,16 @@ export default function App() {
         // Quello che non era ancora arrivato al cloud si mette da parte per chi
         // sta uscendo, prima di svuotare: lo ritrova rientrando su questo
         // telefono (vedi lib/proprietario). Prima si cancellava e basta.
+        //
+        // Di chi sono i dati lo dice la memoria di QUESTA scheda, non la porta
+        // su disco: con due schede aperte l'uscita arriva a entrambe, e la
+        // prima toglieva il nome dalla porta — la seconda non trovava nessuno a
+        // cui intestare il parcheggio, e le sue modifiche non inviate andavano
+        // perse.
         const chi = proprietario()
         if (chi) parcheggia(chi)
+        // Ferma anche il bridge del cloud e azzera lo stato della
+        // sincronizzazione (vedi lì).
         svuotaDatiLocali()
         segnaProprietario(null)
         // Chi esce da "Esci" ha già tolto la sua iscrizione alle notifiche (vedi
@@ -595,22 +634,33 @@ export default function App() {
         void staccaPushLocale().catch(() => { /* niente da staccare */ })
         // Tutto quello che valeva per la sessione appena finita torna a zero:
         // restando, il prossimo ingresso — anche dello stesso utente — partiva
-        // con l'orario del cloud, lo stato "non sincronizzato" e il "già
-        // caricato" di prima.
+        // con l'orario del cloud e il "già caricato" di prima. (Lo stato
+        // "non sincronizzato" lo azzera già `svuotaDatiLocali`.)
         setCaricatoPer(null)
         setCloudPronto(false)
         setLoadFailed(false)
         setInitialUpdatedAt(null)
         setPushOnMount(false)
         setSetupFatto(false)
-        const stato = useSyncStatus.getState()
-        stato.setStatus('idle'); stato.setRetry(null); stato.setVecchia(false)
       }
       // link "password dimenticata": mostra la schermata per impostare la nuova password
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)
       setSession(session)
     })
     return () => { clearTimeout(attesa); subscription.unsubscribe() }
+  }, [])
+
+  // ── Un'altra scheda entra con un altro account ─────────────────
+  // Lo store è uno per scheda, il disco è di tutte (vedi lib/proprietario). Se
+  // un'altra scheda scrive sulla porta un nome diverso da quello dei dati che
+  // questa ha in memoria, questa non deve scrivere più niente — né sul disco,
+  // dove adesso ci sono i dati del nuovo account, né nel cloud — e riparte da
+  // capo. Senza aspettare che le arrivi la notizia del nuovo accesso: intanto
+  // ogni sua modifica riscriveva su disco i dati vecchi sopra quelli nuovi.
+  useEffect(() => {
+    const daAltraScheda = (e: StorageEvent) => { if (entratoAltrove(e)) lasciaAllAltraScheda() }
+    window.addEventListener('storage', daAltraScheda)
+    return () => window.removeEventListener('storage', daAltraScheda)
   }, [])
 
   // L'azzeramento del catalogo, una volta per account (vedi resetCatalogo.ts).
@@ -676,10 +726,22 @@ export default function App() {
     // Un caricamento partito non si può richiamare: se quando torna l'utente è
     // cambiato (o è stato chiesto di riprovare) non deve più decidere niente.
     let vivo = true
+    // Il cambio l'ha già fatto un'altra scheda del browser: ha messo da parte i
+    // dati di prima, li ha tolti dal disco e ci ha messo quelli di chi entra.
+    // Qui in memoria ci sono ancora i vecchi, e svuotare da qui toglierebbe dal
+    // disco anche i nuovi: si riparte da capo, dal disco (vedi lib/proprietario).
+    if (entratoAltrove()) { lasciaAllAltraScheda(); return }
+    // `proprietario()` è di chi sono i dati in memoria in QUESTA scheda, non il
+    // nome sulla porta: vedi lib/proprietario.
     const prima = proprietario()
     if (prima && prima !== io) {
       parcheggia(prima)
+      // Toglie anche lo stato della sincronizzazione dell'altro: prima restava,
+      // e un "app da aggiornare" ereditato fermava i salvataggi di chi entrava.
       svuotaDatiLocali()
+      // Come all'uscita: le domande del primo accesso chiuse dall'altro
+      // account non valgono per questo.
+      setSetupFatto(false)
     }
     segnaProprietario(io)
     riprendi(io)
@@ -812,11 +874,16 @@ export default function App() {
   // che manchi UN campo — chi ha già usato l'app e non ha mai messo l'altezza non
   // va rimandato a un questionario d'ingresso. Deve essere vuoto tutto.
   //
-  // `loadFailed` esclude il caso peggiore: cloud irraggiungibile e stato locale
-  // vuoto sembrano un utente nuovo, e le risposte verrebbero poi sovrascritte dal
-  // dato remoto appena la rete torna.
+  // Solo a cloud letto e applicato (`cloudPronto`), e con l'app al passo col
+  // cloud. Cloud irraggiungibile e stato locale vuoto sembrano un utente nuovo,
+  // e le risposte verrebbero poi sovrascritte dal dato remoto appena la rete
+  // torna. E con l'app vecchia il cloud c'è ma non si applica: lo stato locale
+  // vuoto faceva comparire il questionario, che aggiunge il catalogo di
+  // partenza con id nuovi — dopo l'aggiornamento, fusi col cloud, erano
+  // esercizi doppi.
   const profiloVuoto =
     !s.userName.trim() && !s.userSex && !s.userWeight && !s.userHeight && !s.userDob
+  const vecchia = useSyncStatus(st => st.vecchia)
 
   // I colori stanno tutti in `:root` (globals.css): il tema è uno solo, e non
   // c'è più una palette da iniettare qui.
@@ -923,7 +990,7 @@ export default function App() {
             </div>
           )}
 
-          {pronto && booted && !loadFailed && profiloVuoto && !setupFatto && (
+          {pronto && booted && cloudPronto && !vecchia && profiloVuoto && !setupFatto && (
             <Suspense fallback={null}>
               <FirstSetup onDone={() => setSetupFatto(true)}/>
             </Suspense>
@@ -941,7 +1008,7 @@ export default function App() {
           {pronto && booted && !(profiloVuoto && !setupFatto) && <InvitoNotifiche userId={session.user.id}/>}
 
           <Suspense fallback={null}>
-            <JarvisProfile open={!!profilo} sezione={profilo ?? 'impostazioni'} onClose={() => setProfilo(null)}/>
+            <JarvisProfile open={!!profilo} sezione={profilo ?? ultimaPorta.current} onClose={() => setProfilo(null)}/>
           </Suspense>
           <InstallBanner/>
 

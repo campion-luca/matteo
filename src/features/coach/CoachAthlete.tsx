@@ -480,6 +480,7 @@ export function NoteEsercizi({ esercizi, note, onSalva }: {
                     <textarea
                       autoFocus
                       value={bozza}
+                      maxLength={4000}
                       onChange={e => setBozza(e.target.value)}
                       placeholder={t('Cosa deve ricordarsi su {esercizio}', { esercizio: tData(ex.n) })}
                       aria-label={t('Nota su {esercizio}', { esercizio: tData(ex.n) })}

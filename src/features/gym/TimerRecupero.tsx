@@ -137,9 +137,19 @@ function useRecupero(schedaId: string) {
     // Quando il sistema toglie il blocco (pagina sotto, schermo spento a mano)
     // lo dice con `release`: il riferimento va svuotato, o al ritorno `prendi`
     // lo crederebbe ancora in mano e lo schermo si spegnerebbe a metà recupero.
+    // La richiesta però non è immediata. Se nel frattempo il recupero finisce
+    // o si esce dalla pagina, il blocco arrivava dopo la pulizia, finiva in
+    // `blocco` e nessuno lo rilasciava più: schermo acceso finché la pagina
+    // restava aperta. Arrivato tardi, lo si restituisce subito; e finché una
+    // richiesta è in volo non se ne fa un'altra, o il primo andrebbe perso.
+    let chiuso = false
+    let inVolo = false
     const prendi = () => {
-      if (blocco.current || document.visibilityState !== 'visible') return
+      if (blocco.current || inVolo || document.visibilityState !== 'visible') return
+      inVolo = true
       void tieniAcceso().then(b => {
+        inVolo = false
+        if (chiuso) { void b?.release().catch(() => {}); return }
         blocco.current = b
         b?.addEventListener?.('release', () => { if (blocco.current === b) blocco.current = null })
       })
@@ -147,7 +157,7 @@ function useRecupero(schedaId: string) {
     prendi()
     // Il sistema toglie il blocco quando la pagina va sotto: al ritorno si riprende.
     document.addEventListener('visibilitychange', prendi)
-    return () => document.removeEventListener('visibilitychange', prendi)
+    return () => { chiuso = true; document.removeEventListener('visibilitychange', prendi) }
   }, [accesoFinQui, rilascia])
   useEffect(() => rilascia, [rilascia])
 

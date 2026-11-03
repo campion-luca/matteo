@@ -33,6 +33,9 @@ export async function aggiornaRuolo(userId: string): Promise<void> {
   try {
     const { data, error } = await supabase.from('coach_abilitati').select('user_id').eq('user_id', userId).limit(1)
     if (error) return
+    // La risposta può arrivare dopo un'uscita, o a account già cambiato: scritta
+    // lo stesso, ridava il titolo di coach a chi era entrato dopo.
+    if (idUtenteSuDisco() !== userId) return
     const coach = (data ?? []).length > 0
     writeStorage('local', CHIAVE, JSON.stringify({ userId, coach }))
     useRuolo.setState({ coach })

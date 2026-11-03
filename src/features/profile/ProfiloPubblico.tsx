@@ -11,6 +11,7 @@ import { Icons } from '@/components/ui/Icons'
 import { Avatar } from '@/components/ui/Avatar'
 import { useT } from '@/lib/i18n'
 import { useStore } from '@/store/useJarvisStore'
+import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import { leggiProfili, salvaFoto, salvaProfilo, useProfilo, etaDi, type DettagliProfilo } from '@/lib/profili'
 import { fotoDaFile } from '@/lib/fotoProfilo'
 import { SchedaProfilo } from '@/features/coach/ProfiloUtente'
@@ -128,6 +129,21 @@ export function ProfiloPubblico({ userId, onSporco }: {
   const [s] = useStore()
   const profilo = useProfilo(userId)
   const foto = useCambiaFoto(userId)
+  const { confirmDelete } = useConfirmDelete()
+
+  // «Togli» cancella la foto dal server, subito e senza un modo di riaverla:
+  // con un tocco solo bastava sfiorarlo cercando «Cambia foto» qui accanto.
+  // Come le altre azioni che cancellano, si chiede prima.
+  const togliFoto = () => confirmDelete(
+    () => { void foto.togli() },
+    t('la foto'),
+    {
+      eyebrow: t('Profilo pubblico'),
+      title: t('Togliere la foto?'),
+      body: t('Il tuo coach e chi segui vedranno l’iniziale del nome al suo posto. Per riaverla dovrai sceglierla di nuovo.'),
+      cta: t('Togli'),
+    },
+  )
 
   // Il modulo parte da quello che si sa (il telefono ricorda l'ultimo profilo
   // letto) e si riallinea quando arriva quello del server — ma solo finché non
@@ -261,7 +277,7 @@ export function ProfiloPubblico({ userId, onSporco }: {
               <Icons.camera size={14} stroke={1.8}/>{foto.lavoro ? t('Attendi…') : profilo?.foto ? t('Cambia foto') : t('Aggiungi foto')}
             </button>
             {profilo?.foto && (
-              <button onClick={() => { void foto.togli() }} disabled={foto.lavoro} className="j-btn-log" style={{ width: 'auto', height: 36, padding: '0 14px', color: 'var(--fg-mute)' }}>
+              <button onClick={togliFoto} disabled={foto.lavoro} className="j-btn-log" style={{ width: 'auto', height: 36, padding: '0 14px', color: 'var(--fg-mute)' }}>
                 {t('Togli')}
               </button>
             )}

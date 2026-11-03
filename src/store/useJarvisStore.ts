@@ -124,6 +124,12 @@ export interface PalestraExercise {
   attrezzoKg?: number
   current: { kg: number; reps: number; sets_n: number }
   history: PalestraHistoryEntry[]
+  // I nomi che l'esercizio ha avuto prima di essere rinominato. Le righe di una
+  // scheda del coach non hanno il collegamento e cercano l'esercizio per nome:
+  // dopo un cambio di nome non lo ritrovavano più, e al primo allenamento ne
+  // nasceva un gemello vuoto, con storico, massimale e progressione da capo
+  // (vedi `esercizioPerNome`).
+  nomiPrima?: string[]
   // Lo stato della progressione per ogni riga di scheda che usa questo
   // esercizio, per chiave `schedaId:rigaId` (vedi progressioneScheda). Sta qui
   // e non sulla riga perché le schede dell'allenatore vivono nella sua tabella,
@@ -461,6 +467,17 @@ const RITARDO_DISCO = 400
 let inAttesa: { name: string; value: StorageValue<JarvisState> } | null = null
 let timerDisco: ReturnType<typeof setTimeout> | undefined
 
+/** Butta lo stato in attesa senza scriverlo, e da qui in avanti non scrive
+ *  più. Per la scheda del browser che si ricarica perché un'altra è entrata
+ *  con un altro account (vedi `lasciaAllAltraScheda`): su disco adesso c'è
+ *  quello del nuovo account, e va lasciato com'è. */
+export function smettiDiScrivere(): void {
+  inAttesa = null
+  clearTimeout(timerDisco)
+  fermo = true
+}
+let fermo = false
+
 /** Scrive subito l'eventuale stato in attesa. */
 export function scriviSuDisco(): void {
   clearTimeout(timerDisco)
@@ -480,6 +497,7 @@ const discoRimandato: PersistStorage<JarvisState> = {
     } catch { return null }
   },
   setItem: (name, value) => {
+    if (fermo) return
     inAttesa = { name, value }
     clearTimeout(timerDisco)
     timerDisco = setTimeout(scriviSuDisco, RITARDO_DISCO)

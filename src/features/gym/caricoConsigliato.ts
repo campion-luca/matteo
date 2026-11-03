@@ -48,7 +48,7 @@
 
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { giorniTra, isoWeekSortKey, todayISO } from '@/lib/isoDate'
-import { displayMuscle, sortedHistory, pesiScritti, setRepsOf, colpiPrevisti } from './gymModel'
+import { displayMuscle, sortedHistory, pesiScritti, setRepsOf, setLoads, colpiPrevisti, attrezzoDi } from './gymModel'
 
 export type Verso = 'su' | 'giu' | 'uguale'
 
@@ -122,6 +122,14 @@ export function passo(kg: number): number {
   return 2.5
 }
 
+/** Di quanto scendere da `kg`: il passo della fascia in cui si ARRIVA. Con il
+ *  passo di quella da cui si parte, ai bordi delle fasce scendere e risalire
+ *  non riportava al punto di partenza: 30 → 27,5 → 29,5, e i 30 non tornavano
+ *  più; 10 → 8 → 9. Così 30 → 28 → 30, e 10 → 9 → 10. */
+export function passoGiu(kg: number): number {
+  return passo(kg - passo(kg))
+}
+
 const arrotonda = (n: number) => Math.round(n * 100) / 100
 
 /** Il peso è sceso da una serie a una successiva: si è dovuto alleggerire. */
@@ -192,7 +200,15 @@ export function caricoConsigliato(
   const pesi = pesiScritti(ultima)
   const reps = setRepsOf(ultima)
   const da = Math.max(...pesi)
-  const p = passo(da)
+  // Il passo si misura sul carico VERO, dischi più attrezzo: 8 kg di dischi
+  // sul bilanciere da 20 sono 28 kg, e salgono di 2 come 28 kg scritti per
+  // intero — prima salivano di 1, come un manubrio da 8. Si consiglia comunque
+  // in dischi, perché è quello che si scrive.
+  const a = attrezzoDi(ultima)
+  const su = (k: number) => arrotonda(k + passo(k + a))
+  // Senza attrezzo non si scende sotto un passo; con l'attrezzo fino a 0, cioè
+  // il solo bilanciere.
+  const giuDa = (k: number) => arrotonda(Math.max(a > 0 ? 0 : passoGiu(k + a), k - passoGiu(k + a)))
   // L'ultima volta serie per serie, portata al numero di serie di oggi.
   const comePrima = Array.from({ length: serie }, (_, i) => pesi[i] ?? da)
   const tutte = (kg: number) => Array(serie).fill(arrotonda(kg)) as number[]
@@ -235,12 +251,12 @@ export function caricoConsigliato(
   const corte = reps.map((c, i) => (c < (minimi[Math.min(i, minimi.length - 1)] ?? 0) ? i : -1)).filter(i => i >= 0)
   const giu = (motivo: Motivo, extra: Partial<Consiglio> = {}) => {
     if (piuFresco) return consiglio('uguale', 'fresco', comePrima.map((_, i) => Math.max(...comePrima.slice(0, i + 1))))
-    if (calato || gradini === 1) return consiglio('giu', motivo, tutte(Math.max(p, da - p)), extra)
+    if (calato || gradini === 1) return consiglio('giu', motivo, tutte(giuDa(da)), extra)
     // Due pesi soli, saliti verso la fine, e a cedere è stata la parte alta: una
     // serie saltata è sempre l'ultima, una serie corta va guardata.
     const inAlto = motivo === 'serieMancanti' || (motivo === 'colpiCorti' && corte.every(i => pesi[i] === da))
     if (gradini === 2 && inAlto) return consiglio('giu', motivo, tutte(basso), extra)
-    return consiglio('giu', motivo, comePrima.map(k => arrotonda(Math.max(passo(k), k - passo(k)))), extra)
+    return consiglio('giu', motivo, comePrima.map(giuDa), extra)
   }
   if (ultima.sets_n < serie) return giu('serieMancanti', { fatte: ultima.sets_n })
   const corta = serieCorta(reps, minimi)
@@ -255,7 +271,7 @@ export function caricoConsigliato(
   if (settimaneFatte < SETTIMANE_DA_NUOVO) return consiglio('uguale', 'nuovo', comePrima)
   // E se arriva più fresco si sale comunque, un passo su ogni serie: quei
   // carichi erano stati scelti per un muscolo già stanco.
-  if (piuFresco) return consiglio('su', 'fresco', comePrima.map(k => arrotonda(k + passo(k))))
+  if (piuFresco) return consiglio('su', 'fresco', comePrima.map(su))
 
   // Tutto fatto, stesso peso su ogni serie. Due settimane così allo stesso peso
   // e il corpo ci si è abituato: si sale. Una settimana sola: si può provare.
@@ -264,11 +280,13 @@ export function caricoConsigliato(
     // Tredici giorni sono il massimo fra due settimane attaccate (lunedì → la
     // domenica dopo).
     const diFila = !!prima?.date && !!ultima.date && giorniTra(prima.date, ultima.date) <= 13
-    const devi = !!prima && diFila && !pianoDiverso(prima, riga) && piena(prima, serie, minimi) && Math.max(...pesiScritti(prima)) === da
+    // Lo stesso carico VERO: 60 scritti per intero una settimana e 40 di
+    // dischi sul bilanciere da 20 quella dopo sono lo stesso peso.
+    const devi = !!prima && diFila && !pianoDiverso(prima, riga) && piena(prima, serie, minimi) && Math.max(...setLoads(prima)) === Math.max(...setLoads(ultima))
     // Appena uscito dalle prime settimane, un esercizio nuovo ha proprio due
     // settimane piene alle spalle: lì è un permesso, e piccolo, non un ordine.
     const motivo: Motivo = settimaneFatte === SETTIMANE_DA_NUOVO ? 'primoAumento' : devi ? 'devi' : 'valuta'
-    return consiglio('su', motivo, tutte(da + p))
+    return consiglio('su', motivo, tutte(su(da)))
   }
 
   // Le ultime serie sono salite di peso, e hanno retto: una serie in più col

@@ -23,7 +23,7 @@ import { useJarvisStore } from '@/store/useJarvisStore'
 import type { HyroxExercise, HyroxGara, HyroxHistoryEntry, PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
 import {
-  displayMuscle, exColor, MUSCLE_OPTIONS, fmtKg, fmtKgVerso, fmtNum, fmtReps, fmtTime, fmtVol, entry1RM,   effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico, correnteDa,
+  displayMuscle, exColor, MUSCLE_OPTIONS, fmtKg, fmtKgVerso, fmtNum, fmtReps, fmtTime, fmtVol, entry1RM,   effectiveLoad, entryVolume, sortedHistory, colpiMigliori, ultimaVoce, andamentoStorico, correnteDa, nomiDopoRinomina,
   RACE_STATIONS, RUNNING_STATION, RACE_IDS,
 } from './gymModel'
 import { useMuscleColors } from './useMuscleColors'
@@ -682,6 +682,25 @@ function ExerciseChartsPage({ ex, onBack, muscleColors }: {
   )
 }
 
+/** Due valori uguali campo per campo, in qualunque ordine siano scritti. I
+ *  campi a `undefined` non contano: chi corregge un'alzata li scrive espliciti
+ *  (`setWeights: undefined`), e riletta dal cloud non li ha più. */
+function ugualiCampoPerCampo(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const campi = (o: object) => Object.entries(o).filter(([, v]) => v !== undefined)
+  const ca = campi(a), cb = new Map(campi(b))
+  return ca.length === cb.size && ca.every(([k, v]) => cb.has(k) && ugualiCampoPerCampo(v, cb.get(k)))
+}
+
+/** Dov'è ADESSO un'alzata nello storico: la stessa, o una uguale campo per
+ *  campo (lo storico riletto dal cloud ha oggetti nuovi). -1 se non c'è più. */
+function posizioneAlzata(storico: PalestraHistoryEntry[], h: PalestraHistoryEntry): number {
+  const i = storico.indexOf(h)
+  return i >= 0 ? i : storico.findIndex(x => ugualiCampoPerCampo(x, h))
+}
+
 // ── Pagina dettaglio esercizio (storico, PR, azioni) ───────────
 function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, muscleColors, onSaveMuscleColor, noteCoach = [] }: {
   ex: PalestraExercise; onBack: () => void; onLog: () => void
@@ -703,7 +722,7 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   // l'ordinamento si normalizza anche su disco e gli indici restano coerenti.
   const hist = useMemo(() => sortedHistory(ex.history), [ex.history])
   const [showEdit, setShowEdit] = useState(false)
-  const [editHistEntry, setEditHistEntry] = useState<{ entry: PalestraHistoryEntry; idx: number } | null>(null)
+  const [editHistEntry, setEditHistEntry] = useState<PalestraHistoryEntry | null>(null)
   const { confirmDelete } = useConfirmDelete()
   const color = exColor(ex, muscleColors)
   const foto = fotoEsercizio(ex.n)
@@ -713,17 +732,34 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
   // Dall'ultima alzata di lavoro, non da un massimale dichiarato (vedi `correnteDa`).
   const withCurrent = (history: PalestraHistoryEntry[]) => ({ history, current: correnteDa(history, ex.current) })
 
-  const deleteHistEntry = (idx: number) => {
-    onUpdate(withCurrent(hist.filter((_, i) => i !== idx)))
+  // Un'alzata si ritrova per quello che è, non per la posizione che aveva
+  // quando si sono aperti il foglio o il menu. In mezzo l'app può rileggere lo
+  // storico dal cloud (lo fa tornando in primo piano), e un'alzata arrivata da
+  // un altro telefono sposta le posizioni: si correggeva, o si cancellava,
+  // quella accanto. Si lavora sullo storico com'è ADESSO nello store — la
+  // conferma tiene in mano la pagina di quando la si è chiesta — e lì si cerca
+  // la stessa alzata, o una uguale campo per campo se nel frattempo è stata
+  // riletta. Se non c'è più non si scrive niente.
+  const storicoAdesso = () =>
+    sortedHistory(useJarvisStore.getState().palestraExercises.find(e => e.id === ex.id)?.history ?? ex.history)
+
+  const deleteHistEntry = (h: PalestraHistoryEntry) => {
+    const storico = storicoAdesso()
+    const i = posizioneAlzata(storico, h)
+    if (i < 0) return
+    onUpdate(withCurrent(storico.filter((_, j) => j !== i)))
   }
 
   // Ricominciare da zero senza perdere l'esercizio: dopo uno stop lungo, o un
   // cambio di esecuzione, lo storico vecchio falsa massimale e miglior alzata, ma
   // cancellarlo alzata per alzata voleva dire una conferma per riga e alla fine
   // restava comunque da ricreare l'esercizio. `current` torna vuoto, così il
-  // prossimo log non parte pre-compilato sui carichi di prima.
+  // prossimo log non parte pre-compilato sui carichi di prima. E con lui lo
+  // stato delle progressioni delle schede: la progressione preferisce quello
+  // salvato allo storico (vedi `statoDiPartenza`), e la scheda dopo
+  // prescriveva ancora il top set di prima.
   const clearHistory = () => confirmDelete(
-    () => onUpdate({ history: [], current: { kg: 0, reps: 0, sets_n: 0 } }),
+    () => onUpdate({ history: [], current: { kg: 0, reps: 0, sets_n: 0 }, progressioni: undefined }),
     ex.n,
     {
       eyebrow: t('Svuota memoria'),
@@ -917,8 +953,8 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
                   <MenuAzioni
                     etichetta={t('Azioni sull’alzata')}
                     azioni={[
-                      { nome: t('Modifica'), icona: <Icons.pencil size={14} stroke={1.8}/>, onClick: () => setEditHistEntry({ entry: h, idx: realIdx }) },
-                      { nome: t('Elimina'), icona: <Icons.trash size={14} stroke={1.6}/>, pericolo: true, onClick: () => confirmDelete(() => deleteHistEntry(realIdx), t('Alzata')) },
+                      { nome: t('Modifica'), icona: <Icons.pencil size={14} stroke={1.8}/>, onClick: () => setEditHistEntry(h) },
+                      { nome: t('Elimina'), icona: <Icons.trash size={14} stroke={1.6}/>, pericolo: true, onClick: () => confirmDelete(() => deleteHistEntry(h), t('Alzata')) },
                     ]}
                   />
                 </div>
@@ -945,14 +981,15 @@ function ExerciseDetail({ ex, onBack, onLog, onUpdate, onDelete, onOpenCharts, m
     <EditExModal open={showEdit} onClose={() => setShowEdit(false)} ex={ex} onSave={onUpdate} onSaveMuscleColor={onSaveMuscleColor} onElimina={eliminaEsercizio}/>
     {editHistEntry && (
       <EditHistoryModal
-        entry={editHistEntry.entry}
-        riferimentoKg={caricoDiRiferimento(hist.filter((_, i) => i !== editHistEntry.idx))}
+        entry={editHistEntry}
+        riferimentoKg={caricoDiRiferimento(hist.filter((_, i) => i !== posizioneAlzata(hist, editHistEntry)))}
         esercizio={{ nome: ex.n, muscolo: ex.muscle }}
-        onElimina={() => confirmDelete(() => { deleteHistEntry(editHistEntry.idx); setEditHistEntry(null) }, t('Alzata'))}
+        onElimina={() => confirmDelete(() => { deleteHistEntry(editHistEntry); setEditHistEntry(null) }, t('Alzata'))}
         onClose={() => setEditHistEntry(null)}
         onSave={updated => {
-          const newHist = sortedHistory(hist.map((h, i) => i === editHistEntry.idx ? updated : h))
-          onUpdate(withCurrent(newHist))
+          const storico = storicoAdesso()
+          const i = posizioneAlzata(storico, editHistEntry)
+          if (i >= 0) onUpdate(withCurrent(sortedHistory(storico.map((h, j) => j === i ? updated : h))))
           setEditHistEntry(null)
         }}
       />
@@ -1714,14 +1751,23 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   // Le note che un allenatore ha scritto sui miei esercizi. Come le schede
   // assegnate: vivono in una tabella a parte, non nel blob, e se la tabella non
   // c'è ancora o la rete non risponde la schermata resta quella di sempre.
+  // Si rileggono anche tornando in primo piano, come le schede ricevute qui
+  // sopra: lette una volta sola all'apertura, la nota scritta dall'allenatore
+  // mentre l'app restava in secondo piano non compariva finché non la si
+  // chiudeva del tutto.
   const [noteCoach, setNoteCoach] = useState<NotaCoach[]>([])
   useEffect(() => {
     let vivo = true
-    supabase.auth.getSession()
-      .then(({ data }) => data.session ? noteRicevute(data.session.user.id) : [])
-      .then(n => { if (vivo) setNoteCoach(n) })
-      .catch(() => { /* nessuna nota: è il caso normale */ })
-    return () => { vivo = false }
+    const leggi = () => {
+      supabase.auth.getSession()
+        .then(({ data }) => data.session ? noteRicevute(data.session.user.id) : [])
+        .then(n => { if (vivo) setNoteCoach(n) })
+        .catch(() => { /* nessuna nota: è il caso normale */ })
+    }
+    leggi()
+    const alRitorno = () => { if (document.visibilityState === 'visible') leggi() }
+    document.addEventListener('visibilitychange', alRitorno)
+    return () => { vivo = false; document.removeEventListener('visibilitychange', alRitorno) }
   }, [])
   // L'esercizio aperto è quello dello STORE, ritrovato per id: `selectedExercise`
   // ricorda solo quale. Tenendone una copia, quando su desktop la scheda restava
@@ -1913,11 +1959,16 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
   const updatePalestraExercise = (ex: PalestraExercise, changes: Partial<PalestraExercise>, opzioni?: OpzioniModificaEsercizio) => {
     const nome = typeof changes.n === 'string' && changes.n.trim() && changes.n !== ex.n ? changes.n : null
     const applica = (e: PalestraExercise): PalestraExercise => {
-      const nuovo = { ...e, ...changes }
+      // Il nome lasciato resta fra i nomi di prima: le schede del coach lo
+      // portano ancora, e devono ritrovare questo esercizio (vedi `esercizioPerNome`).
+      const nuovo = { ...e, ...changes, ...(nome ? { nomiPrima: nomiDopoRinomina(e, nome) } : {}) }
       // L'attrezzo anche sulle alzate di prima, se è stato chiesto: sullo
-      // storico com'è ADESSO, e non su quelle a corpo libero.
-      if (opzioni?.attrezzoAncheAlleVecchie) {
-        nuovo.history = nuovo.history.map(h => (h.bodyweight ? h : { ...h, attrezzo: nuovo.attrezzoKg || undefined }))
+      // storico com'è ADESSO, e non su quelle a corpo libero. Né su quelle che
+      // un attrezzo loro ce l'hanno già: lo riscriveva su tutte, e cambiando un
+      // bilanciere da 20 con uno da 15 ogni totale di prima perdeva 5 kg.
+      if (opzioni?.attrezzoAncheAlleVecchie && nuovo.attrezzoKg) {
+        const kg = nuovo.attrezzoKg
+        nuovo.history = nuovo.history.map(h => (h.bodyweight || h.attrezzo ? h : { ...h, attrezzo: kg }))
       }
       return nuovo
     }
@@ -2108,9 +2159,12 @@ export function JarvisGym({ onOpenCoach, onOpenProfile, onOpenUser }: {
       onBack={() => setSelectedMuscle(null)}
       onSelectExercise={ex => setSelectedExercise(ex)}
       onAddExercise={() => setShowAdd(true)}
+      // Anche da secondario il gruppo è usato: la pagina non mostra quegli
+      // esercizi (sta sul principale), ma toglierlo li lasciava appesi a un
+      // gruppo che non c'era più, senza colore.
       onElimina={
         (s.customMuscles ?? []).some(c => c.name === selectedMuscle)
-        && !s.palestraExercises.some(e => displayMuscle(e.muscle) === selectedMuscle)
+        && !s.palestraExercises.some(e => displayMuscle(e.muscle) === selectedMuscle || (!!e.muscle2 && displayMuscle(e.muscle2) === selectedMuscle))
           ? () => eliminaGruppo(selectedMuscle)
           : undefined
       }

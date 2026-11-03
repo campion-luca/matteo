@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, type SerieInCorso } from '@/features/gym/sessioneInCorso'
+import { leggiSessione, salvaSessione, scartaSessione, sessioneAperta, allenamentoInCorso, inizioSessione, orologioSessione, segnaAvvio, copreAltra, firmaRiga, cambioRiga, stessoEsercizio, type SerieInCorso } from '@/features/gym/sessioneInCorso'
 import type { GymScheda } from '@/store/useJarvisStore'
 
 // La sessione a metà è l'unico dato dell'app che non sta né nello store né in
@@ -250,6 +250,51 @@ describe('sessione di allenamento in corso', () => {
     salvaSessione(PUSH.id, mezzaSessione)
     expect(inizioSessione(PUSH.id)).toBe(ieri)
     expect(orologioSessione(PUSH.id)).toBeNull()
+  })
+})
+
+// La firma di una riga dice, riprendendo, se la riga è ancora quella su cui si
+// è spuntato. Sbagliare in un verso butta serie fatte; nell'altro le salva
+// sull'esercizio sbagliato.
+describe('la firma di una riga', () => {
+  const panca = { name: 'Panca piana', reps: '8-10', linkedExerciseId: 'px1' }
+
+  it('un esercizio rinominato dalla sua pagina è ancora lui: decide il collegamento', () => {
+    // Rinominarlo riscrive il nome sulle righe collegate: prima, firmata per
+    // nome, la riga sembrava un altro esercizio e le spunte sparivano.
+    expect(cambioRiga(firmaRiga(panca), { ...panca, name: 'Panca stretta' })).toBe('niente')
+    expect(cambioRiga(firmaRiga(panca), { ...panca, name: 'Squat', linkedExerciseId: 'px2' })).toBe('esercizio')
+  })
+
+  it('senza collegamento decide il nome', () => {
+    const libera = { name: 'Panca piana', reps: '8-10' }
+    expect(cambioRiga(firmaRiga(libera), { ...libera, name: 'panca piana ' })).toBe('niente')
+    expect(cambioRiga(firmaRiga(libera), { ...libera, name: 'Squat' })).toBe('esercizio')
+    // Collegata nel frattempo (salvata da un altro dispositivo) col suo nome: è lei.
+    expect(cambioRiga(firmaRiga(libera), { ...libera, linkedExerciseId: 'px1' })).toBe('niente')
+    // L'esercizio cancellato scioglie il collegamento: resta il nome.
+    expect(cambioRiga(firmaRiga(panca), { name: 'Panca piana', reps: '8-10' })).toBe('niente')
+    expect(cambioRiga(firmaRiga(panca), { name: 'Squat', reps: '8-10' })).toBe('esercizio')
+  })
+
+  it('stesso esercizio con altri colpi: cambiano solo i colpi', () => {
+    expect(cambioRiga(firmaRiga(panca), { ...panca, reps: '6-8' })).toBe('colpi')
+    expect(cambioRiga(firmaRiga(panca), { ...panca, name: 'Panca stretta', reps: '6-8' })).toBe('colpi')
+  })
+
+  it('le firme di prima, solo nome e colpi, si leggono ancora: per nome', () => {
+    expect(cambioRiga('panca piana|8-10', panca)).toBe('niente')
+    expect(cambioRiga('panca piana|6', panca)).toBe('colpi')
+    expect(cambioRiga('squat|8-10', panca)).toBe('esercizio')
+    // Senza firma (ancora prima) non si sa: la riga si tiene.
+    expect(cambioRiga(undefined, panca)).toBe('niente')
+  })
+
+  it('stessoEsercizio: due collegamenti si confrontano fra loro, se no i nomi', () => {
+    expect(stessoEsercizio({ name: 'Panca', linkedExerciseId: 'px1' }, { name: 'Panca stretta', linkedExerciseId: 'px1' })).toBe(true)
+    expect(stessoEsercizio({ name: 'Panca', linkedExerciseId: 'px1' }, { name: 'Panca', linkedExerciseId: 'px2' })).toBe(false)
+    expect(stessoEsercizio({ name: 'Panca', linkedExerciseId: 'px1' }, { name: 'Squat' })).toBe(false)
+    expect(stessoEsercizio({ name: 'Panca' }, { name: ' panca' })).toBe(true)
   })
 })
 

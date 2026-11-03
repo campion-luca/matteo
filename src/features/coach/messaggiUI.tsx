@@ -229,6 +229,9 @@ export function Composer({ placeholder, etichetta, onInvia, autoFocus, intestazi
     <textarea
       ref={campo}
       value={testo}
+      // Lo stesso tetto che il database mette ai messaggi, più stretto: con
+      // quello e basta, un testo lunghissimo si scriveva e poi non partiva.
+      maxLength={4000}
       onChange={e => { setTesto(e.target.value); if (errore) setErrore(null) }}
       // Invio manda, Maiusc+Invio va a capo. Su telefono la tastiera dà il
       // ritorno a capo e non l'invio, quindi il tasto resta l'unica via

@@ -12,7 +12,7 @@ import {
   type TopSetConfig, type DoubleProgressionConfig,
 } from '@/features/gym/progression'
 import {
-  conPreset, conModello, serieERipetizioni, statoDiPartenza, oggiDellaRiga, rigaDiOggi, esitoEsercizio,
+  conPreset, conModello, serieERipetizioni, statoDiPartenza, oggiDellaRiga, rigaDiOggi, esitoEsercizio, giudicataSu,
   rangeConsigliato, carichiValidi, leggiLista, leggiRir, chiaveProgressione,
 } from '@/features/gym/progressioneScheda'
 
@@ -99,6 +99,40 @@ describe('progressioneScheda', () => {
       .toEqual({ modello: 'doppia', stato: { weight: 12, sets: 3 } })
   })
 
+  it('un’alzata che non dice un peso non fa partire da 0 kg: si guarda la volta prima', () => {
+    // L'ultima a 0 colpi (o a 0 kg, come le serie vuote di prima del 7 ott):
+    // prima lo stato partiva da 0 kg "stimato dallo storico".
+    const buona = { d: 'W', date: giorniFa(14), kg: 80, reps: 5, sets_n: 1 }
+    const aZeroColpi = esercizio([buona, { d: 'W', date: giorniFa(7), kg: 80, reps: 0, sets_n: 1 }])
+    expect(statoDiPartenza(conPreset('multi'), aZeroColpi, 'k')).toEqual({ stato: { modello: 'topSet', stato: { topWeight: 75, missCount: 0 } }, da: 'storico' })
+    const aZeroKg = esercizio([{ ...buona, kg: 12, reps: 10, sets_n: 3 }, { d: 'W', date: giorniFa(7), kg: 0, reps: 10, sets_n: 3 }])
+    expect(statoDiPartenza(conPreset('monoGrande'), aZeroKg, 'k')?.stato).toEqual({ modello: 'doppia', stato: { weight: 12.5, sets: 3 } })
+    // Se nessuna dice un peso, si parte come la prima volta: il peso lo sceglie chi si allena.
+    const maiUnPeso = esercizio([{ d: 'W', date: giorniFa(7), kg: 0, reps: 10, sets_n: 3 }])
+    expect(statoDiPartenza(conPreset('multi'), maiUnPeso, 'k')).toBeNull()
+    expect(statoDiPartenza(conPreset('monoGrande', { kind: 'list', values: [2, 4, 6] }), maiUnPeso, 'k')).toBeNull()
+    expect(oggiDellaRiga('sc1', riga(), maiUnPeso)).toMatchObject({ conPeso: false, da: 'nuovo' })
+  })
+
+  it('carichi della riga cambiati, modello no: lo stato salvato si riporta ai carichi di oggi', () => {
+    // Salvato col passo da 2,5; ora la riga ha i manubri da 60 e da 65.
+    const lista = { kind: 'list' as const, values: [60, 65] }
+    const doppia = { modello: 'doppia' as const, stato: { weight: 62.5, sets: 3, previousWeight: 57.5 }, il: giorniFa(3), evento: 'increase' as const, messaggio: 'x' }
+    const ex = esercizio([], { progressioni: { 'sc1:r1': doppia } })
+    expect(statoDiPartenza(conPreset('monoGrande', lista), ex, 'sc1:r1')).toEqual({ stato: { modello: 'doppia', stato: { weight: 60, sets: 3, previousWeight: 60 } }, da: 'salvato' })
+    // La prescrizione è sui carichi che ci sono: prima diceva 62,5.
+    expect(oggiDellaRiga('sc1', riga(conPreset('monoGrande', lista)), ex)!.prescrizione.map(s => s.weight)).toEqual([60, 60, 60])
+
+    const top = { modello: 'topSet' as const, stato: { topWeight: 81, missCount: 1 }, il: giorniFa(3), evento: 'hold' as const, messaggio: 'x' }
+    const exTop = esercizio([], { progressioni: { 'sc1:r1': top } })
+    const oggi = oggiDellaRiga('sc1', riga(conPreset('multi', { kind: 'increment', step: 5 })), exTop)!
+    expect(oggi.stato).toEqual({ modello: 'topSet', stato: { topWeight: 80, missCount: 1 } })
+    expect(oggi.prescrizione[0]).toMatchObject({ label: 'top', weight: 80 })
+    // Coi carichi di sempre non cambia niente.
+    expect(statoDiPartenza(conPreset('multi'), esercizio([], { progressioni: { 'sc1:r1': { ...top, stato: { topWeight: 82.5, missCount: 0 } } } }), 'sc1:r1')?.stato)
+      .toEqual({ modello: 'topSet', stato: { topWeight: 82.5, missCount: 0 } })
+  })
+
   it('lo stato salvato vince sullo storico, ma non se il modello è cambiato', () => {
     const salvato = { modello: 'topSet' as const, stato: { topWeight: 90, missCount: 1 }, il: giorniFa(3), evento: 'hold' as const, messaggio: 'x' }
     const ex = esercizio([{ d: 'W', date: giorniFa(7), kg: 80, reps: 5, sets_n: 1 }], { progressioni: { 'sc1:r1': salvato } })
@@ -155,6 +189,23 @@ describe('il form della scheda', () => {
     render(<ConfirmDeleteProvider><SchedaFormPage scheda={s} palestraExercises={[]} onCancel={vi.fn()} onSave={onSave} onSaveDraft={vi.fn()}/></ConfirmDeleteProvider>)
     return onSave
   }
+
+  it('salvare non toglie la progressione a un esercizio con l’ultima alzata a 0 kg', async () => {
+    // Quella deduzione vale per la seduta; salvando per rinominare la scheda
+    // cancellava la progressione senza dirlo.
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const p = conPreset('multi')
+    const s: GymScheda = {
+      id: 'sc1', title: 'Forza A', createdAt: '2026-10-27', updatedAt: '2026-10-27', conProgressioni: true,
+      exercises: [{ id: 'r1', name: 'Panca piana', muscle: 'Petto', linkedExerciseId: 'px1', progressione: p, ...serieERipetizioni(p) }],
+    }
+    render(<ConfirmDeleteProvider><SchedaFormPage scheda={s} palestraExercises={[esercizio([{ d: 'W', date: giorniFa(9), kg: 0, reps: 8, sets_n: 3 }])]} onCancel={vi.fn()} onSave={onSave} onSaveDraft={vi.fn()}/></ConfirmDeleteProvider>)
+    await user.clear(screen.getByPlaceholderText(/Nome scheda/))
+    await user.type(screen.getByPlaceholderText(/Nome scheda/), 'Forza B')
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[0][0].exercises[0].progressione).toEqual(p)
+  })
 
   it('in una scheda nuova si sceglie la progressione: senza, non si salva', async () => {
     const user = userEvent.setup()
@@ -278,5 +329,49 @@ describe('allenamento con la progressione', () => {
     await user.click(screen.getAllByRole('button', { name: /chiudi senza salvare/i }).pop()!)
     await user.click(screen.getByRole('button', { name: 'Scarta' }))
     expect(useJarvisStore.getState().palestraExercises[0].progressioni).toBeUndefined()
+  })
+})
+
+// ── La seduta si giudica sul peso alzato (3 nov 2026) ───────────
+// Le regole di progression.ts partono dal peso prescritto: colpi e RIR fatti
+// con un altro peso venivano presi per fatti con quello.
+describe('il peso alzato davvero', () => {
+  const salvato = (stato: Record<string, number>, modello: 'topSet' | 'doppia') =>
+    ({ 'sc1:r1': { modello, stato, il: giorniFa(3), evento: 'hold' as const, messaggio: 'x' } }) as unknown as PalestraExercise['progressioni']
+
+  it('top set: 70 × 5 a RIR 5 su un prescritto da 80 porta a 75, non a 85', () => {
+    const p = conPreset('multi')
+    const oggi = oggiDellaRiga('sc1', riga(p), esercizio([], { progressioni: salvato({ topWeight: 80, missCount: 0 }, 'topSet') }))!
+    const serie = [{ weight: 70, reps: 5, rir: 5 }, null, null, null]
+    expect(giudicataSu(oggi, serie)).toEqual({ alzato: 70, prescritto: 80 })
+    expect(esitoEsercizio(oggi, serie, '2026-11-03')?.stato).toEqual({ topWeight: 75, missCount: 0 })
+  })
+
+  it('top set: 80 × 5 a RIR 2 su un prescritto da 75 resta a 80', () => {
+    const p = conPreset('multi')
+    const oggi = oggiDellaRiga('sc1', riga(p), esercizio([], { progressioni: salvato({ topWeight: 75, missCount: 0 }, 'topSet') }))!
+    expect(esitoEsercizio(oggi, [{ weight: 80, reps: 5, rir: 2 }, null, null, null], '2026-11-03')).toMatchObject({ evento: 'hold', stato: { topWeight: 80 } })
+  })
+
+  it('doppia: 3 × 12 con 8 kg su un prescritto da 10 porta a 10, non a 12', () => {
+    const p = conPreset('monoGrande', { kind: 'list', values: [6, 8, 10, 12] })
+    const oggi = oggiDellaRiga('sc1', riga(p), esercizio([], { progressioni: salvato({ weight: 10, sets: 3 }, 'doppia') }))!
+    const serie = [8, 8, 8].map(weight => ({ weight, reps: 12 }))
+    expect(esitoEsercizio(oggi, serie, '2026-11-03')?.stato).toMatchObject({ weight: 10, sets: 3 })
+  })
+
+  it('doppia: più pesante del prescritto vale come un aumento, e sotto il minimo si torna indietro', () => {
+    const p = conPreset('monoGrande', { kind: 'list', values: [6, 8, 10, 12] })
+    const oggi = oggiDellaRiga('sc1', riga(p), esercizio([], { progressioni: salvato({ weight: 10, sets: 3 }, 'doppia') }))!
+    const serie = [12, 12, 12].map(weight => ({ weight, reps: 6 }))
+    expect(esitoEsercizio(oggi, serie, '2026-11-03')).toMatchObject({ evento: 'add_set', stato: { weight: 10, sets: 4 } })
+  })
+
+  it('col peso prescritto non cambia niente, e alla prima seduta non c’è un prescritto', () => {
+    const p = conPreset('multi')
+    const oggi = oggiDellaRiga('sc1', riga(p), esercizio([], { progressioni: salvato({ topWeight: 80, missCount: 1 }, 'topSet') }))!
+    expect(giudicataSu(oggi, [{ weight: 80, reps: 5, rir: 2 }, null, null, null])).toBeNull()
+    expect(esitoEsercizio(oggi, [{ weight: 80, reps: 3, rir: 0 }, null, null, null], '2026-11-03')?.stato).toMatchObject({ missCount: 2 })
+    expect(giudicataSu(oggiDellaRiga('sc1', riga(p), esercizio([]))!, [{ weight: 60, reps: 5 }, null])).toBeNull()
   })
 })

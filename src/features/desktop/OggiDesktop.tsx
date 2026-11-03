@@ -14,7 +14,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
-import { useT, useTData, useLang } from '@/lib/i18n'
+import { useT, useTData, useLang, type Lang } from '@/lib/i18n'
 import { useJarvisStore, type GymScheda, type PalestraExercise } from '@/store/useJarvisStore'
 import { useOggi } from '@/hooks/useOggi'
 import { giorniTra, isoWeek } from '@/lib/isoDate'
@@ -182,7 +182,9 @@ function Numeri({ sessioni, giorni, oggi, total, onProfilo }: {
   const nelMese = sessioni.filter(x => x.data.startsWith(daMese(y, m))).length
   const nelMesePrima = sessioni.filter(x => x.data.startsWith(daMese(meseScorso.getFullYear(), meseScorso.getMonth() + 1))).length
   const scarto = nelMese - nelMesePrima
-  const nomeMesePrima = fmtMese(meseScorso.getMonth(), lang).toLowerCase()
+  // In mezzo alla frase il mese è minuscolo in italiano ("come a ottobre"), ma
+  // in inglese resta maiuscolo: "same as october" è un errore.
+  const nomeMesePrima = lang === 'it' ? fmtMese(meseScorso.getMonth(), lang).toLowerCase() : fmtMese(meseScorso.getMonth(), lang)
 
   const volume = volumeSettimana(sessioni, oggi)
   const kgOK = (v: number) => (v >= 1000 ? `${fmtNum(Math.round(v / 100) / 10)}k` : fmtNum(Math.round(v)))
@@ -191,7 +193,8 @@ function Numeri({ sessioni, giorni, oggi, total, onProfilo }: {
 
   return (
     <div className="j-desk-numeri">
-      <Numero etichetta={t('Costanza')} valore={String(serie)} unita={t('sett.')}
+      {/* "sett." vale per una e per tante, in inglese no: "1 wks". */}
+      <Numero etichetta={t('Costanza')} valore={String(serie)} unita={serie === 1 ? t('una|sett.') : t('sett.')}
         sotto={serie === 0 ? t('nessuna settimana di fila') : serie >= migliore ? t('di fila, record personale') : t('di fila · record {n}', { n: migliore })}/>
       <Numero etichetta={`${t('Sessioni')} · ${fmtMese(m - 1, lang)}`} valore={String(nelMese)}
         sotto={nelMese === 0 && nelMesePrima === 0 ? t('nessuna ancora')
@@ -269,9 +272,10 @@ const NOTA: CSSProperties = { ...ETICHETTA, fontSize: 13 }
 const RIQUADRO: CSSProperties = { background: 'var(--surface)', border: 'var(--bordo)' }
 
 /** "12.480": i chili di un allenamento, col punto delle migliaia come
- *  `fmtNum` ha la virgola dei decimali. */
-function fmtMigliaia(n: number): string {
-  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+ *  `fmtNum` ha la virgola dei decimali. In inglese le migliaia vanno con la
+ *  virgola ("12,480"): col punto si legge dodici chili e mezzo. */
+function fmtMigliaia(n: number, lang: Lang): string {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, lang === 'en' ? ',' : '.')
 }
 
 /** "1h05" · "55'": la durata come la si scrive a mano. */
@@ -496,7 +500,7 @@ function UltimeSessioni({ sessioni, oggi }: { sessioni: SessioneFatta[]; oggi: s
                 <td><span className="j-desk-nome">{x.scheda ? tData(x.scheda.nome) : t('Alzate a parte')}</span></td>
                 <td className="j-desk-cifra">{x.esercizi}</td>
                 <td className="j-desk-cifra">{x.serie}</td>
-                <td className="j-desk-cifra">{x.volume > 0 ? chiliEUnita(`${fmtMigliaia(x.volume)} kg`) : '—'}</td>
+                <td className="j-desk-cifra">{x.volume > 0 ? chiliEUnita(`${fmtMigliaia(x.volume, lang)} kg`) : '—'}</td>
                 <td className="j-desk-cifra">{x.durataSec ? fmtOre(x.durataSec).toUpperCase() : '—'}</td>
                 <td>{x.record > 0 && <span className="j-desk-pr">+{x.record} PR</span>}</td>
               </tr>
@@ -528,7 +532,7 @@ function Mese({ giorni, oggi }: { giorni: Map<string, unknown>; oggi: string }) 
   return (
     <section>
       <Titolo testo={fmtMese(m - 1, lang)} destra={
-        <span style={NOTA}>{fatti === 1 ? t('1 giorno') : t('{n} giorni', { n: fatti })} · {t('{n} sett. di fila', { n: serie })}</span>
+        <span style={NOTA}>{fatti === 1 ? t('1 giorno') : t('{n} giorni', { n: fatti })} · {serie === 1 ? t('1 sett. di fila') : t('{n} sett. di fila', { n: serie })}</span>
       }/>
       <div style={RIQUADRO}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: 'var(--bordo)' }}>

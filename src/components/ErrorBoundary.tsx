@@ -97,13 +97,23 @@ export class ErrorBoundary extends Component<Props, State> {
 
           {/* L'unica via d'uscita, quindi il CTA dell'app (`.j-btn-accent`),
               largo quanto il testo sopra. */}
+          {/* Le cache si buttano solo con la rete. Sono anche il codice
+              dell'app: senza rete, buttate quelle, la PWA non ripartiva più
+              — nel seminterrato, la schermata d'errore diventava una pagina
+              del browser "sei offline". E si ricarica comunque: un errore
+              delle cache non deve lasciare il tasto senza effetto. */}
           <button
             onClick={async () => {
-              if ('caches' in window) {
-                const keys = await caches.keys()
-                await Promise.all(keys.map(k => caches.delete(k)))
+              try {
+                if ('caches' in window && navigator.onLine !== false) {
+                  const keys = await caches.keys()
+                  await Promise.all(keys.map(k => caches.delete(k)))
+                }
+              } catch {
+                // Cache non raggiungibili: si ricarica lo stesso.
+              } finally {
+                window.location.reload()
               }
-              window.location.reload()
             }}
             className="j-btn-accent"
             style={{ marginTop: 8, maxWidth: 360, padding: '0 12px', flexShrink: 0 }}

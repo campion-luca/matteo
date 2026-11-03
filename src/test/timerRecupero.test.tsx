@@ -120,6 +120,51 @@ describe('esecuzione, recupero, e oltre', () => {
   })
 })
 
+// Lo schermo acceso: il blocco si chiede al browser e arriva DOPO. Se nel
+// frattempo il recupero è finito o la pagina se n'è andata, nessuno l'avrebbe
+// più rilasciato.
+describe('lo schermo acceso', () => {
+  let arriva: (b: { release: () => Promise<void> }) => void = () => {}
+  const richieste = vi.fn()
+  beforeEach(() => {
+    richieste.mockReset()
+    Object.defineProperty(navigator, 'wakeLock', {
+      configurable: true,
+      value: { request: (t: string) => { richieste(t); return new Promise(r => { arriva = r }) } },
+    })
+  })
+  afterEach(() => { delete (navigator as { wakeLock?: unknown }).wakeLock })
+
+  it('un blocco arrivato dopo «Salta» si restituisce subito', async () => {
+    render(<TimerRecupero schedaId="sc1"/>)
+    avvia()
+    expect(richieste).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Salta' }))
+    const release = vi.fn(() => Promise.resolve())
+    await act(async () => { arriva({ release }) })
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('e così uno arrivato a pagina chiusa', async () => {
+    const { unmount } = render(<TimerRecupero schedaId="sc1"/>)
+    avvia()
+    unmount()
+    const release = vi.fn(() => Promise.resolve())
+    await act(async () => { arriva({ release }) })
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('arrivato a recupero in corso si tiene, e si rilascia quando il recupero finisce', async () => {
+    render(<TimerRecupero schedaId="sc1"/>)
+    avvia()
+    const release = vi.fn(() => Promise.resolve())
+    await act(async () => { arriva({ release }) })
+    expect(release).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Salta' }))
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+})
+
 // Chiuso con la ×, il timer diventa un'icona in testata. Chiuso non è fermo.
 describe('timer chiuso', () => {
   it('la × c’è solo se si può chiudere, e chiama chi lo deve togliere', () => {

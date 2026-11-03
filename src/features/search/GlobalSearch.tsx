@@ -12,6 +12,7 @@ import { Icons } from '@/components/ui/Icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import { hyroxVisibili } from '@/features/gym/hyroxAttivo'
+import { useSchedeVisibili } from '@/features/gym/gymHooks'
 import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { useT, useTData } from '@/lib/i18n'
 
@@ -39,8 +40,12 @@ export function GlobalSearch({ open, onClose, onApri }: GlobalSearchProps) {
   const t = useT()
   const tData = useTData()
   const s = useJarvisStore(useShallow(st => ({
-    palestra: st.palestraExercises, hyrox: hyroxVisibili(st.hyroxExercises), schede: st.gymSchede,
+    palestra: st.palestraExercises, hyrox: hyroxVisibili(st.hyroxExercises), mie: st.gymSchede,
   })))
+  // Le schede su cui ci si allena, comprese quelle che il coach mi ha mandato.
+  // L'indice leggeva solo `gymSchede`: una scheda ricevuta GymSchede la apre
+  // per id come le mie, ma dalla ricerca non la si trovava.
+  const schede = useSchedeVisibili()
   const isDesktop = useIsDesktop()
   const [q, setQ] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -56,9 +61,13 @@ export function GlobalSearch({ open, onClose, onApri }: GlobalSearchProps) {
     // cambio lingua.
     s.palestra.forEach(e => out.push({ label: tData(e.n), sub: tData(e.muscle), run: () => onApri({ tipo: 'esercizio', id: e.id }) }))
     s.hyrox.forEach(e => out.push({ label: tData(e.n), sub: t('Hyrox'), run: () => onApri({ tipo: 'hyrox', id: e.id }) }))
-    s.schede.forEach(sc => out.push({ label: sc.title, sub: t('Scheda'), run: () => onApri({ tipo: 'scheda', id: sc.id }) }))
+    // Le bozze del coach no: chi le riceve non le vede da nessuna parte, e
+    // GymSchede non le apre (vedi schedaRicevutaInCache). Le mie sì, come prima.
+    const mie = new Set((s.mie ?? []).map(sc => sc.id))
+    schede.filter(sc => !sc.draft || mie.has(sc.id))
+      .forEach(sc => out.push({ label: sc.title, sub: t('Scheda'), run: () => onApri({ tipo: 'scheda', id: sc.id }) }))
     return out
-  }, [s, onApri, t, tData])
+  }, [s, schede, onApri, t, tData])
 
   const results = useMemo(() => {
     const nq = norm(q.trim())

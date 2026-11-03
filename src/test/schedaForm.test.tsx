@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { SchedaFormPage } from '@/features/gym/GymSchede'
 import { useJarvisStore, EMPTY_STATE } from '@/store/useJarvisStore'
 import { ConfirmDeleteProvider } from '@/hooks/useConfirmDelete'
-import type { GymScheda } from '@/store/useJarvisStore'
+import type { GymScheda, PalestraExercise } from '@/store/useJarvisStore'
 
 // Nel form della scheda gli esercizi stanno compressi: una riga col nome e
 // «serie×colpi», e toccandola si apre. Tutti aperti, otto esercizi erano otto
@@ -153,5 +153,93 @@ describe('il form della scheda — esercizi compressi', () => {
     await user.click(screen.getByRole('switch', { name: 'Superset col successivo' }))
     await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
     expect(onSave.mock.calls[0][0].exercises[0].supersetWithNext).toBe(true)
+  })
+
+  it('il superset si disegna come si salva: col prossimo esercizio che ha un nome', async () => {
+    const user = userEvent.setup()
+    const onSave = monta({ ...scheda, exercises: scheda.exercises.map((e, i) => (i === 0 ? { ...e, supersetWithNext: true } : e)) })
+    // La riga sotto la Panca resta senza nome: al salvataggio sparisce, e la
+    // Panca finisce in superset col Curl.
+    await user.click(riga('Rematore'))
+    await user.click(screen.getByRole('button', { name: 'Cambia' }))
+    await user.clear(screen.getByLabelText('Nome esercizio'))
+
+    // Prima il form legava la Panca alla riga vuota, e il Curl non lo diceva.
+    expect(screen.getByText('Esercizio 2')).not.toHaveTextContent('superset')
+    expect(riga('Curl')).toHaveTextContent('superset')
+
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    const salvati = onSave.mock.calls[0][0].exercises as GymScheda['exercises']
+    expect(salvati.map(e => [e.name, !!e.supersetWithNext])).toEqual([['Panca piana', true], ['Curl', false]])
+  })
+})
+
+// Il form decide se una riga ha la progressione con la STESSA regola con cui
+// l'allenamento la usa: a corpo libero non c'è un carico da far salire, e una
+// progressione scelta qui per un esercizio che lì è a corpo libero non faceva
+// niente, senza dirlo.
+describe('il form della scheda — corpo libero come in allenamento', () => {
+  beforeEach(() => { Element.prototype.scrollIntoView = vi.fn() })
+
+  const conUltima = (kg: number): PalestraExercise[] => [{
+    id: 'p1', n: 'Crunch al cavo', muscle: 'Core', current: { kg, reps: 15, sets_n: 3 },
+    history: [{ d: 'W', date: '2026-10-20', kg, reps: 15, sets_n: 3 }],
+  }]
+  const nuova: GymScheda = {
+    id: 'sc2', title: 'Core', createdAt: '2026-10-28', updatedAt: '2026-10-28', conProgressioni: true,
+    exercises: [{ id: 'r1', name: 'Crunch al cavo', sets: 3, reps: '15', linkedExerciseId: 'p1' }],
+  }
+  const montaCon = (esercizi: PalestraExercise[]) => render(
+    <ConfirmDeleteProvider>
+      <SchedaFormPage scheda={nuova} palestraExercises={esercizi} onCancel={vi.fn()} onSave={vi.fn()} onSaveDraft={vi.fn()}/>
+    </ConfirmDeleteProvider>,
+  )
+
+  it('fatto l’ultima volta a 0 kg è a corpo libero: niente progressione, serie e colpi come sempre', async () => {
+    const user = userEvent.setup()
+    montaCon(conUltima(0))
+    await user.click(riga('Crunch al cavo'))
+    expect(screen.queryByText('Progressione')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('3')).toHaveValue('3')
+  })
+
+  it('con dei chili l’ultima volta, la progressione si sceglie', async () => {
+    const user = userEvent.setup()
+    montaCon(conUltima(20))
+    await user.click(riga('Crunch al cavo'))
+    expect(screen.getByRole('button', { name: 'Multiarticolare' })).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('3')).not.toBeInTheDocument()
+  })
+})
+
+// Il tipo di carico di un esercizio nuovo: finché non lo si tocca vale il
+// catalogo, ed è quello che si vede acceso. Prima era acceso «Con attrezzo»,
+// che però non si salvava: le Trazioni nascevano a corpo libero lo stesso.
+describe('il form della scheda — corpo libero o con attrezzo', () => {
+  const nuovaRiga = async (user: ReturnType<typeof userEvent.setup>, nome: string) => {
+    await user.click(screen.getByRole('button', { name: /Aggiungi esercizio/ }))
+    await user.type(screen.getByLabelText('Nome esercizio'), nome)
+    await user.selectOptions(screen.getByLabelText('Gruppo muscolare'), 'Dorso')
+  }
+
+  it('per le Trazioni è acceso «Corpo libero», e senza toccarlo decide il catalogo', async () => {
+    const user = userEvent.setup()
+    const onSave = monta(scheda)
+    await nuovaRiga(user, 'Trazioni')
+    expect(screen.getByRole('button', { name: 'Corpo libero' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[0][0].exercises[3]).not.toHaveProperty('bodyweight')
+  })
+
+  it('«Con attrezzo» scelto a mano si salva, e vale più del catalogo', async () => {
+    const user = userEvent.setup()
+    const onSave = monta(scheda)
+    await nuovaRiga(user, 'Trazioni')
+    await user.click(screen.getByRole('button', { name: 'Con attrezzo' }))
+    expect(screen.getByRole('button', { name: 'Con attrezzo' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[0][0].exercises[3].bodyweight).toBe(false)
+    // Le righe che non l'hanno scelto restano senza.
+    expect(onSave.mock.calls[0][0].exercises[0]).not.toHaveProperty('bodyweight')
   })
 })

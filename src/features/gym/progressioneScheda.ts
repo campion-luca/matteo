@@ -26,7 +26,7 @@ import {
   type LoadSteps, type SetLog, type SetPrescription,
   type TopSetConfig, type TopSetState, type DoubleProgressionConfig, type DoubleProgressionState,
 } from './progression'
-import { entry1RM, parseNum, setLoads, ultimaDiLavoro } from './gymModel'
+import { entry1RM, parseNum, setLoads, sortedHistory } from './gymModel'
 import type { GymSchedaExercise, PalestraExercise, PresetProgressione, ProgressioneRiga, StatoProgressione } from '@/store/useJarvisStore'
 
 export type PresetFisso = Exclude<PresetProgressione, 'personalizzata'>
@@ -86,28 +86,51 @@ export const chiaveProgressione = (schedaId: string, rigaId: string) => `${sched
 type Stato = { modello: 'topSet'; stato: TopSetState } | { modello: 'doppia'; stato: DoubleProgressionState }
 
 /** Da dove parte la riga oggi: lo stato salvato dall'ultima seduta; se non
- *  c'è, uno stimato dall'ultima alzata dell'esercizio; se l'esercizio non è mai
- *  stato fatto, nessuno — il peso lo sceglie chi si allena, e lo stato nasce da
- *  quella prima seduta. */
+ *  c'è, uno stimato dall'ultima alzata dell'esercizio che dica un peso; se
+ *  l'esercizio non è mai stato fatto, nessuno — il peso lo sceglie chi si
+ *  allena, e lo stato nasce da quella prima seduta. */
 export function statoDiPartenza(
   p: ProgressioneRiga, ex: PalestraExercise | undefined, chiave: string,
 ): { stato: Stato; da: 'salvato' | 'storico' } | null {
   const salvato = ex?.progressioni?.[chiave]
   // Un modello cambiato (da top set a doppia) non riparte dallo stato dell'altro.
+  //
+  // I carichi della riga invece possono cambiare senza toccare il modello (un
+  // passo diverso, una lista al posto del passo), e lo stato è stato scritto
+  // con quelli di prima: si riporta ai carichi di oggi. Senza, un 62,5 salvato
+  // col passo da 2,5 restava 62,5 anche con i manubri da 60 e da 65.
   if (salvato && salvato.modello === p.modello) {
-    return { stato: { modello: salvato.modello, stato: salvato.stato } as Stato, da: 'salvato' }
+    const al = (w: number) => roundLoad(w, p.steps)
+    if (salvato.modello === 'topSet') {
+      return { stato: { modello: 'topSet', stato: { ...salvato.stato, topWeight: al(salvato.stato.topWeight) } }, da: 'salvato' }
+    }
+    // Anche il carico a cui tornare se il salto non regge: è scritto coi
+    // carichi di prima anche lui.
+    const stato: DoubleProgressionState = { ...salvato.stato, weight: al(salvato.stato.weight) }
+    if (stato.previousWeight !== undefined) stato.previousWeight = al(stato.previousWeight)
+    return { stato: { modello: 'doppia', stato }, da: 'salvato' }
   }
-  const ultima = ex ? ultimaDiLavoro(ex.history) : undefined
-  if (!ultima) return null
-  if (p.modello === 'topSet') {
-    // Il peso che il massimale stimato dà per i colpi del top set più il RIR:
-    // la stessa Epley di `estimate1RM`, girata.
+  // Il peso che un'alzata dà per questa riga. Per il top set, quello che il
+  // massimale stimato dà per i colpi del top set più il RIR: la stessa Epley di
+  // `estimate1RM`, girata. Per la doppia, il carico più alto.
+  const pesoDa = (h: PalestraExercise['history'][number]) => {
+    if (p.modello === 'doppia') return Math.max(...setLoads(h))
     const { topReps, targetRir } = p.cfg
-    const topWeight = roundLoad(entry1RM(ultima) / (1 + (topReps + targetRir) / 30), p.steps)
-    return { stato: { modello: 'topSet', stato: { topWeight, missCount: 0 } }, da: 'storico' }
+    return entry1RM(h) / (1 + (topReps + targetRir) / 30)
   }
-  const weight = roundLoad(Math.max(...setLoads(ultima)), p.steps)
-  return { stato: { modello: 'doppia', stato: { weight, sets: p.cfg.baseSets } }, da: 'storico' }
+  // L'ultima alzata di lavoro che dica un peso. Una a 0 colpi o a 0 kg (le
+  // serie vuote che finivano nello storico prima del 7 ott 2026) dava uno
+  // stato a 0 kg "stimato dallo storico", e la card prescriveva "0 kg": si
+  // guarda la volta prima, e se nessuna lo dice si parte come un esercizio
+  // nuovo.
+  const lavoro = ex ? sortedHistory(ex.history.filter(h => !h.maxLift)) : []
+  let peso = 0
+  for (let i = lavoro.length - 1; i >= 0 && !(peso > 0); i--) peso = pesoDa(lavoro[i])
+  if (!(peso > 0)) return null   // anche NaN, da un'alzata scritta male
+  if (p.modello === 'topSet') {
+    return { stato: { modello: 'topSet', stato: { topWeight: roundLoad(peso, p.steps), missCount: 0 } }, da: 'storico' }
+  }
+  return { stato: { modello: 'doppia', stato: { weight: roundLoad(peso, p.steps), sets: p.cfg.baseSets } }, da: 'storico' }
 }
 
 /** Una riga di oggi: la sua prescrizione e da dove viene. */
@@ -155,24 +178,67 @@ export function rigaDiOggi(e: GymSchedaExercise, oggi: OggiRiga): GymSchedaExerc
   return { ...e, sets: n, reps: colpiPerSerie(oggi.prescrizione.map(colpiBersaglio)) }
 }
 
+// ── La seduta si giudica sul peso ALZATO (dal 3 nov 2026) ──────
+// Le regole di progression.ts non leggono il peso delle serie: partono dallo
+// stato, cioè dal peso prescritto. Se in palestra se ne usava un altro — dischi
+// occupati, una giornata storta — i colpi e il RIR fatti con quello venivano
+// presi per fatti col prescritto: 70 × 5 a RIR 5 su un top set da 80 portava a
+// 85 la volta dopo, 15 kg sopra quello alzato. Qui, prima di chiamarle, lo
+// stato si riporta al peso alzato davvero; poi le regole decidono come sempre.
+
+/** Il peso su cui si giudica la seduta: quello alzato, arrotondato ai carichi
+ *  della riga. Il top set; nella doppia la serie più leggera, perché la doppia
+ *  vuole tutte le serie al massimo dei colpi allo STESSO peso. `null` senza un
+ *  peso da leggere. */
+export function pesoAlzato(oggi: OggiRiga, serie: (SetLog | null)[]): number | null {
+  const pesi = oggi.p.modello === 'topSet'
+    ? (serie[0] ? [serie[0].weight] : [])
+    : serie.filter((s): s is SetLog => !!s).map(s => s.weight)
+  if (!pesi.length || !(Math.min(...pesi) > 0)) return null
+  return roundLoad(Math.min(...pesi), oggi.p.steps)
+}
+
+/** Il peso alzato e quello prescritto, quando non coincidono: la seduta si
+ *  giudica sul primo, e la card lo dice. `null` se coincidono, o alla prima
+ *  seduta (lì un peso prescritto non c'era). */
+export function giudicataSu(oggi: OggiRiga, serie: (SetLog | null)[]): { alzato: number; prescritto: number } | null {
+  const alzato = pesoAlzato(oggi, serie)
+  const s = oggi.stato
+  if (alzato === null || !s) return null
+  const prescritto = s.modello === 'topSet' ? s.stato.topWeight : s.stato.weight
+  return alzato !== prescritto ? { alzato, prescritto } : null
+}
+
 /** L'esercizio chiuso: la progressione guarda le serie fatte (`null` quelle
  *  saltate, nell'ordine della prescrizione) e dice dove si va la prossima volta.
  *  `null` se non c'è niente da giudicare: nessuna serie, o il top set saltato. */
 export function esitoEsercizio(oggi: OggiRiga, serie: (SetLog | null)[], il: string): StatoProgressione | null {
   const { p } = oggi
+  const diverso = giudicataSu(oggi, serie)
   if (p.modello === 'topSet') {
     const top = serie[0]
     if (!top) return null
     const cfg: TopSetConfig = { ...p.cfg, steps: p.steps }
-    // Alla prima seduta lo stato nasce dal top set appena fatto.
-    const stato = oggi.stato?.modello === 'topSet' ? oggi.stato.stato : { topWeight: roundLoad(top.weight, p.steps), missCount: 0 }
+    // Alla prima seduta lo stato nasce dal top set appena fatto. Dopo, con un
+    // peso diverso da quello prescritto, si riparte da quello: i colpi mancati
+    // contati finora erano su un altro peso.
+    const prima = oggi.stato?.modello === 'topSet' ? oggi.stato.stato : null
+    const stato = !prima ? { topWeight: roundLoad(top.weight, p.steps), missCount: 0 }
+      : diverso ? { topWeight: diverso.alzato, missCount: 0 }
+      : prima
     const r = progressTopSet(stato, top, cfg)
     return { modello: 'topSet', stato: r.state, evento: r.event, messaggio: r.message, il }
   }
   const fatte = serie.filter((s): s is SetLog => !!s)
   if (fatte.length === 0) return null
   const cfg: DoubleProgressionConfig = { ...p.cfg, steps: p.steps }
-  const stato = oggi.stato?.modello === 'doppia' ? oggi.stato.stato : { weight: roundLoad(fatte[0].weight, p.steps), sets: p.cfg.baseSets }
+  // Più pesante del prescritto vale come un aumento: se i colpi non arrivano al
+  // minimo, la volta dopo si torna al prescritto (`previousWeight`, la regola
+  // di progression.ts). Più leggero, si riparte da lì.
+  const prima = oggi.stato?.modello === 'doppia' ? oggi.stato.stato : null
+  const stato = !prima ? { weight: pesoAlzato(oggi, serie) ?? roundLoad(fatte[0].weight, p.steps), sets: p.cfg.baseSets }
+    : diverso ? { weight: diverso.alzato, sets: prima.sets, ...(diverso.alzato > prima.weight ? { previousWeight: prima.weight } : {}) }
+    : prima
   const r = progressDouble(stato, fatte, cfg)
   return { modello: 'doppia', stato: r.state, evento: r.event, messaggio: r.message, il }
 }

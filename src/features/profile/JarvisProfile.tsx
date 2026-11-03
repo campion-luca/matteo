@@ -12,18 +12,19 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { NUC, cursore } from '@/lib/jarvis-tokens'
 import { NucEyebrow, Interruttore } from '@/components/ui/NucComponents'
-import { useStore, useJarvisStore, NOME_MAX, type JarvisState } from '@/store/useJarvisStore'
+import { useStore, useJarvisStore, NOME_MAX, type JarvisState, type WeightLogEntry } from '@/store/useJarvisStore'
 import { todayISO } from '@/lib/isoDate'
 import { fmtDayMonth } from '@/lib/dateFormat'
 import { LineChart } from '@/features/gym/gymShared'
-import { fmtNum } from '@/features/gym/gymModel'
+import { fmtNum, normalizzaDecimale, parseNum } from '@/features/gym/gymModel'
 import { Icons } from '@/components/ui/Icons'
+import { Cronologia } from '@/components/ui/Cronologia'
 import { supabase, idUtenteSuDisco } from '@/lib/supabase'
 import { attivaPush, spegniPush, statoPush, type StatoPush } from '@/lib/push'
 import { esci } from '@/lib/uscita'
 import { useTema, scegliTema, TEMI, type Tema } from '@/lib/tema'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { useT, translate, LANG_LABELS, LANGS, type Lang } from '@/lib/i18n'
+import { useT, translate, LANG_LABELS, LANGS, type Lang, type TFn } from '@/lib/i18n'
 import { AvatarProfilo, ProfiloPubblico } from './ProfiloPubblico'
 import { etaDi, salvaProfilo, useProfilo } from '@/lib/profili'
 import { leggiScorta } from '@/features/gym/resetCatalogo'
@@ -72,6 +73,62 @@ function useSalvato(attivo: boolean): boolean {
   return salvato
 }
 
+// ── I dati generali nei campi ──────────────────────────────────
+// Peso e altezza stanno in campi di testo, con la virgola (vedi
+// `normalizzaDecimale`). Erano `type="number"`: col tastierino di iOS che mostra
+// la virgola, "78,5" per il browser non è un numero, il campo valeva '' e
+// «Salva» scriveva il peso `undefined` — spariva dal profilo.
+
+/** Un numero dello store come lo si legge in un campo: "76,2", vuoto se non c'è. */
+const scritto = (n: number | undefined) => (n ? fmtNum(n) : '')
+
+/** Il numero scritto in un campo. `undefined` se il campo è vuoto, cioè l'ha
+ *  svuotato chi scrive; `null` se dentro non c'è un numero (una virgola da
+ *  sola): lì non si scrive niente, invece di cancellare quello che c'era. */
+function numeroDa(v: string): number | undefined | null {
+  if (!v.trim()) return undefined
+  const n = parseNum(v)
+  return n > 0 ? n : null
+}
+
+type DatiGenerali = { name: string; age: string; sex: 'M' | 'F' | ''; weight: string; height: string; dob: string }
+
+/** Nome e dati generali dello store, come stanno nei campi. */
+function datiDi(s: JarvisState): DatiGenerali {
+  return {
+    name: s.userName || '',
+    age: s.userAge ? String(s.userAge) : '',
+    sex: s.userSex ?? '',
+    weight: scritto(s.userWeight),
+    height: scritto(s.userHeight),
+    dob: s.userDob ?? '',
+  }
+}
+
+// Gli errori di Supabase arrivano in inglese ("New password should be different
+// from the old password.") e finivano così com'erano in una pagina italiana.
+// I casi che si incontrano cambiando la password hanno una frase loro; gli altri
+// una generica, tradotta, al posto del testo grezzo.
+function erroreNuovaPassword(message: string, t: TFn): string {
+  const m = message.toLowerCase()
+  if (m.includes('should be different')) return t('La nuova password deve essere diversa da quella attuale.')
+  // Il minimo lo decide il progetto Supabase, e può essere più dei 6 controllati
+  // qui sotto: si dice quello che chiede il server.
+  const minimo = m.match(/should be at least (\d+)/)?.[1]
+  if (minimo) return t('La nuova password deve avere almeno {n} caratteri.', { n: minimo })
+  if (m.includes('weak') || m.includes('easy to guess') || m.includes('should contain')) {
+    return t('La nuova password è troppo facile da indovinare: scegline una più lunga o meno prevedibile.')
+  }
+  if (m.includes('rate limit') || m.includes('too many requests') || m.includes('for security purposes')) {
+    return t('Troppi tentativi. Riprova tra qualche minuto.')
+  }
+  if (m.includes('failed to fetch') || m.includes('networkerror') || m.includes('load failed') || m.includes('abort')) {
+    return t('La rete non risponde. Riprova fra poco.')
+  }
+  if (m.includes('session')) return t('Sessione scaduta. Esci e rientra.')
+  return t('Non è stato possibile aggiornare la password. Riprova.')
+}
+
 export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: JarvisProfileProps) {
   const [s, set] = useStore()
   const t = useT()
@@ -98,9 +155,14 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   const mieiDati = sezione === 'utente'
   const [age, setAge]       = useState(s.userAge ? String(s.userAge) : '')
   const [sex, setSex]       = useState<'M' | 'F' | ''>(s.userSex ?? '')
-  const [weight, setWeight] = useState(s.userWeight ? String(s.userWeight) : '')
-  const [height, setHeight] = useState(s.userHeight ? String(s.userHeight) : '')
+  const [weight, setWeight] = useState(scritto(s.userWeight))
+  const [height, setHeight] = useState(scritto(s.userHeight))
   const [dob, setDob]       = useState(s.userDob ?? '')
+  // Nome e dati generali com'erano all'apertura: salvando si scrive solo quello
+  // che è cambiato da allora. La freccia riscriveva tutto con quello letto
+  // aprendo, e un'altezza o una data corrette intanto da un altro telefono —
+  // arrivate qui con la sincronizzazione — tornavano indietro.
+  const aperti = useRef<DatiGenerali>(datiDi(s))
   const [visible, setVisible] = useState(false)
   const [mount, setMount] = useState(open)
   const [showChangePwd, setShowChangePwd] = useState(false)
@@ -113,12 +175,14 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
 
   useEffect(() => {
     if (open) {
-      setName(s.userName || '')
-      setAge(s.userAge ? String(s.userAge) : '')
-      setSex(s.userSex ?? '')
-      setWeight(s.userWeight ? String(s.userWeight) : '')
-      setHeight(s.userHeight ? String(s.userHeight) : '')
-      setDob(s.userDob ?? '')
+      const d = datiDi(s)
+      aperti.current = d
+      setName(d.name)
+      setAge(d.age)
+      setSex(d.sex)
+      setWeight(d.weight)
+      setHeight(d.height)
+      setDob(d.dob)
       setEditingBody(false)
       setPannello(null)
       setMount(true)
@@ -136,8 +200,12 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // Una pesata registrata più in basso cambia il peso nello store mentre questa
   // pagina è aperta: il campo deve seguirla. Senza, "Salva" rimetteva il peso
   // letto all'apertura, e la pesata appena fatta spariva dal profilo.
+  // Segue anche il punto di partenza (vedi `aperti`): un peso arrivato così non
+  // è una modifica da riscrivere uscendo.
   useEffect(() => {
-    setWeight(s.userWeight ? String(s.userWeight) : '')
+    const kg = scritto(s.userWeight)
+    setWeight(kg)
+    aperti.current = { ...aperti.current, weight: kg }
   }, [s.userWeight])
 
   const saveName = () => set({ userName: name.trim() })
@@ -161,28 +229,47 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
     void salvaProfilo(userId, { nascita, eta }).catch(() => { /* senza rete: ci riprova il prossimo salvataggio */ })
   }
 
+  // Scrive i dati generali cambiati dall'apertura (vedi `aperti`), e riparte da
+  // quello che ora c'è nello store: i campi lasciati com'erano prendono anche
+  // quello che è arrivato nel frattempo da un altro telefono. Un peso o
+  // un'altezza che non sono un numero non si scrivono affatto (vedi `numeroDa`).
+  const salvaDati = () => {
+    const a = aperti.current
+    const patch: Partial<JarvisState> = {}
+    const etaCambiata = age !== a.age || dob !== a.dob
+    if (etaCambiata) patch.userAge = etaDaSalvare
+    if (sex !== a.sex) patch.userSex = sex || undefined
+    if (dob !== a.dob) patch.userDob = dob || undefined
+    const kg = numeroDa(weight), cm = numeroDa(height)
+    // Il peso scritto qui è la pesata di oggi, e finisce nello storico come
+    // quella registrata più in basso: prima cambiava solo il profilo, e il
+    // grafico e la differenza sul desktop si calcolavano su pesate che non
+    // l'avevano. Con gli stessi limiti della pesata (20-400 kg): un 7,8 al posto
+    // di 78 falsava tutta la forza relativa.
+    if (weight !== a.weight && kg !== null) {
+      if (kg === undefined) patch.userWeight = undefined
+      else if (pesoValido(kg)) {
+        const log = conPesata(useJarvisStore.getState().weightLog, todayISO(), kg)
+        patch.weightLog = log
+        patch.userWeight = pesoDa(log, kg)
+      }
+    }
+    if (height !== a.height && cm !== null) patch.userHeight = cm
+    if (Object.keys(patch).length) set(patch)
+    if (etaCambiata) allineaPubblico()
+    const ora = datiDi(useJarvisStore.getState())
+    aperti.current = { ...ora, name: a.name }
+    setAge(ora.age); setSex(ora.sex); setWeight(ora.weight); setHeight(ora.height); setDob(ora.dob)
+  }
+
   const saveBody = () => {
-    set({
-      userAge:    etaDaSalvare,
-      userSex:    sex    ? sex                : undefined,
-      userWeight: weight ? parseFloat(weight) : undefined,
-      userHeight: height ? parseFloat(height) : undefined,
-      userDob:    dob    ? dob                : undefined,
-    })
-    allineaPubblico()
+    salvaDati()
     setEditingBody(false)
   }
 
   const handleSave = () => {
-    set({
-      userName:   name.trim(),
-      userAge:    etaDaSalvare,
-      userSex:    sex    ? sex                : undefined,
-      userWeight: weight ? parseFloat(weight) : undefined,
-      userHeight: height ? parseFloat(height) : undefined,
-      userDob:    dob    ? dob                : undefined,
-    })
-    allineaPubblico()
+    if (name.trim() !== aperti.current.name) saveName()
+    salvaDati()
     onClose()
   }
 
@@ -431,11 +518,11 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                 </label>
                 <label style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={ETICHETTA}>{t('Peso (kg)')}</span>
-                  <input type="number" inputMode="decimal" min="30" max="250" step="0.5" value={weight} onChange={e => setWeight(e.target.value)} placeholder="—" className="j-field"/>
+                  <input inputMode="decimal" value={weight} onChange={e => setWeight(normalizzaDecimale(e.target.value))} placeholder="—" className="j-field"/>
                 </label>
                 <label style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={ETICHETTA}>{t('Altezza (cm)')}</span>
-                  <input type="number" inputMode="numeric" min="100" max="230" value={height} onChange={e => setHeight(e.target.value)} placeholder="—" className="j-field"/>
+                  <input inputMode="numeric" value={height} onChange={e => setHeight(normalizzaDecimale(e.target.value))} placeholder="—" className="j-field"/>
                 </label>
               </div>
 
@@ -447,7 +534,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           ) : (
             <div style={CARD}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-                <Dato k={t('Peso')} v={weight ? fmtNum(parseFloat(weight)) : null} unita="kg"/>
+                <Dato k={t('Peso')} v={weight ? fmtNum(parseNum(weight)) : null} unita="kg"/>
                 <Dato k={t('Altezza')} v={height || null} unita="cm" style={{ borderLeft: '1px solid var(--line)' }}/>
                 <Dato k={t('Età')} v={etaCalcolata !== null ? String(etaCalcolata) : age || null} unita={t('anni')} style={{ borderTop: '1px solid var(--line)' }}/>
                 <Dato k={t('Sesso')} v={sex === 'M' ? t('Uomo') : sex === 'F' ? t('Donna') : null} style={{ borderTop: '1px solid var(--line)', borderLeft: '1px solid var(--line)' }}/>
@@ -533,7 +620,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
                     const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: oldPwd })
                     if (signInErr) { setPwdError(t('Password attuale non corretta.')); setPwdLoading(false); return }
                     const { error: updateErr } = await supabase.auth.updateUser({ password: newPwd })
-                    if (updateErr) { setPwdError(updateErr.message); setPwdLoading(false); return }
+                    if (updateErr) { setPwdError(erroreNuovaPassword(updateErr.message, t)); setPwdLoading(false); return }
                     setPwdOk(true); setOldPwd(''); setNewPwd(''); setPwdLoading(false)
                   }}
                   className="j-btn-accent-sm"
@@ -601,7 +688,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
             Strength norms adapted from Piper et al., IJSC{' '}
             <a href="https://doi.org/10.47206/ijsc.v1i1.40" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>2021</a>,{' '}
             <a href="https://doi.org/10.47206/ijsc.v2i1.138" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>2022</a>{' '}
-            (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>CC BY 4.0</a>), converted to 1RM and interpolated by body weight.
+            (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>CC BY 4.0</a>), converted to 1RM and fitted to a power curve of body weight.
           </div>
         </div>
 
@@ -890,27 +977,65 @@ function Dato({ k, v, unita, style }: { k: string; v: string | null; unita?: str
 // Il posto giusto è qui: il peso di oggi è già in "Dati generali" qui sopra, e
 // tenere la misura e il suo storico in due schermate diverse era il motivo per
 // cui si finiva a correggere il campo a mano invece di registrare una pesata.
+/** Un peso corporeo credibile: lo stesso limite per la pesata e per i dati generali. */
+const pesoValido = (kg: number) => kg > 20 && kg < 400
+
+/** Lo storico con la pesata di quel giorno, nuova o corretta: una al giorno, in
+ *  ordine di data. */
+function conPesata(log: WeightLogEntry[], date: string, kg: number): WeightLogEntry[] {
+  return [...log.filter(e => e.date !== date), { date, kg }].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Il peso del profilo segue sempre l'ULTIMA pesata, così il resto dell'app
+ *  legge un valore solo. Corretta o tolta una pesata vecchia non cambia; tolta
+ *  l'ultima, vale quella prima. Senza pesate resta quello che c'era. */
+function pesoDa(log: WeightLogEntry[], prima: number | undefined): number | undefined {
+  return log.length ? log[log.length - 1].kg : prima
+}
+
 function PesoSection() {
   const t = useT()
   const weightLog = useJarvisStore(st => st.weightLog)
   const userWeight = useJarvisStore(st => st.userWeight)
+  const { confirmDelete } = useConfirmDelete()
   const [kg, setKg] = useState('')
+  // La pesata che si sta correggendo nello storico (per giorno), e cosa c'è
+  // scritto nel suo campo.
+  const [inModifica, setInModifica] = useState<string | null>(null)
+  const [testoModifica, setTestoModifica] = useState('')
 
-  // Una pesata al giorno: risalvare oggi sovrascrive invece di accodare. E il
-  // peso del profilo segue sempre l'ultima misura, così il resto dell'app legge
-  // un valore solo e non deve scegliere fra due.
-  const valore = parseFloat(kg)
-  const valido = valore > 20 && valore < 400
+  // Una pesata al giorno: risalvare oggi sovrascrive invece di accodare.
+  // Il campo è di testo, con la virgola, come quelli dei dati generali (vedi
+  // «I dati generali nei campi»): da `type="number"` "75,8" scritto dal
+  // tastierino di iOS non era un numero, e «Registra» restava spento.
+  const valore = parseNum(kg)
+  const valido = pesoValido(valore)
+  const scrivi = (log: WeightLogEntry[]) => useJarvisStore.setState(st => ({ weightLog: log, userWeight: pesoDa(log, st.userWeight) }))
   const registra = () => {
     if (!valido) return
-    const date = todayISO()
-    useJarvisStore.setState(st => ({
-      weightLog: [...st.weightLog.filter(e => e.date !== date), { date, kg: valore }]
-        .sort((a, b) => a.date.localeCompare(b.date)),
-      userWeight: valore,
-    }))
+    scrivi(conPesata(useJarvisStore.getState().weightLog, todayISO(), valore))
     setKg('')
   }
+
+  // Le pesate vecchie si correggono e si tolgono: una sbagliata di un giorno
+  // passato (87 invece di 78) restava per sempre nel grafico, nella differenza
+  // sul desktop e nella pagina che vede chi allena.
+  const valoreModifica = parseNum(testoModifica)
+  const salvaModifica = (date: string) => {
+    if (!pesoValido(valoreModifica)) return
+    scrivi(conPesata(useJarvisStore.getState().weightLog, date, valoreModifica))
+    setInModifica(null)
+  }
+  const togli = (e: WeightLogEntry) => confirmDelete(
+    () => scrivi(useJarvisStore.getState().weightLog.filter(x => x.date !== e.date)),
+    t('la pesata'),
+    {
+      eyebrow: t('Storico pesate'),
+      title: t('Togliere la pesata del {data}?', { data: fmtDayMonth(e.date) }),
+      body: t('{kg} kg spariscono dallo storico e dal grafico.', { kg: fmtNum(e.kg) }),
+      cta: t('Togli'),
+    },
+  )
 
   const ultime = weightLog.slice(-14)
   const delta = ultime.length >= 2 ? ultime[ultime.length - 1].kg - ultime[0].kg : null
@@ -930,8 +1055,8 @@ function PesoSection() {
           padding: '0 14px', background: 'var(--surface)', border: 'var(--bordo)', cursor: 'text',
         }}>
           <input
-            type="number" inputMode="decimal" step="0.1"
-            value={kg} onChange={e => setKg(e.target.value)}
+            inputMode="decimal"
+            value={kg} onChange={e => setKg(normalizzaDecimale(e.target.value))}
             onKeyDown={e => { if (e.key === 'Enter') registra() }}
             aria-label={t('Peso di oggi in kg')}
             placeholder={userWeight ? fmtNum(userWeight) : '—'}
@@ -990,8 +1115,57 @@ function PesoSection() {
             : t('Registra la prima pesata: dalla seconda qui compare la direzione.')}
         </div>
       )}
+
+      {/* Tutte le pesate, per anno e mese, dalla più recente: la matita per
+          correggerne una, il cestino per toglierla. */}
+      {weightLog.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <NucEyebrow style={{ marginBottom: 6 }}>{t('Storico pesate')}</NucEyebrow>
+          <Cronologia
+            voci={[...weightLog].reverse()}
+            dataDi={e => e.date}
+            chiaveDi={e => e.date}
+            conta={n => n === 1 ? t('1 pesata') : t('{n} pesate', { n })}
+            gruppo={c => <div style={CARD}>{c}</div>}
+            voce={(e, primo) => (
+              <div className="flex items-center" style={{ gap: 10, minHeight: 52, padding: '6px 6px 6px 12px', borderTop: primo ? 'none' : '1px solid var(--line)' }}>
+                <span style={{ flex: 1, minWidth: 0, fontFamily: NUC.font, fontSize: 14, color: NUC.ink }}>{fmtDayMonth(e.date)}</span>
+                {inModifica === e.date ? (
+                  <>
+                    <input
+                      autoFocus inputMode="decimal"
+                      value={testoModifica} onChange={ev => setTestoModifica(normalizzaDecimale(ev.target.value))}
+                      onKeyDown={ev => { if (ev.key === 'Enter') salvaModifica(e.date); if (ev.key === 'Escape') setInModifica(null) }}
+                      aria-label={t('Peso del {data} in kg', { data: fmtDayMonth(e.date) })}
+                      className="j-field"
+                      style={{ width: 84, height: 40, textAlign: 'right' }}
+                    />
+                    <button onClick={() => salvaModifica(e.date)} disabled={!pesoValido(valoreModifica)} className="j-focus" style={{ ...TASTO_PESATA, color: pesoValido(valoreModifica) ? NUC.ink : 'var(--muted-dark)' }}>{t('Salva')}</button>
+                    <button onClick={() => setInModifica(null)} aria-label={t('Annulla')} className="j-focus" style={{ ...TASTO_PESATA, width: 40, padding: 0 }}><Icons.x size={15} stroke={2.2}/></button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontFamily: NUC.display, fontSize: 20, fontWeight: 800, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtNum(e.kg)}<span style={{ ...ETICHETTA, fontSize: 11, marginLeft: 3 }}>kg</span>
+                    </span>
+                    <button onClick={() => { setInModifica(e.date); setTestoModifica(fmtNum(e.kg)) }} aria-label={t('Correggi la pesata del {data}', { data: fmtDayMonth(e.date) })} className="j-focus" style={{ ...TASTO_PESATA, width: 40, padding: 0 }}><Icons.pencil size={15} stroke={1.9}/></button>
+                    <button onClick={() => togli(e)} aria-label={t('Togli la pesata del {data}', { data: fmtDayMonth(e.date) })} className="j-focus" style={{ ...TASTO_PESATA, width: 40, padding: 0, color: 'var(--danger)' }}><Icons.trash size={15} stroke={1.8}/></button>
+                  </>
+                )}
+              </div>
+            )}
+          />
+        </div>
+      )}
     </section>
   )
+}
+
+const TASTO_PESATA: CSSProperties = {
+  height: 40, padding: '0 12px', flexShrink: 0, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink,
+  fontFamily: NUC.display, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
 }
 
 // ── Svuota le alzate ───────────────────────────────────────────

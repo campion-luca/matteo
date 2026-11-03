@@ -208,14 +208,31 @@ export function etaDi(p: Pick<Profilo, 'nascita' | 'eta'> | null | undefined, og
   return typeof p?.eta === 'number' ? p.eta : null
 }
 
+// ── I dettagli scritti dall'altro ──────────────────────────────
+// `dettagli` è un documento che il database non controlla (vedi sopra), e lo
+// scrive la persona di cui è il profilo: l'app ci mette testi, una chiamata
+// REST scritta a mano quello che vuole. Un numero al posto della bio faceva
+// esplodere `.trim()`, e con lui il profilo a schermo di chi lo guardava.
+// Quello che non ha il tipo giusto si legge come vuoto.
+
+/** Un campo di testo dei dettagli, già ripulito; '' se non è un testo. */
+export function testoDi(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+/** L'anno da cui si allena, se è un anno. */
+export function inizioDi(d: DettagliProfilo | null | undefined): number | null {
+  return typeof d?.dal === 'number' && Number.isInteger(d.dal) && d.dal > 0 ? d.dal : null
+}
+
 /** I focus scritti con le virgole, uno per uno. */
 export function focusDi(d: DettagliProfilo | null | undefined): string[] {
-  return (d?.focus ?? '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean)
+  return testoDi(d?.focus).split(/[,;\n]/).map(s => s.trim()).filter(Boolean)
 }
 
 /** C'è qualcosa da far vedere oltre a nome e foto? */
 export function haDettagli(d: DettagliProfilo | null | undefined): boolean {
   if (!d) return false
-  return !!(d.dal || d.focus?.trim() || d.bio?.trim() || d.obiettivi?.trim() || d.percorso?.trim()
-    || d.limitazioni?.trim() || (d.pt && (d.curriculum?.trim() || d.esperienze?.trim())))
+  return !!(inizioDi(d) || testoDi(d.focus) || testoDi(d.bio) || testoDi(d.obiettivi) || testoDi(d.percorso)
+    || testoDi(d.limitazioni) || (d.pt === true && (testoDi(d.curriculum) || testoDi(d.esperienze))))
 }

@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS public.user_data (
 -- Abilita Row Level Security (ogni utente vede SOLO i suoi dati)
 ALTER TABLE public.user_data ENABLE ROW LEVEL SECURITY;
 
--- Policy: lettura e scrittura solo per il proprietario
+-- Policy: lettura e scrittura solo per il proprietario.
+-- Prima tolta, poi rifatta: così lo script si può rieseguire, come gli altri.
+DROP POLICY IF EXISTS "users_own_data" ON public.user_data;
 CREATE POLICY "users_own_data" ON public.user_data
   FOR ALL
   USING  (auth.uid() = user_id)

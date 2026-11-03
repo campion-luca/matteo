@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { caricoConsigliato, contaPerMuscolo, passo } from '@/features/gym/caricoConsigliato'
+import { caricoConsigliato, contaPerMuscolo, passo, passoGiu } from '@/features/gym/caricoConsigliato'
 import type { PalestraHistoryEntry } from '@/store/useJarvisStore'
 
 // Il consiglio si legge prima di ogni esercizio: se sbaglia verso — scendere a
@@ -59,6 +59,30 @@ describe('passo', () => {
     expect(passo(20)).toBe(2)
     expect(passo(60)).toBe(2.5)
     expect(passo(200)).toBe(2.5)
+  })
+
+  it('scendendo vale quello della fascia in cui si arriva: risalendo si torna dov’eri', () => {
+    expect(passoGiu(30)).toBe(2)       // 30 → 28 → 30, non 27,5 → 29,5
+    expect(passoGiu(10)).toBe(1)       // 10 → 9 → 10, non 8 → 9
+    expect(passoGiu(32.5)).toBe(2.5)
+    expect(passoGiu(12)).toBe(2)
+    expect(consiglia([alz('2026-09-10', 'W37', 30, 3, 6)])).toMatchObject({ verso: 'giu', kg: 28 })
+  })
+
+  it('si misura sul carico vero: dischi più attrezzo', () => {
+    // 8 kg di dischi sul bilanciere da 20 sono 28 kg: si sale di 2, non di 1.
+    expect(consiglia([alz('2026-09-10', 'W37', 8, 3, 10, { attrezzo: 20 })])).toMatchObject({ verso: 'su', kg: 10 })
+    // E scendendo, con l'attrezzo, si arriva fino al solo bilanciere.
+    expect(consiglia([alz('2026-09-10', 'W37', 2, 3, 6, { attrezzo: 20 })])).toMatchObject({ verso: 'giu', kg: 0 })
+  })
+
+  it('«devi salire» confronta il carico vero delle due settimane', () => {
+    // 60 scritti per intero, poi 40 di dischi sul bilanciere da 20: stesso peso.
+    const c = consiglia([
+      alz('2026-09-03', 'W36', 60, 3, 10),
+      alz('2026-09-10', 'W37', 40, 3, 10, { attrezzo: 20 }),
+    ])
+    expect(c).toMatchObject({ verso: 'su', motivo: 'devi', kg: 42.5 })
   })
 })
 

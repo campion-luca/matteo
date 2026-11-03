@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GymSchede } from '@/features/gym/GymSchede'
 import { InCorsoInHome } from '@/features/gym/InCorso'
@@ -1089,6 +1089,148 @@ describe('allenamento: le aggiunte di settembre', () => {
     expect(onBack).not.toHaveBeenCalled()
     expect(alzate()).toHaveLength(1)
     expect(screen.getByRole('button', { name: /inizia allenamento/i })).toBeInTheDocument()
+  })
+})
+
+// ── Revisione di novembre ──────────────────────────────────────
+describe('allenamento: le correzioni di novembre', () => {
+  const sessione = () => localStorage.getItem('jarvis-sessione-in-corso-v1')
+  // La Panca collegata al suo esercizio: è il caso in cui la riga e
+  // l'esercizio possono cambiare ciascuno per conto suo.
+  const collegata = () => useJarvisStore.setState({
+    gymSchede: [{ ...scheda, exercises: [{ ...scheda.exercises[0], linkedExerciseId: 'p1' }] }],
+    palestraExercises: [{ id: 'p1', n: 'Panca piana', muscle: 'Petto', current: { kg: 0, reps: 10, sets_n: 3 }, history: [] }],
+  })
+  const riga = () => useJarvisStore.getState().gymSchede?.[0].exercises[0]
+
+  it('un esercizio rinominato a metà allenamento non perde le serie spuntate', async () => {
+    collegata()
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    await user.click(screen.getByRole('button', { name: 'Lascia aperto' }))
+
+    // Rinominato dalla sua pagina: il nome nuovo arriva anche sulla riga.
+    act(() => useJarvisStore.setState(st => ({
+      palestraExercises: st.palestraExercises.map(e => ({ ...e, n: 'Panca stretta' })),
+      gymSchede: st.gymSchede?.map(sc => ({ ...sc, exercises: sc.exercises.map(r => ({ ...r, name: 'Panca stretta' })) })),
+    })))
+    await user.click(screen.getByRole('button', { name: /riprendi allenamento/i }))
+    // Firmata per nome sembrava un altro esercizio, e ripartiva da zero.
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Panca stretta · serie 1 · kg')).toHaveValue('60')
+  })
+
+  it('una sessione con la firma di prima, solo per nome, si riprende ancora', async () => {
+    collegata()
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'sc1', salvataA: Date.now(), iniziataA: Date.now(),
+      progress: { se1: { checks: [true, false, false], weights: ['60', '60', '60'], reps: ['10', '10', '10'], firma: 'panca piana|10' } },
+    }))
+    render(<ConfirmDeleteProvider><GymSchede apri="sc1" riprendi onBack={vi.fn()}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.getByRole('button', { name: 'Serie 1' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('uno zero scritto nei colpi non vale l’obiettivo: si segna, e non si salva finché non è giusto', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: /uguale/i }))
+    for (const n of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Serie ${n}` }))
+    const colpi3 = screen.getByLabelText('Panca piana · serie 3 · colpi')
+    await user.clear(colpi3)
+    // Vuoto non è rosso: è il campo che si sta riscrivendo.
+    expect(colpi3).not.toHaveAttribute('aria-invalid')
+    await user.type(colpi3, '0')
+    expect(colpi3).toHaveAttribute('aria-invalid', 'true')
+
+    // Prima valeva come il campo vuoto: si salvava 10, una serie riuscita.
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    expect(screen.getByText(/Una serie spuntata a 0 colpi non si salva/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Salva e chiudi' })).toBeDisabled()
+
+    // Tolta la spunta, la serie manca: si salva com'è andata, due serie.
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Serie 3' }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: 'Salva e chiudi' }))
+    expect(alzate()[0]).toMatchObject({ kg: 60, reps: 10, sets_n: 2 })
+    expect(alzate()[0].setReps).toBeUndefined()
+  })
+
+  it('«Chiudi allenamento» dalla home senza niente da salvare torna in home, e la scheda non risulta toccata', async () => {
+    // Serie spuntate ma senza chili: niente che conti.
+    localStorage.setItem('jarvis-sessione-in-corso-v1', JSON.stringify({
+      schedaId: 'sc1', salvataA: Date.now(), iniziataA: Date.now(),
+      progress: { se1: { checks: [true, true, false], weights: ['', '', ''], reps: ['10', '10', '10'] } },
+    }))
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    render(<ConfirmDeleteProvider><GymSchede apri="sc1" riprendi termina onBack={onBack}/><ConfirmModal/></ConfirmDeleteProvider>)
+    expect(screen.queryByRole('button', { name: /salva e chiudi/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }))
+    // Niente da perdere: nessuna domanda, e si torna da dove si è venuti.
+    expect(screen.queryByText('Scartare l’allenamento?')).not.toBeInTheDocument()
+    expect(onBack).toHaveBeenCalledTimes(1)
+    expect(sessione()).toBeNull()
+    expect(useJarvisStore.getState().gymSchede?.[0].updatedAt).toBe('2026-09-01')
+    expect(alzate()).toHaveLength(0)
+  })
+
+  it('una riga diventata un altro esercizio mentre ci si allenava non prende il collegamento di quello fatto', async () => {
+    collegata()
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    // Da un altro dispositivo, la riga della Panca diventa uno Squat (salvata
+    // come bozza: ancora senza collegamento).
+    act(() => useJarvisStore.setState(st => ({
+      gymSchede: st.gymSchede?.map(sc => ({ ...sc, exercises: [{ id: 'se1', name: 'Squat', sets: 3, reps: '10', muscle: 'Gambe' }] })),
+    })))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: 'Salva e chiudi' }))
+
+    // La Panca fatta va nello storico della Panca...
+    expect(alzate()).toHaveLength(1)
+    // ...ma lo Squat non viene collegato alla Panca: i suoi allenamenti
+    // sarebbero finiti nello storico di lei.
+    expect(riga()).toMatchObject({ name: 'Squat' })
+    expect(riga()?.linkedExerciseId).toBeUndefined()
+  })
+
+  it('lo stesso esercizio rinominato nel frattempo resta collegato a sé', async () => {
+    collegata()
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    act(() => useJarvisStore.setState(st => ({
+      palestraExercises: st.palestraExercises.map(e => ({ ...e, n: 'Panca stretta' })),
+      gymSchede: st.gymSchede?.map(sc => ({ ...sc, exercises: sc.exercises.map(r => ({ ...r, name: 'Panca stretta' })) })),
+    })))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: 'Salva e chiudi' }))
+    expect(alzate('Panca stretta')).toHaveLength(1)
+    expect(riga()).toMatchObject({ name: 'Panca stretta', linkedExerciseId: 'p1' })
+  })
+
+  it('una scheda cancellata mentre ci si allenava salva le alzate ma non rinasce', async () => {
+    const user = userEvent.setup()
+    await apriAllenamento(user)
+    await user.type(screen.getByLabelText('Panca piana · serie 1 · kg'), '60')
+    await user.click(screen.getByRole('button', { name: 'Serie 1' }))
+    // Cancellata da un altro dispositivo.
+    act(() => useJarvisStore.setState({ gymSchede: [] }))
+    await user.click(screen.getByRole('button', { name: /termina allenamento/i }))
+    await user.click(screen.getByRole('button', { name: 'Salva e chiudi' }))
+
+    expect(alzate()).toHaveLength(1)
+    // All'elenco, non sul dettaglio della copia: da lì «Modifica» e salva la
+    // rimettevano nello store.
+    expect(screen.getByText('Nessuna scheda — creane una con +')).toBeInTheDocument()
+    expect(useJarvisStore.getState().gymSchede).toEqual([])
   })
 })
 

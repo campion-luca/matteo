@@ -52,15 +52,26 @@ export const BIG_LIFTS: BigLift[] = [
   },
   {
     id: 'panca', name: 'Panca piana', district: 'Petto',
-    include: /panca|bench|distensioni/,
-    exclude: /inclinat|declinat|incline|decline|manubri|dumbbell|scott|presa stretta|close|spalle|militar/,
+    // La panca è anche un attrezzo: "Hip thrust su panca", "Dip su panca",
+    // "Step up su panca", "Crunch su panca" la nominano come appoggio, e con
+    // /panca/ ovunque nel nome finivano lette come panca piana — un hip thrust
+    // da 120 × 10 diventava un massimale di panca da 160, e da lì la forza del
+    // petto e il rank. In italiano il gesto viene prima: è panca se il nome
+    // comincia con "panca" (o "bench"), o se è una distensione o una spinta SU
+    // panca. In inglese conta "bench press", che non è ambiguo. Con "bench" in
+    // testa restano fuori i gesti che la usano come appoggio ("Bench dip"), e
+    // con "panca" in testa le panche che non sono la panca piana (la romana,
+    // quella per gli addominali).
+    include: /^(panca|bench)\b|bench press|distensioni|spint[ae]\b.*\bpanca/,
+    exclude: /inclinat|declinat|incline|decline|manubri|dumbbell|scott|presa stretta|close|spalle|militar|\bdips?\b|thrust|step|crunch|addominal|romana|lombar/,
   },
   {
     id: 'stacco', name: 'Stacco da terra', district: 'Glutei',
     include: /stacco|deadlift/,
     // Il sumo resta dentro: è uno stacco da gara. Rumeno e gambe tese no — si fanno
-    // con molto meno carico e per un altro motivo.
-    exclude: /rumen|romanian|stiff|gambe tese|trap bar|manubri|dumbbell/,
+    // con molto meno carico e per un altro motivo. "Tese" e non "gambe tese":
+    // lo stacco a gambe semitese (o semi-tese) è lo stesso caso, e restava dentro.
+    exclude: /rumen|romanian|stiff|tese|trap bar|manubri|dumbbell/,
   },
 ]
 
@@ -76,9 +87,10 @@ export interface MaxLift {
   ratio: number | null
 }
 
-/** L'esercizio è quell'alzata? Per nome, varianti escluse. */
+/** L'esercizio è quell'alzata? Per nome, varianti escluse. Senza gli spazi ai
+ *  lati: la panca si riconosce da come comincia il nome. */
 export function eAlzata(name: string, lift: BigLift): boolean {
-  const n = name.toLowerCase()
+  const n = name.trim().toLowerCase()
   return lift.include.test(n) && !(lift.exclude?.test(n) ?? false)
 }
 

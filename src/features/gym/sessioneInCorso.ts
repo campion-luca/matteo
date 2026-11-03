@@ -43,7 +43,8 @@ export interface SerieInCorso {
   note?: string
   /** Com'era la riga della scheda quando la si è aperta: esercizio e colpi
    *  previsti (vedi `firmaRiga`). Riprendendo, dice se nel frattempo la riga è
-   *  diventata un'altra. Assente nelle sessioni salvate prima che ci fosse. */
+   *  diventata un'altra (vedi `cambioRiga`). Assente nelle sessioni salvate
+   *  prima che ci fosse. */
   firma?: string
   /** Chi si allena ha detto, durante la sessione, che l'esercizio è a corpo
    *  libero. Sta qui e non solo nella pagina: ricaricata la pagina, l'esercizio
@@ -53,10 +54,52 @@ export interface SerieInCorso {
   rir?: string[]
 }
 
-/** La firma di una riga: l'esercizio (per nome, come lo collega la scheda) e i
- *  colpi previsti. Stesso id, firma diversa: la riga è stata cambiata. */
-export function firmaRiga(e: { name: string; reps: string }): string {
-  return `${e.name.trim().toLowerCase()}|${e.reps.trim()}`
+interface RigaFirmata { name: string; reps: string; linkedExerciseId?: string }
+
+/** La firma di una riga: l'esercizio e i colpi previsti. Stesso id, firma
+ *  diversa: la riga è stata cambiata (vedi `cambioRiga`).
+ *
+ *  L'esercizio è il nome e, su una riga collegata, anche l'id dell'esercizio,
+ *  in coda. Firmata solo per nome, una riga restava sé stessa finché nessuno
+ *  ne toccava il nome: ma rinominare un esercizio dalla sua pagina riscrive il
+ *  nome sulle righe collegate, e riprendendo l'allenamento la riga sembrava
+ *  un altro esercizio — le serie spuntate sparivano. */
+export function firmaRiga(e: RigaFirmata): string {
+  const firma = `${e.name.trim().toLowerCase()}|${e.reps.trim()}`
+  return e.linkedExerciseId ? `${firma}|#${e.linkedExerciseId}` : firma
+}
+
+/** La firma rimessa in pezzi. Quelle scritte prima dell'id ("nome|colpi") si
+ *  leggono lo stesso, senza: una sessione lasciata a metà dalla versione di
+ *  prima si riprende come allora, per nome. */
+function leggiFirma(firma: string): { nome: string; colpi: string; id?: string } {
+  const conId = /^(.*)\|#([^|]+)$/.exec(firma)
+  const resto = conId ? conId[1] : firma
+  const i = resto.lastIndexOf('|')
+  return {
+    nome: i < 0 ? resto : resto.slice(0, i),
+    colpi: i < 0 ? '' : resto.slice(i + 1),
+    ...(conId ? { id: conId[2] } : {}),
+  }
+}
+
+/** Due righe sono lo stesso esercizio? Se sono collegate tutte e due decide
+ *  il collegamento, che un nome nuovo non cambia. Altrimenti il nome: una
+ *  riga mai collegata (una scheda dell'allenatore) ha solo quello, e una che
+ *  ha perso il collegamento (l'esercizio cancellato) è rimasta col suo. */
+export function stessoEsercizio(a: { name: string; linkedExerciseId?: string }, b: { name: string; linkedExerciseId?: string }): boolean {
+  if (a.linkedExerciseId && b.linkedExerciseId) return a.linkedExerciseId === b.linkedExerciseId
+  return a.name.trim().toLowerCase() === b.name.trim().toLowerCase()
+}
+
+/** Cos'è cambiato in una riga da quando ne è stata scritta la firma: niente,
+ *  solo i colpi previsti, o l'esercizio. Senza firma (una sessione salvata
+ *  prima che ci fosse) non lo si sa, e la riga si tiene com'è. */
+export function cambioRiga(firma: string | undefined, e: RigaFirmata): 'niente' | 'colpi' | 'esercizio' {
+  if (!firma) return 'niente'
+  const prima = leggiFirma(firma)
+  if (!stessoEsercizio({ name: prima.nome, linkedExerciseId: prima.id }, e)) return 'esercizio'
+  return prima.colpi === e.reps.trim() ? 'niente' : 'colpi'
 }
 
 interface Salvata {

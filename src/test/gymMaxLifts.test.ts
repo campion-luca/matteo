@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { maxLifts, maxTotal } from '@/features/gym/gymMaxLifts'
+import { BIG_LIFTS, eAlzata, maxLifts, maxTotal } from '@/features/gym/gymMaxLifts'
 import { entry1RM } from '@/features/gym/gymModel'
+import { rankEsercizio } from '@/features/gym/rankEsercizio'
 import type { DistrictStrength } from '@/features/gym/gymStrength'
 import type { PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisStore'
 
@@ -55,6 +56,42 @@ describe('maxLifts — da dove viene il numero', () => {
       ex({ n: 'Stacco rumeno',   muscle: 'Glutei', history: [h({ kg: 90, reps: 8 })] }),
     ], 80, VUOTI)
     expect(lifts.every(l => l.source === null)).toBe(true)
+  })
+
+  it('la panca come appoggio non è la panca piana', () => {
+    // Un hip thrust da 120 × 10 era un massimale di panca da 160 kg.
+    const lifts = maxLifts([
+      ex({ n: 'Hip thrust su panca', muscle: 'Glutei', history: [h({ kg: 120, reps: 10 })] }),
+      ex({ n: 'Dip su panca',        muscle: 'Tricipiti', history: [h({ kg: 20, reps: 12, bodyweight: true })] }),
+      ex({ n: 'Step up su panca',    muscle: 'Gambe', history: [h({ kg: 30, reps: 10 })] }),
+      ex({ n: 'Crunch su panca',     muscle: 'Core', history: [h({ kg: 10, reps: 20 })] }),
+      ex({ n: 'Croci su panca piana', muscle: 'Petto', history: [h({ kg: 16, reps: 12 })] }),
+      ex({ n: 'Bench dip',           muscle: 'Tricipiti', history: [h({ kg: 10, reps: 12 })] }),
+      ex({ n: 'Panca romana',        muscle: 'Dorso', history: [h({ kg: 10, reps: 15 })] }),
+    ], 80, VUOTI)
+    expect(lift(lifts, 'panca')).toMatchObject({ source: null, kg: null })
+    // E non arriva nemmeno al rank: senza un'alzata riconosciuta non ce n'è uno.
+    expect(rankEsercizio(ex({ n: 'Hip thrust su panca', history: [h({ kg: 120, reps: 10 })] }), 80)).toBeNull()
+  })
+
+  it('le panche vere si riconoscono ancora, e le varianti restano fuori come prima', () => {
+    const panca = BIG_LIFTS.find(l => l.id === 'panca')!
+    for (const n of ['Panca piana', 'Panca piana al MPW', '  panca piana  ', 'Panca', 'Bench press', 'Barbell bench press',
+      'Distensioni su panca piana', 'Spinte su panca piana']) {
+      expect(eAlzata(n, panca), n).toBe(true)
+    }
+    for (const n of ['Panca inclinata al MPW', 'Panca declinata al MPW', 'Panca piana con manubri', 'Dumbbell bench press',
+      'Panca presa stretta', 'Rematore con manubri su panca inclinata', 'Curl panca Scott']) {
+      expect(eAlzata(n, panca), n).toBe(false)
+    }
+  })
+
+  it('lo stacco a gambe semitese è come quello a gambe tese: non è lo stacco', () => {
+    const stacco = BIG_LIFTS.find(l => l.id === 'stacco')!
+    expect(eAlzata('Stacco a gambe semitese', stacco)).toBe(false)
+    expect(eAlzata('Stacco a gambe semi-tese', stacco)).toBe(false)
+    expect(eAlzata('Stacco da terra', stacco)).toBe(true)
+    expect(eAlzata('Stacco sumo', stacco)).toBe(true)
   })
 
   it('senza quell’esercizio in lista il numero arriva dal distretto', () => {

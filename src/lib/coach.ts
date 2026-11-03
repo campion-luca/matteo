@@ -53,7 +53,12 @@ export async function activeInvite(userId: string): Promise<CoachInvite | null> 
  *  Un utente per volta ha UN codice valido: due codici in giro significano due
  *  allenatori collegati senza che il secondo sia stato deciso. */
 export async function createInvite(userId: string, athleteName: string): Promise<CoachInvite> {
-  await supabase.from('coach_invites').delete().eq('athlete_id', userId)
+  // Il vecchio va tolto DAVVERO prima di farne un altro. Prima l'esito non si
+  // guardava: se la cancellazione falliva (la rete che cade a metà) l'insert
+  // dopo riusciva lo stesso, e in giro restavano due codici validi — proprio
+  // quello che questa funzione esiste per evitare.
+  const { error: vecchio } = await supabase.from('coach_invites').delete().eq('athlete_id', userId)
+  if (vecchio) throw new Error(translateCoachError(vecchio.message))
 
   // Il codice è generato dal client e la chiave primaria è il codice stesso: una
   // collisione fa fallire l'insert invece di sovrascrivere l'invito di un altro.
@@ -312,7 +317,10 @@ export function dimenticaSchedeRicevute(): void {
 }
 
 /** Crea o aggiorna una scheda assegnata. L'id è quello della GymScheda: una
- *  scheda è una riga, e riscriverla non ne lascia in giro una copia vecchia. */
+ *  scheda è una riga, e riscriverla non ne lascia in giro una copia vecchia.
+ *
+ *  Solo per una scheda NUOVA (o ricondivisa, vedi `condividiScheda`): una già
+ *  assegnata passa da `aggiornaSchedaAssegnata`, che non la ricrea. */
 export async function salvaSchedaAssegnata(
   coachId: string, athleteId: string, coachName: string,
   scheda: import('@/store/useJarvisStore').GymScheda,
@@ -328,9 +336,72 @@ export async function salvaSchedaAssegnata(
   if (error) throw new Error(translateCoachError(error.message))
 }
 
-export async function eliminaSchedaAssegnata(id: string): Promise<void> {
-  const { error } = await supabase.from('coach_schede').delete().eq('id', id)
+// ── Le scritture che non toccano niente ────────────────────────
+// Un UPDATE o un DELETE che la RLS non lascia passare non dà errore: non trova
+// righe, e risponde "fatto" su zero righe. L'app lo prendeva per riuscito —
+// "scheda eliminata", e la scheda ancora lì per l'allievo. Chiedendo indietro le
+// righe toccate (`.select()`) lo zero si vede; resta da capire se la riga non
+// c'è più (tolta dall'altro, o da un altro dispositivo) o se c'è ma non si
+// poteva toccare. Lo dice una lettura: la SELECT la lascia vedere a entrambi
+// anche a collegamento sciolto, modifica e cancellazione no.
+
+/** La riga c'è ancora? Solo dopo una scrittura andata a vuoto. */
+async function rigaRimasta(tabella: 'coach_schede' | 'coach_note', chiave: Record<string, string>): Promise<boolean> {
+  let q = supabase.from(tabella).select('updated_at')
+  for (const [k, v] of Object.entries(chiave)) q = q.eq(k, v)
+  const { data, error } = await q
   if (error) throw new Error(translateCoachError(error.message))
+  return (data ?? []).length > 0
+}
+
+// C'è ma la RLS non la lascia toccare: per chi l'ha scritta il motivo è uno
+// solo, il collegamento che non c'è più (vedi le policy in coach_schema.sql).
+const nonPiuCollegato = () => new Error(t('Non sei più collegato a questa persona: il collegamento è stato sciolto.'))
+
+/** Riscrive una scheda GIÀ assegnata, e solo se c'è ancora. Prima passava anche
+ *  lei dall'upsert, con la riga letta quando la pagina si era aperta: se nel
+ *  frattempo l'allievo l'aveva tolta, ritoccarla la rimetteva in piedi — con la
+ *  data di assegnazione di oggi. `false` = non c'è più, e non è stata ricreata. */
+export async function aggiornaSchedaAssegnata(
+  coachName: string,
+  scheda: import('@/store/useJarvisStore').GymScheda,
+): Promise<boolean> {
+  const { data, error } = await supabase.from('coach_schede')
+    .update({ scheda, coach_name: coachName || null, updated_at: new Date().toISOString() })
+    .eq('id', scheda.id)
+    .select('id')
+  if (error) throw new Error(translateCoachError(error.message))
+  if (data?.length) return true
+  if (await rigaRimasta('coach_schede', { id: scheda.id })) throw nonPiuCollegato()
+  return false
+}
+
+/** Dà il numero (vedi `numeraSchede`) e lo scrive, sulle righe rilette adesso.
+ *  Prima si partiva dall'elenco a schermo, quello di quando la pagina si era
+ *  aperta, e ogni riga rinumerata si riscriveva da lì per intero: tornava una
+ *  scheda che l'allievo aveva tolto, e spariva il ritocco fatto da un altro
+ *  dispositivo. Il numero sta dentro il JSON della scheda e non c'è modo di
+ *  scrivere solo lui: della riga riletta cambia soltanto `ordine`.
+ *
+ *  Restituisce le righe come sono adesso; `sparita` se una non c'era più. */
+export async function numeraSchedeAssegnate(
+  athleteId: string, coachName: string, id: string, numero: number,
+): Promise<{ righe: CoachScheda[]; sparita: boolean }> {
+  const attuali = await schedeAssegnate(athleteId)
+  if (!attuali.some(r => r.id === id)) return { righe: attuali, sparita: true }
+  const nuove = numeraSchede(attuali, id, numero)
+  const cambiate = nuove.filter(n => n.scheda.ordine !== attuali.find(a => a.id === n.id)?.scheda.ordine)
+  const scritte = await Promise.all(cambiate.map(n => aggiornaSchedaAssegnata(coachName, n.scheda)))
+  const via = new Set(cambiate.filter((_, i) => !scritte[i]).map(n => n.id))
+  return { righe: nuove.filter(n => !via.has(n.id)), sparita: via.size > 0 }
+}
+
+export async function eliminaSchedaAssegnata(id: string): Promise<void> {
+  const { data, error } = await supabase.from('coach_schede').delete().eq('id', id).select('id')
+  if (error) throw new Error(translateCoachError(error.message))
+  // Zero righe: già sparita va bene — era quello che si voleva —, ancora lì
+  // vuol dire che non si poteva (vedi `rigaRimasta`).
+  if (!data?.length && await rigaRimasta('coach_schede', { id })) throw nonPiuCollegato()
 }
 
 // ── Note dell'allenatore sugli esercizi ────────────────────
@@ -363,9 +434,16 @@ export async function noteAllievo(athleteId: string): Promise<NotaCoach[]> {
 
 /** Le note che gli allenatori hanno scritto a ME. Il filtro su `athlete_id` non
  *  è ridondante con la RLS: la policy lascia passare anche le righe in cui sono
- *  io l'ALLENATORE, e me le ritroverei sui miei esercizi. */
+ *  io l'ALLENATORE, e me le ritroverei sui miei esercizi.
+ *
+ *  E solo di chi mi segue ANCORA, come per le correzioni (vedi CorrezioniBridge
+ *  in App). Sciolto il collegamento, le note dell'ex restavano sui miei esercizi
+ *  per sempre: io non ho un tasto per toglierle, e lui a rapporto chiuso non
+ *  può più cancellarle. */
 export async function noteRicevute(userId: string): Promise<NotaCoach[]> {
-  return noteAllievo(userId)
+  const [note, coach] = await Promise.all([noteAllievo(userId), myCoaches(userId)])
+  const legati = new Set(coach.map(l => l.coach_id))
+  return note.filter(n => legati.has(n.coach_id))
 }
 
 /** Scrive la nota. Vuota = la cancella: un campo svuotato vuole dire “non ho più
@@ -376,9 +454,13 @@ export async function salvaNotaCoach(
 ): Promise<void> {
   const testo = nota.trim()
   if (!testo) {
-    const { error } = await supabase.from('coach_note').delete()
+    const chiave = { coach_id: coachId, athlete_id: athleteId, exercise_id: exerciseId }
+    const { data, error } = await supabase.from('coach_note').delete()
       .eq('coach_id', coachId).eq('athlete_id', athleteId).eq('exercise_id', exerciseId)
+      .select('exercise_id')
     if (error) throw new Error(translateCoachError(error.message))
+    // Zero righe: vedi `rigaRimasta`, come per le schede.
+    if (!data?.length && await rigaRimasta('coach_note', chiave)) throw nonPiuCollegato()
     return
   }
   const { error } = await supabase.from('coach_note').upsert({
@@ -398,6 +480,10 @@ export function translateCoachError(message: string): string {
   // scollega prima da quello che ha.
   if (m.includes('GIA_SEGUITO')) return t('Questa persona ha già un coach: deve prima scollegarsi da quello.')
   if (m.includes('NON_COACH')) return t('Solo un coach può seguire qualcuno.')
+  // Dieci codici sbagliati in un'ora (vedi redeem_coach_code).
+  if (m.includes('TROPPI_TENTATIVI')) return t('Troppi codici sbagliati: riprova fra un’ora.')
+  // I tetti di lunghezza del database (vedi coach_schema.sql).
+  if (m.includes('MESSAGGI_LUNGHEZZE') || m.includes('NOTE_LUNGHEZZE')) return t('Il testo è troppo lungo.')
   if (m.includes('NON_AUTENTICATO')) return t('Sessione scaduta. Esci e rientra.')
   // La rete: una richiesta lasciata cadere perché non rispondeva (vedi
   // `authedFetch`) o rifiutata dal browser. Prima arrivava a schermo il testo

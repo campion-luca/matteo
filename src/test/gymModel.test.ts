@@ -155,6 +155,21 @@ describe('colpiPrevisti — il bersaglio di ogni serie', () => {
     expect(colpiPrevisti('10 - 8 - 6', 3)).toEqual([10, 8, 6])
   })
 
+  it('serie per colpi nel campo dei colpi: i colpi sono quelli dopo la x', () => {
+    // Prima "3x10" chiedeva 3 colpi a serie: il numero in testa sono le serie.
+    expect(colpiPrevisti('3x10', 3)).toEqual([10, 10, 10])
+    expect(colpiPrevisti('4×8', 4)).toEqual([8, 8, 8, 8])
+    expect(colpiPrevisti('3 X 12', 3)).toEqual([12, 12, 12])
+    // Quello che viene dopo si legge come sempre: una forbice, a scalare, parole.
+    expect(colpiPrevisti('4 × 8-10', 4)).toEqual([8, 8, 8, 8])
+    expect(colpiPrevisti('3x10-8-6', 3)).toEqual([10, 8, 6])
+    expect(colpiPrevisti('3x10 per lato', 3)).toEqual([10, 10, 10])
+    // Le serie restano quelle della riga.
+    expect(colpiPrevisti('3x10', 2)).toEqual([10, 10])
+    // Una x senza un numero dopo non è serie per colpi.
+    expect(colpiPrevisti('10x', 2)).toEqual([10, 10])
+  })
+
   it('un valore che non è nemmeno un testo non fa cadere niente', () => {
     expect(colpiPrevisti(10 as unknown as string, 2)).toEqual([10, 10])
     expect(colpiPrevisti(undefined as unknown as string, 2)).toEqual([0, 0])

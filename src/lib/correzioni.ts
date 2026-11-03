@@ -96,6 +96,51 @@ const trova = (history: PalestraHistoryEntry[], alzata: PalestraHistoryEntry): n
   return history.findIndex(h => canonica(h) === bersaglio)
 }
 
+// ── La forma dell'alzata corretta ──────────────────────────────
+// `nuova` la scrive un altro utente in un jsonb di cui il database non controlla
+// la forma: l'app dell'allenatore la manda giusta, una chiamata REST scritta a
+// mano ci mette quello che vuole. Prima si univa così com'era: una `date` che
+// non era un testo faceva esplodere l'ordinamento — la correzione non si
+// applicava, non si toglieva, e si ritentava a ogni apertura per sempre — e
+// qualunque altra cosa finiva tale e quale nei dati dell'allievo.
+//
+// Un controllo per campo, sul tipo vero: un campo aggiunto all'alzata e non qui
+// non compila. Le chiavi che l'alzata non ha si lasciano cadere.
+const numero = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+const testo = (v: unknown) => typeof v === 'string'
+const elenco = (ok: (x: unknown) => boolean) => (v: unknown) => Array.isArray(v) && v.every(ok)
+const oggetto = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+const CAMPI_ALZATA: Record<keyof PalestraHistoryEntry, (v: unknown) => boolean> = {
+  d: testo, date: testo, kg: numero, reps: numero, sets_n: numero,
+  setWeights: elenco(numero), setReps: elenco(numero),
+  machineModel: v => v === 'panatta', bodyweight: v => v === true, maxLift: v => v === true,
+  attrezzo: numero, durataSec: numero, giaFatti: numero,
+  scheda: v => oggetto(v) && testo(v.id) && testo(v.nome),
+  piano: v => oggetto(v) && numero(v.sets) && testo(v.reps) && (v.riga === undefined || testo(v.riga)),
+  correttaDa: testo, note: testo,
+  setRir: elenco(x => x === null || numero(x)),
+}
+const OBBLIGATORI: Array<keyof PalestraHistoryEntry> = ['d', 'kg', 'reps', 'sets_n']
+
+/** L'alzata ripulita, o `null` se un campo ha il tipo sbagliato. */
+function alzataValida(v: unknown): PalestraHistoryEntry | null {
+  if (!oggetto(v) || OBBLIGATORI.some(k => v[k] === undefined)) return null
+  const out: Record<string, unknown> = {}
+  for (const [k, ok] of Object.entries(CAMPI_ALZATA)) {
+    if (v[k] === undefined) continue
+    if (!ok(v[k])) return null
+    out[k] = v[k]
+  }
+  // Anche dentro `scheda` e `piano` passano solo i campi che hanno: copiati
+  // interi, ci viaggiava qualunque altra cosa ci fosse stata messa dentro.
+  const sc = out.scheda as { id: string; nome: string } | undefined
+  if (sc) out.scheda = { id: sc.id, nome: sc.nome }
+  const pi = out.piano as { sets: number; reps: string; riga?: string } | undefined
+  if (pi) out.piano = { sets: pi.sets, reps: pi.reps, ...(pi.riga !== undefined ? { riga: pi.riga } : {}) }
+  return out as unknown as PalestraHistoryEntry
+}
+
 export interface EsitoCorrezioni {
   /** Gli esercizi con le correzioni applicate. Lo stesso array in ingresso se
    *  non è cambiato niente. */
@@ -104,27 +149,35 @@ export interface EsitoCorrezioni {
   applicate: string[]
   /** Già fatte: l'alzata corretta c'è già, non c'è niente da cambiare. */
   giaFatte: string[]
-  /** Senza più un bersaglio: l'esercizio o l'alzata non esistono più così. */
+  /** Senza più un bersaglio: l'esercizio o l'alzata non esistono più così. E
+   *  quelle malformate (vedi `alzataValida`): non si applicheranno mai, e vanno
+   *  tolte come le altre. */
   perse: string[]
 }
 
+// Una data che non è un testo — rimasta da prima del controllo qui sopra — non
+// deve far saltare l'ordinamento di tutte le altre.
+const giorno = (h: PalestraHistoryEntry) => (typeof h.date === 'string' ? h.date : '')
+
 /** Applica le correzioni nell'ordine in cui arrivano. Non tocca gli oggetti in
- *  ingresso. */
+ *  ingresso, e non lancia: una correzione malformata finisce fra le perse. */
 export function applicaCorrezioni(esercizi: PalestraExercise[], correzioni: Correzione[]): EsitoCorrezioni {
   const out = [...esercizi]
   const applicate: string[] = [], giaFatte: string[] = [], perse: string[] = []
   for (const c of correzioni) {
+    const nuova = alzataValida(c.nuova)
+    if (!nuova) { perse.push(c.id); continue }
     const i = out.findIndex(e => e.id === c.exercise_id)
     const j = i < 0 ? -1 : trova(out[i].history, c.vecchia)
     if (j < 0) {
-      if (i >= 0 && trova(out[i].history, c.nuova) >= 0) giaFatte.push(c.id)
+      if (i >= 0 && trova(out[i].history, nuova) >= 0) giaFatte.push(c.id)
       else perse.push(c.id)
       continue
     }
     // Per data, come ovunque: correggendo la data l'alzata può cambiare posto,
     // e "l'ultima volta" dev'essere l'alzata più recente, non l'ultima toccata.
-    const history = out[i].history.map((h, k) => (k === j ? c.nuova : h))
-      .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+    const history = out[i].history.map((h, k) => (k === j ? nuova : h))
+      .sort((a, b) => giorno(a).localeCompare(giorno(b)))
     const last = history[history.length - 1]
     out[i] = { ...out[i], history, current: { kg: last.kg, reps: last.reps, sets_n: last.sets_n } }
     applicate.push(c.id)

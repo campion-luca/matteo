@@ -11,7 +11,7 @@ import { NucCard } from '@/components/ui/NucComponents'
 import { Avatar } from '@/components/ui/Avatar'
 import { useT } from '@/lib/i18n'
 import {
-  leggiProfili, useProfilo, nomeCompleto, etaDi, focusDi, haDettagli, type Profilo,
+  leggiProfili, useProfilo, nomeCompleto, etaDi, focusDi, haDettagli, inizioDi, testoDi, type Profilo,
 } from '@/lib/profili'
 import { Pagina } from './PezziCoach'
 
@@ -57,7 +57,11 @@ export function SchedaProfilo({ profilo, nomeRiserva, sotto }: {
   const d = profilo?.dettagli ?? {}
   const eta = etaDi(profilo)
   const anno = new Date().getFullYear()
-  const daAnni = d.dal && d.dal <= anno ? anno - d.dal : null
+  // I dettagli li scrive l'altro, e non sempre col tipo giusto: si leggono
+  // attraverso `testoDi` e `inizioDi` (vedi lib/profili).
+  const dal = inizioDi(d)
+  const pt = d.pt === true
+  const daAnni = dal && dal <= anno ? anno - dal : null
   const focus = focusDi(d)
 
   return (
@@ -68,7 +72,7 @@ export function SchedaProfilo({ profilo, nomeRiserva, sotto }: {
         <div style={{ fontFamily: NUC.font, fontSize: 26, fontWeight: 600, lineHeight: 1.15, letterSpacing: -0.3, color: 'var(--fg)', marginTop: 14, overflowWrap: 'anywhere' }}>
           {nome}
         </div>
-        {d.pt && (
+        {pt && (
           <span style={{
             marginTop: 8, padding: '2px 9px', borderRadius: 'var(--radius-pill)',
             border: '1px solid var(--j-accent)', color: 'var(--j-accent-ink)',
@@ -81,13 +85,13 @@ export function SchedaProfilo({ profilo, nomeRiserva, sotto }: {
       </div>
 
       {/* I numeri: età e anni di allenamento, quelli che si chiedono per primi. */}
-      {(eta !== null || !!d.dal) && (
-        <div style={{ display: 'grid', gridTemplateColumns: eta !== null && d.dal ? '1fr 1fr' : '1fr', gap: 10, marginBottom: 12 }}>
+      {(eta !== null || !!dal) && (
+        <div style={{ display: 'grid', gridTemplateColumns: eta !== null && dal ? '1fr 1fr' : '1fr', gap: 10, marginBottom: 12 }}>
           {eta !== null && <Numero etichetta={t('Età')} valore={t('{n} anni', { n: eta })}/>}
-          {!!d.dal && (
+          {!!dal && (
             <Numero
               etichetta={t('Si allena dal')}
-              valore={String(d.dal)}
+              valore={String(dal)}
               nota={daAnni ? (daAnni === 1 ? t('1 anno') : t('{n} anni', { n: daAnni })) : undefined}
             />
           )}
@@ -109,8 +113,8 @@ export function SchedaProfilo({ profilo, nomeRiserva, sotto }: {
       )}
 
       <Testo titolo={t('Chi è')} testo={d.bio}/>
-      {d.pt && <Testo titolo={t('Formazione e certificazioni')} testo={d.curriculum}/>}
-      {d.pt && <Testo titolo={t('Esperienze')} testo={d.esperienze}/>}
+      {pt && <Testo titolo={t('Formazione e certificazioni')} testo={d.curriculum}/>}
+      {pt && <Testo titolo={t('Esperienze')} testo={d.esperienze}/>}
       <Testo titolo={t('Obiettivi')} testo={d.obiettivi}/>
       <Testo titolo={t('Percorso')} testo={d.percorso}/>
       <Testo titolo={t('Infortuni e limitazioni')} testo={d.limitazioni}/>
@@ -145,12 +149,13 @@ function Blocco({ titolo, children }: { titolo: string; children: ReactNode }) {
   )
 }
 
-function Testo({ titolo, testo }: { titolo: string; testo?: string }) {
-  if (!testo?.trim()) return null
+function Testo({ titolo, testo }: { titolo: string; testo?: unknown }) {
+  const pulito = testoDi(testo)
+  if (!pulito) return null
   return (
     <Blocco titolo={titolo}>
       <div style={{ fontFamily: NUC.font, fontSize: 13.5, lineHeight: 1.55, color: 'var(--fg-soft)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-        {testo.trim()}
+        {pulito}
       </div>
     </Blocco>
   )

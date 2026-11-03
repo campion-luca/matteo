@@ -143,8 +143,13 @@ export function serieSottoIlBersaglio(colpi: number[], minimi: number[]): number
 }
 
 /** Arrotonda al mezzo chilo: una differenza di 0,03 kg nata da una media non è
- *  un cambio di carico. */
-const mezzoChilo = (x: number) => Math.round(x * 2) / 2
+ *  un cambio di carico.
+ *
+ *  Si arrotonda il valore assoluto e poi si rimette il segno: `Math.round`
+ *  porta le metà verso l'alto, e un +0,25 diventava "+0,5, carico salito"
+ *  mentre un −0,25 diventava 0, "stesso carico". Il `|| 0` toglie lo zero col
+ *  segno meno che resta da un −0,1. */
+const mezzoChilo = (x: number) => (Math.sign(x) * Math.round(Math.abs(x) * 2)) / 2 || 0
 
 /** L'esercizio dello storico che corrisponde a una voce di scheda: prima per
  *  collegamento esplicito, poi per nome. Una scheda scritta da un allenatore ha
@@ -166,9 +171,13 @@ export function analizzaGiornate(
   pesoCorporeo: number,
   giorniHyrox: string[] = [],
 ): Giornata[] {
-  // Il carico dell'ultima volta prima di una data, per esercizio.
+  // Il carico dell'ultima volta prima di una data, per esercizio. Solo le
+  // alzate di lavoro, come in `variazioneCarico`: un massimale dichiarato è una
+  // singola a un carico che non è quello di lavoro, e preso come "l'ultima
+  // volta" faceva leggere la panca di sempre (80 × 8, poi un massimale da 110,
+  // poi di nuovo 80 × 8) come un calo di 30 kg — un problema, per chi allena.
   const caricoPrima = (ex: PalestraExercise, date: string): number | null => {
-    const prima = ex.history.filter(h => h.date && h.date < date)
+    const prima = ex.history.filter(h => h.date && h.date < date && !h.maxLift)
     if (!prima.length) return null
     const ultima = prima.reduce((a, b) => (b.date! > a.date! ? b : a))
     return caricoMesso(ultima)
@@ -197,6 +206,10 @@ export function analizzaGiornate(
     // confrontare, e "= stesso carico" accanto a degli addominali è una riga
     // che non dice niente.
     const senzaCarico = ora === 0 && !prima
+    // Il giorno del massimale non si confronta nemmeno lui: "+30 kg" accanto a
+    // una singola provata non è un carico salito, e la giornata si colorava di
+    // verde per un numero che il lavoro non ha.
+    const confrontabile = prima !== null && !senzaCarico && !h.maxLift
     return {
       exId: ex.id,
       nome: ex.n,
@@ -206,7 +219,7 @@ export function analizzaGiornate(
       saltato: false,
       serieMancanti: previsto ? Math.max(0, previsto.sets - h.sets_n) : 0,
       serieCorte: serieSottoIlBersaglio(colpi, minimi),
-      carico: { ora, prima, delta: prima === null || senzaCarico ? null : mezzoChilo(ora - prima) },
+      carico: { ora, prima, delta: confrontabile ? mezzoChilo(ora - prima) : null },
       fuoriScheda: false,
     }
   }

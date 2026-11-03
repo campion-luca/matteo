@@ -25,6 +25,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore, NOME_MAX } from '@/store/useJarvisStore'
 import { esercizidaCatalogo } from '@/features/gym/catalogo'
+import { normalizzaDecimale, parseNum } from '@/features/gym/gymModel'
 import { useT } from '@/lib/i18n'
 
 export type SetupAnswers = {
@@ -86,8 +87,8 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
     step === 'nome'    ? name.trim().length > 0 :
     step === 'sesso'   ? sex !== '' :
     step === 'nascita' ? ageFromDob(dob) !== undefined :
-    step === 'peso'    ? Number(weight) > 20 && Number(weight) < 400 :
-                         height.trim() === '' || (Number(height) > 80 && Number(height) < 260)
+    step === 'peso'    ? parseNum(weight) > 20 && parseNum(weight) < 400 :
+                         height.trim() === '' || (parseNum(height) > 80 && parseNum(height) < 260)
 
   function salva() {
     const answers: SetupAnswers = {
@@ -95,8 +96,8 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
       userSex: sex || undefined,
       userDob: dob || undefined,
       userAge: dob ? ageFromDob(dob) : undefined,
-      userWeight: weight ? parseFloat(weight) : undefined,
-      userHeight: height ? parseFloat(height) : undefined,
+      userWeight: weight ? parseNum(weight) : undefined,
+      userHeight: height ? parseNum(height) : undefined,
     }
     useJarvisStore.setState(answers)
     // Il catalogo di partenza, così la palestra non si apre vuota. Solo se non
@@ -216,11 +217,11 @@ export function FirstSetup({ onDone }: { onDone: () => void }) {
         )}
 
         {step === 'peso' && (
-          <UnitInput value={weight} onChange={setWeight} onEnter={avanti} unit="kg" placeholder="75" step="0.1" etichetta={domanda}/>
+          <UnitInput value={weight} onChange={setWeight} onEnter={avanti} unit="kg" placeholder="75" etichetta={domanda}/>
         )}
 
         {step === 'altezza' && (
-          <UnitInput value={height} onChange={setHeight} onEnter={avanti} unit="cm" placeholder="178" step="1" etichetta={domanda}/>
+          <UnitInput value={height} onChange={setHeight} onEnter={avanti} unit="cm" placeholder="178" etichetta={domanda}/>
         )}
       </div>
 
@@ -262,9 +263,14 @@ const SPENTO: CSSProperties = {
 // fuoco sul bordo intero (`.j-campo-riquadro`). `inputMode="decimal"` apre il
 // tastierino sul telefono: con la tastiera piena si digita un peso col pollice
 // destro su una fila di lettere.
-function UnitInput({ value, onChange, onEnter, unit, placeholder, step, etichetta }: {
+//
+// Un campo di testo e non `type="number"`: il tastierino di iOS mostra la
+// virgola o il punto secondo la lingua del sistema, e su un campo numerico
+// "78,5" arriva vuoto — il tasto «Avanti» restava spento senza dire perché
+// (vedi `normalizzaDecimale`).
+function UnitInput({ value, onChange, onEnter, unit, placeholder, etichetta }: {
   value: string; onChange: (v: string) => void; onEnter: () => void
-  unit: string; placeholder: string; step: string
+  unit: string; placeholder: string
   /** Il nome del campo per il lettore di schermo: la domanda. */
   etichetta: string
 }) {
@@ -274,8 +280,8 @@ function UnitInput({ value, onChange, onEnter, unit, placeholder, step, etichett
       padding: '0 14px', background: 'var(--surface)', border: 'var(--bordo)', cursor: 'text',
     }}>
       <input
-        autoFocus type="number" inputMode="decimal" step={step}
-        value={value} onChange={e => onChange(e.target.value)}
+        autoFocus type="text" inputMode="decimal"
+        value={value} onChange={e => onChange(normalizzaDecimale(e.target.value))}
         onKeyDown={e => { if (e.key === 'Enter') onEnter() }}
         aria-label={etichetta}
         placeholder={placeholder}

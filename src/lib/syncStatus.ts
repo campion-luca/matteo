@@ -19,11 +19,21 @@ interface SyncStatusStore {
   /** Spinge subito al cloud quello che c'è da mandare. Lo mette il bridge
    *  quando è montato; serve a chi sta per uscire dall'account. */
   salvaOra: (() => void) | null
+  /** Ferma per sempre il bridge in servizio: da lì non segna, non salva e non
+   *  rilegge più niente. Lo mette il bridge quando è montato; lo chiama chi sta
+   *  per svuotare lo store (vedi `svuotaDatiLocali`), perché lo store vuoto non
+   *  è una modifica da mandare al cloud di chi esce. */
+  smetti: (() => void) | null
   setVecchia: (vecchia: boolean) => void
   setSalvaOra: (salvaOra: (() => void) | null) => void
+  setSmetti: (smetti: (() => void) | null) => void
   setStatus: (status: SyncStatus) => void
   setRetry: (retry: (() => void) | null) => void
   setNotice: (notice: string | null) => void
+  /** Tutto come all'avvio: è lo stato della sincronizzazione di un ACCOUNT, e
+   *  chi entra dopo non deve trovarsi "non sincronizzato" o "app da
+   *  aggiornare" per conto di un altro. */
+  azzera: () => void
 }
 
 const NOTICE_MS = 4000
@@ -35,8 +45,10 @@ export const useSyncStatus = create<SyncStatusStore>((set) => ({
   notice: null,
   vecchia: false,
   salvaOra: null,
+  smetti: null,
   setVecchia: (vecchia) => set({ vecchia }),
   setSalvaOra: (salvaOra) => set({ salvaOra }),
+  setSmetti: (smetti) => set({ smetti }),
   setStatus: (status) => set({ status }),
   setRetry: (retry) => set({ retry }),
   // L'auto-clear sta qui e non nel componente: l'avviso può essere impostato dal
@@ -45,5 +57,9 @@ export const useSyncStatus = create<SyncStatusStore>((set) => ({
     clearTimeout(noticeTimer)
     set({ notice })
     if (notice) noticeTimer = setTimeout(() => set({ notice: null }), NOTICE_MS)
+  },
+  azzera: () => {
+    clearTimeout(noticeTimer)
+    set({ status: 'idle', retry: null, notice: null, vecchia: false })
   },
 }))

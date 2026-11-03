@@ -160,4 +160,29 @@ describe('il desktop', () => {
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
     expect(screen.getByRole('dialog', { name: 'Ricerca globale' })).toBeInTheDocument()
   })
+
+  // In inglese si leggeva "same as october", "1 wks" e "2.000 kg".
+  it('in inglese il mese resta maiuscolo, una settimana è al singolare e le migliaia hanno la virgola', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-04T10:00:00'))
+    try {
+      useJarvisStore.setState({
+        lang: 'en',
+        palestraExercises: [esercizio('px-squat', [
+          alzata('2026-10-15', { kg: 60, reps: 10, sets_n: 2 }),
+          alzata('2026-11-02', { kg: 100, reps: 10, sets_n: 2, scheda: { id: 'b', nome: 'Gambe' } }),
+        ], { n: 'Squat', muscle: 'Gambe' })],
+      })
+      monta()
+      // Una sessione a ottobre e una a novembre.
+      expect(screen.getByText('same as October')).toBeInTheDocument()
+      // Solo la settimana in corso: la serie è di una.
+      expect(screen.getByText('wk')).toBeInTheDocument()
+      expect(screen.getByText(/1 wk in a row/)).toBeInTheDocument()
+      expect(screen.getByText('2,000')).toBeInTheDocument()
+      expect(screen.getByText('1,200')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

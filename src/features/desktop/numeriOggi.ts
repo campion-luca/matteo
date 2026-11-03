@@ -5,8 +5,8 @@
 // conti si provano nei test. I casi che rompono in silenzio sono quelli di
 // sempre — la settimana appena cominciata, il primo mese, un solo allenamento.
 import type { PalestraExercise, PalestraHistoryEntry, WeightLogEntry } from '@/store/useJarvisStore'
-import { entry1RM, entryVolume, sortedHistory } from '@/features/gym/gymModel'
-import { quotaCorpo } from '@/features/gym/catalogo'
+import { colpiMigliori, entry1RM, entryVolume, sortedHistory } from '@/features/gym/gymModel'
+import { aColpi, quotaCorpo } from '@/features/gym/catalogo'
 import { lunediDi } from '@/features/dashboard/allenamenti'
 import { localISO } from '@/lib/isoDate'
 
@@ -19,18 +19,33 @@ export interface RecordFatto {
 
 /** Le alzate che hanno battuto il massimale stimato di tutte quelle venute
  *  prima, dalla più recente. È il confronto dell'avviso a fine allenamento
- *  (`recordFor`), col massimo tenuto man mano invece di rifarlo per ogni
+ *  (`recordAlzata`), col massimo tenuto man mano invece di rifarlo per ogni
  *  alzata: la prima alzata di un esercizio non è un record, e pareggiare non è
- *  battere. */
+ *  battere.
+ *
+ *  Come lì, un esercizio che va a colpi (addominali, polpacci a corpo libero)
+ *  finché tutte le sue alzate sono a 0 kg si misura coi colpi della serie più
+ *  lunga. Guardando solo il massimale stimato, che lì è sempre 0, i suoi
+ *  record non contavano mai, mentre l'avviso a fine allenamento li annunciava. */
 export function recordFatti(palestra: PalestraExercise[], pesoCorporeo: number): RecordFatto[] {
   const out: RecordFatto[] = []
   for (const ex of palestra) {
     const bw = pesoCorporeo * quotaCorpo(ex)
+    const perColpi = aColpi(ex)
     let migliore: number | null = null
+    let miglioriColpi: number | null = null
+    // Come `recordAlzata`: a colpi solo finché nessuna alzata, fino a questa
+    // compresa, ha dei chili.
+    let tuttiAZero = true
     for (const h of sortedHistory(ex.history)) {
-      const v = entry1RM(h, bw)
-      if (migliore !== null && v > migliore && h.date) out.push({ esercizio: ex, alzata: h })
+      tuttiAZero = tuttiAZero && h.kg === 0
+      const v = entry1RM(h, bw), c = colpiMigliori(h)
+      const battuto = perColpi && tuttiAZero
+        ? miglioriColpi !== null && c > miglioriColpi
+        : migliore !== null && v > migliore
+      if (battuto && h.date) out.push({ esercizio: ex, alzata: h })
       migliore = migliore === null ? v : Math.max(migliore, v)
+      miglioriColpi = miglioriColpi === null ? c : Math.max(miglioriColpi, c)
     }
   }
   return out.sort((a, b) => (b.alzata.date ?? '').localeCompare(a.alzata.date ?? ''))

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { leggiProfili, useProfiliStore, nomeCompleto, etaDi, focusDi, haDettagli, type Profilo } from '@/lib/profili'
+import { leggiProfili, useProfiliStore, nomeCompleto, etaDi, focusDi, haDettagli, type Profilo, type DettagliProfilo } from '@/lib/profili'
 import { SchedaProfilo } from '@/features/coach/ProfiloUtente'
 
 // Il profilo: nome e cognome, la faccia, e quello che uno racconta di sé. Quello
@@ -115,5 +115,31 @@ describe('il profilo a schermo', () => {
   it('vuoto lo dice, con il nome che si ha', () => {
     render(<SchedaProfilo nomeRiserva="Marco" profilo={undefined}/>)
     expect(screen.getByText('Marco non ha ancora compilato il profilo.')).toBeInTheDocument()
+  })
+})
+
+// `dettagli` lo scrive la persona di cui è il profilo, e il database non ne
+// controlla la forma: un numero al posto della bio, scritto con una chiamata REST
+// a mano, faceva esplodere il profilo a schermo di chi lo guardava.
+describe('dettagli col tipo sbagliato', () => {
+  afterEach(cleanup)
+  const storti = {
+    bio: 123, focus: ['forza'], obiettivi: { a: 1 }, dal: '2015', pt: 'sì', curriculum: 7, limitazioni: 'Spalla destra',
+  } as unknown as DettagliProfilo
+
+  it('si leggono come vuoti, senza eccezioni', () => {
+    expect(focusDi(storti)).toEqual([])
+    expect(haDettagli({ bio: 5, focus: {} } as unknown as DettagliProfilo)).toBe(false)
+    // Le limitazioni invece sono un testo vero.
+    expect(haDettagli(storti)).toBe(true)
+  })
+
+  it('il profilo a schermo mostra quello che è un testo, e il resto lo salta', () => {
+    render(<SchedaProfilo nomeRiserva="Anna" profilo={{ ...riga({ user_id: ANNA, dettagli: storti }), foto: null }}/>)
+    expect(screen.getByText('Spalla destra')).toBeInTheDocument()
+    expect(screen.queryByText('Chi è')).not.toBeInTheDocument()
+    expect(screen.queryByText('Focus principali')).not.toBeInTheDocument()
+    expect(screen.queryByText('Personal trainer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Si allena dal')).not.toBeInTheDocument()
   })
 })

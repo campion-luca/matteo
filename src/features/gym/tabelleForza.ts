@@ -15,8 +15,20 @@
 // Cosa è stato cambiato: i numeri qui sotto sono quelli pubblicati, le tabelle
 // "Post-Training" (dopo 12 settimane di allenamento), in libbre e a 10 ripetizioni
 // massime. `soglieAlPeso` li porta a un massimale con la formula di Epley, gli
-// stessi conti che l'app fa su ogni alzata, e passa da una classe di peso all'altra
-// in modo continuo: un chilo in più non deve far saltare di rank.
+// stessi conti che l'app fa su ogni alzata. E non legge una classe di peso alla
+// volta: per ogni percentile prende le otto classi insieme e ne ricava una curva
+// forza–peso corporeo (vedi `curva`).
+//
+// Perché la curva (dal 3 novembre 2026). Le classi hanno poche persone — le
+// donne sono 371 in otto classi — e i chili alzati vanno a scatti di 5 libbre:
+// in alcune classi due percentili vicini uscivano uguali. Per le donne fra 52 e
+// 61 kg alla lat machine il 20° e il 50° erano entrambi 80 libbre, cioè Argento
+// alla stessa soglia di Bronzo, e non lo si poteva prendere mai. Una classe
+// letta da sola dice anche il rumore del suo campione; la curva su tutte e otto
+// tiene la tendenza e lascia il rumore. Dai numeri pubblicati si scosta in media
+// del 2-9%, al massimo del 17% (la classe più leggera della pressa uomini, che
+// salta da 225 a 315 libbre su quella dopo). In cambio, a ogni peso ogni
+// percentile sta almeno il 6% sopra il precedente: ogni rank si può prendere.
 //
 // Le tabelle "Post" e non quelle di partenza perché chi usa l'app si allena, e
 // perché gli autori dicono cosa misurano: da chi comincia a chi è a metà strada.
@@ -119,24 +131,32 @@ const KG_PER_LIBBRA = 0.45359237
 /** Epley a 10 ripetizioni: kg × (1 + 10/30). */
 const DA_10RM_A_MASSIMALE = 4 / 3
 
-/** Il valore della tabella a questo peso, fra i centri delle due classi vicine. Ai
- *  due estremi resta quello dell'ultima classe: oltre, gli studi non dicono niente. */
-function aQuestoPeso(valori: readonly number[], classi: readonly number[], libbre: number): number {
-  // Le classi hanno poche persone, e capita che una ne alzi meno di quella più
-  // leggera (185 e poi 175 libbre). Non è un fatto del corpo, è il campione: chi
-  // pesa di più non deve trovarsi davanti una soglia più bassa.
-  const crescenti = valori.reduce<number[]>((v, x) => [...v, Math.max(x, v[v.length - 1] ?? x)], [])
-  if (libbre <= classi[0]) return crescenti[0]
-  const dopo = classi.findIndex(c => c >= libbre)
-  if (dopo < 0) return crescenti[crescenti.length - 1]
-  const parte = (libbre - classi[dopo - 1]) / (classi[dopo] - classi[dopo - 1])
-  return crescenti[dopo - 1] + (crescenti[dopo] - crescenti[dopo - 1]) * parte
+/** La curva di un percentile: libbre alzate = a × peso^b, coi minimi quadrati
+ *  sui logaritmi delle otto classi. È la forma con cui la forza cresce col
+ *  corpo — la stessa idea della mappa della forza, che piega le soglie sul
+ *  peso^⅔ — e qui l'esponente lo dicono i dati di ogni esercizio. */
+function curva(valori: readonly number[], classi: readonly number[]): { a: number; b: number } {
+  const lx = classi.map(Math.log), ly = valori.map(Math.log)
+  const mx = lx.reduce((s, x) => s + x, 0) / lx.length
+  const my = ly.reduce((s, y) => s + y, 0) / ly.length
+  let sxy = 0, sxx = 0
+  lx.forEach((x, i) => { sxy += (x - mx) * (ly[i] - my); sxx += (x - mx) ** 2 })
+  const b = sxy / sxx
+  return { a: Math.exp(my - b * mx), b }
 }
 
+// Le curve si calcolano una volta: i dati non cambiano.
+const CURVE = Object.fromEntries((['M', 'F'] as const).map(s => [s, Object.fromEntries(
+  (Object.keys(TABELLE[s]) as AlzataTabella[]).map(e => [e, TABELLE[s][e].map(riga => curva(riga, CLASSI[s]))]),
+)])) as Record<Sesso, Record<AlzataTabella, { a: number; b: number }[]>>
+
 /** I massimali in kg dei percentili 20, 50, 80 e 95 a questo peso corporeo. Sesso
- *  ignoto → la tabella maschile, che ha i numeri più alti: come in gymStrength. */
+ *  ignoto → la tabella maschile, che ha i numeri più alti: come in gymStrength.
+ *  Oltre le classi estreme resta il valore del bordo: lì gli studi non dicono
+ *  niente, e una curva allungata inventerebbe. */
 export function soglieAlPeso(alzata: AlzataTabella, pesoKg: number, sex?: Sesso): number[] {
   const sesso = sex === 'F' ? 'F' : 'M'
-  const libbre = pesoKg / KG_PER_LIBBRA
-  return TABELLE[sesso][alzata].map(riga => aQuestoPeso(riga, CLASSI[sesso], libbre) * KG_PER_LIBBRA * DA_10RM_A_MASSIMALE)
+  const classi = CLASSI[sesso]
+  const libbre = Math.min(classi[classi.length - 1], Math.max(classi[0], pesoKg / KG_PER_LIBBRA))
+  return CURVE[sesso][alzata].map(({ a, b }) => a * libbre ** b * KG_PER_LIBBRA * DA_10RM_A_MASSIMALE)
 }

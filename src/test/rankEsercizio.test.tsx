@@ -29,9 +29,9 @@ describe('la scala dei rank', () => {
     expect(RANK.map(r => r.nome)).toEqual(['Bronzo', 'Argento', 'Oro', 'Platino', 'Diamante'])
   })
 
-  // Panca, uomo di 80 kg: 81,5 · 96,4 · 111,4 · 135,1 kg di massimale.
+  // Panca, uomo di 80 kg: 76,9 · 91,2 · 107,4 · 122,3 kg di massimale.
   it.each([
-    [80, 'Bronzo'], [82, 'Argento'], [96, 'Argento'], [97, 'Oro'], [111, 'Oro'], [112, 'Platino'], [135, 'Platino'], [136, 'Diamante'],
+    [76, 'Bronzo'], [77, 'Argento'], [91, 'Argento'], [92, 'Oro'], [107, 'Oro'], [108, 'Platino'], [122, 'Platino'], [123, 'Diamante'],
   ])('%i kg a 80 kg di peso: %s', (kg, nome) => {
     expect(rankEsercizio(panca(kg), 80, 'M')?.rank.nome).toBe(nome)
   })
@@ -49,9 +49,9 @@ describe('la scala dei rank', () => {
 
   it('dice quanti chili di massimale mancano al prossimo', () => {
     const r = rankEsercizio(panca(100), 80, 'M')
-    expect(r?.prossimo).toMatchObject({ rank: { nome: 'Platino' }, kg: 112, mancano: 12 })
-    expect(r?.avanzamento).toBeGreaterThan(0.2)
-    expect(r?.avanzamento).toBeLessThan(0.3)
+    expect(r?.prossimo).toMatchObject({ rank: { nome: 'Platino' }, kg: 108, mancano: 8 })
+    expect(r?.avanzamento).toBeGreaterThan(0.5)
+    expect(r?.avanzamento).toBeLessThan(0.6)
   })
 
   it('al Diamante non c’è un dopo', () => {
@@ -79,7 +79,7 @@ describe('quali esercizi hanno un rank', () => {
 
   it('ogni esercizio si misura sulla sua tabella: 80 kg non valgono uguale', () => {
     const rank = (n: string, muscle: string) => rankEsercizio(es([massimale(80)], { n, muscle }), 80, 'M')?.rank.nome
-    expect(rank('Panca piana', 'Petto')).toBe('Bronzo')
+    expect(rank('Panca piana', 'Petto')).toBe('Argento')
     expect(rank('Curl panca Scott', 'Bicipiti')).toBe('Diamante')
   })
 
@@ -118,11 +118,11 @@ describe('il traguardo in home', () => {
   const riga = (id: string, name: string) => ({ id, name, sets: 3, reps: '8', linkedExerciseId: id })
   const scheda = (...righe: Array<ReturnType<typeof riga>>) => ({ id: 'sc', title: 'Spinta', exercises: righe, createdAt: '2026-01-01', updatedAt: '2026-01-01' })
   const panca100 = es([massimale(100)], { id: 'p', n: 'Panca piana' })
-  // Curl: 48 kg stimati sono circa il 50° percentile a 80 kg.
-  const curl47 = es([massimale(47)], { id: 'c', n: 'Curl panca Scott', muscle: 'Bicipiti' })
+  // Curl: poco più di 45 kg sono il 50° percentile a 80 kg.
+  const curl44 = es([massimale(44)], { id: 'c', n: 'Curl panca Scott', muscle: 'Bicipiti' })
 
   it('è quello a cui manca meno, in proporzione', () => {
-    const t = traguardoScheda(scheda(riga('p', 'Panca piana'), riga('c', 'Curl panca Scott')), [panca100, curl47], 80, 'M')
+    const t = traguardoScheda(scheda(riga('p', 'Panca piana'), riga('c', 'Curl panca Scott')), [panca100, curl44], 80, 'M')
     expect(t).toMatchObject({ esercizio: 'Curl panca Scott', rank: { nome: 'Oro' } })
     expect(t?.mancano).toBeLessThanOrEqual(2)
   })
@@ -157,7 +157,7 @@ describe('l’alzata appena fatta', () => {
   })
 
   it('un record che fa salire lo dice', () => {
-    expect(recordAlzata(es([massimale(100)]), massimale(125), 80, 'M')).toMatchObject({ salitoA: 'Platino' })
+    expect(recordAlzata(es([massimale(100)]), massimale(115), 80, 'M')).toMatchObject({ salitoA: 'Platino' })
   })
 
   it('un esercizio senza rank fa record lo stesso', () => {
@@ -177,11 +177,11 @@ describe('sullo schermo', () => {
   it('la card dice il rank e quanto manca al prossimo', () => {
     render(<RankCard rank={rankEsercizio(panca(100), 80, 'M')!}/>)
     expect(screen.getByText('Oro')).toBeInTheDocument()
-    expect(screen.getByText('Mancano 12 kg di massimale per Platino')).toBeInTheDocument()
+    expect(screen.getByText('Mancano 8 kg di massimale per Platino')).toBeInTheDocument()
   })
 
   it('un chilo solo si dice al singolare', () => {
-    render(<RankCard rank={rankEsercizio(panca(111), 80, 'M')!}/>)
+    render(<RankCard rank={rankEsercizio(panca(107), 80, 'M')!}/>)
     expect(screen.getByText('Manca 1 kg di massimale per Platino')).toBeInTheDocument()
   })
 
@@ -214,7 +214,7 @@ describe('dalle due strade alla stessa pagina', () => {
     localStorage.clear()
     useJarvisStore.setState({
       ...EMPTY_STATE, userName: 'Luca', userWeight: 80, userSex: 'M', gymSchede: [scheda],
-      // 70 × 5 sono quasi 82 kg stimati: Argento, a 15 dall'Oro.
+      // 70 × 5 sono quasi 82 kg stimati: Argento, a 10 dall'Oro.
       palestraExercises: [es([alzata(70, '2026-01-01')], { current: { kg: 70, reps: 5, sets_n: 3 } })],
     }, true)
   })
@@ -245,7 +245,7 @@ describe('dalle due strade alla stessa pagina', () => {
     await user.click(await screen.findByRole('button', { name: /Panca piana/ }))
 
     expect(await screen.findByText('Argento')).toBeInTheDocument()
-    expect(screen.getByText('Mancano 15 kg di massimale per Oro')).toBeInTheDocument()
+    expect(screen.getByText('Mancano 10 kg di massimale per Oro')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /nuova alzata/i }))
     const kg = await screen.findByLabelText('Kg')
