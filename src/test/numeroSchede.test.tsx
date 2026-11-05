@@ -116,16 +116,18 @@ describe('il numero nella pagina dell’allievo', () => {
     await user.click(await screen.findByRole('button', { name: /Schede assegnate/ }))
   }
 
-  it('scegliere un numero scrive le righe che cambiano, e non avvisa nessuno', async () => {
+  // Dal 4 nov 2026 il posto si cambia con le frecce su e giù, non più con una
+  // tendina di numeri.
+  it('la freccia su scrive le righe che cambiano, e non avvisa nessuno', async () => {
     const user = userEvent.setup()
     righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 }), riga('c', { ordine: 3 })]
     await apriSchede(user)
 
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Numero di Scheda c' }), '2')
+    await user.click(await screen.findByRole('button', { name: 'Sposta su Scheda c' }))
 
     await waitFor(() => expect(scritte).toHaveLength(2))
     expect(scritte.map(s => `${s.id}:${s.scheda.ordine}`).sort()).toEqual(['b:3', 'c:2'])
-    expect(screen.getByRole('combobox', { name: 'Numero di Scheda c' })).toHaveValue('2')
+    expect(screen.getAllByText(/^Scheda [abc]$/).map(e => e.textContent)).toEqual(['Scheda a', 'Scheda c', 'Scheda b'])
     // Niente messaggio all'allievo: l'unica cosa scritta sul server sono le schede
     // (le `rpc` sono POST anche quando leggono).
     const scrive = vi.mocked(fetch).mock.calls.filter(([, init]) => ['POST', 'PATCH', 'DELETE'].includes(init?.method ?? '')).map(([u]) => String(u))
@@ -158,14 +160,14 @@ describe('il numero nella pagina dell’allievo', () => {
     const user = userEvent.setup()
     righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 }), riga('c', { ordine: 3 })]
     await apriSchede(user)
-    // Nel frattempo l'allievo toglie la b, e da un altro dispositivo la a cambia titolo.
-    righe = [riga('a', { ordine: 1, title: 'Scheda a (ritoccata)' }), riga('c', { ordine: 3 })]
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Numero di Scheda c' }), '1')
+    // Nel frattempo l'allievo toglie la b, e da un altro dispositivo la c cambia titolo.
+    righe = [riga('a', { ordine: 1 }), riga('c', { ordine: 3, title: 'Scheda c (ritoccata)' })]
+    await user.click(await screen.findByRole('button', { name: 'Sposta su Scheda c' }))
 
-    await waitFor(() => expect(scritte).toHaveLength(2))
-    expect(scritte.map(s => `${s.id}:${s.scheda.ordine}`).sort()).toEqual(['a:2', 'c:1'])
+    await waitFor(() => expect(scritte).toHaveLength(1))
+    expect(scritte.map(s => `${s.id}:${s.scheda.ordine}`)).toEqual(['c:2'])
     // Della riga riletta cambia solo il numero.
-    expect(scritte.find(s => s.id === 'a')?.scheda.title).toBe('Scheda a (ritoccata)')
+    expect(scritte[0].scheda.title).toBe('Scheda c (ritoccata)')
     expect(upsertSchede()).toHaveLength(0)
     await waitFor(() => expect(screen.queryByText('Scheda b')).not.toBeInTheDocument())
   })
@@ -175,7 +177,7 @@ describe('il numero nella pagina dell’allievo', () => {
     righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 }), riga('c', { ordine: 3 })]
     await apriSchede(user)
     righe = [riga('a', { ordine: 1 }), riga('b', { ordine: 2 })]
-    await user.selectOptions(await screen.findByRole('combobox', { name: 'Numero di Scheda c' }), '1')
+    await user.click(await screen.findByRole('button', { name: 'Sposta su Scheda c' }))
 
     expect(await screen.findByText('Una scheda non c’è più: è stata tolta nel frattempo. L’elenco è aggiornato.')).toBeInTheDocument()
     expect(scritte).toEqual([])
@@ -209,12 +211,14 @@ describe('il numero nella pagina dell’allievo', () => {
     expect(screen.queryByText(/Non sei più collegato/)).not.toBeInTheDocument()
   })
 
-  it('senza numeri ogni scheda mostra un trattino, e la bozza non ha la tendina', async () => {
+  it('senza numeri ogni scheda mostra un trattino, e la bozza non ha le frecce', async () => {
     const user = userEvent.setup()
     righe = [riga('a'), riga('b'), riga('z', { draft: true })]
     await apriSchede(user)
-    expect(await screen.findByRole('combobox', { name: 'Numero di Scheda a' })).toHaveDisplayValue('–')
-    expect(screen.queryByRole('combobox', { name: 'Numero di Scheda z' })).not.toBeInTheDocument()
+    const su = await screen.findByRole('button', { name: 'Sposta su Scheda a' })
+    expect(su).toBeDisabled()
+    expect(su.parentElement!.parentElement!).toHaveTextContent(/^–/)
+    expect(screen.queryByRole('button', { name: 'Sposta su Scheda z' })).not.toBeInTheDocument()
   })
 
   it('una scheda sola non ha un numero da scegliere', async () => {
@@ -222,7 +226,7 @@ describe('il numero nella pagina dell’allievo', () => {
     righe = [riga('a')]
     await apriSchede(user)
     expect(await screen.findByText('Scheda a')).toBeInTheDocument()
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Sposta/ })).not.toBeInTheDocument()
   })
 
   it('ritoccare una scheda dal form non le toglie il numero', async () => {

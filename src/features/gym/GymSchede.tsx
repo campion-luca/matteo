@@ -14,11 +14,14 @@ import { NucCard, Interruttore } from '@/components/ui/NucComponents'
 import { Cronologia } from '@/components/ui/Cronologia'
 import { JModal } from '@/components/ui/Primitives'
 import { Icons } from '@/components/ui/Icons'
+import { AngoloPiegato } from '@/components/ui/AngoloPiegato'
+import { Avatar } from '@/components/ui/Avatar'
+import { leggiProfili, nomeCompleto, useProfilo } from '@/lib/profili'
 import { useShallow } from 'zustand/react/shallow'
 import { useJarvisStore } from '@/store/useJarvisStore'
 import type { GymScheda, GymSchedaExercise, PalestraExercise, PalestraHistoryEntry, ProgressioneRiga, StatoProgressione, TecnicaRiga } from '@/store/useJarvisStore'
 import { useConfirmDelete } from '@/hooks/useConfirmDelete'
-import { MUSCLE_COLORS, displayMuscle, weekLabel, sortedHistory, ultimaVoce, ultimaDiLavoro, correnteDa, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti, esercizioPerNome } from './gymModel'
+import { MUSCLE_COLORS, displayMuscle, fmtVol, weekLabel, sortedHistory, ultimaVoce, ultimaDiLavoro, correnteDa, normalizzaDecimale, parseNum, fmtNum, fmtKg, fmtKgVerso, fmtReps, fmtDurata, setLoads, ultimaVoltaPerScheda, quantoFa, variazioneCarico, type VariazioneCarico, colpiPrevisti, esercizioPerNome } from './gymModel'
 import { fmtDayMonthFull, fmtDayMon, fmtMeseAnno } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import { RecordModal, EditHistoryModal, type RecordItem } from './gymModals'
@@ -44,7 +47,8 @@ import { bozzaChat } from '@/lib/messaggi'
 import { avvisa } from '@/lib/messaggiLive'
 import { riassuntoAllenamento, serieValide, chiliScritti } from './riassuntoAllenamento'
 import { numeroImpossibile, testoImpossibile, saltoDaConfermare, caricoDiRiferimento, SERIE_MAX } from './limitiAlzata'
-import { muscoliDellaScheda, durataPrevista, durataRimanente, durataArrotondata, natalDi, etaScheda, schedePerMese, serieDellaScheda, type MuscoloToccato } from './anteprimaScheda'
+import { muscoliDellaScheda, ripartizioneMuscoli, durataPrevista, durataRimanente, durataArrotondata, natalDi, etaScheda, schedePerMese, serieDellaScheda, type MuscoloToccato } from './anteprimaScheda'
+import { useIsDesktop } from '@/hooks/useIsDesktop'
 import { OminoMuscoli } from './MuscleIcons'
 import { nonLetti, type Messaggio, type TipoMessaggio } from '@/lib/messaggi'
 import { useMessaggi, segnaLettiOra, invia, elimina, RITMO_APERTO, RITMO_FONDO } from '@/lib/messaggiLive'
@@ -248,6 +252,8 @@ export function GymSchede({ onBack, apri, riprendi = false, termina = false, nuo
     return gymSchede?.find(x => x.id === apri) ?? (io ? schedaRicevutaInCache(io, apri) : undefined) ?? null
   })
   const [view, setView] = useState<'list' | 'form' | 'detail' | 'training' | 'report'>(active ? (riprendi ? 'training' : 'detail') : nuova ? 'form' : 'list')
+  // La scheda di cui si guarda il report muscolare (vedi `SchedaReportPage`).
+  const [reportDi, setReportDi] = useState<string | null>(null)
   const [editing, setEditing] = useState<GymScheda | null>(null) // scheda in modifica nel form (null = nuova)
   // Si è entrati dritti nell'allenamento da fuori: «indietro» riporta fuori, non
   // al dettaglio di una scheda da cui non si è passati. Vale per quell'ingresso
@@ -705,10 +711,12 @@ export function GymSchede({ onBack, apri, riprendi = false, termina = false, nuo
     )
   }
 
-  if (view === 'report') {
+  const schedaReport = view === 'report' ? schede.find(s => s.id === reportDi) : undefined
+  if (schedaReport) {
     return (
       <SchedaReportPage
-        schede={schede}
+        scheda={schedaReport}
+        palestraExercises={palestraExercises}
         muscleColors={muscleColors}
         onBack={() => setView('list')}
       />
@@ -803,7 +811,7 @@ export function GymSchede({ onBack, apri, riprendi = false, termina = false, nuo
       mie={mie.map(x => x.id)}
       nateIl={nateIl}
       ultimaVolta={ultimaVolta}
-      onReport={() => setView('report')}
+      onReport={s => { setReportDi(s.id); setView('report') }}
       inCorso={inCorso}
       onRiprendi={sc => { setActive(sc); setView('training') }}
       onScarta={scartaAperta}
@@ -870,7 +878,8 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
   onNew: () => void
   onOpen: (s: GymScheda) => void
   onDelete: (id: string) => void
-  onReport: () => void
+  /** Il report muscolare di una scheda: il tasto in fondo al suo rettangolo. */
+  onReport: (s: GymScheda) => void
   /** Scambia di posto due proprie schede. */
   onMove: (id: string, conId: string) => void
   /** Gli id delle proprie schede, nell'ordine dello store: solo queste si spostano. */
@@ -890,7 +899,6 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
   const tData = useTData()
   // Quale sagoma accendere per i gruppi che l'utente si è creato.
   const icone = useMuscleIcons()
-  const hasExercises = schede.some(s => s.exercises.length > 0)
   // Riordinare e cancellare sono gesti rari; aprire una scheda è il gesto di
   // ogni giorno. Tenendo le frecce e il cestino sempre accesi, ogni riga
   // dell'elenco portava tre bersagli da non colpire per arrivare all'unico da
@@ -939,11 +947,6 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
       title={t('Schede d’allenamento')}
       sub={schede.length === 1 ? t('1 scheda') : t('{n} schede', { n: schede.length })}
       azioni={<>
-        {hasExercises && (
-          <button onClick={onReport} title={t('Report gruppi muscolari')} className="j-hard flex items-center justify-center" style={iconBtn(false, 40)}>
-            <Icons.chart size={17} stroke={1.8}/>
-          </button>
-        )}
         {/* Niente matita su un elenco vuoto: non c'è niente da sistemare. */}
         {schede.length > 0 && (
           <button
@@ -1006,6 +1009,7 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
             {/* Più bassa e più fine di una card qualunque: qui le card sono un
                 elenco da scorrere con l'occhio, e ognuna porta già tre righe. */}
             <NucCard pad={11} style={{ paddingLeft: 13, paddingRight: 12 }}>
+              <AngoloPiegato lato={18}/>
               <div className="flex items-center justify-between gap-3">
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
@@ -1017,6 +1021,9 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
                       <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--j-accent-ink)', background: 'color-mix(in srgb, var(--j-accent) 12%, transparent)', border: '1px solid var(--j-accent)', borderRadius: 'var(--radius-pill)', padding: '1px 6px' }}>{t('Allenatore')}</span>
                     )}
                   </div>
+                  {s.sottotitolo && (
+                    <div style={{ fontFamily: NUC.font, fontSize: 12.5, lineHeight: 1.3, color: NUC.dim, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.sottotitolo}</div>
+                  )}
                   <div style={{ fontFamily: NUC.label, fontSize: 9.5, letterSpacing: 0.3, color: NUC.faint, marginTop: 2 }}>
                     {s.exercises.length === 1 ? t('1 esercizio') : t('{n} esercizi', { n: s.exercises.length })}
                     {daCoach.has(s.id) && ` · ${t('da {chi}', { chi: daCoach.get(s.id) ?? '' })}`}
@@ -1055,6 +1062,19 @@ function SchedeListPage({ schede, anteprime, muscleColors, daCoach, onBack, onNe
                       size={44} color={NUC.faint}
                       muscoli={(anteprime.get(s.id)?.muscoli ?? []).map(m => ({ muscolo: m.muscolo, colore: muscleColor(m.muscolo, muscleColors), icona: icone[m.muscolo] }))}
                     />
+                  )}
+                  {/* Il report muscolare di QUESTA scheda: prima era uno solo, in
+                      testa all'elenco, per tutte le schede insieme. */}
+                  {!modifica && s.exercises.some(e => e.name.trim()) && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onReport(s) }}
+                      aria-label={t('Report muscolare di {scheda}', { scheda: s.title })}
+                      title={t('Report muscolare')}
+                      className="j-hard j-focus flex items-center justify-center"
+                      style={{ width: 34, height: 34, padding: 0, flexShrink: 0, cursor: 'pointer', background: 'var(--surface)', border: 'var(--bordo)', color: NUC.ink }}
+                    >
+                      <Icons.chart size={15} stroke={1.9}/>
+                    </button>
                   )}
                   <div style={{ color: NUC.faint, display: 'flex' }}><Icons.chev size={13} stroke={1.5}/></div>
                 </div>
@@ -1124,6 +1144,9 @@ function giornoConAnno(iso: string): string {
 // si leggevano come un blocco solo di rettangoli uguali. Adesso hanno il colore
 // dei titoli di sezione dell'app e un corpo che si legge: prima si vede COSA si
 // sta compilando, poi il campo.
+/** Il sottotitolo sta su una riga sola, nell'elenco e nella card di oggi. */
+const SOTTOTITOLO_MAX = 80
+
 const ETICHETTA_CAMPO: CSSProperties = {
   fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.1em',
   textTransform: 'uppercase', color: 'var(--fg-mute)', marginBottom: 6,
@@ -1185,14 +1208,14 @@ function Contatore({ etichetta, valore, placeholder, inputMode, bloccato, onChan
 }
 
 /** Una riga con un interruttore: il nome, sotto cosa vuol dire, a destra l'interruttore. */
-function RigaInterruttore({ titolo, sotto, acceso, onCambia }: { titolo: string; sotto: string; acceso: boolean; onCambia: () => void }) {
+function RigaInterruttore({ titolo, sotto, acceso, onCambia, disabled }: { titolo: string; sotto: string; acceso: boolean; onCambia: () => void; disabled?: boolean }) {
   return (
     <div className="flex items-center" style={{ gap: 12, padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: NUC.ink, lineHeight: 1.25 }}>{titolo}</div>
+        <div style={{ fontFamily: NUC.font, fontSize: 15, fontWeight: 600, color: disabled ? 'var(--fg-mute)' : NUC.ink, lineHeight: 1.25 }}>{titolo}</div>
         <div style={{ fontFamily: NUC.font, fontSize: 12.5, color: 'var(--fg-mute)', lineHeight: 1.35, marginTop: 2 }}>{sotto}</div>
       </div>
-      <Interruttore acceso={acceso} onClick={onCambia} etichetta={titolo}/>
+      <Interruttore acceso={acceso} onClick={onCambia} etichetta={titolo} disabled={disabled}/>
     </div>
   )
 }
@@ -1210,6 +1233,10 @@ interface FormRow {
   bodyweight?: boolean
   /** La progressione scelta per la riga (solo nelle schede `conProgressioni`). */
   progressione?: ProgressioneRiga
+  /** L'interruttore «Progressione» acceso. Spento, la riga ha serie e colpi
+   *  scritti a mano e in allenamento il carico consigliato; la progressione
+   *  scelta resta qui, e si ritrova riaccendendolo. */
+  conProgr: boolean
   tecnica?: TecnicaRiga
   /** L'esercizio a cui la riga era collegata aprendo il form. Serve a dire cosa
    *  succede quando se ne cambia il nome, e a ricollegarla se il nome torna. */
@@ -1251,15 +1278,18 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const [schedaId] = useState(() => scheda?.id ?? uid('sc'))
   const [createdAt] = useState(scheda?.createdAt ?? todayISO())
   const [title, setTitle] = useState(scheda?.title ?? '')
+  const [sottotitolo, setSottotitolo] = useState(scheda?.sottotitolo ?? '')
+  const isDesktop = useIsDesktop()
   const [rows, setRows] = useState<FormRow[]>(
     scheda?.exercises.length
       ? scheda.exercises.map(e => ({
         id: e.id, name: e.name, sets: String(e.sets), reps: e.reps, linkedExerciseId: e.linkedExerciseId, muscle: e.muscle ?? '', ...(e.bodyweight !== undefined ? { bodyweight: e.bodyweight } : {}), note: e.note ?? '', supersetWithNext: !!e.supersetWithNext,
         ...(e.progressione ? { progressione: e.progressione } : {}),
+        conProgr: !!e.progressione,
         ...(e.tecnica ? { tecnica: e.tecnica } : {}),
         ...(e.linkedExerciseId && palestraExercises.some(x => x.id === e.linkedExerciseId) ? { origine: { id: e.linkedExerciseId, nome: e.name } } : {}),
       }))
-      : [{ id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', note: '', supersetWithNext: false }]
+      : [{ id: uid('r'), name: '', sets: '3', reps: '8', muscle: '', note: '', supersetWithNext: false, conProgr: false }]
   )
   const [focused, setFocused] = useState<string | null>(null)
   // La riga di cui si sta cambiando l'esercizio ("Cambia"): lì torna il campo
@@ -1307,7 +1337,11 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   /** Il tipo di carico di un esercizio nuovo, come si vede nel form: quello
    *  scelto, o — finché non lo si tocca — quello del catalogo. */
   const sceltaCorpo = (r: FormRow) => r.bodyweight ?? corpoLibero({ n: r.name })
-  const conProgressione = (r: FormRow) => conProgressioni && r.name.trim() !== '' && !corpoRiga(r)
+  // La progressione si può accendere sulle schede nuove e sulle righe con un
+  // carico da far salire; è facoltativa (dal 4 nov 2026): prima ogni riga ne
+  // doveva avere una, e una scheda scritta in fretta non si salvava senza.
+  const puoProgressione = (r: FormRow) => conProgressioni && r.name.trim() !== '' && !corpoRiga(r)
+  const conProgressione = (r: FormRow) => puoProgressione(r) && r.conProgr
   /** Serie e colpi della riga: quelli scritti, o quelli della sua progressione. */
   const serieRiga = (r: FormRow) => (conProgressione(r) && r.progressione ? serieERipetizioni(r.progressione) : { sets: parseInt(r.sets) || 0, reps: r.reps.trim() })
   // Da quanto pesa oggi l'esercizio si misura il salto al carico dopo (vedi
@@ -1363,7 +1397,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const addRow = () => {
     clearFeedback()
     const id = uid('r')
-    setRows(rs => [...rs, { id, name: '', sets: '3', reps: '8', muscle: '', note: '', supersetWithNext: false }])
+    setRows(rs => [...rs, { id, name: '', sets: '3', reps: '8', muscle: '', note: '', supersetWithNext: false, conProgr: false }])
     setAperta(id)
     setFuocoSu(id)
   }
@@ -1423,7 +1457,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
         // 0 kg: quella deduzione vale per mostrarla qui e per la seduta, e
         // salvando per rinominare la scheda cancellava la progressione senza
         // dirlo. In allenamento, finché l'ultima alzata resta a 0 kg, tace.
-        ...(conProgressioni && r.name.trim() !== '' && r.progressione && !corpoDichiarato(r) ? { progressione: r.progressione } : {}),
+        ...(conProgressioni && r.conProgr && r.name.trim() !== '' && r.progressione && !corpoDichiarato(r) ? { progressione: r.progressione } : {}),
         ...(r.linkedExerciseId ? { linkedExerciseId: r.linkedExerciseId } : {}),
         ...(r.muscle ? { muscle: displayMuscle(r.muscle) } : {}),
         // Solo per un esercizio nuovo: di uno che esiste già lo sa l'esercizio.
@@ -1463,6 +1497,7 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
   const buildScheda = (): GymScheda => ({
     id: schedaId,
     title: title.trim() || 'Scheda senza nome',
+    ...(sottotitolo.trim() ? { sottotitolo: sottotitolo.trim() } : {}),
     exercises: buildExercises(),
     createdAt,
     updatedAt: todayISO(),
@@ -1493,6 +1528,11 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
       requestAnimationFrame(() => erroriRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
     }
   }
+
+  // Le righe come la legenda del desktop le legge: rifatte solo quando cambiano
+  // le righe, non a ogni lettera del titolo o delle note.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `buildExercises` è rifatta a ogni render ma legge solo questi tre
+  const righeLegenda = useMemo(() => buildExercises(), [rows, palestraExercises, conProgressioni])
 
   const conNome = rows.filter(r => r.name.trim())
   const serieTotali = conNome.reduce((n, r) => n + serieRiga(r).sets, 0)
@@ -1529,15 +1569,32 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
     >
 
       <div className="j-scroll-area">
+        {/* Su desktop due colonne: a sinistra il form, a destra la legenda della
+            scheda che si sta scrivendo (vedi `LegendaScheda`), ferma mentre il
+            form scorre. Su telefono il form da solo, com'era. */}
+        <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 272px', gap: 24, alignItems: 'start' } : undefined}>
+        <div style={{ minWidth: 0 }}>
         {/* Il nome della scheda: in grande e in maiuscolo, come un titolo — è
             il nome che dà a tutto il resto. */}
-        <label style={{ display: 'block', marginBottom: 22 }}>
+        <label style={{ display: 'block', marginBottom: 12 }}>
           <div style={ETICHETTA_CAMPO}>{t('Nome della scheda')}</div>
           <input
             value={title}
             onChange={e => { clearFeedback(); setTitle(e.target.value) }}
             placeholder={t('Nome scheda (es. Upper A)')}
             className="j-campo-grande j-campo-titolo"
+          />
+        </label>
+        {/* Il sottotitolo, facoltativo: una riga che dice di più del nome. */}
+        <label style={{ display: 'block', marginBottom: 22 }}>
+          <div style={ETICHETTA_CAMPO}>{t('Sottotitolo')} · {t('facoltativo')}</div>
+          <input
+            value={sottotitolo}
+            onChange={e => { clearFeedback(); setSottotitolo(e.target.value) }}
+            placeholder={t('Es. Petto e tricipiti, un’ora')}
+            maxLength={SOTTOTITOLO_MAX}
+            aria-label={t('Sottotitolo')}
+            className="j-field"
           />
         </label>
 
@@ -1748,17 +1805,6 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
                 </div>
               )}
 
-              {/* Nelle schede con le progressioni serie e colpi li dice la
-                  progressione scelta: al posto dei due numeri, la sua scelta. */}
-              {conProgressione(r) && (
-                <CampoProgressione
-                  key={r.linkedExerciseId ?? 'nuovo'}
-                  valore={r.progressione}
-                  onChange={pr => patch(r.id, { progressione: pr })}
-                  pesoRiferimento={pesoDi(r)}
-                />
-              )}
-
               {/* Serie e ripetizioni: i due numeri che fanno la riga, col meno e
                   il più ai lati. */}
               {!conProgressione(r) && <div className="flex" style={{ gap: 12, marginTop: 14 }}>
@@ -1775,6 +1821,32 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
               </div>}
 
               <div style={{ marginTop: 14, borderTop: '1px solid var(--line)' }}>
+                {/* La progressione, come gli altri interruttori. Accesa, serie e
+                    colpi li dice lei: al posto dei due numeri qui sopra, la sua
+                    scelta, subito sotto l'interruttore. Si vede anche quando non
+                    si può accendere, spenta e col perché: nascosta finché non
+                    c'era un nome, chi apriva una riga nuova non la trovava. */}
+                {conProgressioni && (
+                  <RigaInterruttore
+                    titolo={t('Progressione')}
+                    sotto={r.name.trim() === '' ? t('Scegli prima l’esercizio: la regola parte da quanto ci sollevi')
+                      : corpoRiga(r) ? t('A corpo libero non c’è un carico da far salire')
+                      : t('Serie, ripetizioni e carichi li propone una regola che li fa salire')}
+                    acceso={conProgressione(r)}
+                    disabled={!puoProgressione(r)}
+                    onCambia={() => patch(r.id, { conProgr: !r.conProgr })}
+                  />
+                )}
+                {conProgressione(r) && (
+                  <div style={{ paddingBottom: 14, borderBottom: '1px solid var(--line)' }}>
+                    <CampoProgressione
+                      key={r.linkedExerciseId ?? 'nuovo'}
+                      valore={r.progressione}
+                      onChange={pr => patch(r.id, { progressione: pr })}
+                      pesoRiferimento={pesoDi(r)}
+                    />
+                  </div>
+                )}
                 {/* "max" è un obiettivo che un numero non sa dire: le serie a
                     cedimento non hanno un bersaglio da centrare. `colpiPrevisti`
                     su "max" cade su 0, cioè "nessun obiettivo": in allenamento non
@@ -1885,8 +1957,98 @@ export function SchedaFormPage({ scheda, palestraExercises, onCancel, onSave, on
             <Icons.trash size={15} stroke={1.9}/> {t('Elimina scheda')}
           </button>
         )}
+        </div>
+        {isDesktop && (
+          <aside style={{ position: 'sticky', top: 0 }}>
+            <LegendaScheda righe={righeLegenda} palestra={palestraExercises} muscleColors={muscleColors}/>
+          </aside>
+        )}
+        </div>
       </div>
     </SchedaPage>
+  )
+}
+
+// ── La legenda della scheda che si sta scrivendo (desktop) ─────
+// Accanto al form, mentre si aggiungono le righe: che muscoli tocca la scheda
+// e con quante serie, che tecniche e che progressioni ci sono. Solo la scheda
+// di adesso, non gli esercizi che esistono già: è il colpo d'occhio che sul
+// telefono si ha solo a scheda finita, dal suo report.
+function LegendaScheda({ righe, palestra, muscleColors }: {
+  righe: GymSchedaExercise[]
+  palestra: PalestraExercise[]
+  muscleColors: Record<string, string>
+}) {
+  const t = useT()
+  const tData = useTData()
+  const peso = useBodyWeight()
+  const { muscoli, esercizi, serie } = useMemo(() => ripartizioneMuscoli(righe, palestra, peso), [righe, palestra, peso])
+  const minuti = useMemo(() => Math.round(durataArrotondata(durataPrevista({ id: '', title: '', createdAt: '', updatedAt: '', exercises: righe })) / 60), [righe])
+  const massimo = Math.max(1, ...muscoli.map(m => m.serie))
+  const conTecnica = righe.flatMap(r => {
+    const tec = tecnicaDi(r)
+    return tec ? [{ nome: r.name, tecnica: testiTecnica(tec.tipo, t).nome }] : []
+  })
+  const conProgressione = righe.filter((r): r is GymSchedaExercise & { progressione: ProgressioneRiga } => !!r.progressione)
+  const titolo: CSSProperties = { fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-mute)' }
+  const voce: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, fontFamily: NUC.font, fontSize: 13.5, color: NUC.ink, lineHeight: 1.35 }
+  return (
+    <div style={{ background: 'var(--surface)', border: 'var(--bordo)' }}>
+      <div style={{ padding: '12px 14px', background: 'var(--ink)', color: 'var(--surface)' }}>
+        <div style={{ fontFamily: NUC.display, fontSize: 16, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase' }}>{t('Questa scheda')}</div>
+        <div style={{ fontFamily: NUC.font, fontSize: 13, color: 'var(--muted-dark)', marginTop: 2 }}>
+          {esercizi === 1 ? t('1 esercizio') : t('{n} esercizi', { n: esercizi })} · {serie === 1 ? t('1 serie') : `${serie} ${t('serie')}`}{minuti ? ` · ≈${minuti}′` : ''}
+        </div>
+      </div>
+      {esercizi === 0 ? (
+        <div style={{ padding: 14, fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: 'var(--fg-mute)' }}>
+          {t('Aggiungi un esercizio: qui compaiono i muscoli che la scheda allena, con le loro serie.')}
+        </div>
+      ) : (
+        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={titolo}>{t('Muscoli · serie allenanti')}</div>
+            {muscoli.map(m => (
+              <div key={m.muscolo}>
+                <div style={voce}>
+                  <span className="flex items-center" style={{ gap: 7, minWidth: 0 }}>
+                    <span style={{ width: 9, height: 9, flexShrink: 0, background: muscleColor(m.muscolo, muscleColors) }}/>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(m.muscolo)}</span>
+                  </span>
+                  <span style={{ fontFamily: NUC.display, fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtNum(m.serie)}</span>
+                </div>
+                <div style={{ height: 4, marginTop: 4, background: 'var(--surface-2)' }}>
+                  <div style={{ height: '100%', width: `${(m.serie / massimo) * 100}%`, background: muscleColor(m.muscolo, muscleColors) }}/>
+                </div>
+              </div>
+            ))}
+            <div style={{ fontFamily: NUC.font, fontSize: 11.5, color: 'var(--fg-mute)' }}>{t('Il gruppo secondario di un esercizio conta mezza serie.')}</div>
+          </div>
+          {conTecnica.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={titolo}>{t('Tecnica allenante')}</div>
+              {conTecnica.map((r, i) => (
+                <div key={i} style={voce}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(r.nome)}</span>
+                  <span style={{ flexShrink: 0, fontFamily: NUC.display, fontSize: 12, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--j-accent-ink)' }}>{r.tecnica}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {conProgressione.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={titolo}>{t('Progressione')}</div>
+              {conProgressione.map(r => (
+                <div key={r.id} style={voce}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tData(r.name)}</span>
+                  <span style={{ flexShrink: 0, fontFamily: NUC.display, fontSize: 13, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{sintesiProgressione(r.progressione)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -2463,6 +2625,9 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, scollegato 
             di due esercizi. */}
         {provenienza && <div className="j-eyebrow" style={{ fontSize: 13 }}>{provenienza}</div>}
         <div className="j-page-title" style={{ marginTop: 4, overflowWrap: 'anywhere' }}>{scheda.title}</div>
+        {scheda.sottotitolo && (
+          <div style={{ fontFamily: NUC.font, fontSize: 15, lineHeight: 1.35, color: NUC.dim, marginTop: 4, overflowWrap: 'anywhere' }}>{scheda.sottotitolo}</div>
+        )}
         {scheda.exercises.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', margin: '14px 0 18px', background: 'var(--surface)', border: 'var(--bordo)' }}>
             {numero(scheda.exercises.length, scheda.exercises.length === 1 ? t('esercizio') : t('esercizi'), true)}
@@ -2618,6 +2783,39 @@ function SchedaDetailPage({ scheda, muscleColors, nataIl, assegnata, scollegato 
 // Ricondividere non duplica: la copia ha un id derivato dalla coppia
 // scheda-allievo (vedi `idSchedaCondivisa`), quindi la seconda volta aggiorna
 // quella che ha già. Per questo dopo il primo invio il tasto dice "Aggiorna".
+/** Un allievo nella scelta di con chi condividere: la sua faccia — la foto, o
+ *  le iniziali se non ne ha messa una — il nome e com'è andato l'invio. Prima
+ *  c'era solo il nome, e due allievi con lo stesso nome non si distinguevano. */
+function RigaCondividi({ allievo, fatto, attesa, onManda }: { allievo: CoachLink; fatto: boolean; attesa: boolean; onManda: () => void }) {
+  const t = useT()
+  const profilo = useProfilo(allievo.athlete_id)
+  const nome = nomeCompleto(profilo, allievo.athlete_name?.trim() || t('Senza nome'))
+  return (
+    <button
+      onClick={onManda}
+      disabled={attesa}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        width: '100%', padding: '9px 13px 9px 9px', borderRadius: 'var(--radius)',
+        background: 'var(--surface)', border: '1px solid var(--hairline)',
+        cursor: attesa ? 'default' : 'pointer', textAlign: 'left',
+      }}
+    >
+      <Avatar foto={profilo?.foto} nome={nome} size={36}/>
+      <span style={{ flex: 1, fontFamily: NUC.font, fontSize: 14, color: 'var(--fg)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {nome}
+      </span>
+      <span style={{
+        flexShrink: 0, fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
+        textTransform: 'uppercase',
+        color: fatto ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
+      }}>
+        {attesa ? t('Invio…') : fatto ? t('Inviata ✓') : t('Condividi')}
+      </span>
+    </button>
+  )
+}
+
 function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
   open: boolean
   onClose: () => void
@@ -2629,6 +2827,12 @@ function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
   const [inCorso, setInCorso] = useState<string | null>(null)
   const [fatti, setFatti] = useState<string[]>([])
   const [errore, setErrore] = useState<string | null>(null)
+
+  // Le facce degli allievi: si rileggono aprendo, perché la copia sul telefono
+  // si riempie dalla pagina del coaching, e da qui potrebbe non esserci ancora.
+  useEffect(() => {
+    if (open && allievi.length) void leggiProfili(allievi.map(a => a.athlete_id)).catch(() => { /* senza rete restano le iniziali */ })
+  }, [open, allievi])
 
   const manda = (a: CoachLink) => {
     setInCorso(a.athlete_id)
@@ -2650,34 +2854,13 @@ function ModaleCondividi({ open, onClose, titolo, allievi, onCondividi }: {
           <div style={{ fontFamily: NUC.label, fontSize: 10.5, color: 'var(--danger)', lineHeight: 1.5 }}>{errore}</div>
         )}
 
-        {allievi.map(a => {
-          const fatto = fatti.includes(a.athlete_id)
-          const attesa = inCorso === a.athlete_id
-          return (
-            <button
-              key={a.athlete_id}
-              onClick={() => manda(a)}
-              disabled={attesa}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                width: '100%', padding: '11px 13px', borderRadius: 'var(--radius)',
-                background: 'var(--surface)', border: '1px solid var(--hairline)',
-                cursor: attesa ? 'default' : 'pointer', textAlign: 'left',
-              }}
-            >
-              <span style={{ fontFamily: NUC.font, fontSize: 14, color: 'var(--fg)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {a.athlete_name?.trim() || t('Senza nome')}
-              </span>
-              <span style={{
-                flexShrink: 0, fontFamily: NUC.label, fontSize: 9.5, letterSpacing: '.12em',
-                textTransform: 'uppercase',
-                color: fatto ? 'var(--j-accent-ink)' : 'var(--fg-mute)',
-              }}>
-                {attesa ? t('Invio…') : fatto ? t('Inviata ✓') : t('Condividi')}
-              </span>
-            </button>
-          )
-        })}
+        {allievi.map(a => (
+          <RigaCondividi
+            key={a.athlete_id} allievo={a}
+            fatto={fatti.includes(a.athlete_id)} attesa={inCorso === a.athlete_id}
+            onManda={() => manda(a)}
+          />
+        ))}
       </div>
     </JModal>
   )
@@ -4022,68 +4205,71 @@ function SchedaTrainingPage({ scheda: schedaScritta, palestraExercises, onExit, 
   )
 }
 
-// ── Report gruppi muscolari (aggregato su tutte le schede) ──────
-function SchedaReportPage({ schede, muscleColors, onBack }: {
-  schede: GymScheda[]
+// ── Il report muscolare di una scheda ──────────────────────────
+// Che muscoli allena QUESTA scheda, e quanto: le serie allenanti (il gruppo
+// secondario di un esercizio conta mezza serie) e i chili, serie × colpi × kg
+// dell'ultima volta (vedi `ripartizioneMuscoli`). Prima ce n'era uno solo per
+// tutte le schede insieme, che contava quante volte compariva un gruppo: tre
+// schede diverse sommate non dicevano niente di nessuna delle tre.
+function SchedaReportPage({ scheda, palestraExercises, muscleColors, onBack }: {
+  scheda: GymScheda
+  palestraExercises: PalestraExercise[]
   muscleColors: Record<string, string>
   onBack: () => void
 }) {
   const t = useT()
   const tData = useTData()
   const { scuro } = useTema()
-  const { rows, total, schedeConEsercizi } = useMemo(() => {
-    const counts: Record<string, number> = {}
-    let total = 0
-    let schedeConEsercizi = 0
-    for (const sc of schede) {
-      if (sc.exercises.length > 0) schedeConEsercizi++
-      for (const ex of sc.exercises) {
-        const m = displayMuscle(ex.muscle || 'Altro')
-        counts[m] = (counts[m] || 0) + 1
-        total++
-      }
-    }
-    const rows = Object.entries(counts)
-      .map(([muscle, count]) => ({ muscle, count, pct: total ? (count / total) * 100 : 0 }))
-      .sort((a, b) => b.count - a.count)
-    return { rows, total, schedeConEsercizi }
-  }, [schede])
-
-  const maxCount = rows[0]?.count ?? 1
+  const peso = useBodyWeight()
+  const { muscoli, esercizi, serie, chili } = useMemo(
+    () => ripartizioneMuscoli(scheda.exercises, palestraExercises, peso),
+    [scheda.exercises, palestraExercises, peso],
+  )
+  const minuti = Math.round(durataArrotondata(durataPrevista(scheda)) / 60)
+  const massimo = Math.max(1, ...muscoli.map(m => m.serie))
+  const numero = (valore: string, etichetta: string, primo: boolean) => (
+    <div style={{ padding: '10px 12px', borderLeft: primo ? 'none' : '1px solid var(--line)', minWidth: 0 }}>
+      <div style={{ fontFamily: NUC.display, fontSize: 26, fontWeight: 800, lineHeight: 1, color: NUC.ink, whiteSpace: 'nowrap' }}>{valore}</div>
+      <div style={{ fontFamily: NUC.display, fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 4 }}>{etichetta}</div>
+    </div>
+  )
 
   return (
-    <SchedaPage
-      onBack={onBack}
-      title={t('Report muscolare')}
-      sub={<>{t('{n} esercizi', { n: total })} · {schedeConEsercizi === 1 ? t('1 scheda') : t('{n} schede', { n: schedeConEsercizi })}</>}
-    >
-
+    <SchedaPage onBack={onBack} title={t('Report muscolare')} sub={scheda.title} tronca>
       <div className="j-scroll-area">
-        {rows.length === 0 ? (
-          <div className="j-empty">{t('Nessun esercizio nelle schede — creane per vedere il report')}</div>
+        {esercizi === 0 ? (
+          <div className="j-empty">{t('Scheda vuota — modificala per aggiungere esercizi')}</div>
         ) : (
           <>
-            <div style={{ fontFamily: NUC.label, fontSize: 10, letterSpacing: '.1em', color: NUC.faint, textTransform: 'uppercase', marginBottom: 12, lineHeight: 1.5 }}>
-              {t('Distribuzione dei gruppi muscolari su tutte le schede: quante volte ogni gruppo viene colpito e la sua quota sul totale.')}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', margin: '4px 0 14px', background: 'var(--surface)', border: 'var(--bordo)' }}>
+              {numero(String(esercizi), esercizi === 1 ? t('esercizio') : t('esercizi'), true)}
+              {numero(String(serie), t('serie'), false)}
+              {numero(minuti ? `${minuti}′` : '—', t('minuti'), false)}
+              {numero(chili > 0 ? fmtVol(chili) : '—', t('kg totali'), false)}
             </div>
-            {rows.map(r => {
-              const color = muscleColor(r.muscle, muscleColors)
+            <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: NUC.faint, marginBottom: 12 }}>
+              {t('Serie allenanti per muscolo: il gruppo secondario di un esercizio conta mezza serie. I chili sono serie × ripetizioni × kg dell’ultima volta; gli esercizi mai fatti contano solo nelle serie.')}
+            </div>
+            {muscoli.map(m => {
+              const color = muscleColor(m.muscolo, muscleColors)
               return (
-                <div key={r.muscle} className="mb-2.5">
+                <div key={m.muscolo} className="mb-2.5">
                   <NucCard pad={13} style={{ borderLeft: `3px solid ${color}` }}>
-                    <div className="flex items-center justify-between gap-3" style={{ marginBottom: 8 }}>
-                      <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 500, color: muscleTextColor(color, scuro) }}>{tData(r.muscle)}</div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
-                        <span style={{ fontFamily: NUC.label, fontSize: 10, color: NUC.faint, letterSpacing: '.04em' }}>
-                          {r.count === 1 ? t('1 volta') : t('{n} volte', { n: r.count })}
-                        </span>
-                        <span style={{ fontFamily: NUC.label, fontSize: 18, color: NUC.accentInk, letterSpacing: -0.5 }}>
-                          {Math.round(r.pct)}<span style={{ fontSize: 11, opacity: 0.6 }}>%</span>
-                        </span>
+                    <div className="flex items-baseline justify-between gap-3" style={{ marginBottom: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: NUC.font, fontSize: 16, fontWeight: 600, color: muscleTextColor(color, scuro) }}>{tData(m.muscolo)}</div>
+                        <div style={{ fontFamily: NUC.display, fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: NUC.faint, marginTop: 2 }}>
+                          {m.esercizi === 0 ? t('come gruppo secondario') : m.esercizi === 1 ? t('1 esercizio') : t('{n} esercizi', { n: m.esercizi })}
+                          {m.chili > 0 && ` · ${fmtVol(m.chili)} kg`}
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        <span style={{ fontFamily: NUC.display, fontSize: 24, fontWeight: 800, color: NUC.ink, fontVariantNumeric: 'tabular-nums' }}>{fmtNum(m.serie)}</span>
+                        <span style={{ fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: NUC.faint, marginLeft: 4 }}>{t('serie')}</span>
                       </div>
                     </div>
                     <div style={{ height: 6, background: 'var(--surface-2)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${(r.count / maxCount) * 100}%`, background: color, transition: 'width 400ms cubic-bezier(.2,.9,.2,1)' }}/>
+                      <div style={{ height: '100%', width: `${(m.serie / massimo) * 100}%`, background: color, transition: 'width 400ms cubic-bezier(.2,.9,.2,1)' }}/>
                     </div>
                   </NucCard>
                 </div>

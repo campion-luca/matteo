@@ -124,6 +124,17 @@ export function fmtShortDate(iso: string): string {
   return `${m[3]}/${m[2]}/${m[1].slice(2)}`
 }
 
+/** "Mar" · "Tue": il giorno della settimana di una data ISO, con la maiuscola.
+ *  La data si legge nel fuso del telefono e non con `new Date(iso)`, che la
+ *  prende per mezzanotte UTC e a ovest di Greenwich darebbe il giorno prima
+ *  (vedi `fmtShortDate`). Vuoto se la stringa non è una data. */
+export function giornoSettimana(iso: string, lang: Lang = getLang()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return ''
+  const g = daysAbbr(lang)[(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay() + 6) % 7]
+  return g.charAt(0).toUpperCase() + g.slice(1)
+}
+
 /** "21/08" — giorno e mese soli. Sull'asse dei grafici l'anno è
  *  ridondante (la serie è cronologica) e costa tre caratteri per punto: senza,
  *  le date ci stanno tutte invece di essere diradate una sì e due no. */

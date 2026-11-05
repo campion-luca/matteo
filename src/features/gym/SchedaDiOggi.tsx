@@ -8,6 +8,7 @@
 // fatta se il coach ha numerato le schede, altrimenti quella che non si fa da più
 // tempo.
 import { useState, type CSSProperties } from 'react'
+import { AngoloPiegato } from '@/components/ui/AngoloPiegato'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
 import { useJarvisStore } from '@/store/useJarvisStore'
@@ -140,14 +141,17 @@ export function SezioneSchede({ onTutte, onAvvia, onChiudi }: {
         aria-label={t('Apri la scheda {scheda}', { scheda: scheda.title })}
         onClick={apriScheda}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apriScheda() } }}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: 'pointer', position: 'relative' }}
       >
+        <AngoloPiegato/>
         <div className="j-oggi-corpo">
           <div style={{ minWidth: 0 }}>
+            {/* Il sottotitolo sta qui, nella riga che non va mai a capo: in
+                una riga sua allungava la card, e la home deve stare in uno
+                schermo. Lungo, si tronca. Non accanto a «fatta», che va letto. */}
             <div className="j-oggi-occhiello">
               {fattaOggi ? t('Oggi · {scheda} · fatta', { scheda: scheda.title })
-                : inCorsoOggi ? t('In corso · {scheda}', { scheda: scheda.title })
-                : t('Oggi · {scheda}', { scheda: scheda.title })}
+                : `${inCorsoOggi ? t('In corso · {scheda}', { scheda: scheda.title }) : t('Oggi · {scheda}', { scheda: scheda.title })}${scheda.sottotitolo ? ` · ${scheda.sottotitolo}` : ''}`}
             </div>
             <div className="j-oggi-nome" style={{ '--oggi-em': Math.max(principale.length, 4) * 0.5 } as CSSProperties}>
               {principale}

@@ -15,7 +15,7 @@ import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { CelleSettimana, type GiornoSettimana } from '@/features/dashboard/SettimanaStrip'
 import { Icons } from '@/components/ui/Icons'
 import { LineChart } from '@/features/gym/gymShared'
-import { entryVolume, fmtVol, fmtKg, fmtReps, displayMuscle } from '@/features/gym/gymModel'
+import { entryVolume, fmtKg, fmtReps, displayMuscle } from '@/features/gym/gymModel'
 import { GIORNI_DI_STOP } from '@/features/gym/caricoConsigliato'
 import { perMuscolo } from './gruppi'
 import { TendinaGruppo } from './TendinaGruppo'
@@ -31,9 +31,11 @@ import type { PalestraExercise, PalestraHistoryEntry } from '@/store/useJarvisSt
 
 interface Sessione {
   date: string
-  volume: number
   alzate: Array<{ ex: string; muscle: string; h: PalestraHistoryEntry }>
 }
+
+/** I gruppi delle «Migliori alzate», nell'ordine in cui si leggono. */
+const GRUPPI_MIGLIORI = ['Petto', 'Gambe', 'Dorso', 'Spalle']
 
 export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApriGrafici, onApriNote }: {
   data: AthleteData
@@ -68,8 +70,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
     for (const ex of palestra) {
       for (const h of ex.history) {
         if (!h.date) continue
-        const s = perGiorno.get(h.date) ?? { date: h.date, volume: 0, alzate: [] }
-        s.volume += entryVolume(h, peso * quotaCorpo(ex))
+        const s = perGiorno.get(h.date) ?? { date: h.date, alzate: [] }
         s.alzate.push({ ex: ex.n, muscle: displayMuscle(ex.muscle), h })
         perGiorno.set(h.date, s)
       }
@@ -77,11 +78,11 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
     for (const ex of hyrox) {
       for (const h of ex.history) {
         if (!h.date) continue
-        if (!perGiorno.has(h.date)) perGiorno.set(h.date, { date: h.date, volume: 0, alzate: [] })
+        if (!perGiorno.has(h.date)) perGiorno.set(h.date, { date: h.date, alzate: [] })
       }
     }
     return [...perGiorno.values()].sort((a, b) => b.date.localeCompare(a.date))
-  }, [palestra, hyrox, peso])
+  }, [palestra, hyrox])
 
   // ── La settimana di calendario, lunedì→domenica ──────────────
   const settimana = useMemo(() => {
@@ -103,26 +104,8 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
     return {
       giorni,
       sessioni: daLunedì.length,
-      volume: daLunedì.reduce((tot, s) => tot + s.volume, 0),
     }
   }, [sessioni, lang])
-
-  // ── Volume per settimana, ultime otto ────────────────────────
-  const volumeSettimane = useMemo(() => {
-    const oggi = new Date()
-    const lunedìCorrente = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - ((oggi.getDay() + 6) % 7))
-    const out: Array<{ label: string; volume: number }> = []
-    for (let w = 7; w >= 0; w--) {
-      const da = new Date(lunedìCorrente.getFullYear(), lunedìCorrente.getMonth(), lunedìCorrente.getDate() - w * 7)
-      const a = new Date(da.getFullYear(), da.getMonth(), da.getDate() + 6)
-      const daISO = localISO(da), aISO = localISO(a)
-      out.push({
-        label: fmtDayMonth(daISO),
-        volume: sessioni.filter(s => s.date >= daISO && s.date <= aISO).reduce((t, s) => t + s.volume, 0),
-      })
-    }
-    return out
-  }, [sessioni])
 
   // ── Peso ─────────────────────────────────────────────────────
   const pesate = useMemo(() => (data.weightLog ?? []).slice(-14), [data.weightLog])
@@ -149,10 +132,17 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
   // cioè i tre numeri che dell'alzata si leggono. Prima contava il massimale
   // stimato, che è un numero calcolato e che nessuno ha alzato: accanto a ogni
   // riga c'era "72 kg" per una panca fatta a 60. Di ogni esercizio entra una
-  // sola alzata, la sua migliore, e si vedono le prime tre: le altre sono nei
-  // grafici, dietro "Tutte".
+  // sola alzata, la sua migliore; tutte le altre sono nei grafici, dietro
+  // "Tutte".
+  //
+  // Dal 4 nov 2026 non sono più le prime tre in assoluto ma una per gruppo:
+  // petto, gambe, dorso e spalle, i quattro che chi allena guarda per primi.
+  // In assoluto vincevano sempre le gambe — la leg press sposta più chili di
+  // qualunque spinta — e del petto o delle spalle non si vedeva niente. Un
+  // gruppo senza alzate non compare; senza nessuno dei quattro la sezione resta,
+  // con «Tutte», e lo dice.
   const migliori = useMemo(() => {
-    return palestra
+    const perGruppo = palestra
       .filter(ex => ex.history.length > 0 && !corpoLibero(ex))
       .map(ex => {
         const p = peso * quotaCorpo(ex)
@@ -160,7 +150,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
         return { nome: ex.n, muscle: displayMuscle(ex.muscle), h: top, lavoro: entryVolume(top, p) }
       })
       .sort((a, b) => b.lavoro - a.lavoro)
-      .slice(0, 3)
+    return GRUPPI_MIGLIORI.flatMap(g => perGruppo.filter(m => m.muscle === g).slice(0, 1))
   }, [palestra, peso])
 
   const ultimoAllenamento = sessioni[0]?.date
@@ -246,22 +236,6 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
         </section>
       )}
 
-      {/* ── Volume nel tempo ───────────────────────────────── */}
-      {volumeSettimane.some(w => w.volume > 0) && (
-        <section>
-          <NucEyebrow right={<span style={UNITA}>{t('kg totali')}</span>}>{t('Volume / settimana')}</NucEyebrow>
-          <div style={{ ...RIQUADRO, padding: 12 }}>
-            <LineChart
-              data={volumeSettimane.map(w => w.volume)}
-              labels={volumeSettimane.map(w => w.label)}
-              pointLabels={volumeSettimane.map(w => fmtVol(w.volume))}
-              height={112} color="var(--ink)" yAxis labelSize={9}
-              yFormat={v => fmtVol(v)}
-            />
-          </div>
-        </section>
-      )}
-
       {/* ── Peso ───────────────────────────────────────────── */}
       {pesate.length >= 2 && (
         <section>
@@ -311,7 +285,7 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
       )}
 
       {/* ── Migliori alzate ────────────────────────────────── */}
-      {migliori.length > 0 && (
+      {palestra.some(ex => ex.history.length > 0 && !corpoLibero(ex)) && (
         <section>
           <NucEyebrow right={onApriGrafici ? (
             <button onClick={onApriGrafici} className="j-focus" style={{
@@ -323,6 +297,11 @@ export function CoachAthlete({ data, slotSchede, note = 0, onApriSessioni, onApr
             </button>
           ) : undefined}>{t('Migliori alzate')}</NucEyebrow>
           <div style={RIQUADRO}>
+            {migliori.length === 0 && (
+              <div style={{ padding: '12px 14px', fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: 'var(--fg-mute)' }}>
+                {t('Nessuna alzata di petto, gambe, dorso o spalle: le altre sono in «Tutte».')}
+              </div>
+            )}
             {migliori.map((m, i) => (
               <div key={m.nome} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',

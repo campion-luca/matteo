@@ -123,8 +123,17 @@ describe('il desktop', () => {
     const user = userEvent.setup()
     monta()
     const barra = screen.getByRole('navigation', { name: 'Sezioni' })
-    expect(within(barra).getByRole('button', { name: /Oggi/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(barra).getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
     expect(within(barra).getByRole('button', { name: /Schede/ })).toHaveTextContent('2')
+    // L'ordine del 4 nov 2026: un elenco solo, e l'account in fondo.
+    expect(within(barra).getAllByRole('button').map(b => b.textContent?.replace(/\d+$/, ''))).toEqual(
+      expect.arrayContaining(['Home', 'Messaggi', 'Schede', 'Calendario', 'Esercizi', 'Statistiche']))
+    const nomi = within(barra).getAllByRole('button').map(b => b.textContent?.replace(/\d+$/, '') ?? '')
+    expect(nomi.indexOf('Home')).toBeLessThan(nomi.indexOf('Messaggi'))
+    expect(nomi.indexOf('Messaggi')).toBeLessThan(nomi.indexOf('Schede'))
+    expect(nomi.indexOf('Calendario')).toBeLessThan(nomi.indexOf('Esercizi'))
+    expect(nomi.indexOf('Esercizi')).toBeLessThan(nomi.indexOf('Statistiche'))
+    expect(within(barra).getByText('Account')).toBeInTheDocument()
     await user.click(within(barra).getByRole('button', { name: 'Statistiche' }))
     expect(useNavDesktop.getState().dove.sezione).toBe('statistiche')
     expect(screen.getByText('Statistiche', { selector: '.j-page-title' })).toBeInTheDocument()
@@ -138,10 +147,10 @@ describe('il desktop', () => {
     expect(useNavDesktop.getState().dove).toMatchObject({ sezione: 'schede', apri: 'a' })
     expect(await screen.findByText('Push', { selector: '.j-page-title' })).toBeInTheDocument()
 
-    await user.click(within(screen.getByRole('navigation', { name: 'Sezioni' })).getByRole('button', { name: /Oggi/ }))
+    await user.click(within(screen.getByRole('navigation', { name: 'Sezioni' })).getByRole('button', { name: 'Home' }))
     await user.click(screen.getAllByRole('button', { name: /Nuova scheda/ })[0])
     expect(useNavDesktop.getState().dove).toMatchObject({ sezione: 'schede', nuova: true })
-    expect(await screen.findByPlaceholderText(/nome della scheda|Es\./i)).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText(/Nome scheda/)).toBeInTheDocument()
   })
 
   it('una riga della scheda di oggi apre l’esercizio, e tornando a «Oggi» si richiude', async () => {
@@ -150,7 +159,7 @@ describe('il desktop', () => {
     await user.click(within(screen.getAllByRole('table')[0]).getByRole('button', { name: 'Squat' }))
     expect(useNavDesktop.getState().dove.sezione).toBe('esercizi')
     expect(await screen.findByRole('button', { name: /Nuova alzata/ })).toBeInTheDocument()
-    await user.click(within(screen.getByRole('navigation', { name: 'Sezioni' })).getByRole('button', { name: /Oggi/ }))
+    await user.click(within(screen.getByRole('navigation', { name: 'Sezioni' })).getByRole('button', { name: 'Home' }))
     expect(screen.queryByRole('button', { name: /Nuova alzata/ })).toBeNull()
     expect(screen.getByRole('heading', { name: 'Ciao, Luca' })).toBeInTheDocument()
   })

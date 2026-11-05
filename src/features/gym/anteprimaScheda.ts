@@ -5,7 +5,8 @@
 //
 // Logica pura: l'elenco la disegna (vedi SchedeListPage), i conti si provano qui.
 import type { GymScheda, GymSchedaExercise, PalestraExercise, TipoTecnica } from '@/store/useJarvisStore'
-import { colpiPrevisti, displayMuscle, ultimaVoltaPerScheda, esercizioPerNome } from './gymModel'
+import { colpiPrevisti, displayMuscle, ultimaVoltaPerScheda, esercizioPerNome, ultimaDiLavoro, setLoads, setRepsOf } from './gymModel'
+import { quotaCorpo } from './catalogo'
 import { tecnicaDi, toccaSerie } from './tecniche'
 import { localISO, giorniTra } from '@/lib/isoDate'
 
@@ -60,6 +61,76 @@ export function muscoliDellaScheda(scheda: GymScheda, palestra: PalestraExercise
   return [...conto.entries()]
     .map(([muscolo, esercizi]) => ({ muscolo, esercizi }))
     .sort((a, b) => b.esercizi - a.esercizi)
+}
+
+// ── Come si dividono serie e chili fra i muscoli ──────────────
+// Il report di una scheda e la legenda del form la leggono uguale: quante
+// serie allenanti riceve ogni muscolo, e quanti chili ci si spostano.
+
+export interface QuotaMuscolo {
+  muscolo: string
+  /** Le serie allenanti: tutte quelle degli esercizi di cui è il gruppo
+   *  principale, metà di quelle di cui è il secondario. */
+  serie: number
+  /** Gli esercizi di cui è il gruppo principale. */
+  esercizi: number
+  /** Serie × colpi × kg dell'ultima alzata di lavoro, con la stessa metà per il
+   *  secondario. Un esercizio mai fatto conta nelle serie e non qui. */
+  chili: number
+}
+
+export interface Ripartizione {
+  /** Dal muscolo con più serie. */
+  muscoli: QuotaMuscolo[]
+  esercizi: number
+  serie: number
+  chili: number
+}
+
+/** I chili che una riga sposta: serie × colpi × kg, coi colpi della scheda e i
+ *  chili dell'ultima alzata di lavoro dell'esercizio, serie per serie. Dove la
+ *  scheda non dice i colpi ("max") valgono quelli dell'ultima volta. 0 per un
+ *  esercizio mai fatto: senza un peso, i chili non si sanno. */
+function chiliDellaRiga(riga: GymSchedaExercise, serie: number, ex: PalestraExercise | undefined, pesoCorporeo: number): number {
+  const ultima = ex ? ultimaDiLavoro(ex.history) : undefined
+  if (!ultima) return 0
+  const carichi = setLoads(ultima, pesoCorporeo * quotaCorpo(ex))
+  const colpiPrima = setRepsOf(ultima)
+  const bersagli = colpiPrevisti(riga.reps, serie)
+  let tot = 0
+  for (let i = 0; i < serie; i++) {
+    const colpi = bersagli[i] || colpiPrima[Math.min(i, colpiPrima.length - 1)] || 0
+    tot += (carichi[Math.min(i, carichi.length - 1)] ?? 0) * colpi
+  }
+  return Math.round(tot)
+}
+
+/** Le serie e i chili di una scheda, muscolo per muscolo. `pesoCorporeo` serve
+ *  agli esercizi a corpo libero: senza, conta la sola zavorra. */
+export function ripartizioneMuscoli(righe: readonly GymSchedaExercise[], palestra: PalestraExercise[], pesoCorporeo = 0): Ripartizione {
+  const per = new Map<string, QuotaMuscolo>()
+  const quota = (m: string) => {
+    const q = per.get(m) ?? { muscolo: m, serie: 0, esercizi: 0, chili: 0 }
+    per.set(m, q)
+    return q
+  }
+  let esercizi = 0, serie = 0, chili = 0
+  for (const riga of righe) {
+    if (!riga.name.trim()) continue
+    const n = Math.min(SERIE_MAX, Math.max(1, Math.floor(riga.sets) || 1))
+    const ex = esercizioDellaRiga(riga, palestra)
+    const principale = muscoloDellaRiga(riga, palestra)
+    const secondario = ex?.muscle2?.trim() ? displayMuscle(ex.muscle2.trim()) : null
+    const kg = chiliDellaRiga(riga, n, ex, pesoCorporeo)
+    esercizi++; serie += n; chili += kg
+    const p = quota(principale)
+    p.esercizi++; p.serie += n; p.chili += kg
+    if (secondario && secondario !== principale) {
+      const s = quota(secondario)
+      s.serie += n / 2; s.chili += kg / 2
+    }
+  }
+  return { muscoli: [...per.values()].sort((x, y) => y.serie - x.serie || y.chili - x.chili), esercizi, serie, chili }
 }
 
 /** Quanto dura la scheda, in secondi: per ogni serie il tempo di farla (con la

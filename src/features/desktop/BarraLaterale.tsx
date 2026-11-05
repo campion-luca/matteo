@@ -5,7 +5,7 @@
 //
 // Ogni voce porta in una sezione (vedi navDesktop); il numero accanto dice
 // quante cose ci sono dentro, o quante aspettano — i messaggi da leggere.
-import { useEffect, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
@@ -67,13 +67,6 @@ export function BarraLaterale({ userId, onUtente, onImpostazioni }: {
     )
   }
 
-  const gruppo = (titolo: string, voci: ReactNode) => (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ padding: '0 16px 6px', fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted-dark)' }}>{titolo}</div>
-      {voci}
-    </div>
-  )
-
   const misure = [userWeight ? `${fmtNum(userWeight)} kg` : '', userHeight ? `${fmtNum(userHeight)} cm` : ''].filter(Boolean).join(' · ')
 
   return (
@@ -87,24 +80,24 @@ export function BarraLaterale({ userId, onUtente, onImpostazioni }: {
         <span style={{ fontFamily: NUC.display, fontSize: 19, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase' }}>Matteo</span>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {gruppo(t('Allenamento'), <>
-          {voce('oggi', t('Oggi'))}
-          {voce('schede', t('Schede'), schede)}
-          {voce('esercizi', t('Esercizi'), esercizi)}
-          {voce('calendario', t('Calendario'))}
-          {voce('statistiche', t('Statistiche'))}
-        </>)}
-        {gruppo(t('Coaching'), <>
-          {(coachAbilitato || allievi > 0) && voce('allievi', t('Allievi'), allievi)}
-          {voce('messaggi', t('Messaggi'), daLeggere)}
-          {voce('coach', t('Il mio coach'))}
-        </>)}
+      {/* Un elenco solo, nell'ordine in cui si usa (4 nov 2026): prima erano due
+          gruppi, «Allenamento» e «Coaching». Al coach i suoi allievi, subito
+          dopo la home; a chi si allena, nello stesso posto, il suo coach. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 18 }}>
+        {voce('oggi', t('Home'))}
+        {coachAbilitato || allievi > 0 ? voce('allievi', t('Allievi'), allievi) : voce('coach', t('Il mio coach'))}
+        {voce('messaggi', t('Messaggi'), daLeggere)}
+        {voce('schede', t('Schede'), schede)}
+        {voce('calendario', t('Calendario'))}
+        {voce('esercizi', t('Esercizi'), esercizi)}
+        {voce('statistiche', t('Statistiche'))}
       </div>
 
-      {/* Chi sta usando l'app: toccandolo si apre il profilo, la rotella le
-          impostazioni — le stesse due porte del saluto sul telefono. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 10px 12px 12px', borderTop: '1px solid var(--line-dark)' }}>
+      {/* L'account: chi sta usando l'app. Toccandolo si apre il profilo, la
+          rotella le impostazioni — le stesse due porte del saluto sul telefono. */}
+      <div style={{ borderTop: '1px solid var(--line-dark)', paddingTop: 10 }}>
+      <div style={{ padding: '0 16px', fontFamily: NUC.display, fontSize: 12, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted-dark)' }}>{t('Account')}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 12px 12px' }}>
         <button type="button" onClick={onUtente} aria-label={t('Profilo')} className="j-focus" style={{
           flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 4,
           background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--surface)',
@@ -124,6 +117,7 @@ export function BarraLaterale({ userId, onUtente, onImpostazioni }: {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'transparent', border: 'none', color: 'var(--surface)',
         }}><Icons.settings size={18} stroke={1.8}/></button>
+      </div>
       </div>
     </nav>
   )

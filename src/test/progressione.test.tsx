@@ -207,12 +207,28 @@ describe('il form della scheda', () => {
     expect(onSave.mock.calls[0][0].exercises[0].progressione).toEqual(p)
   })
 
-  it('in una scheda nuova si sceglie la progressione: senza, non si salva', async () => {
+  // Dal 4 nov 2026 la progressione è facoltativa: un interruttore, spento di
+  // serie, come Superset e Cedimento.
+  it('in una scheda nuova la progressione è facoltativa: spenta si salva con serie e colpi', async () => {
     const user = userEvent.setup()
     const onSave = monta(null)
     await user.type(screen.getByPlaceholderText(/Nome scheda/), 'Upper A')
     await user.type(screen.getByLabelText('Nome esercizio'), 'Panca piana')
     await user.selectOptions(screen.getByLabelText('Gruppo muscolare'), 'Petto')
+    expect(screen.getByPlaceholderText('3')).toHaveValue('3')
+    await user.click(screen.getAllByRole('button', { name: /Salva scheda/ })[0])
+    const salvata = onSave.mock.calls[0][0] as GymScheda
+    expect(salvata.exercises[0]).toMatchObject({ sets: 3, reps: '8' })
+    expect(salvata.exercises[0]).not.toHaveProperty('progressione')
+  })
+
+  it('accesa, serie e colpi li dà lei, e va scelta: senza, non si salva', async () => {
+    const user = userEvent.setup()
+    const onSave = monta(null)
+    await user.type(screen.getByPlaceholderText(/Nome scheda/), 'Upper A')
+    await user.type(screen.getByLabelText('Nome esercizio'), 'Panca piana')
+    await user.selectOptions(screen.getByLabelText('Gruppo muscolare'), 'Petto')
+    await user.click(screen.getByRole('switch', { name: 'Progressione' }))
     // Serie e colpi non si scrivono: li dà la progressione.
     expect(screen.queryByPlaceholderText('3')).not.toBeInTheDocument()
 
@@ -234,6 +250,7 @@ describe('il form della scheda', () => {
     await user.type(screen.getByPlaceholderText(/Nome scheda/), 'Braccia')
     await user.type(screen.getByLabelText('Nome esercizio'), 'Alzate laterali')
     await user.selectOptions(screen.getByLabelText('Gruppo muscolare'), 'Spalle')
+    await user.click(screen.getByRole('switch', { name: 'Progressione' }))
     await user.click(screen.getByRole('button', { name: 'Mono grande' }))
     await user.click(screen.getByRole('button', { name: 'Lista carichi' }))
     const lista = screen.getByLabelText('Carichi disponibili')
@@ -248,11 +265,32 @@ describe('il form della scheda', () => {
     })
   })
 
+  it('spenta su una riga che l’aveva, si salva senza; riaccesa, ritrova la scelta di prima', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const p = conPreset('multi')
+    monta({
+      id: 'sc1', title: 'Forza A', createdAt: '2026-10-27', updatedAt: '2026-10-27', conProgressioni: true,
+      exercises: [{ id: 'r1', name: 'Panca piana', muscle: 'Petto', progressione: p, ...serieERipetizioni(p) }],
+    }, onSave)
+    await user.click(screen.getByText('Panca piana').closest('button')!)
+    const interruttore = screen.getByRole('switch', { name: 'Progressione' })
+    expect(interruttore).toHaveAttribute('aria-checked', 'true')
+    await user.click(interruttore)
+    expect(screen.getByPlaceholderText('3')).toHaveValue('4')
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[0][0].exercises[0]).not.toHaveProperty('progressione')
+
+    await user.click(screen.getByRole('switch', { name: 'Progressione' }))
+    await user.click(screen.getAllByRole('button', { name: /Salva modifiche/ })[0])
+    expect(onSave.mock.calls[1][0].exercises[0].progressione).toEqual(p)
+  })
+
   it('una scheda di prima resta com’era: serie, colpi, niente progressione', async () => {
     const user = userEvent.setup()
     monta({ id: 'sc0', title: 'Vecchia', createdAt: '2026-09-01', updatedAt: '2026-09-01', exercises: [{ id: 'r1', name: 'Panca piana', sets: 3, reps: '10', muscle: 'Petto' }] })
     await user.click(screen.getByText('Panca piana').closest('button')!)
-    expect(screen.queryByText('Progressione')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Progressione' })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('3')).toHaveValue('3')
   })
 })

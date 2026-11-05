@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtDayMon, fmtDayMonthFull, fmtShortDate } from '@/lib/dateFormat'
+import { fmtDayMon, fmtDayMonthFull, fmtShortDate, giornoSettimana } from '@/lib/dateFormat'
 import { uid } from '@/lib/uid'
 
 describe('formattazione date', () => {
@@ -31,5 +31,14 @@ describe('uid', () => {
 
   it('mantiene il prefisso', () => {
     expect(uid('cat_').startsWith('cat_')).toBe(true)
+  })
+})
+
+describe('il giorno della settimana', () => {
+  it('si legge nel fuso del telefono, con la maiuscola', () => {
+    expect(giornoSettimana('2026-11-03', 'it')).toBe('Mar')
+    expect(giornoSettimana('2026-11-08', 'it')).toBe('Dom')
+    expect(giornoSettimana('2026-11-03', 'en')).toBe('Tue')
+    expect(giornoSettimana('non una data')).toBe('')
   })
 })

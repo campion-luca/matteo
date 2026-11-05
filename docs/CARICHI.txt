@@ -1,16 +1,19 @@
 COME RAGIONA L'APP SUI CARICHI
 ==============================
-Aggiornato al 3 novembre 2026.
+Aggiornato al 4 novembre 2026.
 
 Questo foglio dice, a parole, cosa fa l'app quando ti propone un peso
 mentre esegui una scheda: quando parla, quando sta zitta, in che ordine
 applica le regole e dove ancora non arriva. Va aggiornato ogni volta
 che una regola cambia.
 
-DUE SISTEMI. Le schede create dal 27 ottobre 2026 in poi usano le
-PROGRESSIONI (punto 13, in fondo): ogni riga ne ha una, scelta da chi
-scrive la scheda. Le schede di prima restano col carico consigliato dei
-punti 1-12, che vale solo per loro.
+DUE SISTEMI, RIGA PER RIGA. Nelle schede create dal 27 ottobre 2026 in
+poi ogni riga può avere una PROGRESSIONE (punto 13, in fondo), scelta da
+chi scrive la scheda con l'interruttore «Progressione». Dal 4 novembre
+2026 è facoltativa e spenta di serie: una riga senza progressione ha
+serie e colpi scritti a mano e usa il CARICO CONSIGLIATO dei punti 1-12.
+Le schede di prima non hanno l'interruttore e restano tutte sul carico
+consigliato.
 
 
 1. IN BREVE
@@ -343,8 +346,12 @@ Su quello che manca del tutto:
 Le regole stanno in src/features/gym/progression.ts, scritto da te: funzioni
 pure che l'app usa senza modificarle. Qui c'è come le usa.
 
-Chi scrive la scheda (il coach, o tu per te) sceglie per ogni riga uno
-di tre preset. Sono un suggerimento:
+Chi scrive la scheda (il coach, o tu per te) accende l'interruttore
+«Progressione» sulle righe che vuole (spento di serie: una riga senza
+segue il carico consigliato, punti 1-12) e sceglie uno di tre preset.
+Spegnendolo la progressione scelta resta nel form, e riaccendendolo si
+ritrova; salvata spenta, la riga non ce l'ha. I preset sono un
+suggerimento:
   - Multiarticolare ... top set + back-off col RIR
                         (top set da 5 a RIR 2, poi 3 × 8 al -10%)
   - Mono grande ....... doppia progressione 3 × 8-12, fino a 4 serie

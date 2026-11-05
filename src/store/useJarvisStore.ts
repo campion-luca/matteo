@@ -182,6 +182,9 @@ export interface GymSchedaExercise {
 export interface GymScheda {
   id: string
   title: string
+  // Una riga in più sotto il nome, facoltativa ("Petto e tricipiti, 60 minuti"):
+  // si legge più piccola nell'elenco, nel dettaglio e nella card di oggi.
+  sottotitolo?: string
   exercises: GymSchedaExercise[]
   createdAt: string
   updatedAt: string
@@ -302,7 +305,9 @@ export interface JarvisState {
 //       aggiornato una scheda nuova, `progressione` e `conProgressioni` sparivano.
 //   3 → le tecniche allenanti (2 nov 2026), per lo stesso motivo: il form di
 //       prima riscriverebbe la riga senza `tecnica`.
-export const VERSIONE_DATI = 3
+//   4 → il sottotitolo della scheda (4 nov 2026): il form di prima ricostruisce
+//       la scheda coi campi che conosce, e lo toglierebbe.
+export const VERSIONE_DATI = 4
 
 // La versione del tema corrente. Alzarla rimette tutti gli account sul layout di
 // default una volta, al primo caricamento dopo l'aggiornamento; poi la scelta

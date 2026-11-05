@@ -11,6 +11,7 @@
 // Qui si disegna e basta: i conti stanno in numeriOggi.ts e nei moduli che la
 // app usava già (settimane di fila, forza su 100, massimali).
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { AngoloPiegato } from '@/components/ui/AngoloPiegato'
 import { useShallow } from 'zustand/react/shallow'
 import { NUC } from '@/lib/jarvis-tokens'
 import { Icons } from '@/components/ui/Icons'
@@ -338,8 +339,7 @@ function SchedaDiOggiDesktop({ onApriEsercizio }: { onApriEsercizio: (ex: Palest
         <div style={{ minWidth: 0 }}>
           <div style={{ ...ETICHETTA, color: 'var(--accent-su-ink)' }}>
             {fattaOggi ? t('Oggi · {scheda} · fatta', { scheda: scheda.title })
-              : inCorsoOggi ? t('In corso · {scheda}', { scheda: scheda.title })
-              : t('Oggi · {scheda}', { scheda: scheda.title })}
+              : `${inCorsoOggi ? t('In corso · {scheda}', { scheda: scheda.title }) : t('Oggi · {scheda}', { scheda: scheda.title })}${scheda.sottotitolo ? ` · ${scheda.sottotitolo}` : ''}`}
           </div>
           <div style={{ fontFamily: NUC.display, fontSize: 56, fontWeight: 800, lineHeight: .9, textTransform: 'uppercase', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {tData(muscoli[0]?.muscolo ?? scheda.title)}
@@ -429,15 +429,15 @@ function CartaScheda({ scheda, numero, ultima, oggi, onApri }: {
   const riga: CSSProperties = { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, fontFamily: NUC.display, fontWeight: 700, textTransform: 'uppercase' }
   return (
     <button type="button" onClick={onApri} className="j-focus j-desk-carta">
-      <svg aria-hidden width="22" height="22" viewBox="0 0 22 22" style={{ position: 'absolute', top: -2, right: -2 }}>
-        <polygon points="0,0 22,0 22,22" fill="var(--bg)"/>
-        <polygon points="0,0 22,22 0,22" fill="var(--line)" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="miter"/>
-      </svg>
+      <AngoloPiegato/>
       <span aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, left: 10, width: 1, background: 'var(--j-accent)', opacity: .45 }}/>
       <span style={{ ...ETICHETTA, fontSize: 11.5, display: 'block' }}>{scheda.draft ? t('Bozza') : `N° ${String(numero).padStart(2, '0')}`}</span>
       <span style={{ display: 'block', fontFamily: NUC.display, fontSize: 26, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>
         {scheda.title.trim() || t('Senza nome')}
       </span>
+      {scheda.sottotitolo && (
+        <span style={{ display: 'block', fontFamily: NUC.font, fontSize: 13, color: 'var(--fg-mute)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>{scheda.sottotitolo}</span>
+      )}
       <span style={{ ...riga, fontSize: 15, marginTop: 10 }}>
         <span>{esercizi} <span style={{ marginLeft: 10 }}>{t('es.')}</span></span>
         <span>{durata ? `≈${fmtOre(durata)}` : '—'}</span>

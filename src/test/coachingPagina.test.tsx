@@ -47,15 +47,26 @@ describe('la pagina del Coaching', () => {
   })
   afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
-  it('ha due card, Trova un coach e Seguiti, e in alto la chat e i codici', async () => {
+  // Dal 4 nov 2026 il coach non vede «Trova un coach»: chi segue, e chi gli
+  // chiede di essere seguito.
+  it('il coach ha due card, Seguiti e Richieste, e in alto la chat e i codici', async () => {
     apri()
     const schede = await screen.findAllByRole('tab')
-    expect(schede.map(s => s.textContent)).toEqual([expect.stringMatching(/^Trova un coach/), expect.stringMatching(/^Seguiti/)])
+    expect(schede.map(s => s.textContent)).toEqual([expect.stringMatching(/^Seguiti/), expect.stringMatching(/^Richieste/)])
     expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Codici' })).toBeInTheDocument()
     // Il codice non si genera più da qui.
-    expect(await screen.findByText('Nessuno ti segue.')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('CODICE')).not.toBeInTheDocument()
+    expect(screen.queryByText('Nessuno ti segue.')).not.toBeVisible()
+  })
+
+  it('un atleta ha una card sola, Trova un coach', async () => {
+    useRuolo.setState({ coach: false })
+    server({ coach: false })
+    apri()
+    const schede = await screen.findAllByRole('tab')
+    expect(schede.map(s => s.textContent)).toEqual([expect.stringMatching(/^Trova un coach/)])
+    expect(await screen.findByText('Nessuno ti segue.')).toBeVisible()
   })
 
   it('i seguiti hanno nome e cognome, e il profilo accanto alla x', async () => {

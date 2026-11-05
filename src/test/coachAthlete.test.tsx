@@ -346,31 +346,54 @@ describe('Migliori alzate — senza il corpo libero', () => {
     expect(screen.queryByText('massimale stimato')).not.toBeInTheDocument()
   })
 
-  it('la classifica guarda chili, colpi e serie insieme, e di ogni esercizio prende l’alzata migliore', () => {
+  // Dal 4 nov 2026 una per gruppo — petto, gambe, dorso, spalle — invece delle
+  // prime tre in assoluto, dove vincevano sempre le gambe.
+  const exM = (n: string, muscle: string, history: PalestraHistoryEntry[]) => ({ ...ex(n, history), muscle })
+
+  it('dentro un gruppo vince chi sposta più chili, colpi e serie insieme, con la sua alzata migliore', () => {
     render(<CoachAthlete data={dati([
-      // Una singola pesante: 100 kg spostati in tutto.
-      ex('Stacco', [h({ date: '2026-08-20', kg: 100, reps: 1, sets_n: 1 })]),
       // 3 × 10 a 60: 1800 kg. E una giornata più leggera, che non è la migliore.
-      ex('Panca piana', [h({ date: '2026-08-20', kg: 60, reps: 10, sets_n: 3 }), h({ date: '2026-08-27', kg: 40, reps: 10, sets_n: 3 })]),
-      // 4 × 12 a 30: 1440 kg.
-      ex('Lat machine', [h({ date: '2026-08-20', kg: 30, reps: 12, sets_n: 4 })]),
+      exM('Panca piana', 'Petto', [h({ date: '2026-08-20', kg: 60, reps: 10, sets_n: 3 }), h({ date: '2026-08-27', kg: 40, reps: 10, sets_n: 3 })]),
+      // 3 × 12 a 20: 720 kg, sempre petto: resta fuori.
+      exM('Croci', 'Petto', [h({ date: '2026-08-20', kg: 20, reps: 12, sets_n: 3 })]),
     ])}/>)
-    const nomi = screen.getAllByText(/^(Stacco|Panca piana|Lat machine)$/).map(e => e.textContent)
-    expect(nomi).toEqual(['Panca piana', 'Lat machine', 'Stacco'])
+    expect(screen.getByText('Panca piana')).toBeInTheDocument()
+    expect(screen.queryByText('Croci')).not.toBeInTheDocument()
     expect(classifica()).toHaveTextContent('60 kg')
     expect(classifica()).not.toHaveTextContent('40 kg')
   })
 
-  it('se ne vedono tre, e «Tutte» porta ai grafici dove ci sono le altre', async () => {
+  it('una per petto, gambe, dorso e spalle, in quest’ordine; «Tutte» porta ai grafici', async () => {
     const user = userEvent.setup()
     const onGrafici = vi.fn()
     render(<CoachAthlete
-      data={dati(['Panca piana', 'Squat', 'Curl', 'Lat machine'].map((n, i) => ex(n, [h({ date: '2026-08-20', kg: 20 * (i + 1) })])))}
+      data={dati([
+        exM('Leg press', 'Gambe', [h({ date: '2026-08-20', kg: 200 })]),
+        exM('Military press', 'Spalle', [h({ date: '2026-08-20', kg: 40 })]),
+        exM('Panca piana', 'Petto', [h({ date: '2026-08-20', kg: 60 })]),
+        exM('Lat machine', 'Dorso', [h({ date: '2026-08-20', kg: 50 })]),
+        exM('Curl', 'Bicipiti', [h({ date: '2026-08-20', kg: 30 })]),
+      ])}
       onApriGrafici={onGrafici}
     />)
-    expect(screen.getAllByText(/^(Panca piana|Squat|Curl|Lat machine)$/)).toHaveLength(3)
+    const nomi = screen.getAllByText(/^(Leg press|Military press|Panca piana|Lat machine|Curl)$/).map(e => e.textContent)
+    expect(nomi).toEqual(['Panca piana', 'Leg press', 'Lat machine', 'Military press'])
     await user.click(screen.getByRole('button', { name: /Tutte/ }))
     expect(onGrafici).toHaveBeenCalledOnce()
+  })
+
+  it('senza nessuno dei quattro gruppi la sezione resta, lo dice, e «Tutte» porta ai grafici', async () => {
+    const user = userEvent.setup()
+    const onGrafici = vi.fn()
+    render(<CoachAthlete data={dati([exM('Curl', 'Bicipiti', [h({ date: '2026-08-20' })])])} onApriGrafici={onGrafici}/>)
+    expect(screen.getByText('Nessuna alzata di petto, gambe, dorso o spalle: le altre sono in «Tutte».')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Tutte/ }))
+    expect(onGrafici).toHaveBeenCalledOnce()
+  })
+
+  it('un gruppo senza alzate non compare', () => {
+    render(<CoachAthlete data={dati([exM('Panca piana', 'Petto', [h({ date: '2026-08-20' })]), exM('Squat', 'Gambe', [h({ date: '2026-08-20' })])])}/>)
+    expect(screen.getAllByText(/^(Panca piana|Squat)$/).map(e => e.textContent)).toEqual(['Panca piana', 'Squat'])
   })
 })
 
@@ -390,6 +413,8 @@ describe('CoachSessioni — anteprima e correzione', () => {
     render(<CoachSessioni data={allievo} schedeAssegnate={[scheda]}/>)
     await user.click(screen.getByText('Settimana 1'))
     expect(screen.getByText(/1 carico salito/)).toBeInTheDocument()
+    // La data col giorno della settimana davanti: il 20 agosto 2026 è un giovedì.
+    expect(screen.getByText('Gio')).toBeInTheDocument()
     // Il dettaglio dell'esercizio è ancora chiuso: lo si legge dalla riga.
     expect(screen.queryByText(/\+2,5 kg/)).not.toBeInTheDocument()
   })

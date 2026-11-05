@@ -10,7 +10,7 @@ import { NUC } from '@/lib/jarvis-tokens'
 import { NucCard, NucEyebrow } from '@/components/ui/NucComponents'
 import { Icons } from '@/components/ui/Icons'
 import { fmtKg, fmtNum, fmtVol, fmtDurata, setRepsOf } from '@/features/gym/gymModel'
-import { fmtShortDate, fmtDayMon } from '@/lib/dateFormat'
+import { fmtShortDate, fmtDayMon, giornoSettimana } from '@/lib/dateFormat'
 import { useT, useTData } from '@/lib/i18n'
 import type { AthleteData } from '@/lib/coach'
 import type { GymScheda, PalestraHistoryEntry } from '@/store/useJarvisStore'
@@ -104,8 +104,11 @@ export function CoachSessioni({ data, schedeAssegnate, inizio, onConfronto, onCo
           return (
             <div key={k}>
               <TestataSettimana s={s} aperta={aperto} onToggle={vuota ? undefined : () => apri(k)}/>
+              {/* Le sessioni rientrano sotto la loro settimana: più strette e
+                  allineate a destra, si leggono come il contenuto della
+                  tendina sopra e non come un'altra settimana. */}
               {aperto && !vuota && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, paddingLeft: 28 }}>
                   {s.giornate.map(g => (
                     <RigaGiornata
                       key={g.date} g={g}
@@ -244,7 +247,11 @@ function RigaGiornata({ g, aperta, onToggle, onCorreggi }: { g: Giornata; aperta
         }}/>
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontFamily: NUC.label, fontSize: 13, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>{fmtShortDate(g.date)}</span>
+            {/* Il giorno della settimana davanti alla data: chi allena ragiona
+                per «martedì», e «03/11/26» da solo non lo dice. */}
+            <span style={{ flexShrink: 0, fontFamily: NUC.label, fontSize: 13, color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontWeight: 600 }}>{giornoSettimana(g.date)}</span> {fmtShortDate(g.date)}
+            </span>
             <span style={{ fontSize: 13, color: 'var(--fg-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {g.soloHyrox ? t('Solo hyrox') : nomiSchede.length ? nomiSchede.join(' + ') : t('Senza scheda')}
             </span>

@@ -99,8 +99,8 @@ describe('il form della scheda — esercizi compressi', () => {
 
     await user.click(screen.getByRole('button', { name: /Aggiungi esercizio/ }))
     // La prima si è richiusa sul suo nome; la nuova è aperta, vuota, col cursore dentro.
-    // Su una scheda nuova serie e colpi li dà la progressione: non ancora scelta, un trattino.
-    expect(riga('Squat')).toHaveTextContent('–')
+    // La progressione è spenta di serie: la riga dice le sue serie e i suoi colpi.
+    expect(riga('Squat')).toHaveTextContent('3×8')
     expect(screen.getAllByLabelText('Nome esercizio')).toHaveLength(1)
     expect(screen.getByLabelText('Nome esercizio')).toHaveValue('')
     expect(screen.getByLabelText('Nome esercizio')).toHaveFocus()
@@ -199,14 +199,36 @@ describe('il form della scheda — corpo libero come in allenamento', () => {
     const user = userEvent.setup()
     montaCon(conUltima(0))
     await user.click(riga('Crunch al cavo'))
-    expect(screen.queryByText('Progressione')).not.toBeInTheDocument()
+    // L'interruttore c'è, spento e fermo, e dice perché.
+    const interruttore = screen.getByRole('switch', { name: 'Progressione' })
+    expect(interruttore).toBeDisabled()
+    expect(interruttore).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('A corpo libero non c’è un carico da far salire')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('3')).toHaveValue('3')
   })
 
-  it('con dei chili l’ultima volta, la progressione si sceglie', async () => {
+  it('su una riga ancora senza nome la progressione si vede, e si accende scelto l’esercizio', async () => {
+    const user = userEvent.setup()
+    render(
+      <ConfirmDeleteProvider>
+        <SchedaFormPage scheda={null} palestraExercises={[]} onCancel={vi.fn()} onSave={vi.fn()} onSaveDraft={vi.fn()}/>
+      </ConfirmDeleteProvider>,
+    )
+    const interruttore = screen.getByRole('switch', { name: 'Progressione' })
+    expect(interruttore).toBeDisabled()
+    expect(screen.getByText('Scegli prima l’esercizio: la regola parte da quanto ci sollevi')).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Nome esercizio'), 'Panca piana')
+    expect(interruttore).toBeEnabled()
+    await user.click(interruttore)
+    expect(screen.getByRole('button', { name: 'Multiarticolare' })).toBeInTheDocument()
+  })
+
+  it('con dei chili l’ultima volta, la progressione si può accendere e scegliere', async () => {
     const user = userEvent.setup()
     montaCon(conUltima(20))
     await user.click(riga('Crunch al cavo'))
+    await user.click(screen.getByRole('switch', { name: 'Progressione' }))
     expect(screen.getByRole('button', { name: 'Multiarticolare' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('3')).not.toBeInTheDocument()
   })
