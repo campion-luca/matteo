@@ -135,6 +135,14 @@ export const supabase = {
   rpc: rest.rpc.bind(rest),
 }
 
+/** Una richiesta allo Storage dei file col token dell'utente, come
+ *  `chiamaFunzione` per le funzioni: al diario personale (lib/diario.ts) servono
+ *  quattro chiamate — caricare, sostituire, scaricare, togliere — e non il
+ *  pacchetto storage-js intero. `percorso` è quello dopo `storage/v1/`. */
+export function chiamaStorage(percorso: string, init?: RequestInit): Promise<Response> {
+  return authedFetch(new URL(`storage/v1/${percorso}`, baseUrl).href, init)
+}
+
 /** Chiama una Edge Function col token dell'utente. È tutto quello che serve di
  *  `functions-js` — una POST — e non vale il pacchetto intero: le funzioni qui
  *  sono una sola (l'invio delle notifiche push, vedi lib/push.ts). */

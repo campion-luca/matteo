@@ -28,6 +28,8 @@ import { useT, translate, LANG_LABELS, LANGS, type Lang, type TFn } from '@/lib/
 import { AvatarProfilo, ProfiloPubblico } from './ProfiloPubblico'
 import { etaDi, salvaProfilo, useProfilo } from '@/lib/profili'
 import { leggiScorta } from '@/features/gym/resetCatalogo'
+import { DiarioPersonale, VisoreDiario, AzioniFile } from './DiarioPersonale'
+import type { DiarioFile } from '@/lib/diario'
 
 interface JarvisProfileProps {
   open: boolean
@@ -141,7 +143,12 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // problema sul prossimo overlay; una pagina non ce l'ha proprio, e per due
   // pannelli grandi come questi è anche la forma giusta.
   // È il profilo che vedono il coach e chi segui (vedi ProfiloPubblico).
-  const [pannello, setPannello] = useState<null | 'pubblico'>(null)
+  // Il diario personale è una pagina come il profilo pubblico, e un suo file
+  // una pagina ancora sotto: dal file la freccia torna al diario, dal diario
+  // al profilo.
+  const [pannello, setPannello] = useState<null | 'pubblico' | 'diario' | 'file'>(null)
+  // Il file del diario aperto nel visore (vedi DiarioPersonale).
+  const [fileAperto, setFileAperto] = useState<DiarioFile | null>(null)
   // Chi è entrato su questo telefono, riletto a ogni apertura. Letto una volta
   // sola al montaggio restava quello di prima se la sessione passava a un altro
   // account senza uscire (un link di conferma aperto qui): foto e profilo
@@ -307,8 +314,9 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
   // percorso e infortuni sparivano senza una parola. Nel resto del profilo la
   // freccia salva.
   const indietro = () => {
+    if (pannello === 'file') { setPannello('diario'); return }
     if (pannello) {
-      if (!pubblicoSporco) { setPannello(null); return }
+      if (pannello === 'diario' || !pubblicoSporco) { setPannello(null); return }
       chiedi(() => { setPubblicoSporco(false); setPannello(null) }, t('le modifiche'), {
         eyebrow: t('Profilo pubblico'),
         title: t('Uscire senza salvare?'),
@@ -386,7 +394,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               si salvava già uscendo dal campo; i dati generali col loro tasto. */}
           <button
             onClick={indietro}
-            aria-label={pannello ? (mieiDati ? t('Torna al profilo') : t('Torna alle impostazioni')) : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
+            aria-label={pannello === 'file' ? t('Torna al diario') : pannello ? (mieiDati ? t('Torna al profilo') : t('Torna alle impostazioni')) : mieiDati ? t('Chiudi il profilo') : t('Chiudi le impostazioni')}
             className="j-btn-back"
           >
             <Icons.back size={20} stroke={1.8}/>
@@ -394,6 +402,8 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
           <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             <div className="j-page-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {pannello === 'pubblico' ? t('Profilo pubblico')
+                : pannello === 'diario' ? t('Diario personale')
+                : pannello === 'file' && fileAperto ? fileAperto.nome
                 : mieiDati ? t('Profilo') : t('Impostazioni')}
             </div>
             {/* La conferma (vedi `useSalvato`), sotto il titolo: dove le altre
@@ -414,12 +424,22 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
               <Icons.check size={12} stroke={2.6}/>{salvato ? t('Salvato') : <span aria-hidden>{t('Salvato')}</span>}
             </span>
           </div>
+          {/* Un file del diario aperto: scaricarlo e sostituirlo stanno qui,
+              accanto al suo nome, e non tolgono spazio alla pagina sotto. */}
+          {pannello === 'file' && fileAperto && <AzioniFile voce={fileAperto} onSostituito={setFileAperto}/>}
         </div>
       </div>
 
-      {/* Content */}
+      {/* Un file del diario: a tutta pagina, fuori dalla colonna. Una pagina
+          HTML è un'app a sé, e stretta nei margini delle voci del profilo
+          perderebbe la sua larghezza. */}
+      {pannello === 'file' && fileAperto ? (
+        <VisoreDiario voce={fileAperto}/>
+      ) : (
       <div className="j-colonna" style={{ flex: 1, overflowY: 'auto', padding: '10px 20px 40px', display: 'flex', flexDirection: 'column', gap: mieiDati && !pannello ? 26 : 20 }}>
-      {pannello === 'pubblico' ? (
+      {pannello === 'diario' ? (
+        <DiarioPersonale userId={userId} onApri={v => { setFileAperto(v); setPannello('file') }}/>
+      ) : pannello === 'pubblico' ? (
         <ProfiloPubblico userId={userId} onSporco={setPubblicoSporco}/>
       ) : (
         <>
@@ -461,6 +481,20 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         </div>
         {erroreFoto && (
           <div style={{ fontFamily: NUC.font, fontSize: 13, lineHeight: 1.5, color: 'var(--danger)', marginTop: -8 }}>{erroreFoto}</div>
+        )}
+
+        {/* Il diario personale, sotto la foto: una riga che apre la sua
+            pagina, con i propri file (visibili solo a sé). Senza accesso non
+            c'è: il diario è nel cloud, di qualcuno. */}
+        {userId && (
+          <div style={CARD}>
+            <RigaImpostazione
+              icona={<Icons.book size={18} stroke={1.9}/>}
+              titolo={t('Il mio diario personale')}
+              sotto={t('I tuoi file, visibili solo a te')}
+              onClick={() => setPannello('diario')}
+            />
+          </div>
         )}
 
         {/* ── Dati generali: quattro numeri in griglia, la data sotto ── */}
@@ -697,6 +731,7 @@ export function JarvisProfile({ open, onClose, sezione = 'impostazioni' }: Jarvi
         </>
       )}
       </div>
+      )}
 
     </div>
   )
